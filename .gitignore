@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+out/
+*.tsbuildinfo
+
+# Electron / electron-builder
+apps/shell/resources/opencode2api/
+apps/shell/resources/dsh-cli/
+apps/shell/resources/dsh-web/
+apps/shell/release/
+*.exe
+!native/**/build/
+
+# Native addon builds
+apps/shell/native/*/build/
+apps/shell/native/*/.cache/
+
+# Go
+vendor/opencode2api/dist/
+vendor/opencode2api/bin/
+
+# Logs
+*.log
+logs/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Runtime data
+userData/
+data/
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Test artifacts
+coverage/
+.nyc_output/

@@ -1,0 +1,23 @@
+NOTICE
+
+free-code-deepseek-harness integrates third-party open source software.
+All upstream code lives under vendor/ (git subtrees, read-only unless synced).
+
+1. deepseek-ai/deepseek-harness — MIT
+   https://github.com/deepseek-ai/deepseek-harness
+   Core agent runtime + official web GUI consumed as a subtree at vendor/deepseek-harness.
+
+2. 6Kmfi6HP/opencode2api — MIT (verify at sync)
+   https://github.com/6Kmfi6HP/opencode2api
+   OpenAI/Anthropic-compatible proxy over OpenCode, consumed as a subtree at
+   vendor/opencode2api. The application bundles per-platform standalone binaries
+   built from this source (see scripts/build-opencode2api.sh).
+
+3. salathleizhang/deepseek-harness-desktop — MIT
+   https://github.com/salathleizhang/deepseek-harness-desktop
+   Reference implementation only. Its desktop-shell architecture (supervisor /
+   readiness / spawn patterns in apps/desktop/src/main/) was studied as a design
+   reference; no code was copied verbatim.
+
+This project is an independent shell and is NOT affiliated with or endorsed by
+DeepSeek, OpenCode, or any of the upstream projects above.
