@@ -1,0 +1,9 @@
+export type {
+  Pool,
+  PoolConfig,
+  WorkerHandle,
+  WorkerStatus,
+} from './types.js';
+export { OpenCodePool, getFreePort } from './pool.js';
+export { createLoadBalancer } from './lb.js';
+export type { LoadBalancer, LoadBalancerOptions } from './lb.js';
