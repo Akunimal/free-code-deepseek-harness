@@ -27,12 +27,22 @@ export class ChatMlImporter implements ChatImporter {
     const files = this.jsonFiles(pathOrFolder);
     return files.map((f) => {
       const st = statSync(f);
+      let workspaceRoot: string | undefined;
+      let title: string | undefined;
+      try {
+        const raw = JSON.parse(readFileSync(f, 'utf8')) as { workspaceRoot?: string; title?: string };
+        workspaceRoot = raw.workspaceRoot;
+        title = raw.title;
+      } catch {
+        /* no metadata */
+      }
       return {
         id: f,
-        title: f.split(/[\\/]/).pop() ?? f,
+        title: title ?? (f.split(/[\\/]/).pop() ?? f),
         updatedAt: st.mtimeMs,
         messageCount: 0, // filled in read
         agent: 'chatml',
+        workspaceRoot,
       };
     });
   }
@@ -42,6 +52,7 @@ export class ChatMlImporter implements ChatImporter {
       messages?: unknown[];
       title?: string;
       id?: string;
+      workspaceRoot?: string;
     };
     const messages = Array.isArray(raw) ? (raw as unknown[]) : (raw.messages ?? []);
     return {
@@ -51,6 +62,7 @@ export class ChatMlImporter implements ChatImporter {
       title: raw.title ?? (chatId.split(/[\\/]/).pop() ?? 'chatml import'),
       createdAt: 0,
       updatedAt: statSync(chatId).mtimeMs,
+      workspaceRoot: raw.workspaceRoot,
       messages: messages.map((m) => {
         const msg = m as { role?: string; content?: unknown };
         const content = Array.isArray(msg.content)
