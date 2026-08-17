@@ -1,0 +1,18 @@
+# Runtime state
+config.json
+stats.json
+*.log
+*.log.gz
+
+# Build output
+dist/
+bin/
+/opencode2api
+/opencode2api.exe
+
+# Editor and OS files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+.env

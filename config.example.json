@@ -1,0 +1,34 @@
+{
+  "model_alias": {
+    "deepseek-v4-flash": "deepseek-v4-flash-free",
+    "mimo-v2.5": "mimo-v2.5-free",
+    "ling-3.0-flash": "ling-3.0-flash-free",
+    "nemotron-3-ultra": "nemotron-3-ultra-free",
+    "north-mini-code": "north-mini-code-free",
+    "laguna-s-2.1": "laguna-s-2.1-free"
+  },
+  "reasoning_effort_map": {
+    "minimal": "low",
+    "medium": "medium",
+    "high": "high"
+  },
+  "force_disable_thinking": false,
+  "max_tokens_cap": 131072,
+  "max_tokens_cap_per_model": {
+    "deepseek-v4-flash-free": 131072,
+    "laguna-s-2.1-free": 262144,
+    "mimo-v2.5-free": 1048576,
+    "nemotron-3-ultra-free": 1000000,
+    "nemotron-3.5-lightning-free": 1000000
+  },
+  "socks5_proxies": [
+    {
+      "name": "local",
+      "addr": "127.0.0.1:1080",
+      "username": "",
+      "password": ""
+    }
+  ],
+  "active_socks5": "",
+  "socks5_paid_direct": false
+}
