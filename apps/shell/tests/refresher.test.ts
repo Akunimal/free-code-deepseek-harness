@@ -27,7 +27,8 @@ function mockFetch(okIds: string[], latencies: Record<string, number> = {}): voi
       }
       if (u.endsWith('/v1/chat/completions')) {
         const body = JSON.parse(String(init?.body)) as { model: string };
-        await new Promise((r) => setTimeout(r, latencies[body.model] ?? 20));
+        const latency = latencies[body.model] ?? 20;
+        await new Promise((r) => setTimeout(r, latency));
         return okIds.includes(body.model)
           ? new Response(JSON.stringify({ choices: [] }), { status: 200 })
           : new Response('err', { status: 500 });
@@ -55,8 +56,9 @@ describe('model-refresher', () => {
     });
 
     // Catalog keeps all models incl. non-responders.
-    expect(catalog.providers['deepseek-free'].models).toHaveLength(3);
-    const reasoner = catalog.providers['deepseek-free'].models.find((m) => m.id === 'deepseek-reasoner')!;
+    const freeProvider = catalog.providers['deepseek-free']!;
+    expect(freeProvider.models).toHaveLength(3);
+    const reasoner = freeProvider.models.find((m) => m.id === 'deepseek-reasoner')!;
     expect(reasoner.responds).toBe(false);
 
     // settings.yaml syncs only responders.
@@ -70,7 +72,7 @@ describe('model-refresher', () => {
   });
 
   it('auto-picks default model = best latency responder', async () => {
-    mockFetch(['deepseek-chat', 'deepseek-reasoner', 'deepseek-v3.2-free'], 10);
+    mockFetch(['deepseek-chat', 'deepseek-reasoner', 'deepseek-v3.2-free']);
     const { home, data } = tmpDirs();
     await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
     const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
@@ -79,7 +81,7 @@ describe('model-refresher', () => {
   });
 
   it('does NOT override default when user picked one manually', async () => {
-    mockFetch(['deepseek-chat', 'deepseek-reasoner', 'deepseek-v3.2-free'], 10);
+    mockFetch(['deepseek-chat', 'deepseek-reasoner', 'deepseek-v3.2-free']);
     const { home, data } = tmpDirs();
     // User already picked a model in settings.yaml.
     const { writeFileSync, mkdirSync } = await import('node:fs');
