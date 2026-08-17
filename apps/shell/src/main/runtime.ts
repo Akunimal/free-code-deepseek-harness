@@ -1,0 +1,79 @@
+import { createLoadBalancer, LoadBalancer, OpenCodePool, Pool, WorkerHandle } from '@freecode/opencode-adapter';
+import { HarnessSupervisor, HarnessInstance } from './harness-supervisor.js';
+import { join, resolve } from 'node:path';
+
+/**
+ * Shell runtime — owns the full backend stack of the desktop app:
+ *   opencode-adapter pool (N workers) -> LoadBalancer -> dsh web supervisor.
+ *
+ * The LB is the single entry point the renderer talks to; the harness gets
+ * OPENCODE2API_LB_URL injected so its /api calls land on the pool.
+ */
+
+export interface ShellRuntimeConfig {
+  /** Resources dir containing the opencode2api binaries + dsh CLI. */
+  resourcesDir: string;
+  /** Node binary used to run the dsh CLI. */
+  nodePath: string;
+  /** User data dir (DSH_HOME + worker logs). */
+  userDataDir: string;
+  poolSize?: number;
+  lbAuthHeader?: string;
+}
+
+export interface ShellRuntime {
+  pool: Pool;
+  lb: LoadBalancer;
+  supervisor: HarnessSupervisor;
+  workers: () => WorkerHandle[];
+  start(): Promise<void>;
+  stop(): Promise<void>;
+}
+
+export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<ShellRuntime> {
+  const binName =
+    process.platform === 'win32'
+      ? 'opencode2api-win-x64.exe'
+      : process.platform === 'darwin'
+        ? 'opencode2api-mac-arm64'
+        : 'opencode2api-linux-x64';
+  const binaryPath = join(cfg.resourcesDir, binName);
+
+  const pool = new OpenCodePool({
+    size: cfg.poolSize ?? 4,
+    binaryPath,
+    workDir: join(cfg.userDataDir, 'workers'),
+    logDir: join(cfg.userDataDir, 'logs'),
+  });
+
+  const lb = createLoadBalancer({
+    pool,
+    authHeader: cfg.lbAuthHeader,
+    logError: (msg, err) => console.error(`[lb] ${msg}`, err ?? ''),
+  });
+  await lb.listen();
+
+  const cliEntry = resolve(join(cfg.resourcesDir, 'dsh', 'apps', 'cli', 'lib', 'bin.js'));
+  const supervisor = new HarnessSupervisor({
+    nodePath: cfg.nodePath,
+    cliEntry,
+    homeDir: join(cfg.userDataDir, 'dsh-home'),
+    lbUrl: lb.url(),
+  });
+
+  return {
+    pool,
+    lb,
+    supervisor,
+    workers: () => pool.workers(),
+    start: async () => {
+      await pool.start();
+      await supervisor.start();
+    },
+    stop: async () => {
+      await supervisor.stop();
+      await lb.close();
+      await pool.stop();
+    },
+  };
+}

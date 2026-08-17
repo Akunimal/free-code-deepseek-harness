@@ -1,0 +1,19 @@
+{
+  "name": "@freecode/shell",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Electron main + preload for the free-code-deepseek-harness desktop shell",
+  "type": "module",
+  "main": "./dist/main/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@freecode/opencode-adapter": "workspace:*",
+    "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9"
+  }
+}

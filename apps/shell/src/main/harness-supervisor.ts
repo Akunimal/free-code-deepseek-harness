@@ -1,0 +1,255 @@
+import { spawn, ChildProcess } from 'node:child_process';
+import { join } from 'node:path';
+import { mkdirSync } from 'node:fs';
+
+/**
+ * Harness supervisor — owns the `dsh web` child process.
+ *
+ * The real CLI entry (`vendor/deepseek-harness/apps/cli/lib/bin.js`) is run
+ * with the bundled Node runtime:
+ *   node <cli-entry> web --port 0 --host 127.0.0.1
+ * `--port 0` lets the OS pick a free port; the web bundle prints the readonly
+ * line `dsh web: http://127.0.0.1:<PORT>` once the Loader tree settles, which
+ * is the readiness signal this supervisor grabs.
+ */
+
+export interface HarnessSupervisorConfig {
+  /** Absolute path to the Node binary (bundled runtime). */
+  nodePath: string;
+  /** Absolute path to the dsh CLI entry (lib/bin.js). */
+  cliEntry: string;
+  /** Directory for DSH_HOME (profiles, logs, sessions). */
+  homeDir: string;
+  /** Port the load balancer is listening on (injected as OPENCODE2API_LB_URL). */
+  lbUrl: string | null;
+  /** Extra env passed through to the child. */
+  extraEnv?: Record<string, string>;
+  /** Respawn backoff base (ms). Default 1000. */
+  backoffBaseMs?: number;
+  /** Max respawns per 60s window. Default 5. */
+  restartBudget?: number;
+}
+
+export interface HarnessInstance {
+  url: string; // http://127.0.0.1:<port>
+  pid: number;
+  startedAt: number;
+  restarts: number;
+}
+
+export type HarnessStatus = 'stopped' | 'starting' | 'ready' | 'unhealthy';
+
+const READY_RE = /(?:dsh web: )?(?:ready on )?(http:\/\/127\.0\.0\.1:\d+)/;
+const READY_TIMEOUT_MS = 30_000;
+const RESTART_WINDOW_MS = 60_000;
+const STOP_GRACE_MS = 5_000;
+const BACKOFF_MAX_MS = 30_000;
+
+export class HarnessSupervisor {
+  private cfg: HarnessSupervisorConfig;
+  private proc: ChildProcess | null = null;
+  private status: HarnessStatus = 'stopped';
+  private url: string | null = null;
+  private restarts = 0;
+  private lastRestartAt = 0;
+  private startedAt = 0;
+  private stopping = false;
+  private restartTimer: NodeJS.Timeout | null = null;
+  private readyListeners = new Set<(h: HarnessInstance) => void>();
+  private stuckListeners = new Set<(h: HarnessInstance) => void>();
+  private outBuffer = '';
+
+  constructor(config: HarnessSupervisorConfig) {
+    this.cfg = { ...config, backoffBaseMs: config.backoffBaseMs ?? 1_000 };
+  }
+
+  get statusValue(): HarnessStatus {
+    return this.status;
+  }
+
+  get currentUrl(): string | null {
+    return this.url;
+  }
+
+  async start(): Promise<void> {
+    if (this.proc && this.proc.exitCode === null) return;
+    this.stopping = false;
+    if (this.status === 'starting') return;
+    await this.spawn();
+  }
+
+  async stop(): Promise<void> {
+    this.stopping = true;
+    if (this.restartTimer) {
+      clearTimeout(this.restartTimer);
+      this.restartTimer = null;
+    }
+    const proc = this.proc;
+    this.proc = null;
+    this.status = 'stopped';
+    this.url = null;
+    if (proc && proc.exitCode === null) {
+      killTree(proc.pid ?? -1);
+      // Give the tree a moment to die; tests assert no orphan pids.
+      await sleep(1_500);
+    }
+  }
+
+  async restart(): Promise<void> {
+    this.stopping = false;
+    if (this.proc && this.proc.exitCode === null) {
+      const old = this.proc;
+      this.proc = null;
+      killTree(old.pid ?? -1);
+      await sleep(300);
+    }
+    await this.spawn();
+  }
+
+  onReady(cb: (h: HarnessInstance) => void): () => void {
+    this.readyListeners.add(cb);
+    return () => this.readyListeners.delete(cb);
+  }
+
+  onStuck(cb: (h: HarnessInstance) => void): () => void {
+    this.stuckListeners.add(cb);
+    return () => this.stuckListeners.delete(cb);
+  }
+
+  // ---- internals ----
+
+  private async spawn(): Promise<void> {
+    if (this.stopping) return;
+
+    this.status = 'starting';
+    this.url = null;
+    this.outBuffer = '';
+    mkdirSync(this.cfg.homeDir, { recursive: true });
+    this.startedAt = Date.now();
+
+    const dshArgs = ['web', '--port', '0', '--host', '127.0.0.1'];
+    const env: Record<string, string> = {
+      ...process.env as Record<string, string>,
+      DSH_HOME: this.cfg.homeDir,
+      ...(this.cfg.lbUrl ? { OPENCODE2API_LB_URL: this.cfg.lbUrl } : {}),
+      ...this.cfg.extraEnv,
+    };
+
+    console.log(`[supervisor] spawn ${this.cfg.nodePath} ${this.cfg.cliEntry} ${dshArgs.join(' ')}`);
+    let proc: ChildProcess;
+    try {
+      proc = spawn(this.cfg.nodePath, [this.cfg.cliEntry, ...dshArgs], {
+        env,
+        cwd: this.cfg.homeDir,
+        windowsHide: process.platform === 'win32',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+    } catch (err) {
+      console.error('[supervisor] spawn failed:', err);
+      this.status = 'unhealthy';
+      return;
+    }
+    this.proc = proc;
+
+    proc.stdout?.on('data', (chunk: Buffer) => {
+      const text = chunk.toString();
+      process.stdout.write(`[dsh] ${text}`);
+      this.outBuffer += text;
+      this.tryGrabs();
+    });
+    proc.stderr?.on('data', (chunk: Buffer) => {
+      process.stderr.write(`[dsh:err] ${chunk.toString()}`);
+      this.outBuffer += chunk.toString();
+      this.tryGrabs();
+    });
+
+    proc.on('exit', (code, signal) => {
+      if (this.stopping) return; // deliberate
+      console.warn(`[supervisor] dsh exited code=${code} signal=${signal}`);
+      if (this.status === 'ready') {
+        this.status = 'unhealthy';
+      } else {
+        this.status = 'stopped';
+      }
+      this.url = null;
+      void this.maybeRespawn();
+    });
+
+    // Readiness deadline: if no `dsh web: http://...` line within 30s, kill and respawn.
+    setTimeout(() => {
+      if (this.proc === proc && this.status === 'starting' && proc.exitCode === null) {
+        console.error('[supervisor] dsh did not report readiness in 30s, killing');
+        killTree(proc.pid ?? -1); // exit handler respawns
+      }
+    }, READY_TIMEOUT_MS).unref();
+  }
+
+  private tryGrabs(): void {
+    if (this.status !== 'starting') return;
+    const m = this.outBuffer.match(READY_RE);
+    if (!m) return;
+    const url = m[1]!;
+    this.url = url;
+    this.status = 'ready';
+    const inst: HarnessInstance = {
+      url,
+      pid: this.proc?.pid ?? -1,
+      startedAt: this.startedAt,
+      restarts: this.restarts,
+    };
+    console.log(`[supervisor] READY ${url}`);
+    for (const cb of this.readyListeners) cb(inst);
+  }
+
+  private async maybeRespawn(): Promise<void> {
+    if (this.stopping) return;
+    const now = Date.now();
+    if (now - this.lastRestartAt >= RESTART_WINDOW_MS) {
+      this.restarts = 0;
+    }
+    this.lastRestartAt = now;
+    if (this.restarts >= (this.cfg.restartBudget ?? 5)) {
+      console.error('[supervisor] restart budget exceeded, giving up');
+      for (const cb of this.stuckListeners) {
+        cb({ url: this.url ?? '', pid: -1, startedAt: this.startedAt, restarts: this.restarts });
+      }
+      return;
+    }
+    this.restarts++;
+    const base = this.cfg.backoffBaseMs ?? 1_000;
+    const delay = Math.min(base * 2 ** (this.restarts - 1), BACKOFF_MAX_MS);
+    console.warn(`[supervisor] respawn in ${delay}ms (attempt ${this.restarts})`);
+    this.restartTimer = setTimeout(() => {
+      this.restartTimer = null;
+      void this.spawn();
+    }, delay);
+    this.restartTimer.unref();
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function killTree(pid: number): void {
+  try {
+    if (process.platform === 'win32') {
+      spawn('taskkill', ['/T', '/F', '/PID', String(pid)], { windowsHide: true });
+    } else {
+      try {
+        process.kill(pid, 'SIGTERM');
+      } catch {
+        /* already dead */
+      }
+      setTimeout(() => {
+        try {
+          process.kill(pid, 'SIGKILL');
+        } catch {
+          /* already dead */
+        }
+      }, STOP_GRACE_MS).unref();
+    }
+  } catch {
+    /* best effort */
+  }
+}
