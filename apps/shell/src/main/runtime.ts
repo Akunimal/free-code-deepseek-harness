@@ -1,5 +1,6 @@
 import { createLoadBalancer, LoadBalancer, OpenCodePool, Pool, WorkerHandle } from '@freecode/opencode-adapter';
 import { HarnessSupervisor, HarnessInstance } from './harness-supervisor.js';
+import { SecretStore, resolveSecrets } from './secret-store.js';
 import { join, resolve } from 'node:path';
 
 /**
@@ -19,6 +20,10 @@ export interface ShellRuntimeConfig {
   userDataDir: string;
   poolSize?: number;
   lbAuthHeader?: string;
+  /** Secret vault; apiKeyEnv refs are resolved into spawn env (not process.env). */
+  secrets?: SecretStore;
+  /** Env var names to resolve from the vault into the harness child env. */
+  secretEnvNames?: string[];
 }
 
 export interface ShellRuntime {
@@ -54,11 +59,21 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
   await lb.listen();
 
   const cliEntry = resolve(join(cfg.resourcesDir, 'dsh', 'apps', 'cli', 'lib', 'bin.js'));
+  const secretEnvNames = cfg.secretEnvNames ?? ['FREECODE_PUBLIC_KEY'];
+  const extraEnv: Record<string, string> = {};
+  if (cfg.secrets) {
+    for (const [k, v] of Object.entries(
+      await resolveSecrets(cfg.secrets, secretEnvNames),
+    )) {
+      extraEnv[k] = v;
+    }
+  }
   const supervisor = new HarnessSupervisor({
     nodePath: cfg.nodePath,
     cliEntry,
     homeDir: join(cfg.userDataDir, 'dsh-home'),
     lbUrl: lb.url(),
+    extraEnv,
   });
 
   return {
