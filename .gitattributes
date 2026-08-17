@@ -1,0 +1,5 @@
+# Normalize everything to LF (shell scripts must stay LF on Windows)
+* text=auto eol=lf
+
+# Vendored upstream trees: keep exactly as upstream has them
+vendor/** text=auto
