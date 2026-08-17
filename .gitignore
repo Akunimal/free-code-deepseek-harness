@@ -36,6 +36,11 @@ logs/
 userData/
 data/
 
+# opencode2api runtime artifacts (written to cwd)
+config.json
+stats.json
+session_*.json
+
 # OS junk
 .DS_Store
 Thumbs.db

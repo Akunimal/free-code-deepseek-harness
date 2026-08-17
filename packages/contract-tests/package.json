@@ -1,0 +1,17 @@
+{
+  "name": "@freecode/contract-tests",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@freecode/opencode-adapter": "workspace:*",
+    "@freecode/shared-types": "workspace:*",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.9"
+  }
+}

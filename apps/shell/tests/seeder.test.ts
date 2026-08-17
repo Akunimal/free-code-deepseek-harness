@@ -17,13 +17,17 @@ describe('provider-seeder', () => {
     const { seeded } = seedProviders({ homeDir: home, lbBaseUrl: LB });
     expect(seeded).toBe(true);
     const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
-    expect(settings['llm-pi-ai'].defaultProvider).toBe('deepseek-free');
+    expect(settings['llm-pi-ai'].defaultProvider).toBeUndefined(); // no such key upstream
     const p = settings['llm-pi-ai'].providers['deepseek-free'];
+    expect(p.displayName).toBe('DeepSeek Free (pool)');
     expect(p.api).toBe('openai-completions');
     expect(p.baseURL).toBe(LB);
     expect(p.apiKeyEnv).toBe('FREECODE_PUBLIC_KEY');
     expect(p.defaultInput).toEqual(['text']);
-    expect(p.models).toEqual([]);
+    // Non-empty models: upstream refuses empty lists (settings-rejected).
+    expect(p.models).toEqual([{ id: 'deepseek-v4-flash' }]);
+    // Marker written for the versioned seed.
+    expect(existsSync(join(home, '.freecode-seeded-v1'))).toBe(true);
     rmSync(home, { recursive: true, force: true });
   });
 
@@ -49,19 +53,17 @@ describe('provider-seeder', () => {
     rmSync(home, { recursive: true, force: true });
   });
 
-  it('never deletes user-added providers and keeps user default', () => {
+  it('never deletes user-added providers', () => {
     const home = tmpHome();
     const path = join(home, 'settings.yaml');
     writeFileSync(
       path,
-      `llm-pi-ai:\n  defaultProvider: omniroute\n  providers:\n    omniroute:\n      api: openai-completions\n      baseURL: http://127.0.0.1:9999\n      models: []\n`,
+      `llm-pi-ai:\n  providers:\n    omniroute:\n      api: openai-completions\n      baseURL: http://127.0.0.1:9999\n      models:\n        - id: route-model\n`,
     );
     const { seeded } = seedProviders({ homeDir: home, lbBaseUrl: LB });
     expect(seeded).toBe(true);
     const after = loadYaml(readFileSync(path, 'utf8')) as any;
     const section = after['llm-pi-ai'];
-    // User default preserved.
-    expect(section.defaultProvider).toBe('omniroute');
     // User provider intact.
     expect(section.providers.omniroute.baseURL).toBe('http://127.0.0.1:9999');
     // Seed added alongside.

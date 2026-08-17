@@ -28,7 +28,6 @@ export interface RefresherConfig {
   authHeader?: string; // e.g. 'Bearer public'
   probeTimeoutMs?: number; // default 5000
   onUpdate?: (catalog: ModelCatalog) => void;
-  isDefaultPicked?: () => boolean; // .user-picked-default marker
 }
 
 const CATALOG_FILE = 'model-catalog.json';
@@ -87,7 +86,9 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
   mkdirSync(cfg.userDataDir, { recursive: true });
   writeFileSync(catalogPath, JSON.stringify(catalog, null, 2), 'utf8');
 
-  // 4. Sync settings.yaml models: only responders, latency asc.
+  // 4. Sync settings.yaml models: only responders, latency asc. Upstream
+  // schema wants model objects ({id,...}), not bare strings — a plain string
+  // list fails the llm-pi-ai route validator.
   const responders = entries
     .filter((m) => m.responds)
     .sort((a, b) => (a.latencyMs ?? Infinity) - (b.latencyMs ?? Infinity));
@@ -103,19 +104,7 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
     defaultInput: ['text'],
     models: [],
   });
-  free.models = responders.map((m) => m.id);
-  // 5. Auto-pick default model unless the user picked one.
-  if (!cfg.isDefaultPicked?.() && responders.length > 0) {
-    const current = section.defaultModel as string | undefined;
-    if (
-      current === undefined ||
-      !responders.some((m) => m.id === current) ||
-      !Array.isArray(free.models) ||
-      !free.models.includes(current)
-    ) {
-      section.defaultModel = responders[0]!.id;
-    }
-  }
+  free.models = responders.map((m) => ({ id: m.id }));
   writeSettings(settingsPath, settings);
 
   cfg.onUpdate?.(catalog);

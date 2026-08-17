@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { load as loadYaml } from 'js-yaml';
@@ -61,47 +61,55 @@ describe('model-refresher', () => {
     const reasoner = freeProvider.models.find((m) => m.id === 'deepseek-reasoner')!;
     expect(reasoner.responds).toBe(false);
 
-    // settings.yaml syncs only responders.
+    // settings.yaml syncs only responders, as schema-valid model objects.
     const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
     expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([
-      'deepseek-v3.2-free',
-      'deepseek-chat',
+      { id: 'deepseek-v3.2-free' },
+      { id: 'deepseek-chat' },
     ]);
     expect(updated).not.toBeNull();
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
-  it('auto-picks default model = best latency responder', async () => {
-    mockFetch(['deepseek-chat', 'deepseek-reasoner', 'deepseek-v3.2-free']);
+  it('orders settings.yaml models by latency asc (fastest first = de-facto default)', async () => {
+    mockFetch(['deepseek-chat', 'deepseek-reasoner', 'deepseek-v3.2-free'], {
+      'deepseek-chat': 90,
+      'deepseek-v3.2-free': 5,
+      'deepseek-reasoner': 40,
+    });
     const { home, data } = tmpDirs();
     await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
     const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
-    expect(settings['llm-pi-ai'].defaultModel).toBe('deepseek-chat');
+    // Upstream has no defaultModel key (schema = {providers}); the harness UI
+    // preselects the first model in the list, so the fastest responder leads.
+    expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([
+      { id: 'deepseek-v3.2-free' },
+      { id: 'deepseek-reasoner' },
+      { id: 'deepseek-chat' },
+    ]);
+    expect(settings['llm-pi-ai'].defaultModel).toBeUndefined();
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
-  it('does NOT override default when user picked one manually', async () => {
-    mockFetch(['deepseek-chat', 'deepseek-reasoner', 'deepseek-v3.2-free']);
+  it('merges into settings.yaml without touching other user sections', async () => {
+    mockFetch(['deepseek-chat', 'deepseek-v3.2-free'], { 'deepseek-v3.2-free': 5, 'deepseek-chat': 30 });
     const { home, data } = tmpDirs();
-    // User already picked a model in settings.yaml.
+    // A user section (e.g. OmniRoute added via wizard) must survive the merge.
     const { writeFileSync, mkdirSync } = await import('node:fs');
     mkdirSync(home, { recursive: true });
     writeFileSync(
       join(home, 'settings.yaml'),
-      `llm-pi-ai:\n  defaultModel: deepseek-reasoner\n  providers:\n    deepseek-free:\n      api: openai-completions\n      baseURL: ${LB}\n      models: []\n`,
+      `llm-pi-ai:\n  providers:\n    omniroute:\n      displayName: OmniRoute\n      api: openai-completions\n      baseURL: http://127.0.0.1:8080/v1\n      models:\n        - id: route-model\n`,
     );
-    await refreshModels({
-      lbBaseUrl: LB,
-      homeDir: home,
-      userDataDir: data,
-      isDefaultPicked: () => existsSync(join(data, '.user-picked-default')),
-    });
+    await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
     const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
-    // defaultModel preserved even though reasoner responds (marker absent but
-    // a non-responding default also keeps: reasoner responds here, yet the
-    // rule is "user picked" -> no override when marker present; without
-    // marker, current default that still responds is kept).
-    expect(settings['llm-pi-ai'].defaultModel).toBe('deepseek-reasoner');
+    // User route untouched...
+    expect(settings['llm-pi-ai'].providers['omniroute'].baseURL).toBe('http://127.0.0.1:8080/v1');
+    // ...and deepseek-free was added with responders (objects, not strings).
+    expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([
+      { id: 'deepseek-v3.2-free' },
+      { id: 'deepseek-chat' },
+    ]);
     rmSync(dirname(home), { recursive: true, force: true });
   });
 

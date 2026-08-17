@@ -1,21 +1,33 @@
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { load as loadYaml, dump as dumpYaml } from 'js-yaml';
 
 /**
- * Provider seeder — runs ONCE after the harness supervisor reports ready.
- * Idempotent merge into $DSH_HOME/settings.yaml. Only DeepSeek free is
- * seeded; OmniRoute stays out of the seed (user adds it via wizard).
+ * Provider seeder — runs ONCE the harness-supervisor reports ready.
+ * Idempotent merge into $DSH_HOME/settings.yaml.
+ *
+ * Upstream contract (verified against deepseek-harness master, llm-pi-ai):
+ *   - The settings user layer lives at `<harness home>/settings.yaml` and
+ *     carries per-namespace sections. The `llm-pi-ai:` section schema is
+ *     `{ providers: { <route>: <profile> } }` — there is NO `defaultProvider`
+ *     key (it is rejected by the namespace validator).
+ *   - A hand-declared route needs `api`, `baseURL`, and a NON-EMPTY `models`
+ *     list of `{id,...}` entries, otherwise the section is refused
+ *     (`settings-rejected`) and the provider never registers. `models: []`
+ *     is NOT serviceable — the seeder must plant at least one known model;
+ *     the model-refresher then syncs the full latency-sorted list.
+ *   - Only DeepSeek free is seeded; OmniRoute stays out of the seed (the
+ *     user adds it via the on-demand wizard).
  */
 
 export interface SeederConfig {
   homeDir: string; // DSH_HOME
-  lbBaseUrl: string; // http://127.0.0.1:<PUERTO_LB>
+  lbBaseUrl: string; // http://127.0.0.1:<PUERTO_LB>/v1
   apiKeyEnv?: string; // default FREECODE_PUBLIC_KEY
-  defaultProvider?: string; // default deepseek-free
 }
 
 interface ProviderEntry {
+  displayName?: string;
   api: string;
   baseURL: string;
   apiKeyEnv?: string;
@@ -25,7 +37,6 @@ interface ProviderEntry {
 
 interface SettingsShape {
   'llm-pi-ai'?: {
-    defaultProvider?: string;
     providers?: Record<string, ProviderEntry>;
   };
   [key: string]: unknown;
@@ -33,6 +44,10 @@ interface SettingsShape {
 
 const DEFAULT_PROVIDER = 'deepseek-free';
 const DEFAULT_API_KEY_ENV = 'FREECODE_PUBLIC_KEY';
+/** First known model of opencode2api public mode (verified by live probe).
+ *  The model-refresher replaces this with the full latency-sorted list. */
+const FALLBACK_MODELS = [{ id: 'deepseek-v4-flash' }];
+const MARKER_FILE = '.freecode-seeded-v1';
 
 export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: string } {
   const settingsPath = join(cfg.homeDir, 'settings.yaml');
@@ -42,34 +57,35 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
   const providers = section.providers ?? (section.providers = {});
 
   const existing = providers[DEFAULT_PROVIDER];
+  let seeded = false;
   if (existing) {
-    // Rule: existing deepseek-free -> update baseURL ONLY, nothing else.
-    let seeded = false;
+    // Rule: existing deepseek-free -> update baseURL ONLY (port can change
+    // between boots). If the models list is empty (a broken legacy seed),
+    // plant the fallback so the route stays serviceable.
     if (existing.baseURL !== cfg.lbBaseUrl) {
       existing.baseURL = cfg.lbBaseUrl;
+      seeded = true;
+    }
+    if (Array.isArray(existing.models) && existing.models.length === 0) {
+      existing.models = FALLBACK_MODELS;
       seeded = true;
     }
     if (seeded) writeSettings(settingsPath, settings);
     return { seeded, path: settingsPath };
   }
 
-  // Fresh seed.
+  // Fresh seed — serviceable from the first boot (models non-empty).
   providers[DEFAULT_PROVIDER] = {
+    displayName: 'DeepSeek Free (pool)',
     api: 'openai-completions',
     baseURL: cfg.lbBaseUrl,
     apiKeyEnv: cfg.apiKeyEnv ?? DEFAULT_API_KEY_ENV,
     defaultInput: ['text'],
-    models: [], // model-refresher fills after first probe
+    models: FALLBACK_MODELS,
   };
-  // defaultProvider only if absent or pointing at a deleted provider.
-  if (
-    section.defaultProvider === undefined ||
-    !Object.prototype.hasOwnProperty.call(providers, section.defaultProvider)
-  ) {
-    section.defaultProvider = cfg.defaultProvider ?? DEFAULT_PROVIDER;
-  }
 
   writeSettings(settingsPath, settings);
+  writeMarker(cfg.homeDir, cfg.lbBaseUrl);
   return { seeded: true, path: settingsPath };
 }
 
@@ -84,7 +100,21 @@ function readSettings(path: string): SettingsShape {
 
 function writeSettings(path: string, settings: SettingsShape): void {
   mkdirSync(dirname(path), { recursive: true });
-  // Preserve the user's existing file content ordering by dumping fresh YAML.
   const yaml = dumpYaml(settings, { noRefs: true, lineWidth: 120 });
-  writeFileSync(path, yaml, 'utf8');
+  // Atomic write: tmp + rename.
+  const tmp = `${path}.tmp`;
+  writeFileSync(tmp, yaml, 'utf8');
+  renameSync(tmp, path);
+}
+
+function writeMarker(homeDir: string, lbBaseUrl: string): void {
+  try {
+    writeFileSync(
+      join(homeDir, MARKER_FILE),
+      JSON.stringify({ version: 3, seededAt: Date.now(), lbBaseUrl }),
+      'utf8',
+    );
+  } catch {
+    /* marker is advisory; seeding already succeeded */
+  }
 }
