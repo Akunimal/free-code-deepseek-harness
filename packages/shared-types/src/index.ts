@@ -79,3 +79,5 @@ export interface FreeCodeApi {
     openFolder(): Promise<void>;
   };
 }
+
+export * from './chat.js';
