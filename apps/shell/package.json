@@ -11,9 +11,11 @@
   },
   "dependencies": {
     "@freecode/opencode-adapter": "workspace:*",
+    "@freecode/shared-types": "workspace:*",
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {
-    "@types/js-yaml": "^4.0.9"
+    "@types/js-yaml": "^4.0.9",
+    "electron": "^33.4.11"
   }
 }
