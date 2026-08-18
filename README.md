@@ -96,3 +96,104 @@ The work branch is `dev`. Harness contracts, shell tests, the modified upstream 
 ## License
 
 MIT — see [LICENSE](LICENSE) and [NOTICE](NOTICE). Upstream notices and licensing are retained inside `vendor/deepseek-harness`.
+
+---
+
+# free-code-deepseek-harness — Español
+
+> Shell de escritorio multiplataforma para [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness): zero-config, proveedor DeepSeek Free de fábrica, pool local de workers `opencode2api` y la interfaz web completa del harness.
+
+Esta sección en español está incluida en el README principal para que la portada de GitHub muestre ambos idiomas. También está disponible como documento independiente en [README.es.md](README.es.md).
+
+## Sobre este fork
+
+Este repositorio es el fork público [Akunimal/free-code-deepseek-harness](https://github.com/Akunimal/free-code-deepseek-harness) de [`deepseek-ai/deepseek-harness`](https://github.com/deepseek-ai/deepseek-harness). Conserva el harness original y agrega una aplicación GUI de escritorio para ejecutarlo como producto multiplataforma: Electron administra los procesos locales, prepara el proveedor DeepSeek Free, levanta el `opencode2api` pool y abre la interfaz web completa del harness dentro de una ventana nativa.
+
+La rama de producto es `dev`; el fork mantiene `master` como referencia del upstream. Cada tag `v*` dispara una release reproducible con builds nativos para las tres plataformas soportadas:
+
+- Windows: instalador NSIS `.exe`.
+- macOS: aplicación/DMG de Electron.
+- Linux: paquete de escritorio/AppImage de Electron.
+
+Los artifacts se construyen en una matriz Windows/macOS/Linux, pasan los tests de contrato y se publican en la release de GitHub del fork. No es una UI de demostración: cada build incluye el runtime del harness, sus dependencias workspace, el pool local, la configuración zero-config y las superficies web upstream documentadas abajo.
+
+## Portable, vibecoding casi gratis y límites reales
+
+El producto está diseñado para ser autocontenido y portable: el runtime de Node/Electron, el CLI `dsh`, la UI, las dependencias nativas y los binarios `opencode2api` viajan dentro del artefacto. No hace falta instalar Node, pnpm, Git, Go ni Python para ejecutar una release. En Windows se publican dos ejecutables: un instalador NSIS y un `.exe` **portable** que se puede copiar a otra carpeta o máquina; el portable guarda sus datos en `data/` junto al ejecutable. macOS entrega la app/DMG y Linux la AppImage, también con el runtime incluido.
+
+El objetivo es facilitar vibecoding prácticamente gratis usando la ruta DeepSeek Free de OpenCode. El overlay de Pool tiene el slider **Accounts / workers** de 1 a 16 (por defecto 4): controla cuántos procesos locales `opencode2api` atienden en paralelo y mejora la concurrencia. No crea cuentas nuevas, no rota identidades y no evade límites. Todos los workers públicos usan la ruta `Bearer public`, y el proveedor gratuito puede limitar solicitudes por IP, cuota, disponibilidad o política del servicio; por eso subir el slider no aumenta la cuota gratuita y puede provocar rate limits. Con una clave privada, todos los workers usan esa clave y siguen aplicando los límites de esa cuenta/proveedor.
+
+Para probar el build Windows generado en este checkout, abrí `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.0-win-x64-portable.exe`; el instalador queda como `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.0-win-x64-setup.exe`. El directorio desempaquetado de desarrollo es `apps/shell/release/win-unpacked/FreeCode DeepSeek Harness.exe`.
+
+## Qué entrega
+
+Esta aplicación empaqueta el harness upstream y agrega la capa desktop necesaria para usarlo sin preparar manualmente procesos, puertos ni providers:
+
+- Arranca `opencode2api` en un pool local, con health checks, round-robin, sticky sessions, SSE transparente, backoff y presupuesto de respawn.
+- Levanta `dsh web` en loopback, detecta readiness, reinicia el harness y abre su UI en una ventana Electron aislada/sandboxed.
+- Siembra `deepseek-free` apuntando al pool, conserva providers del usuario y actualiza el catálogo de modelos por latencia cada 30 minutos o bajo demanda.
+- Trae preconfigurada la cuenta pública de OpenCode (`Bearer public`) como `FREECODE_PUBLIC_KEY`, por lo que DeepSeek Free queda utilizable sin API key privada; una clave privada de OpenCode del usuario nunca se sobrescribe.
+- Detecta rutas OpenAI-compatible locales de OmniRoute, guarda secretos mediante keytar o fallback de archivo y expone IPC zod tipado por preload.
+- Incluye ventana, tray, notificaciones, overlay de estado del pool, abrir la carpeta de configuración, importación OpenCode SQLite/ChatML y continuación en workspace.
+- Escribe logs JSONL rotados, ofrece un botón de actualización GitHub, puede sincronizar upstream y recompilar desde un checkout local, prepara stages reproducibles y publica únicamente desde tags `v*`.
+- Añade un fondo animado por conversación en CSS: dos gradientes radiales livianos, sin canvas ni loop JavaScript, con soporte para `prefers-reduced-motion`.
+
+## Permisos: exactamente el modelo del harness original
+
+El fork no amplía ni reemplaza el modelo de permisos de `deepseek-ai/deepseek-harness`. Las conversaciones conservan sus preguntas, aprobaciones de usuario, presets de permisos, políticas de aprobación, sandbox y eventos persistidos del upstream. También se conservan las tres modalidades de sandbox (`read-only`, `workspace-write` y `danger-full-access`), el confinamiento de filesystem cuando la composición lo activa, las confirmaciones de herramientas/comandos y la escalada de un comando bloqueado sólo con `sandbox_permissions`, justificación y aprobación del usuario.
+
+Electron agrega únicamente el límite del proceso de escritorio: renderer aislado, `contextIsolation`, `sandbox`, `nodeIntegration: false`, preload tipado y servicios locales en `127.0.0.1`. No concede automáticamente acceso al filesystem, shell, red, workspace ni herramientas del agente. La credencial pública de OpenCode sólo habilita el transporte/modelo DeepSeek Free; no cambia la autoridad del agente. Si el upstream cambia una política, preset o modo de permisos, este fork lo hereda al sincronizar la subtree. El inventario completo y sus límites están en [UPSTREAM-FEATURES.md](docs/UPSTREAM-FEATURES.md).
+
+## Todas las funciones del DeepSeek Harness incluido
+
+La UI no es un mock reducido: se distribuyen las superficies upstream de conversación, sesiones, workspaces, sidebar, subagentes, modelos/providers, settings, temas, locale, attachments, markdown, comandos slash, input `/` y `@`, tools, tool tree, feedback, permisos, plan, goal, preguntas, aprobaciones, compaction, trayectoria, jobs, workflows, deliverables, skills, web search/fetch, plugins, LSP, filesystem/code runtime, persistencia, streaming, gateway, extensiones y módulo de cliente. El inventario exacto de los **219 paquetes declarados** y sus límites está en [UPSTREAM-FEATURES.md](docs/UPSTREAM-FEATURES.md); un contract test obliga a actualizarlo si upstream agrega una superficie.
+
+## Inicio rápido
+
+Requisitos: Node `>=22.19`, pnpm `11.22`, Git Bash y un checkout con los subtrees vendorizados.
+
+```bash
+pnpm install
+pnpm build:vendor
+pnpm build
+pnpm test
+pnpm test:contract
+```
+
+Para desarrollo del shell:
+
+```bash
+pnpm --filter @freecode/shell dev
+```
+
+Para preparar un runtime completo y un instalador:
+
+```bash
+pnpm build:desktop
+```
+
+El stage no usa `pnpm install --prod`: el harness necesita sus workspace links internos.
+
+## Documentación
+
+- [Arquitectura](docs/ARCHITECTURE.md)
+- [Inventario exhaustivo upstream](docs/UPSTREAM-FEATURES.md)
+- [Contratos y tests](docs/CONTRACT-TESTS.md)
+- [Importación de chats](docs/CHAT-IMPORT.md)
+- [Continuación en workspace](docs/WORKSPACE-BRIDGE.md)
+- [UI animada](docs/UI.md)
+- [Logs y updates](docs/LOGGING-AND-UPDATES.md)
+- [Release y packaging](docs/RELEASE.md)
+- [Sincronización upstream](docs/UPSTREAM-SYNC.md)
+
+## Configuración y seguridad
+
+Todo lo local escucha en `127.0.0.1`. El vault resuelve secretos hacia el proceso hijo sin mutar `process.env`. El menú Ayuda siempre ofrece un check explícito; `FREECODE_ENABLE_UPDATES=1` habilita además los checks en segundo plano contra GitHub Releases. Desde un checkout de código fuente, el mismo flujo puede traer el harness original, correr los tests y recompilar localmente. El runtime guarda `dsh-home`, workers y logs bajo el `userData` de Electron.
+
+## Estado del proyecto
+
+La rama de trabajo es `dev`. El contrato del harness, la suite del shell, la UI upstream modificada y el empaquetado reproducible deben pasar antes de fusionar a `main`. Ver [state.md](state.md) para continuidad operativa.
+
+## Licencia
+
+MIT — ver [LICENSE](LICENSE) y [NOTICE](NOTICE). El código upstream conserva sus avisos y licencia dentro de `vendor/deepseek-harness`.
