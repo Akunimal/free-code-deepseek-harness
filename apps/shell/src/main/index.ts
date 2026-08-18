@@ -1,6 +1,7 @@
-import { app, BrowserWindow, Menu, Tray, nativeImage, Notification } from 'electron';
+import { app, BrowserWindow, Menu, Tray, nativeImage, Notification, dialog } from 'electron';
 import { join, resolve } from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
 import { createShellRuntime, ShellRuntime } from './runtime.js';
 import { createSecretStore, ensureSecret } from './secret-store.js';
 import { seedProviders } from './provider-seeder.js';
@@ -77,6 +78,7 @@ let appLogger: AppLogger | null = null;
 let updateService: UpdateService | null = null;
 let updateTimer: NodeJS.Timeout | null = null;
 let overlayOpen = false;
+let localUpdateRunning = false;
 
 function createMainWindow(harnessUrl: string): void {
   mainWindow = new BrowserWindow({
@@ -137,6 +139,117 @@ function renderOverlayHtml(): string {
 <table><tr><th>id</th><th>status</th><th>addr</th><th>pid</th><th>restarts</th></tr>${rows}</table></body></html>`;
 }
 
+function bundledUpstreamCommit(resources: string): string | undefined {
+  for (const manifestPath of [join(resources, 'runtime-manifest.json'), join(resources, 'freecode', 'runtime-manifest.json')]) {
+    try {
+      const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { upstreamCommit?: unknown };
+      if (typeof manifest.upstreamCommit === 'string') return manifest.upstreamCommit;
+    } catch {
+      // A clean source checkout may not have a generated runtime yet.
+    }
+  }
+  const result = spawnSync('git', ['log', '--all', '--format=%b', '--grep=git-subtree-dir: vendor/deepseek-harness'], {
+    cwd: projectRoot(),
+    encoding: 'utf8',
+    windowsHide: true,
+  });
+  const output = typeof result.stdout === 'string' ? result.stdout : '';
+  const match = output.match(/git-subtree-split:\s*([0-9a-f]+)/i);
+  return match?.[1];
+}
+
+function projectRoot(): string {
+  // dist/src/main -> repository root. This is used only by the source checkout
+  // updater; packaged builds never execute the local rebuild path.
+  return resolve(import.meta.dirname, '../../../../');
+}
+
+async function updateFromMenu(): Promise<void> {
+  if (!updateService) return;
+  const result = await updateService.check();
+  const releaseAvailable = Boolean(result.info?.version);
+  const upstreamAvailable = result.upstream?.available === true;
+
+  if (releaseAvailable) {
+    const version = result.info?.version ?? 'nueva';
+    const suffix = upstreamAvailable ? '\\nTambién hay cambios nuevos en el harness original.' : '';
+    const choice = await dialog.showMessageBox({
+      type: 'info',
+      title: 'Actualización disponible',
+      message: `FreeCode DeepSeek Harness ${version} está disponible.${suffix}`,
+      detail: 'La aplicación descargará la release y se reiniciará para instalarla.',
+      buttons: ['Descargar e instalar', 'Ahora no'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (choice.response === 0) {
+      const install = await updateService.downloadAndInstall();
+      if (install.status === 'failed') {
+        await dialog.showMessageBox({ type: 'error', title: 'No se pudo actualizar', message: install.error ?? 'La descarga falló.' });
+      }
+    }
+    return;
+  }
+
+  if (upstreamAvailable && isDev) {
+    const choice = await dialog.showMessageBox({
+      type: 'info',
+      title: 'Harness original actualizado',
+      message: 'Hay un commit nuevo de deepseek-ai/deepseek-harness.',
+      detail: 'En este checkout local se puede sincronizar la subtree, ejecutar los tests y recompilar el escritorio automáticamente. El árbol debe estar limpio.',
+      buttons: ['Actualizar y recompilar', 'Ahora no'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (choice.response === 0) runLocalUpstreamUpdate();
+    return;
+  }
+
+  if (upstreamAvailable) {
+    await dialog.showMessageBox({
+      type: 'info',
+      title: 'Upstream tiene cambios nuevos',
+      message: 'El harness original avanzó, pero todavía no hay una release del fork para instalar.',
+      detail: 'Este portable es autocontenido y no trae Git, pnpm ni el toolchain para recompilar. Cuando el fork publique la próxima release, aparecerá aquí para descargarla e instalarla.',
+    });
+    return;
+  }
+
+  const details = result.upstream?.error ? `\n\nNo se pudo consultar upstream: ${result.upstream.error}` : '';
+  await dialog.showMessageBox({
+    type: result.status === 'failed' ? 'warning' : 'info',
+    title: result.status === 'failed' ? 'No se pudo completar la comprobación' : 'Sin actualizaciones',
+    message: result.status === 'failed' ? (result.error ?? 'La comprobación de releases falló.') : 'Ya estás usando la versión disponible.',
+    detail: details.trim(),
+  });
+}
+
+function runLocalUpstreamUpdate(): void {
+  if (localUpdateRunning) return;
+  localUpdateRunning = true;
+  const script = resolve(projectRoot(), 'scripts/update-upstream-local.mjs');
+  const node = resolveNodePath({ packaged: false });
+  const child = spawn(node, [script], {
+    cwd: projectRoot(),
+    env: { ...process.env, CI: process.env.CI ?? 'true' },
+    stdio: 'ignore',
+    windowsHide: true,
+  });
+  child.once('error', (error) => {
+    localUpdateRunning = false;
+    appLogger?.logger.error({ err: error }, 'local upstream update failed to start');
+    void dialog.showMessageBox({ type: 'error', title: 'No se pudo actualizar upstream', message: error.message });
+  });
+  child.once('close', (code) => {
+    localUpdateRunning = false;
+    if (code === 0) {
+      void dialog.showMessageBox({ type: 'info', title: 'Actualización completa', message: 'Upstream se sincronizó y el build de escritorio terminó correctamente. Reiniciá el checkout de desarrollo para probarlo.' });
+    } else {
+      void dialog.showMessageBox({ type: 'error', title: 'Actualización incompleta', message: `La sincronización o recompilación terminó con código ${code ?? 'desconocido'}. Revisá la terminal del checkout.` });
+    }
+  });
+}
+
 function buildMenu(): void {
   const template: Electron.MenuItemConstructorOptions[] = [];
   if (process.platform === 'darwin') {
@@ -163,7 +276,7 @@ function buildMenu(): void {
       submenu: [
         {
           label: 'Buscar actualizaciones',
-          click: () => void updateService?.check(),
+          click: () => void updateFromMenu(),
         },
         { label: 'Acerca de', click: () => void import('electron').then(({ dialog }) => dialog.showMessageBox({ message: 'FreeCode DeepSeek Harness' })) },
       ],
@@ -210,11 +323,14 @@ app.whenReady().then(async () => {
   const userDataDir = app.getPath('userData');
   appLogger = createAppLogger(join(userDataDir, 'logs'));
   appLogger.logger.info({ packaged: app.isPackaged, platform: process.platform }, 'shell starting');
+  const resources = resourcesDir();
   updateService = createUpdateService({
-    enabled: process.env.FREECODE_ENABLE_UPDATES === '1',
+    enabled: true,
+    checkReleases: app.isPackaged,
+    upstreamCommit: bundledUpstreamCommit(resources),
     log: (message, details) => appLogger?.logger.info({ details }, message),
   });
-  if (updateService.enabled) {
+  if (process.env.FREECODE_ENABLE_UPDATES === '1') {
     void updateService.check();
     updateTimer = setInterval(() => void updateService?.check(), 6 * 60 * 60 * 1_000);
     updateTimer.unref();

@@ -40,5 +40,5 @@ portable:
 publish:
   provider: github
   owner: Akunimal
-  repo: deepseek-harness
+  repo: free-code-deepseek-harness
   releaseType: draft

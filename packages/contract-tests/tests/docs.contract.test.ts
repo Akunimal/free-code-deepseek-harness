@@ -26,8 +26,10 @@ describe('documentation feature inventory', () => {
     }
   });
 
-  it('both public READMEs link the exhaustive inventory', () => {
+  it('the English primary README and Spanish companion link the exhaustive inventory', () => {
     expect(readFileSync(join(ROOT, 'README.md'), 'utf8')).toContain('docs/UPSTREAM-FEATURES.md');
-    expect(readFileSync(join(ROOT, 'README.en.md'), 'utf8')).toContain('docs/UPSTREAM-FEATURES.md');
+    expect(readFileSync(join(ROOT, 'README.es.md'), 'utf8')).toContain('docs/UPSTREAM-FEATURES.md');
+    expect(readFileSync(join(ROOT, 'README.md'), 'utf8')).toContain('README.es.md');
+    expect(readFileSync(join(ROOT, 'README.es.md'), 'utf8')).toContain('README.md');
   });
 });

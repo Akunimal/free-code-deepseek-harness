@@ -8,6 +8,8 @@ The logger records lifecycle, update checks, and operational metadata. It does n
 
 ## Updates
 
-Updates are opt-in. Set `FREECODE_ENABLE_UPDATES=1` to enable the `electron-updater` adapter configured for GitHub Releases owned by `Akunimal/free-code-deepseek-harness`. The app checks on startup and every six hours, does not auto-download, and installs only through the explicit updater flow. Without the flag, the menu item and service are inert and no network check occurs.
+The Help menu always provides an explicit **Buscar actualizaciones / Check for updates** action. It checks the fork's GitHub Releases and compares the bundled upstream commit with `deepseek-ai/deepseek-harness`; it never downloads or installs without the user's confirmation. A release update is downloaded and installed from that button. Background checks on startup and every six hours remain opt-in through `FREECODE_ENABLE_UPDATES=1`.
+
+When the app is running from a source checkout, the same dialog can run **Update upstream and rebuild locally**. That action requires a clean checkout, pulls the upstream subtree, runs the full tests, and runs `pnpm build:desktop`; it is intentionally unavailable in packaged builds because a portable artifact does not contain Git, pnpm, or the build toolchain.
 
 This policy keeps development, air-gapped use, and local builds deterministic.
