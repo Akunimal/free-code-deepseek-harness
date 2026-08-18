@@ -33,8 +33,18 @@ jobs:
       - name: Install workspace
         run: pnpm install --frozen-lockfile
 
+      - name: Install upstream workspace
+        shell: bash
+        run: pnpm --dir vendor/deepseek-harness install --frozen-lockfile
+
       - name: Build upstream harness
-        run: pnpm build:vendor
+        shell: bash
+        run: |
+          pnpm --dir vendor/deepseek-harness exec tsc -b tsconfig.host.json --noCheck
+          pnpm --dir vendor/deepseek-harness exec tsdown --env.DSH_BUILD_FACE host
+          pnpm --dir vendor/deepseek-harness exec tsc -b tsconfig.client.json --noCheck
+          pnpm --dir vendor/deepseek-harness exec tsdown --env.DSH_BUILD_FACE client
+          pnpm --dir vendor/deepseek-harness run build:web
 
       - name: Run tests
         run: |
