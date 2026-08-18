@@ -16,6 +16,10 @@ describe('release and runtime packaging contracts', () => {
     expect(workflow).toContain('pnpm test:contract');
     expect(workflow).toContain('pnpm build:desktop');
     expect(shellPackage).toContain('electron-builder --config electron-builder.yml --publish never');
+    expect(workflow).toContain('apps/shell/release/*.AppImage');
+    expect(workflow).toContain('apps/shell/release/*.dmg');
+    expect(workflow).toContain('apps/shell/release/*.exe');
+    expect(workflow).not.toContain('apps/shell/release/*\n');
   });
 
   it('keeps the desktop bundle and native runtime closure wired together', () => {

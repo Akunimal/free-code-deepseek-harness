@@ -69,7 +69,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: FreeCode-DeepSeek-Harness-${{ matrix.os }}
-          path: apps/shell/release/*
+          path: |
+            apps/shell/release/*.AppImage
+            apps/shell/release/*.blockmap
+            apps/shell/release/*.dmg
+            apps/shell/release/*.exe
+            apps/shell/release/*.yml
           if-no-files-found: error
 
   publish:
