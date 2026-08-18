@@ -1,6 +1,6 @@
 # state.md — free-code-deepseek-harness
 
-> Estado de continuidad al **2026-08-18**. La auditoría de release quedó consolidada localmente en la rama `dev`; el primer rerun remoto detectó y ya tiene correcciones locales para respawn POSIX y build limpio de Electron.
+> Estado de continuidad al **2026-08-18**. La auditoría de release quedó consolidada localmente en la rama `dev`; el segundo rerun remoto confirmó que el respawn POSIX necesitaba basarse en el estado del worker y esa corrección ya está aplicada.
 
 ## 1. Repositorio
 
@@ -8,7 +8,7 @@
 - Rama activa: `dev`; `main` no fue modificada.
 - Remotes: `origin https://github.com/Akunimal/deepseek-harness.git` (actual public fork), `upstream https://github.com/deepseek-ai/deepseek-harness.git`, and `product https://github.com/Akunimal/free-code-deepseek-harness.git` (previous standalone repository, pending deletion after `delete_repo` authorization).
 - GitHub fork status: `Akunimal/deepseek-harness` is public, `isFork: true`, parent `deepseek-ai/deepseek-harness`; this work is published on its `dev` branch.
-- Último commit de código local: `507d738cb9 fix: make clean multiplatform release deterministic`; corrige el respawn tras señales POSIX y hace que `build:desktop` construya las dependencias del workspace antes de Electron. Está listo para empujar a `origin/dev` junto con la actualización de este estado.
+- Último commit de código local: `4a8ca8e217 fix: make POSIX worker respawn state driven`; hace que el respawn use los estados `unhealthy/stopped`, además de que `build:desktop` construya las dependencias del workspace antes de Electron. Está listo para empujar a `origin/dev` junto con la actualización de este estado.
 - Los artefactos generados grandes están ignorados: `apps/shell/resources/freecode/` y `apps/shell/release/`.
 
 ## 2. Estado de fases
@@ -23,7 +23,7 @@
 | 15 | Completa: logging pino rotado en `<userData>/logs/app.log`. |
 | 16 | Completa: README español/inglés y documentación técnica exhaustiva. |
 | UI | Completa: fondo animado CSS por conversación, inspirado en Hermes GUI, sin canvas ni loop JavaScript. Respeta `prefers-reduced-motion`. |
-| CI/release | Corregida localmente: workflow solo para tags `v*`, matriz Windows/macOS/Linux, instalación limpia de upstream, build de los cuatro binarios nativos, tests, build y artifacts de Release. El run `32090784429` detectó respawn POSIX y orden de build limpio; ambas correcciones están listas para el siguiente run. |
+| CI/release | Corregida localmente: workflow solo para tags `v*`, matriz Windows/macOS/Linux, instalación limpia de upstream, build de los cuatro binarios nativos, tests, build y artifacts de Release. Los runs `32090784429` y `32091316152` detectaron respectivamente orden de build limpio y respawn POSIX; el tercer run debe confirmar el estado-driven fix. |
 
 ## 3. Features documentadas
 
@@ -55,7 +55,7 @@ La documentación también cubre las capas propias del proyecto: supervisor de p
 
 ## 6. Próximos pasos explícitos
 
-1. Empujar `507d738cb9` y esta actualización a `dev`, recrear/empujar `v0.1.0` y verificar el workflow multiplataforma completo.
+1. Empujar `4a8ca8e217` y esta actualización a `dev`, recrear/empujar `v0.1.0` y verificar el workflow multiplataforma completo.
 2. Completar `gh auth refresh --hostname github.com --scopes delete_repo` y borrar `Akunimal/free-code-deepseek-harness`; mantener como fuente pública el fork `Akunimal/deepseek-harness`.
 3. Cuando el árbol esté limpio y se autorice la actualización upstream, ejecutar `bash scripts/sync-upstream.sh` y revisar el diff de subtree.
 
