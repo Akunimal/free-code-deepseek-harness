@@ -24,6 +24,8 @@ The goal is almost-free vibecoding through OpenCode's DeepSeek Free route. The P
 
 **Trade-offs of more workers:** each `opencode2api` process consumes RAM (~80–120 MB each); 4 workers ≈ 400 MB, 16 workers ≈ 1.6 GB on top of Electron itself. If all workers hit the service simultaneously, they may all reach the rate limit ceiling at the same time — more workers does not guarantee more quota, just better concurrency when quota is available. Start with the default (4) and increase only if you notice idle time between requests.
 
+**First launch of the portable:** the portable `.exe` is a self-extracting archive (~444 MB compressed, ~1.6 GB extracted). On each launch it extracts to a temporary directory before Electron starts — this can take 30–90 seconds depending on disk speed and antivirus activity. There is no progress bar during extraction; the window appears once Electron finishes loading. The NSIS installer extracts once at install time, so subsequent launches are faster. If the portable seems stuck, give it a couple of minutes — it is extracting, not frozen.
+
 **Timeouts and patience:** the free DeepSeek route can be slow, especially under heavy load. Timeouts are intentionally generous so that long-running streams are not cut mid-response. If a response takes a while, wait — the stream is still alive, the model is still generating. It is free, after all.
 
 To test the Windows build generated in this checkout, open `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.0-win-x64-portable.exe`; the installer is `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.0-win-x64-setup.exe`. The unpacked development executable is `apps/shell/release/win-unpacked/FreeCode DeepSeek Harness.exe`.
