@@ -6,8 +6,9 @@
 
 - Ruta: `I:\DeepSeek-Harness\free-code-deepseek-harness`.
 - Rama activa: `dev`; `main` no fue modificada.
-- Remote: `origin https://github.com/Akunimal/free-code-deepseek-harness.git`.
-- El árbol está deliberadamente sin commit: los cambios de esta sesión son los cambios de producto que deben revisarse y commitearse por el flujo del equipo.
+- Remotes: `origin https://github.com/Akunimal/deepseek-harness.git` (actual public fork), `upstream https://github.com/deepseek-ai/deepseek-harness.git`, and `product https://github.com/Akunimal/free-code-deepseek-harness.git` (previous standalone repository, preserved).
+- GitHub fork status: `Akunimal/deepseek-harness` is public, `isFork: true`, parent `deepseek-ai/deepseek-harness`; this work is published on its `dev` branch.
+- Commit publicado: `41285cd84d feat: complete DeepSeek harness desktop shell` en `origin/dev`.
 - Los artefactos generados grandes están ignorados: `apps/shell/resources/freecode/` y `apps/shell/release/`.
 
 ## 2. Estado de fases

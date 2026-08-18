@@ -4,6 +4,18 @@
 
 [Español](README.md)
 
+## About this fork
+
+This repository is the public fork of [`deepseek-ai/deepseek-harness`](https://github.com/deepseek-ai/deepseek-harness). It keeps the upstream harness and adds a desktop GUI product for running it cross-platform: Electron owns the local processes, prepares the DeepSeek Free provider, starts the `opencode2api` pool, and opens the complete harness web UI inside a native window.
+
+The product branch is `dev`; the fork keeps `master` as the upstream reference. Every `v*` tag triggers a reproducible release with native builds for all three supported platforms:
+
+- Windows: NSIS `.exe` installer.
+- macOS: Electron app/DMG.
+- Linux: Electron desktop package/AppImage.
+
+Artifacts are built in a Windows/macOS/Linux matrix, pass the contract tests, and are published to the fork's GitHub release. This is not a demo UI: every build contains the harness runtime, its workspace dependencies, the local worker pool, zero-config setup, and the upstream web surfaces documented below.
+
 ## What it delivers
 
 This application packages the upstream harness and adds the desktop layer needed to use it without manually preparing processes, ports, or providers:
