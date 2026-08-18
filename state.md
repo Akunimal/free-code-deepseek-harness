@@ -1,6 +1,6 @@
 # state.md — free-code-deepseek-harness
 
-> Estado de continuidad al **2026-08-18**. La auditoría de release está ejecutada localmente en la rama `dev`; queda publicar el commit/tag corregido y completar la autorización de GitHub para borrar el repositorio standalone anterior.
+> Estado de continuidad al **2026-08-18**. La auditoría de release quedó consolidada localmente en la rama `dev`; queda empujar el commit/tag corregido, confirmar el workflow y completar la autorización de GitHub para borrar el repositorio standalone anterior.
 
 ## 1. Repositorio
 
@@ -8,7 +8,7 @@
 - Rama activa: `dev`; `main` no fue modificada.
 - Remotes: `origin https://github.com/Akunimal/deepseek-harness.git` (actual public fork), `upstream https://github.com/deepseek-ai/deepseek-harness.git`, and `product https://github.com/Akunimal/free-code-deepseek-harness.git` (previous standalone repository, pending deletion after `delete_repo` authorization).
 - GitHub fork status: `Akunimal/deepseek-harness` is public, `isFork: true`, parent `deepseek-ai/deepseek-harness`; this work is published on its `dev` branch.
-- Último commit publicado: `28f1e3ab59 ci: install upstream workspace before release build` en `origin/dev`; la auditoría actual agrega correcciones de CI, portable, pool/slider, permisos y documentación y todavía está sin commit.
+- Último commit local: `d8e5e54830 ci: harden clean release and portable builds`; contiene las correcciones de CI, portable, pool/slider, permisos, tests y documentación y está listo para empujar a `origin/dev`.
 - Los artefactos generados grandes están ignorados: `apps/shell/resources/freecode/` y `apps/shell/release/`.
 
 ## 2. Estado de fases
@@ -43,7 +43,7 @@ La documentación también cubre las capas propias del proyecto: supervisor de p
 
 ## 5. Verificación ejecutada
 
-- `pnpm test`: **3 paquetes, 13 archivos de test, 43 tests verdes** (8 adapter, 13 contracts, 22 shell).
+- `pnpm test`: **3 paquetes, 13 archivos de test, 44 tests verdes** (9 adapter, 13 contracts, 22 shell); prepara automáticamente los 234 enlaces de paquetes upstream que necesita el loader dinámico.
 - `pnpm test:contract`: **4 archivos, 13 tests verdes**.
 - `pnpm typecheck`: verde para `opencode-adapter` y shell.
 - UI upstream: skeleton conversation test **18/18 verde**.
@@ -55,7 +55,7 @@ La documentación también cubre las capas propias del proyecto: supervisor de p
 
 ## 6. Próximos pasos explícitos
 
-1. Crear y publicar el commit de auditoría en `dev`, recrear/empujar `v0.1.0` y verificar el workflow multiplataforma.
+1. Empujar `d8e5e54830` a `dev`, recrear/empujar `v0.1.0` y verificar el workflow multiplataforma.
 2. Completar `gh auth refresh --hostname github.com --scopes delete_repo` y borrar `Akunimal/free-code-deepseek-harness`; mantener como fuente pública el fork `Akunimal/deepseek-harness`.
 3. Cuando el árbol esté limpio y se autorice la actualización upstream, ejecutar `bash scripts/sync-upstream.sh` y revisar el diff de subtree.
 
