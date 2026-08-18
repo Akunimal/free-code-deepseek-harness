@@ -2,6 +2,7 @@ import { createLoadBalancer, LoadBalancer, OpenCodePool, Pool, WorkerHandle } fr
 import { HarnessSupervisor, HarnessInstance } from './harness-supervisor.js';
 import { SecretStore, resolveSecrets } from './secret-store.js';
 import { join, resolve } from 'node:path';
+import { resolveOpencodeBinary } from './resource-paths.js';
 
 /**
  * Shell runtime — owns the full backend stack of the desktop app:
@@ -24,6 +25,8 @@ export interface ShellRuntimeConfig {
   secrets?: SecretStore;
   /** Env var names to resolve from the vault into the harness child env. */
   secretEnvNames?: string[];
+  /** Runtime env needed by a packaged Electron child process. */
+  nodeEnv?: Record<string, string>;
 }
 
 export interface ShellRuntime {
@@ -36,13 +39,7 @@ export interface ShellRuntime {
 }
 
 export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<ShellRuntime> {
-  const binName =
-    process.platform === 'win32'
-      ? 'opencode2api-win-x64.exe'
-      : process.platform === 'darwin'
-        ? 'opencode2api-mac-arm64'
-        : 'opencode2api-linux-x64';
-  const binaryPath = join(cfg.resourcesDir, binName);
+  const binaryPath = resolveOpencodeBinary(cfg.resourcesDir, process.platform);
 
   const pool = new OpenCodePool({
     size: cfg.poolSize ?? 4,
@@ -74,6 +71,7 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
     homeDir: join(cfg.userDataDir, 'dsh-home'),
     lbUrl: lb.url(),
     extraEnv,
+    nodeEnv: cfg.nodeEnv,
   });
 
   return {

@@ -1,15 +1,71 @@
 # free-code-deepseek-harness
 
-> Cross-platform desktop shell for [deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) — zero-config, DeepSeek-free out of the box, local pool of `opencode2api` workers.
+> Cross-platform desktop shell for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness): zero-config, DeepSeek Free provider out of the box, a local `opencode2api` worker pool, and the complete upstream web experience.
 
-[ Español ](README.md)
+[Español](README.md)
 
-*Full documentation under construction — completed in the final phase of the development plan (bilingual README, features 1:1 with implementation).*
+## What it delivers
 
-## Status
+This application packages the upstream harness and adds the desktop layer needed to use it without manually preparing processes, ports, or providers:
 
-Active development (branch `dev`). See `docs/ARCHITECTURE.md` when available.
+- Starts an `opencode2api` pool with health checks, round-robin, sticky sessions, transparent SSE, backoff, and a respawn budget.
+- Starts `dsh web` on loopback, detects readiness, restarts the harness, and opens its UI in an isolated/sandboxed Electron window.
+- Seeds `deepseek-free` against the pool, preserves user providers, and refreshes the model catalog by latency every 30 minutes or on demand.
+- Detects local OmniRoute OpenAI-compatible routes, stores secrets through keytar or a file fallback, and exposes typed zod IPC through preload.
+- Includes window, tray, notifications, pool-status overlay, settings-folder access, OpenCode SQLite/ChatML import, and workspace continuation.
+- Writes rotating JSONL logs, supports opt-in GitHub updates, prepares reproducible stages, and publishes only from `v*` tags.
+- Adds a per-conversation CSS animated background: two lightweight radial-gradient layers, no canvas or JavaScript loop, with `prefers-reduced-motion` support.
+
+## Every feature of the included DeepSeek Harness
+
+The UI is not a reduced mock: the bundled application ships upstream surfaces for conversations, sessions, workspaces, sidebar, subagents, models/providers, settings, themes, locale, attachments, markdown, slash commands, `/` and `@` input, tools, tool tree, feedback, permissions, plan, goal, questions, approvals, compaction, trajectory, jobs, workflows, deliverables, skills, web search/fetch, plugins, LSP, filesystem/code runtime, persistence, streaming, gateway, extensions, and the client module system. The exact inventory of all **219 declared packages** and availability notes lives in [UPSTREAM-FEATURES.md](docs/UPSTREAM-FEATURES.md); a contract test requires this inventory to be updated when upstream adds a surface.
+
+## Quick start
+
+Requirements: Node `>=22.19`, pnpm `11.22`, Git Bash, and a checkout with the vendored subtrees.
+
+```bash
+pnpm install
+pnpm build:vendor
+pnpm build
+pnpm test
+pnpm test:contract
+```
+
+Run the desktop shell in development:
+
+```bash
+pnpm --filter @freecode/shell dev
+```
+
+Prepare a complete runtime and installer:
+
+```bash
+pnpm build:desktop
+```
+
+The stage does not use `pnpm install --prod`: the harness requires its internal workspace links.
+
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md)
+- [Exhaustive upstream inventory](docs/UPSTREAM-FEATURES.md)
+- [Contracts and tests](docs/CONTRACT-TESTS.md)
+- [Chat import](docs/CHAT-IMPORT.md)
+- [Workspace bridge](docs/WORKSPACE-BRIDGE.md)
+- [Animated UI](docs/UI.md)
+- [Logging and updates](docs/LOGGING-AND-UPDATES.md)
+- [Release and packaging](docs/RELEASE.md)
+- [Upstream synchronization](docs/UPSTREAM-SYNC.md)
+
+## Configuration and security
+
+All local services bind to `127.0.0.1`. The vault resolves secrets into the child process without mutating `process.env`. Updates are disabled by default; `FREECODE_ENABLE_UPDATES=1` enables checks against GitHub Releases. Electron `userData` contains `dsh-home`, workers, and logs.
+
+## Project status
+
+The work branch is `dev`. Harness contracts, shell tests, the modified upstream UI, and reproducible packaging must pass before merging into `main`. See [state.md](state.md) for operational continuity.
 
 ## License
 
-MIT — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+MIT — see [LICENSE](LICENSE) and [NOTICE](NOTICE). Upstream notices and licensing are retained inside `vendor/deepseek-harness`.

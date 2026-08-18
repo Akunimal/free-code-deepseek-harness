@@ -4,18 +4,26 @@
   "private": true,
   "description": "Electron main + preload for the free-code-deepseek-harness desktop shell",
   "type": "module",
-  "main": "./dist/main/index.js",
+  "main": "./dist/src/main/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --config vitest.config.ts",
+    "dev": "pnpm build && electron .",
+    "package:runtime": "node ../../scripts/run-package-runtime.mjs",
+    "package": "pnpm build && electron-builder --config electron-builder.yml"
   },
   "dependencies": {
     "@freecode/opencode-adapter": "workspace:*",
     "@freecode/shared-types": "workspace:*",
-    "js-yaml": "^4.1.0"
+    "electron-updater": "^6.3.9",
+    "js-yaml": "^4.1.0",
+    "pino": "^9.6.0"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
-    "electron": "^33.4.11"
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
+    "vitest": "^2.1.9"
   }
 }

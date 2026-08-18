@@ -149,7 +149,55 @@ describe.skipIf(!HARNESS_BUILT)('contract: host RPC + provider registration', ()
       killTree(proc.pid ?? -1);
       rmSync(home, { recursive: true, force: true });
     }
+  }, 15_000);
+});
+
+// ---------------------------------------------------------------------------
+// 8. Browser boot manifest → the shell relies on the host's injected module
+//    graph being valid JSON with stable entry fields. If this changes, adapt
+//    the packaged-web boot contract before shipping a release.
+// ---------------------------------------------------------------------------
+describe.skipIf(!HARNESS_BUILT)('contract: browser boot manifest', () => {
+  const BootEntrySchema = z.object({
+    id: z.string().min(1),
+    url: z.string().startsWith('/plugins/'),
+    rev: z.string().min(1),
+    inject: z.array(z.unknown()),
+    // Upstream omits this field for lazy entries; absence is equivalent to
+    // false in the browser loader.
+    immediately: z.boolean().optional().default(false),
   });
+  const BootSchema = z.object({
+    rev: z.string().min(1),
+    entries: z.array(BootEntrySchema).min(1),
+  });
+
+  it('serves a parseable window.__DSH_BOOT__ manifest from the web root', async () => {
+    const home = mkdtempSync(join(tmpdir(), 'dsh-contract-boot-'));
+    const proc = spawn(NODE, [CLI_ENTRY, 'web', '--host', '127.0.0.1', '--port', '0'], {
+      env: { ...process.env, DSH_HOME: home },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    try {
+      const line = await waitForLine(proc, /http:\/\/127\.0\.0\.1:\d+/, TIMEOUT_MS);
+      const base = line.match(/http:\/\/127\.0\.0\.1:\d+/)?.[0];
+      expect(base).toBeDefined();
+      const html = await (await fetch(`${base}/`)).text();
+      const marker = 'window.__DSH_BOOT__ = ';
+      const start = html.indexOf(marker);
+      expect(start).toBeGreaterThanOrEqual(0);
+      const jsonStart = start + marker.length;
+      const scriptEnd = html.indexOf('</script>', jsonStart);
+      expect(scriptEnd).toBeGreaterThan(jsonStart);
+      const raw = html.slice(jsonStart, scriptEnd).trim().replace(/;\s*$/, '');
+      const parsed = BootSchema.parse(JSON.parse(raw));
+      expect(parsed.entries.some((entry) => entry.immediately)).toBe(true);
+      expect(parsed.entries.every((entry) => entry.inject.length >= 0)).toBe(true);
+    } finally {
+      killTree(proc.pid ?? -1);
+      rmSync(home, { recursive: true, force: true });
+    }
+  }, 15_000);
 });
 
 // ---------------------------------------------------------------------------

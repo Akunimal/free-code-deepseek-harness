@@ -24,6 +24,8 @@ export interface HarnessSupervisorConfig {
   lbUrl: string | null;
   /** Extra env passed through to the child. */
   extraEnv?: Record<string, string>;
+  /** Runtime-specific env (for example ELECTRON_RUN_AS_NODE=1). */
+  nodeEnv?: Record<string, string>;
   /** Respawn backoff base (ms). Default 1000. */
   backoffBaseMs?: number;
   /** Max respawns per 60s window. Default 5. */
@@ -130,6 +132,7 @@ export class HarnessSupervisor {
     const dshArgs = ['web', '--port', '0', '--host', '127.0.0.1'];
     const env: Record<string, string> = {
       ...process.env as Record<string, string>,
+      ...this.cfg.nodeEnv,
       DSH_HOME: this.cfg.homeDir,
       ...(this.cfg.lbUrl ? { OPENCODE2API_LB_URL: this.cfg.lbUrl } : {}),
       ...this.cfg.extraEnv,

@@ -1,0 +1,30 @@
+appId: com.freecode.deepseekharness
+productName: FreeCode DeepSeek Harness
+artifactName: FreeCode-DeepSeek-Harness-${version}-${os}-${arch}.${ext}
+asar: true
+compression: maximum
+directories:
+  output: release
+  buildResources: build
+extraMetadata:
+  main: dist/src/main/index.js
+files:
+  - dist/**/*
+  - package.json
+  - ../../packages/*/dist/**/*
+  - ../../package.json
+  - ../../node_modules/**/*
+  - '!../../vendor/**'
+  - '!tests/**'
+  - '!../../packages/*/tests/**'
+extraResources:
+  - from: resources/freecode
+    to: freecode
+    filter:
+      - '**/*'
+icon: build/icon.ico
+publish:
+  provider: github
+  owner: Akunimal
+  repo: free-code-deepseek-harness
+  releaseType: draft

@@ -11,6 +11,8 @@ out/
 apps/shell/resources/opencode2api/
 apps/shell/resources/dsh-cli/
 apps/shell/resources/dsh-web/
+apps/shell/resources/freecode/
+!apps/shell/resources/freecode/.gitkeep
 apps/shell/release/
 *.exe
 !native/**/build/

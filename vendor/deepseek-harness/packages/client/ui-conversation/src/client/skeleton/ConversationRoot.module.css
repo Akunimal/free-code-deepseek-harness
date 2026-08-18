@@ -4,10 +4,13 @@
    a 2px active bar. */
 
 .root {
+  position: relative;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   height: 100%;
   min-width: 0;
+  overflow: hidden;
   background: var(--dsw-alias-bg-base);
 
   /* Shared width axis for the whole column: one content width W
@@ -23,6 +26,72 @@
   --dsh-composer-card-max-width: calc(var(--dsh-chat-content-width) + 32px);
   --dsh-composer-side-clearance: 16px;
   --dsh-composer-dock-inset: 8px;
+}
+
+/* Lightweight conversation atmosphere inspired by Hermes/Phoenix: two
+   oversized radial-gradient layers move on the compositor instead of running
+   a canvas or JavaScript loop. Every ConversationRoot owns its own layer, so
+   concurrent conversations remain visually independent. The layer is clipped
+   by the root, never intercepts input, and is disabled for reduced-motion. */
+.motionBackground {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+  opacity: 0.52;
+}
+
+.motionBackground::before,
+.motionBackground::after {
+  position: absolute;
+  inset: -22%;
+  display: block;
+  content: '';
+  pointer-events: none;
+  will-change: transform;
+}
+
+.motionBackground::before {
+  background:
+    radial-gradient(circle at 18% 26%, color-mix(in srgb, var(--dsw-alias-state-business-primary) 18%, transparent), transparent 46%),
+    radial-gradient(circle at 78% 70%, color-mix(in srgb, var(--dsw-static-deepseek-500) 12%, transparent), transparent 44%);
+  animation: dsh-conversation-drift-a 28s ease-in-out infinite alternate;
+}
+
+.motionBackground::after {
+  background:
+    radial-gradient(ellipse at 72% 18%, color-mix(in srgb, var(--dsw-alias-state-business-primary) 10%, transparent), transparent 42%),
+    linear-gradient(125deg, transparent 28%, color-mix(in srgb, var(--dsw-static-deepseek-500) 5%, transparent) 48%, transparent 68%);
+  opacity: 0.75;
+  animation: dsh-conversation-drift-b 36s ease-in-out infinite alternate-reverse;
+}
+
+@keyframes dsh-conversation-drift-a {
+  from { transform: translate3d(-3%, -2%, 0) scale(1); }
+  to { transform: translate3d(4%, 3%, 0) scale(1.06); }
+}
+
+@keyframes dsh-conversation-drift-b {
+  from { transform: translate3d(3%, 2%, 0) rotate(-2deg) scale(1.02); }
+  to { transform: translate3d(-4%, -3%, 0) rotate(2deg) scale(1.08); }
+}
+
+.root > :not(.motionBackground) {
+  position: relative;
+  z-index: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motionBackground {
+    opacity: 0.2;
+  }
+
+  .motionBackground::before,
+  .motionBackground::after {
+    animation: none;
+  }
 }
 
 .header {

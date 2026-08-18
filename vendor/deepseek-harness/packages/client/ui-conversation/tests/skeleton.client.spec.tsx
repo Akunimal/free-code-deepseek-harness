@@ -266,6 +266,14 @@ describe('Hero chrome', () => {
 })
 
 describe('ConversationRoot resident composer', () => {
+  it('mounts one isolated CSS motion background per conversation', () => {
+    const b = mount(conversationSnapshot())
+    const layer = b.view.container.querySelector('[data-conversation-motion="css"]')
+    expect(layer).not.toBeNull()
+    expect(layer?.getAttribute('aria-hidden')).toBe('true')
+    expect(layer?.className).toContain('motionBackground')
+  })
+
   it('renders the composer inert with the blocker\u2019s own reason', () => {
     const b = mount(conversationSnapshot(), undefined, undefined, {
       composerBlock: { reason: 'select a model first' },

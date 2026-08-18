@@ -1,12 +1,14 @@
 import { app, BrowserWindow, Menu, Tray, nativeImage, Notification } from 'electron';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { existsSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import { createShellRuntime, ShellRuntime } from './runtime.js';
 import { createSecretStore } from './secret-store.js';
 import { seedProviders } from './provider-seeder.js';
 import { refreshModels, ModelCatalog } from './model-refresher.js';
 import { registerIpc } from './ipc.js';
+import { nodeRuntimeEnv, resolveNodePath, resolveResourcesDir } from './resource-paths.js';
+import { createAppLogger, type AppLogger } from './logger.js';
+import { createUpdateService, type UpdateService } from './updater.js';
 
 /**
  * Electron main — wires the runtime (pool -> LB -> harness), the native
@@ -17,30 +19,20 @@ const isDev = !app.isPackaged;
 
 // ---- resource paths ----
 function resourcesDir(): string {
-  // Packaged: <exeDir>/resources ; dev: repo apps/shell/resources
-  const packed = join(process.resourcesPath ?? '', 'freecode');
-  if (existsSync(packed)) return packed;
-  return join(import.meta.dirname, '../../resources');
+  return resolveResourcesDir({
+    packaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+  });
 }
 
 /** Locate a Node runtime for the harness child. Packaged apps ship node.exe
  *  next to the app; dev uses the system node from PATH. */
 function findNode(): string {
-  const candidates = [
-    process.env.FREECODE_NODE,
-    // Packaged: resources/freecode/node.exe is preferred by the packager;
-    // dev falls back to PATH.
-    undefined,
-  ].filter((x): x is string => !!x);
-  if (candidates.length > 0) return candidates[0]!;
-  const r = spawnSync(
-    process.platform === 'win32' ? 'where' : 'which',
-    ['node'],
-    { encoding: 'utf8', windowsHide: true },
-  );
-  const line = r.stdout.split(/\r?\n/)[0]?.trim();
-  if (line) return line;
-  return 'node';
+  return resolveNodePath({
+    packaged: app.isPackaged,
+    explicit: process.env.FREECODE_NODE,
+    executablePath: process.execPath,
+  });
 }
 
 async function bootstrap(): Promise<ShellRuntime> {
@@ -55,6 +47,7 @@ async function bootstrap(): Promise<ShellRuntime> {
     lbAuthHeader: 'Bearer public',
     secrets,
     secretEnvNames: ['FREECODE_PUBLIC_KEY'],
+    nodeEnv: nodeRuntimeEnv(app.isPackaged),
   });
   return runtime;
 }
@@ -63,6 +56,9 @@ let mainWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let runtime: ShellRuntime | null = null;
+let appLogger: AppLogger | null = null;
+let updateService: UpdateService | null = null;
+let updateTimer: NodeJS.Timeout | null = null;
 let overlayOpen = false;
 
 function createMainWindow(harnessUrl: string): void {
@@ -74,6 +70,7 @@ function createMainWindow(harnessUrl: string): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: resolve(import.meta.dirname, '../preload/index.js'),
     },
   });
   mainWindow.loadURL(harnessUrl);
@@ -141,7 +138,13 @@ function buildMenu(): void {
     { role: 'windowMenu', label: 'Ventana' },
     {
       label: 'Ayuda',
-      submenu: [{ label: 'Acerca de', click: () => void import('electron').then(({ dialog }) => dialog.showMessageBox({ message: 'FreeCode DeepSeek Harness' })) }],
+      submenu: [
+        {
+          label: 'Buscar actualizaciones',
+          click: () => void updateService?.check(),
+        },
+        { label: 'Acerca de', click: () => void import('electron').then(({ dialog }) => dialog.showMessageBox({ message: 'FreeCode DeepSeek Harness' })) },
+      ],
     },
   );
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
@@ -181,13 +184,24 @@ function createTray(): void {
 const REFRESH_INTERVAL_MS = 30 * 60 * 1000;
 
 app.whenReady().then(async () => {
+  const userDataDir = app.getPath('userData');
+  appLogger = createAppLogger(join(userDataDir, 'logs'));
+  appLogger.logger.info({ packaged: app.isPackaged, platform: process.platform }, 'shell starting');
+  updateService = createUpdateService({
+    enabled: process.env.FREECODE_ENABLE_UPDATES === '1',
+    log: (message, details) => appLogger?.logger.info({ details }, message),
+  });
+  if (updateService.enabled) {
+    void updateService.check();
+    updateTimer = setInterval(() => void updateService?.check(), 6 * 60 * 60 * 1_000);
+    updateTimer.unref();
+  }
   runtime = await bootstrap();
   await runtime.start();
   await runtime.lb.listen();
 
   const lbUrl = runtime.lb.url();
   // FASE 5: seed once the LB is up.
-  const userDataDir = app.getPath('userData');
   seedProviders({ homeDir: join(userDataDir, 'dsh-home'), lbBaseUrl: `${lbUrl}/v1` });
 
   // FASE 6: model refresh at boot + every 30 min.
@@ -251,8 +265,13 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', async (e) => {
-  if (!runtime) return;
+  if (!runtime) {
+    await appLogger?.close();
+    return;
+  }
   e.preventDefault();
+  if (updateTimer) clearInterval(updateTimer);
   await runtime.stop();
+  await appLogger?.close();
   app.exit(0);
 });
