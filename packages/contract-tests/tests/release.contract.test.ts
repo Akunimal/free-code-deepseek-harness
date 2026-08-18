@@ -7,6 +7,7 @@ const ROOT = join(import.meta.dirname, '../../..');
 describe('release and runtime packaging contracts', () => {
   it('keeps release automation tag-only and multiplatform', () => {
     const workflow = readFileSync(join(ROOT, '.github/workflows/release.yml'), 'utf8');
+    const shellPackage = readFileSync(join(ROOT, 'apps/shell/package.json'), 'utf8');
     expect(workflow).toMatch(/push:\s*\n\s*tags:\s*\n\s*- ['"]v\*['"]/);
     expect(workflow).not.toMatch(/branches:/);
     expect(workflow).toContain('windows-latest');
@@ -14,6 +15,7 @@ describe('release and runtime packaging contracts', () => {
     expect(workflow).toContain('ubuntu-latest');
     expect(workflow).toContain('pnpm test:contract');
     expect(workflow).toContain('pnpm build:desktop');
+    expect(shellPackage).toContain('electron-builder --config electron-builder.yml --publish never');
   });
 
   it('keeps the desktop bundle and native runtime closure wired together', () => {
