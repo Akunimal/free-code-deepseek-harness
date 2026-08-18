@@ -10,7 +10,7 @@
   "scripts": {
     "build": "pnpm -r --filter \"./packages/**\" --filter \"./apps/**\" build",
     "prepare:upstream": "node scripts/link-upstream-workspace-packages.mjs",
-    "test": "pnpm prepare:upstream && pnpm -r --filter \"./packages/**\" --filter \"./apps/**\" test",
+    "test": "pnpm prepare:upstream && pnpm --filter @freecode/opencode-adapter build && pnpm -r --filter \"./packages/**\" --filter \"./apps/**\" test",
     "test:contract": "pnpm prepare:upstream && pnpm --filter @freecode/opencode-adapter build && pnpm --filter @freecode/contract-tests test",
     "typecheck": "pnpm -r --filter \"./packages/**\" --filter \"./apps/**\" typecheck",
     "build:vendor": "pnpm --dir vendor/deepseek-harness build",
