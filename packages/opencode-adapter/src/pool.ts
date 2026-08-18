@@ -228,9 +228,10 @@ export class OpenCodePool implements Pool {
   private async spawnWorker(id: string, attempt = 0): Promise<void> {
     if (!this.started) return;
     const existing = this.workerMap.get(id);
-    // A POSIX process killed by a signal keeps exitCode === null; signalCode
-    // distinguishes that exited state from a child that is still running.
-    if (existing && existing.proc && existing.proc.exitCode === null && existing.proc.signalCode === null) return;
+    // The exit handler marks a dead worker unhealthy before scheduling a
+    // respawn. Use that state as the source of truth: Node exposes a signaled
+    // POSIX child with platform-dependent exitCode/signalCode combinations.
+    if (existing && existing.proc && !existing.stopped && existing.status !== 'unhealthy' && existing.status !== 'stopped') return;
 
     const port = await getFreePort();
     const logFile = join(this.cfg.logDir, `${id}.log`);
