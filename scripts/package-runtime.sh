@@ -26,7 +26,8 @@ if [[ ! -f "$VENDOR/pnpm-lock.yaml" ]]; then
 fi
 
 echo "package-runtime: installing upstream build closure"
-pnpm --dir "$VENDOR" install --frozen-lockfile
+pnpm --dir "$VENDOR" install --frozen-lockfile --node-linker=hoisted
+node "$ROOT/scripts/link-upstream-workspace-packages.mjs"
 
 echo "package-runtime: building upstream libraries and web app"
 # The vendored release currently has a host/client aggregate that includes

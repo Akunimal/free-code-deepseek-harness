@@ -20,15 +20,23 @@ export function resolveResourcesDir(options: ResourcePathOptions): string {
 /** Find the platform worker binary in both the legacy dev layout and the
  * packaged layout. Keeping this compatibility layer makes old checkouts and
  * fresh package-runtime stages runnable during the transition. */
-export function resolveOpencodeBinary(resourcesDir: string, platform: NodeJS.Platform): string {
+export function resolveOpencodeBinary(
+  resourcesDir: string,
+  platform: NodeJS.Platform,
+  arch: NodeJS.Architecture = process.arch,
+): string {
   const name = platform === 'win32'
     ? 'opencode2api-win-x64.exe'
     : platform === 'darwin'
-      ? 'opencode2api-mac-arm64'
+      ? arch === 'x64' ? 'opencode2api-mac-x64' : 'opencode2api-mac-arm64'
       : 'opencode2api-linux-x64';
   const candidates = [
     resolve(resourcesDir, 'opencode2api', name),
     resolve(resourcesDir, name),
+    ...(platform === 'darwin' ? [
+      resolve(resourcesDir, 'opencode2api', 'opencode2api-mac-arm64'),
+      resolve(resourcesDir, 'opencode2api-mac-arm64'),
+    ] : []),
   ];
   return candidates.find((candidate) => existsSync(candidate)) ?? candidates[0]!;
 }

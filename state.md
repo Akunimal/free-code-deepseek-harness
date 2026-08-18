@@ -1,14 +1,14 @@
 # state.md — free-code-deepseek-harness
 
-> Estado de continuidad al **2026-08-17**. La implementación restante del plan fue ejecutada y verificada en la rama `dev`.
+> Estado de continuidad al **2026-08-18**. La auditoría de release está ejecutada localmente en la rama `dev`; queda publicar el commit/tag corregido y completar la autorización de GitHub para borrar el repositorio standalone anterior.
 
 ## 1. Repositorio
 
 - Ruta: `I:\DeepSeek-Harness\free-code-deepseek-harness`.
 - Rama activa: `dev`; `main` no fue modificada.
-- Remotes: `origin https://github.com/Akunimal/deepseek-harness.git` (actual public fork), `upstream https://github.com/deepseek-ai/deepseek-harness.git`, and `product https://github.com/Akunimal/free-code-deepseek-harness.git` (previous standalone repository, preserved).
+- Remotes: `origin https://github.com/Akunimal/deepseek-harness.git` (actual public fork), `upstream https://github.com/deepseek-ai/deepseek-harness.git`, and `product https://github.com/Akunimal/free-code-deepseek-harness.git` (previous standalone repository, pending deletion after `delete_repo` authorization).
 - GitHub fork status: `Akunimal/deepseek-harness` is public, `isFork: true`, parent `deepseek-ai/deepseek-harness`; this work is published on its `dev` branch.
-- Commit publicado: `41285cd84d feat: complete DeepSeek harness desktop shell` en `origin/dev`.
+- Último commit publicado: `28f1e3ab59 ci: install upstream workspace before release build` en `origin/dev`; la auditoría actual agrega correcciones de CI, portable, pool/slider, permisos y documentación y todavía está sin commit.
 - Los artefactos generados grandes están ignorados: `apps/shell/resources/freecode/` y `apps/shell/release/`.
 
 ## 2. Estado de fases
@@ -23,7 +23,7 @@
 | 15 | Completa: logging pino rotado en `<userData>/logs/app.log`. |
 | 16 | Completa: README español/inglés y documentación técnica exhaustiva. |
 | UI | Completa: fondo animado CSS por conversación, inspirado en Hermes GUI, sin canvas ni loop JavaScript. Respeta `prefers-reduced-motion`. |
-| CI/release | Completa: workflow solo para tags `v*`, matriz Windows/macOS/Linux, tests, build y artifacts de Release. |
+| CI/release | Corregida localmente: workflow solo para tags `v*`, matriz Windows/macOS/Linux, instalación limpia de upstream, build de los cuatro binarios nativos, tests, build y artifacts de Release. Falta publicar y confirmar el nuevo run. |
 
 ## 3. Features documentadas
 
@@ -36,25 +36,28 @@ La documentación también cubre las capas propias del proyecto: supervisor de p
 - `scripts/package-runtime.sh` compila el vendor, crea una instalación completa (no `--prod`), usa `--node-linker=hoisted`, materializa los paquetes workspace y elimina `.bin` para evitar shims incompatibles con NSIS.
 - `scripts/run-package-runtime.mjs` propaga `DSH_TARGET_OS`/`DSH_TARGET_CPU` desde Node para que una ejecución bajo WSL produzca dependencias nativas del target real.
 - `apps/shell/src/main/resource-paths.ts` distingue desarrollo de packaged resources y usa `ELECTRON_RUN_AS_NODE=1` con el ejecutable de Electron cuando corresponde.
-- `apps/shell/electron-builder.yml` genera `com.freecode.deepseekharness` con `extraResources`, asar, icono y publicación GitHub draft.
+- `apps/shell/electron-builder.yml` genera `com.freecode.deepseekharness` con `extraResources`, asar, icono, instalador NSIS y `.exe` portable, y publica en el fork `Akunimal/deepseek-harness` como GitHub draft.
+- El portable Windows usa `PORTABLE_EXECUTABLE_DIR` (o `FREECODE_PORTABLE_DIR` en una ejecución manual) para guardar `data/` junto al ejecutable; el runtime, CLI, UI, dependencias nativas y workers viajan dentro del artefacto.
+- El overlay expone un slider live de 1..16 worker slots (default 4). Son procesos locales que comparten `Bearer public`; no son cuentas nuevas ni evaden límites por IP/cuota.
 - Se verificó un instalador Windows final y su `win-unpacked`: CLI, web root, `window.__DSH_BOOT__`, `sharp-win32-x64`, `koffi-win32-x64`, `@deepseek-ai/node-addon-landlock-run` y ausencia de `.bin`.
 
 ## 5. Verificación ejecutada
 
-- `pnpm test`: **3 paquetes, 13 archivos de test, 40 tests verdes** (7 adapter, 13 contracts, 20 shell).
+- `pnpm test`: **3 paquetes, 13 archivos de test, 43 tests verdes** (8 adapter, 13 contracts, 22 shell).
 - `pnpm test:contract`: **4 archivos, 13 tests verdes**.
 - `pnpm typecheck`: verde para `opencode-adapter` y shell.
 - UI upstream: skeleton conversation test **18/18 verde**.
-- `git diff --check`: verde.
+- `git diff --check`: verde para la auditoría actual.
 - `pnpm build:shell`: verde.
 - `pnpm build:desktop`: pipeline completo ejecutado; después se corrigió la selección de dependencias nativas para target Windows y se volvió a verificar el stage y `electron-builder`.
-- Smoke real packaged: `dsh web --help` y `dsh web --host 127.0.0.1 --port 0`; HTTP 200 y boot manifest servido.
+- Smoke real packaged: `dsh web --help` y `dsh web --host 127.0.0.1 --port 0`; HTTP 200 y boot manifest servido. El ejecutable desempaquetado arrancó con `FREECODE_PORTABLE_DIR` y creó `data/logs/app.log` en el directorio elegido.
+- Artefactos Windows locales: `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.0-win-x64-portable.exe`, `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.0-win-x64-setup.exe` y `apps/shell/release/win-unpacked/FreeCode DeepSeek Harness.exe`.
 
 ## 6. Próximos pasos explícitos
 
-1. Revisar los cambios y crear commits en `dev`.
-2. Cuando el árbol esté limpio y se autorice la actualización upstream, ejecutar `bash scripts/sync-upstream.sh` y revisar el diff de subtree.
-3. Para publicar, completar UAT manual de zero-config, hacer el squash `dev`→`main` y crear el tag `v0.1.0` según el proceso del equipo. No se creó commit, squash ni tag automáticamente en esta sesión.
+1. Crear y publicar el commit de auditoría en `dev`, recrear/empujar `v0.1.0` y verificar el workflow multiplataforma.
+2. Completar `gh auth refresh --hostname github.com --scopes delete_repo` y borrar `Akunimal/free-code-deepseek-harness`; mantener como fuente pública el fork `Akunimal/deepseek-harness`.
+3. Cuando el árbol esté limpio y se autorice la actualización upstream, ejecutar `bash scripts/sync-upstream.sh` y revisar el diff de subtree.
 
 ## 7. Reglas operativas
 

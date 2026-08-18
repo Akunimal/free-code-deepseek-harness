@@ -40,6 +40,7 @@ export type DetectedRoute = z.infer<typeof DetectedRouteSchema>;
 export const IpcChannels = {
   poolStatus: 'pool:status',
   poolRestartWorker: 'pool:restartWorker',
+  poolResize: 'pool:resize',
   modelsCatalog: 'models:catalog',
   modelsRefresh: 'models:refresh',
   omnirouteDetect: 'omniroute:detect',
@@ -53,6 +54,7 @@ export type IpcChannels = typeof IpcChannels;
 export interface IpcPayloads {
   [IpcChannels.poolStatus]: { workers: WorkerHandle[] };
   [IpcChannels.poolRestartWorker]: { id: string };
+  [IpcChannels.poolResize]: { size: number };
   [IpcChannels.modelsCatalog]: ModelCatalog;
   [IpcChannels.modelsRefresh]: void;
   [IpcChannels.omnirouteDetect]: void;
@@ -64,6 +66,7 @@ export interface IpcPayloads {
 export interface FreeCodeApi {
   pool: {
     onStatus(cb: (payload: IpcPayloads[typeof IpcChannels.poolStatus]) => void): () => void;
+    resize(size: number): Promise<void>;
   };
   models: {
     refresh(): Promise<ModelCatalog>;

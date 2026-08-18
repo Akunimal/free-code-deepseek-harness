@@ -23,8 +23,22 @@ extraResources:
     filter:
       - '**/*'
 icon: build/icon.ico
+win:
+  target:
+    - nsis
+    - portable
+mac:
+  target:
+    - dmg
+linux:
+  target:
+    - AppImage
+nsis:
+  artifactName: FreeCode-DeepSeek-Harness-${version}-${os}-${arch}-setup.${ext}
+portable:
+  artifactName: FreeCode-DeepSeek-Harness-${version}-${os}-${arch}-portable.${ext}
 publish:
   provider: github
   owner: Akunimal
-  repo: free-code-deepseek-harness
+  repo: deepseek-harness
   releaseType: draft

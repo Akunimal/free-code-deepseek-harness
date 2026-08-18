@@ -32,4 +32,16 @@ describe('resource-paths', () => {
     expect(nodeRuntimeEnv(true)).toEqual({ ELECTRON_RUN_AS_NODE: '1' });
     expect(nodeRuntimeEnv(false)).toEqual({});
   });
+
+  it('selects the native macOS worker binary', () => {
+    const base = mkdtempSync(join(tmpdir(), 'freecode-mac-binary-'));
+    try {
+      const nested = join(base, 'opencode2api');
+      mkdirSync(nested);
+      writeFileSync(join(nested, 'opencode2api-mac-x64'), 'fixture');
+      expect(resolveOpencodeBinary(base, 'darwin', 'x64')).toBe(join(nested, 'opencode2api-mac-x64'));
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
+  });
 });

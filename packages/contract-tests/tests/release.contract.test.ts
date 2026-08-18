@@ -23,6 +23,10 @@ describe('release and runtime packaging contracts', () => {
     expect(builder).toContain('appId: com.freecode.deepseekharness');
     expect(builder).toContain('from: resources/freecode');
     expect(builder).toContain('icon: build/icon.ico');
+    expect(builder).toContain('- portable');
+    expect(builder).toContain('artifactName: FreeCode-DeepSeek-Harness-${version}-${os}-${arch}-portable.${ext}');
+    expect(builder).toContain('owner: Akunimal');
+    expect(builder).toContain('repo: deepseek-harness');
     expect(runtime).toContain('--node-linker=hoisted');
     expect(runtime).toContain('materialize-runtime.mjs');
     expect(runtime).not.toContain('--exclude=native');

@@ -78,14 +78,18 @@ async function withWorker<T>(fn: (port: number) => Promise<T>): Promise<T> {
     return await fn(port);
   } finally {
     if (proc.exitCode === null) {
-      spawnSync('taskkill', ['/T', '/F', '/PID', String(proc.pid)], { windowsHide: true });
+      if (process.platform === 'win32') {
+        spawnSync('taskkill', ['/T', '/F', '/PID', String(proc.pid)], { windowsHide: true });
+      } else {
+        proc.kill('SIGTERM');
+      }
     }
   }
 }
 
 /** Pool whose workerMap has one entry pointing at the fake worker's port. */
 function poolWithFake(port: number, logDir: string, id: string): OpenCodePool {
-  const pool = new OpenCodePool({ binaryPath: FAKE_BIN, count: 0, logDir }) as OpenCodePool & {
+  const pool = new OpenCodePool({ binaryPath: FAKE_BIN, size: 1, workDir: logDir, logDir }) as OpenCodePool & {
     workerMap: Map<string, { id: string; pid: number; port: number; status: string; startedAt: number; restarts: number }>;
   };
   pool.workerMap.set(id, {
@@ -168,7 +172,7 @@ describe('contract: LB SSE streaming', () => {
 describe('contract: LB 503', () => {
   it('returns 503 JSON when no healthy worker', async () => {
     const logDir = mkdtempSync(join(tmpdir(), 'lb-503-'));
-    const pool = new OpenCodePool({ binaryPath: FAKE_BIN, count: 0, logDir });
+    const pool = new OpenCodePool({ binaryPath: FAKE_BIN, size: 1, workDir: logDir, logDir });
     const lb = createLoadBalancer({ pool, authHeader: undefined });
     await lb.listen();
     try {

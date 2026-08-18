@@ -22,6 +22,7 @@ const api: FreeCodeApi = {
       ipcRenderer.on(IpcChannels.poolStatus, listener);
       return () => ipcRenderer.removeListener(IpcChannels.poolStatus, listener);
     },
+    resize: (size: number): Promise<void> => ipcRenderer.invoke(IpcChannels.poolResize, { size }),
   },
   models: {
     refresh: (): Promise<ModelCatalog> => ipcRenderer.invoke(IpcChannels.modelsRefresh),

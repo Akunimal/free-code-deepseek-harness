@@ -1,6 +1,8 @@
 # Contract tests
 
-Contract tests protect the seams between this shell, `opencode2api`, and the vendored DeepSeek Harness. They run before upstream subtree merges and release tags.
+Contract tests protect the seams between this shell, `opencode2api`, and the vendored DeepSeek Harness. They run before upstream subtree merges and release tags. Release CI builds the native `opencode2api` resources first and builds the adapter package before importing it, so the suite is valid from a clean checkout rather than depending on ignored local `dist/` or `resources/` output.
+
+The release contract also checks the portable Windows target, unique setup/portable artifact names, the actual fork owner/repository, and the tag-only multiplatform workflow. Pool unit coverage verifies the 1..16 account/worker slider clamp; the desktop overlay routes live changes through zod-validated preload IPC.
 
 Run them with:
 

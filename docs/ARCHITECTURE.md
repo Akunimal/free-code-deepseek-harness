@@ -56,3 +56,11 @@ The complete workspace install is deliberate. A production-only pnpm install lea
 - All local services bind to `127.0.0.1`.
 - The updater is disabled unless `FREECODE_ENABLE_UPDATES=1`.
 - The web harness remains responsible for upstream permission, sandbox, filesystem, and tool policies.
+
+## Portable pool controls
+
+The pool exposes a live 1..16 worker-slot setting through the desktop overlay and typed preload IPC. The default is four. A slot is a local `opencode2api` process, not a newly provisioned OpenCode account: the public route uses the same `Bearer public` identity and remains subject to upstream quota and IP-based rate limits. The slider changes concurrency only; it cannot bypass those limits.
+
+Windows portable builds receive `PORTABLE_EXECUTABLE_DIR` from electron-builder and place `data/` beside the executable. `FREECODE_PORTABLE_DIR` can be used by a manually launched packaged app to select the same behavior. The binaries, Electron runtime, upstream CLI, web app, and native dependencies are packaged together so the user does not need a developer toolchain.
+
+The permission boundary is intentionally inherited from upstream: approvals, permission presets, sandbox modes, filesystem policy, tool confirmations, and escalation remain the DeepSeek Harness contracts. The shell's Electron sandbox protects the renderer but does not silently alter agent permissions.

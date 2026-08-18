@@ -25,6 +25,17 @@ function resourcesDir(): string {
   });
 }
 
+function configurePortableDataDir(): void {
+  if (!app.isPackaged) return;
+  const portableDir = process.env.PORTABLE_EXECUTABLE_DIR ?? process.env.FREECODE_PORTABLE_DIR;
+  if (portableDir) {
+    // electron-builder's Windows portable target supplies PORTABLE_EXECUTABLE_DIR.
+    // Keeping data beside the executable makes the portable artifact movable as
+    // one folder and avoids requiring a machine-wide install or profile setup.
+    app.setPath('userData', resolve(portableDir, 'data'));
+  }
+}
+
 /** Locate a Node runtime for the harness child. Packaged apps ship node.exe
  *  next to the app; dev uses the system node from PATH. */
 function findNode(): string {
@@ -97,6 +108,7 @@ function createOverlayWindow(): void {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: resolve(import.meta.dirname, '../preload/index.js'),
     },
   });
   overlayWindow.loadURL('data:text/html,' + encodeURIComponent(renderOverlayHtml()));
@@ -108,6 +120,7 @@ function createOverlayWindow(): void {
 
 function renderOverlayHtml(): string {
   const workers = runtime?.workers() ?? [];
+  const poolSize = runtime?.pool.size() ?? 4;
   const rows = workers
     .map(
       (w) =>
@@ -117,6 +130,9 @@ function renderOverlayHtml(): string {
   return `<!doctype html><html><head><meta charset="utf-8"><title>Pool status</title>
 <style>body{font-family:system-ui;background:#0f1117;color:#d7dae2;padding:16px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #2a2f3a;padding:6px 8px;font-size:12px;text-align:left}th{background:#1a1e27}button{background:#ff7a00;border:0;color:#000;padding:8px 12px;border-radius:6px;cursor:pointer;font-weight:600}</style></head>
 <body><h3>Pool status</h3>
+<label for="pool-size">Accounts / workers: <output id="pool-size-value">${poolSize}</output></label>
+<input id="pool-size" type="range" min="1" max="16" step="1" value="${poolSize}" oninput="document.getElementById('pool-size-value').value=this.value" onchange="window.freecode.pool.resize(Number(this.value)).then(()=>location.reload())">
+<p style="font-size:12px;color:#9da4b3">This changes local parallel workers. It does not create extra OpenCode accounts or bypass upstream/IP limits.</p>
 <button onclick="location.reload()">Refresh</button>
 <table><tr><th>id</th><th>status</th><th>addr</th><th>pid</th><th>restarts</th></tr>${rows}</table></body></html>`;
 }
@@ -190,6 +206,7 @@ function createTray(): void {
 const REFRESH_INTERVAL_MS = 30 * 60 * 1000;
 
 app.whenReady().then(async () => {
+  configurePortableDataDir();
   const userDataDir = app.getPath('userData');
   appLogger = createAppLogger(join(userDataDir, 'logs'));
   appLogger.logger.info({ packaged: app.isPackaged, platform: process.platform }, 'shell starting');

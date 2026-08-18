@@ -13,6 +13,13 @@ const RESTART_WINDOW_MS = 60_000;
 const BACKOFF_BASE_MS = 1_000;
 const BACKOFF_MAX_MS = 30_000;
 const STOP_GRACE_MS = 5_000;
+export const POOL_MIN_SIZE = 1;
+export const POOL_MAX_SIZE = 16;
+
+export function normalizePoolSize(value: number): number {
+  if (!Number.isFinite(value)) return POOL_MIN_SIZE;
+  return Math.max(POOL_MIN_SIZE, Math.min(POOL_MAX_SIZE, Math.trunc(value)));
+}
 
 interface ManagedWorker extends WorkerHandle {
   proc: ChildProcess | null;
@@ -100,7 +107,7 @@ export class OpenCodePool implements Pool {
   private stuckListeners = new Set<(w: WorkerHandle) => void>();
 
   constructor(config: PoolConfig) {
-    this.cfg = { ...config, size: Math.max(1, Math.min(16, config.size)) };
+    this.cfg = { ...config, size: normalizePoolSize(config.size) };
   }
 
   async start(): Promise<void> {
@@ -144,6 +151,48 @@ export class OpenCodePool implements Pool {
       }
     }
     this.workerMap.clear();
+  }
+
+  size(): number {
+    return this.cfg.size;
+  }
+
+  async resize(size: number): Promise<void> {
+    const next = normalizePoolSize(size);
+    const previous = this.cfg.size;
+    this.cfg.size = next;
+    if (!this.started || next === previous) return;
+
+    if (next > previous) {
+      const spawns: Promise<void>[] = [];
+      for (let i = previous; i < next; i++) {
+        spawns.push(this.spawnWorker(`w${i}`));
+      }
+      await Promise.allSettled(spawns);
+      return;
+    }
+
+    const removals = [...this.workerMap.values()].filter((worker) => {
+      const index = Number(worker.id.slice(1));
+      return Number.isInteger(index) && index >= next;
+    });
+    for (const worker of removals) {
+      worker.stopped = true;
+      worker.status = 'stopped';
+      this.emitChange(worker);
+      if (worker.pid > 0) killTree(worker.pid);
+    }
+    await sleep(300);
+    for (const worker of removals) {
+      if (worker.proc && worker.proc.exitCode === null) {
+        try {
+          worker.proc.kill('SIGKILL');
+        } catch {
+          /* already dead */
+        }
+      }
+      this.workerMap.delete(worker.id);
+    }
   }
 
   workers(): WorkerHandle[] {

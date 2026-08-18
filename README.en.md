@@ -16,6 +16,14 @@ The product branch is `dev`; the fork keeps `master` as the upstream reference. 
 
 Artifacts are built in a Windows/macOS/Linux matrix, pass the contract tests, and are published to the fork's GitHub release. This is not a demo UI: every build contains the harness runtime, its workspace dependencies, the local worker pool, zero-config setup, and the upstream web surfaces documented below.
 
+## Portable, almost-free vibecoding, and real limits
+
+The product is designed to be self-contained and portable: Node/Electron, the `dsh` CLI, the UI, native dependencies, and the `opencode2api` binaries travel inside the artifact. A release does not require Node, pnpm, Git, Go, or Python to run. Windows publishes both an NSIS installer and a **portable** `.exe` that can be copied to another folder or machine; the portable build keeps its data in a `data/` directory beside the executable. macOS ships the app/DMG and Linux ships an AppImage, also with the runtime included.
+
+The goal is almost-free vibecoding through OpenCode's DeepSeek Free route. The Pool overlay exposes an **Accounts / workers** slider from 1 to 16 (default 4): it controls how many local `opencode2api` processes serve requests concurrently and improves concurrency. It does not create accounts, rotate identities, or bypass limits. Public workers use the `Bearer public` route, and the free provider may enforce limits by IP, quota, availability, or service policy; increasing the slider therefore does not increase the free quota and may trigger rate limits. With a private key, all workers use that key and remain subject to that account/provider's limits.
+
+To test the Windows build generated in this checkout, open `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.0-win-x64-portable.exe`; the installer is `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.0-win-x64-setup.exe`. The unpacked development executable is `apps/shell/release/win-unpacked/FreeCode DeepSeek Harness.exe`.
+
 ## What it delivers
 
 This application packages the upstream harness and adds the desktop layer needed to use it without manually preparing processes, ports, or providers:
@@ -28,6 +36,12 @@ This application packages the upstream harness and adds the desktop layer needed
 - Includes window, tray, notifications, pool-status overlay, settings-folder access, OpenCode SQLite/ChatML import, and workspace continuation.
 - Writes rotating JSONL logs, supports opt-in GitHub updates, prepares reproducible stages, and publishes only from `v*` tags.
 - Adds a per-conversation CSS animated background: two lightweight radial-gradient layers, no canvas or JavaScript loop, with `prefers-reduced-motion` support.
+
+## Permissions: exactly the original harness model
+
+This fork does not broaden or replace `deepseek-ai/deepseek-harness`'s permission model. Conversations retain the upstream user questions, approvals, permission presets, approval policies, sandbox behavior, and persisted permission events. The three upstream sandbox modes (`read-only`, `workspace-write`, and `danger-full-access`) remain available, as do filesystem confinement when that composition is enabled, tool/command confirmations, and escalation of a blocked command only through `sandbox_permissions`, a justification, and user approval.
+
+Electron adds only the desktop process boundary: an isolated renderer, `contextIsolation`, `sandbox`, `nodeIntegration: false`, a typed preload, and local services bound to `127.0.0.1`. It does not silently grant filesystem, shell, network, workspace, or agent-tool access. The public OpenCode credential only enables the DeepSeek Free model transport; it does not change agent authority. If upstream changes a policy, preset, or permission mode, this fork inherits it when the subtree is synchronized. The complete feature inventory and its limits are in [UPSTREAM-FEATURES.md](docs/UPSTREAM-FEATURES.md).
 
 ## Every feature of the included DeepSeek Harness
 

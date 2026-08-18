@@ -16,6 +16,14 @@ La rama de producto es `dev`; el fork mantiene `master` como referencia del upst
 
 Los artifacts se construyen en una matriz Windows/macOS/Linux, pasan los tests de contrato y se publican en la release de GitHub del fork. No es una UI de demostración: cada build incluye el runtime del harness, sus dependencias workspace, el pool local, la configuración zero-config y las superficies web upstream documentadas abajo.
 
+## Portable, vibecoding casi gratis y límites reales
+
+El producto está diseñado para ser autocontenido y portable: el runtime de Node/Electron, el CLI `dsh`, la UI, las dependencias nativas y los binarios `opencode2api` viajan dentro del artefacto. No hace falta instalar Node, pnpm, Git, Go ni Python para ejecutar una release. En Windows se publican dos ejecutables: un instalador NSIS y un `.exe` **portable** que se puede copiar a otra carpeta o máquina; el portable guarda sus datos en `data/` junto al ejecutable. macOS entrega la app/DMG y Linux la AppImage, también con el runtime incluido.
+
+El objetivo es facilitar vibecoding prácticamente gratis usando la ruta DeepSeek Free de OpenCode. El overlay de Pool tiene el slider **Accounts / workers** de 1 a 16 (por defecto 4): controla cuántos procesos locales `opencode2api` atienden en paralelo y mejora la concurrencia. No crea cuentas nuevas, no rota identidades y no evade límites. Todos los workers públicos usan la ruta `Bearer public`, y el proveedor gratuito puede limitar solicitudes por IP, cuota, disponibilidad o política del servicio; por eso subir el slider no aumenta la cuota gratuita y puede provocar rate limits. Con una clave privada, todos los workers usan esa clave y siguen aplicando los límites de esa cuenta/proveedor.
+
+Para probar el build Windows generado en este checkout, abrí `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.0-win-x64-portable.exe`; el instalador queda como `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.0-win-x64-setup.exe`. El directorio desempaquetado de desarrollo es `apps/shell/release/win-unpacked/FreeCode DeepSeek Harness.exe`.
+
 ## Qué entrega
 
 Esta aplicación empaqueta el harness upstream y agrega la capa desktop necesaria para usarlo sin preparar manualmente procesos, puertos ni providers:
@@ -28,6 +36,12 @@ Esta aplicación empaqueta el harness upstream y agrega la capa desktop necesari
 - Incluye ventana, tray, notificaciones, overlay de estado del pool, abrir la carpeta de configuración, importación OpenCode SQLite/ChatML y continuación en workspace.
 - Escribe logs JSONL rotados, soporta actualizaciones GitHub opt-in, prepara stages reproducibles y publica únicamente desde tags `v*`.
 - Añade un fondo animado por conversación en CSS: dos gradientes radiales livianos, sin canvas ni loop JavaScript, con soporte para `prefers-reduced-motion`.
+
+## Permisos: exactamente el modelo del harness original
+
+El fork no amplía ni reemplaza el modelo de permisos de `deepseek-ai/deepseek-harness`. Las conversaciones conservan sus preguntas, aprobaciones de usuario, presets de permisos, políticas de aprobación, sandbox y eventos persistidos del upstream. También se conservan las tres modalidades de sandbox (`read-only`, `workspace-write` y `danger-full-access`), el confinamiento de filesystem cuando la composición lo activa, las confirmaciones de herramientas/comandos y la escalada de un comando bloqueado sólo con `sandbox_permissions`, justificación y aprobación del usuario.
+
+Electron agrega únicamente el límite del proceso de escritorio: renderer aislado, `contextIsolation`, `sandbox`, `nodeIntegration: false`, preload tipado y servicios locales en `127.0.0.1`. No concede automáticamente acceso al filesystem, shell, red, workspace ni herramientas del agente. La credencial pública de OpenCode sólo habilita el transporte/modelo DeepSeek Free; no cambia la autoridad del agente. Si el upstream cambia una política, preset o modo de permisos, este fork lo hereda al sincronizar la subtree. El inventario completo y sus límites están en [UPSTREAM-FEATURES.md](docs/UPSTREAM-FEATURES.md).
 
 ## Todas las funciones del DeepSeek Harness incluido
 

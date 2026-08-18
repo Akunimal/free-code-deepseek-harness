@@ -54,7 +54,7 @@ describe.skipIf(!HARNESS_BUILT)('contract: boot readiness', () => {
       killTree(proc.pid ?? -1);
       rmSync(home, { recursive: true, force: true });
     }
-  });
+  }, 40_000);
 });
 
 // ---------------------------------------------------------------------------

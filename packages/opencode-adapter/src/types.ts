@@ -29,6 +29,10 @@ export interface PoolConfig {
 export interface Pool {
   start(): Promise<void>;
   stop(): Promise<void>;
+  /** Current worker-slot count selected by the account/worker slider. */
+  size(): number;
+  /** Change the worker-slot count live; values are clamped to 1..16. */
+  resize(size: number): Promise<void>;
   workers(): WorkerHandle[];
   /** Round-robin over healthy/ready workers. Returns null if none. */
   pickHealthy(): WorkerHandle | null;

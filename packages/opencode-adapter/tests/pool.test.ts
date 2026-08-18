@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { OpenCodePool, getFreePort, createLoadBalancer } from '../src/index.js';
+import { OpenCodePool, getFreePort, createLoadBalancer, normalizePoolSize } from '../src/index.js';
 import type { WorkerHandle } from '../src/index.js';
 
 const BIN = join(
@@ -37,6 +37,21 @@ function waitFor(fn: () => boolean, timeoutMs = 20_000, intervalMs = 250): Promi
 }
 
 describe('OpenCodePool', () => {
+  it('clamps the account/worker slider to the supported range', () => {
+    expect(normalizePoolSize(0)).toBe(1);
+    expect(normalizePoolSize(4.9)).toBe(4);
+    expect(normalizePoolSize(99)).toBe(16);
+    expect(normalizePoolSize(Number.NaN)).toBe(1);
+  });
+
+  it('applies a bounded resize before workers start', async () => {
+    const pool = new OpenCodePool({ size: 4, binaryPath: BIN, workDir, logDir });
+    await pool.resize(99);
+    expect(pool.size()).toBe(16);
+    await pool.resize(0);
+    expect(pool.size()).toBe(1);
+  });
+
   afterAll(() => {
     try {
       rmSync(tmp, { recursive: true, force: true });

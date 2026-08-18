@@ -9,6 +9,9 @@ import { ShellRuntime } from './runtime.js';
 import { detectLocalRoutes } from './omniroute-detector.js';
 import { refreshModels } from './model-refresher.js';
 import { join } from 'node:path';
+import { z } from 'zod';
+
+const PoolResizePayloadSchema = z.object({ size: z.number().int().min(1).max(16) });
 
 /**
  * IPC contract — zod-validated channel handlers exposed to the renderer
@@ -65,6 +68,12 @@ export function registerIpc(deps: IpcDeps): () => void {
       runtime.pool.restartWorker(payload.id),
   );
 
+  // pool:resize — live account/worker-slot slider, bounded to the adapter contract.
+  ipcMain.handle(IpcChannels.poolResize, (_e, payload: unknown) => {
+    const parsed = PoolResizePayloadSchema.parse(payload);
+    return runtime.pool.resize(parsed.size);
+  });
+
   // settings:openFolder (invoke) — reveal DSH_HOME in the OS file manager
   ipcMain.handle(IpcChannels.settingsOpenFolder, () => shell.openPath(homeDir));
 
@@ -74,6 +83,7 @@ export function registerIpc(deps: IpcDeps): () => void {
     ipcMain.removeHandler(IpcChannels.omnirouteDetect);
     ipcMain.removeHandler(IpcChannels.harnessRestart);
     ipcMain.removeHandler(IpcChannels.poolRestartWorker);
+    ipcMain.removeHandler(IpcChannels.poolResize);
     ipcMain.removeHandler(IpcChannels.settingsOpenFolder);
   };
 }

@@ -30,12 +30,23 @@ jobs:
           node-version: 24.12.0
           cache: pnpm
 
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+
       - name: Install workspace
         run: pnpm install --frozen-lockfile
 
       - name: Install upstream workspace
         shell: bash
-        run: pnpm --dir vendor/deepseek-harness install --frozen-lockfile
+        run: pnpm --dir vendor/deepseek-harness install --frozen-lockfile --node-linker=hoisted
+
+      - name: Build opencode2api resources
+        shell: bash
+        run: bash scripts/build-opencode2api.sh
+
+      - name: Link upstream runtime packages
+        run: pnpm prepare:upstream
 
       - name: Build upstream harness
         shell: bash

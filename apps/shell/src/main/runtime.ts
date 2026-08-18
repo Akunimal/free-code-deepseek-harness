@@ -39,7 +39,7 @@ export interface ShellRuntime {
 }
 
 export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<ShellRuntime> {
-  const binaryPath = resolveOpencodeBinary(cfg.resourcesDir, process.platform);
+  const binaryPath = resolveOpencodeBinary(cfg.resourcesDir, process.platform, process.arch);
 
   const pool = new OpenCodePool({
     size: cfg.poolSize ?? 4,

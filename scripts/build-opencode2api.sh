@@ -24,17 +24,33 @@ echo "[opencode2api] using go: $GO_BIN"
 
 mkdir -p "$OUT_DIR"
 
-# Native Windows paths for the Go toolchain (go.exe can't handle MSYS POSIX paths)
-OUT_WIN="$(cygpath -w "$OUT_DIR")"
-PATCH_WIN="$(cygpath -w "$PATCH")"
+# Git Bash needs native Windows paths when it invokes go.exe. macOS/Linux Go
+# expects ordinary POSIX paths. Keeping this distinction here makes the same
+# script usable by local builds and all three release runners.
+if command -v cygpath >/dev/null 2>&1; then
+  OUT_NATIVE="$(cygpath -w "$OUT_DIR")"
+  PATCH_NATIVE="$(cygpath -w "$PATCH")"
+else
+  OUT_NATIVE="$OUT_DIR"
+  PATCH_NATIVE="$PATCH"
+fi
 
 PATCHED=0
+
+restore_vendor() {
+  if [ "$PATCHED" = "1" ]; then
+    cd "$ROOT"
+    git checkout -- vendor/opencode2api
+    echo "[opencode2api] vendor/ restored to pristine"
+  fi
+}
+trap restore_vendor EXIT
 
 # Idempotent patch application (paths are repo-root relative): add -host flag
 # so workers bind 127.0.0.1 only. Applied from the repo root.
 if ! grep -q 'hostAddr' "$SRC/internal/app/server.go"; then
-  git apply --check "$PATCH_WIN"
-  git apply "$PATCH_WIN"
+  git apply --check "$PATCH_NATIVE"
+  git apply "$PATCH_NATIVE"
   PATCHED=1
   echo "[opencode2api] applied patch: opencode2api-host-flag"
 fi
@@ -44,20 +60,16 @@ cd "$SRC"
 export CGO_ENABLED=0
 
 echo "[opencode2api] building windows/amd64..."
-GOOS=windows GOARCH=amd64 "$GO_BIN" build -ldflags="-s -w" -o "$OUT_WIN\\opencode2api-win-x64.exe" ./cmd/opencode2api
+GOOS=windows GOARCH=amd64 "$GO_BIN" build -ldflags="-s -w" -o "$OUT_NATIVE/opencode2api-win-x64.exe" ./cmd/opencode2api
 
 echo "[opencode2api] building darwin/arm64..."
-GOOS=darwin  GOARCH=arm64 "$GO_BIN" build -ldflags="-s -w" -o "$OUT_WIN\\opencode2api-mac-arm64"    ./cmd/opencode2api
+GOOS=darwin  GOARCH=arm64 "$GO_BIN" build -ldflags="-s -w" -o "$OUT_NATIVE/opencode2api-mac-arm64" ./cmd/opencode2api
+
+echo "[opencode2api] building darwin/amd64..."
+GOOS=darwin  GOARCH=amd64 "$GO_BIN" build -ldflags="-s -w" -o "$OUT_NATIVE/opencode2api-mac-x64" ./cmd/opencode2api
 
 echo "[opencode2api] building linux/amd64..."
-GOOS=linux   GOARCH=amd64 "$GO_BIN" build -ldflags="-s -w" -o "$OUT_WIN\\opencode2api-linux-x64"    ./cmd/opencode2api
+GOOS=linux   GOARCH=amd64 "$GO_BIN" build -ldflags="-s -w" -o "$OUT_NATIVE/opencode2api-linux-x64" ./cmd/opencode2api
 
-# Restore vendored tree to pristine (only if we patched it)
-if [ "$PATCHED" = "1" ]; then
-  cd "$ROOT"
-  git checkout -- vendor/opencode2api
-  echo "[opencode2api] vendor/ restored to pristine"
-fi
-
-echo "[opencode2api] done: 3 binaries in $OUT_DIR"
+echo "[opencode2api] done: 4 binaries in $OUT_DIR"
 ls -la "$OUT_DIR"
