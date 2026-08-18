@@ -29,6 +29,8 @@ describe('release and runtime packaging contracts', () => {
     expect(builder).toContain('icon: build/icon.png');
     expect(builder).toContain('  icon: build/icon.ico');
     expect(pngIcon.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))).toBe(true);
+    expect(pngIcon.readUInt32BE(16)).toBeGreaterThanOrEqual(512);
+    expect(pngIcon.readUInt32BE(20)).toBeGreaterThanOrEqual(512);
     expect(builder).toContain('- portable');
     expect(builder).toContain('artifactName: FreeCode-DeepSeek-Harness-${version}-${os}-${arch}-portable.${ext}');
     expect(builder).toContain('owner: Akunimal');
