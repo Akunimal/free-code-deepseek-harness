@@ -20,12 +20,17 @@ const NODE = process.env.FREECODE_NODE ?? 'node';
 // 7. opencode2api CLI flags → detect renames
 // ---------------------------------------------------------------------------
 describe('contract: opencode2api CLI flags', () => {
+  const binaryName = process.platform === 'win32'
+    ? 'opencode2api-win-x64.exe'
+    : process.platform === 'darwin'
+      ? process.arch === 'x64' ? 'opencode2api-mac-x64' : 'opencode2api-mac-arm64'
+      : 'opencode2api-linux-x64';
   const roots = [
     join(import.meta.dirname, '../../../apps/shell/resources/opencode2api'),
     join(import.meta.dirname, '../../../../vendor/opencode2api/bin'),
   ];
   const bin = roots
-    .map((r) => join(r, 'opencode2api-win-x64.exe'))
+    .map((r) => join(r, binaryName))
     .find((b) => existsSync(b));
   it.skipIf(!bin)('binary exposes -port/-password/-config (Go flag style)', () => {
     const r = spawnSync(bin!, ['--help'], { encoding: 'utf8', timeout: 15_000 });
