@@ -1,12 +1,22 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import {
+import type {
   FreeCodeApi,
-  IpcChannels,
   IpcPayloads,
   ModelCatalog,
   DetectedRoute,
   WorkerHandle,
 } from '@freecode/shared-types';
+
+const IpcChannels = {
+  poolStatus: 'pool:status',
+  poolRestartWorker: 'pool:restartWorker',
+  poolResize: 'pool:resize',
+  modelsCatalog: 'models:catalog',
+  modelsRefresh: 'models:refresh',
+  omnirouteDetect: 'omniroute:detect',
+  settingsOpenFolder: 'settings:openFolder',
+  harnessRestart: 'harness:restart',
+} as const;
 
 /**
  * Preload — the ONLY bridge between the renderer and the main process.

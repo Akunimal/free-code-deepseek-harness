@@ -6,7 +6,7 @@
   "type": "module",
   "main": "./dist/src/main/index.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node --input-type=module -e \"import{buildSync}from'esbuild';buildSync({entryPoints:['dist/src/preload/index.js'],bundle:true,platform:'node',format:'cjs',outfile:'dist/src/preload/index.js',allowOverwrite:true,external:['electron']})\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --config vitest.config.ts",
     "dev": "pnpm build && electron .",
@@ -23,8 +23,9 @@
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
-    "electron": "^33.4.11",
+    "electron": "^35.7.5",
     "electron-builder": "^25.1.8",
+    "esbuild": "^0.28.2",
     "vitest": "^2.1.9"
   }
 }

@@ -30,6 +30,8 @@ export interface HarnessSupervisorConfig {
   backoffBaseMs?: number;
   /** Max respawns per 60s window. Default 5. */
   restartBudget?: number;
+  /** Structured logger piped to app.log by the shell. */
+  log?: (level: 'debug' | 'info' | 'warn' | 'error', msg: string, meta?: Record<string, unknown>) => void;
 }
 
 export interface HarnessInstance {
@@ -157,18 +159,24 @@ export class HarnessSupervisor {
     proc.stdout?.on('data', (chunk: Buffer) => {
       const text = chunk.toString();
       process.stdout.write(`[dsh] ${text}`);
+      this.cfg.log?.('debug', text.trimEnd());
       this.outBuffer += text;
+      if (this.outBuffer.length > 65_536) this.outBuffer = this.outBuffer.slice(-32_768);
       this.tryGrabs();
     });
     proc.stderr?.on('data', (chunk: Buffer) => {
-      process.stderr.write(`[dsh:err] ${chunk.toString()}`);
-      this.outBuffer += chunk.toString();
+      const text = chunk.toString();
+      process.stderr.write(`[dsh:err] ${text}`);
+      this.cfg.log?.('warn', `dsh stderr: ${text.trimEnd()}`);
+      this.outBuffer += text;
+      if (this.outBuffer.length > 65_536) this.outBuffer = this.outBuffer.slice(-32_768);
       this.tryGrabs();
     });
 
     proc.on('exit', (code, signal) => {
       if (this.stopping) return; // deliberate
       console.warn(`[supervisor] dsh exited code=${code} signal=${signal}`);
+      this.cfg.log?.('error', 'dsh exited', { code, signal, tail: this.outBuffer.slice(-4000) });
       if (this.status === 'ready') {
         this.status = 'unhealthy';
       } else {
@@ -182,6 +190,7 @@ export class HarnessSupervisor {
     setTimeout(() => {
       if (this.proc === proc && this.status === 'starting' && proc.exitCode === null) {
         console.error('[supervisor] dsh did not report readiness in 30s, killing');
+        this.cfg.log?.('error', 'dsh readiness timeout', { tail: this.outBuffer.slice(-4000) });
         killTree(proc.pid ?? -1); // exit handler respawns
       }
     }, READY_TIMEOUT_MS).unref();

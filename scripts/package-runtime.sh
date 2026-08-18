@@ -66,6 +66,8 @@ TARGET_OS="${DSH_TARGET_OS:-}"
 TARGET_CPU="${DSH_TARGET_CPU:-}"
 if [[ -n "$TARGET_OS" ]]; then
   node -e "const fs=require('node:fs'); const p=process.argv[1]; const os=process.argv[2]; const cpu=process.argv[3]; let s=fs.readFileSync(p,'utf8'); s += '\\nsupportedArchitectures:\\n  os:\\n    - '+os+'\\n'; if (cpu) s += '  cpu:\\n    - '+cpu+'\\n'; fs.writeFileSync(p,s)" "$STAGE/pnpm-workspace.yaml" "$TARGET_OS" "$TARGET_CPU"
+else
+  node -e "const fs=require('node:fs'); const p=process.argv[1]; let s=fs.readFileSync(p,'utf8'); s += '\\nsupportedArchitectures:\\n  os:\\n    - win32\\n    - darwin\\n    - linux\\n  cpu:\\n    - x64\\n    - arm64\\n'; fs.writeFileSync(p,s)" "$STAGE/pnpm-workspace.yaml"
 fi
 pnpm --dir "$STAGE" install --frozen-lockfile --node-linker=hoisted
 
@@ -81,6 +83,35 @@ fi
 
 echo "package-runtime: materializing workspace packages for cross-platform Node resolution"
 node "$ROOT/scripts/materialize-runtime.mjs" "$STAGE"
+
+# Verify that platform-specific native packages survived the install + materialize.
+# Without these the harness CLI dies at boot ("Could not load sharp / koffi").
+# Note: sharp-win32-x64 bundles libvips DLLs inline (no separate sharp-libvips-win32-x64),
+# while linux and darwin have separate sharp-libvips-* packages.
+echo "package-runtime: verifying native optional packages in stage"
+NATIVE_OK=true
+check_native() {
+  local d="$1"
+  if [[ -n "$TARGET_OS" ]]; then
+    case "$d" in *"$TARGET_OS"*) ;; *) return ;; esac
+  fi
+  if [[ ! -d "$STAGE/node_modules/$d" ]]; then
+    echo "package-runtime: MISSING native dir: $d" >&2
+    NATIVE_OK=false
+  fi
+}
+check_native "@img/sharp-win32-x64/lib"
+check_native "@koromix/koffi-win32-x64/win32_x64"
+check_native "@img/sharp-linux-x64/lib"
+check_native "@img/sharp-libvips-linux-x64/lib"
+check_native "@koromix/koffi-linux-x64/linux_x64"
+check_native "@img/sharp-darwin-x64/lib"
+check_native "@img/sharp-libvips-darwin-x64/lib"
+check_native "@koromix/koffi-darwin-x64/darwin_x64"
+if [[ "$NATIVE_OK" != "true" ]]; then
+  echo "package-runtime: native optional packages missing from stage; aborting" >&2
+  exit 3
+fi
 
 mkdir -p "$OUT"
 rm -rf "$OUT/dsh" "$OUT/opencode2api"

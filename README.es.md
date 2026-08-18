@@ -1,12 +1,12 @@
 # free-code-deepseek-harness
 
-> Shell de escritorio multiplataforma para [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness): zero-config, proveedor DeepSeek Free de fábrica, pool local de workers `opencode2api` y la interfaz web completa del harness.
+> Shell de escritorio multiplataforma para [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) con **puente OpenCode integrado**: zero-config, proveedor DeepSeek Free de fábrica a través del pool local `opencode2api` incluido, y la interfaz web completa del harness.
 
 [English](README.md)
 
 ## Sobre este fork
 
-Este repositorio es el fork público [Akunimal/free-code-deepseek-harness](https://github.com/Akunimal/free-code-deepseek-harness) de [`deepseek-ai/deepseek-harness`](https://github.com/deepseek-ai/deepseek-harness). Conserva el harness original y agrega una aplicación GUI de escritorio para ejecutarlo como producto multiplataforma: Electron administra los procesos locales, prepara el proveedor DeepSeek Free, levanta el `opencode2api` pool y abre la interfaz web completa del harness dentro de una ventana nativa.
+Este repositorio es el fork público [Akunimal/free-code-deepseek-harness](https://github.com/Akunimal/free-code-deepseek-harness) de [`deepseek-ai/deepseek-harness`](https://github.com/deepseek-ai/deepseek-harness). Conserva el harness original y agrega una aplicación GUI de escritorio para ejecutarlo como producto multiplataforma: Electron administra los procesos locales, prepara el proveedor DeepSeek Free, levanta el `opencode2api` pool y abre la interfaz web completa del harness dentro de una ventana nativa. **El puente OpenCode (`opencode2api`) viene completamente integrado** — no requiere descarga externa, binario separado ni configuración manual; el puente viaja dentro de la aplicación y el pool de workers lo administra automáticamente.
 
 La rama de producto es `dev`; el fork mantiene `master` como referencia del upstream. Cada tag `v*` dispara una release reproducible con builds nativos para las tres plataformas soportadas:
 
@@ -20,7 +20,11 @@ Los artifacts se construyen en una matriz Windows/macOS/Linux, pasan los tests d
 
 El producto está diseñado para ser autocontenido y portable: el runtime de Node/Electron, el CLI `dsh`, la UI, las dependencias nativas y los binarios `opencode2api` viajan dentro del artefacto. No hace falta instalar Node, pnpm, Git, Go ni Python para ejecutar una release. En Windows se publican dos ejecutables: un instalador NSIS y un `.exe` **portable** que se puede copiar a otra carpeta o máquina; el portable guarda sus datos en `data/` junto al ejecutable. macOS entrega la app/DMG y Linux la AppImage, también con el runtime incluido.
 
-El objetivo es facilitar vibecoding prácticamente gratis usando la ruta DeepSeek Free de OpenCode. El overlay de Pool tiene el slider **Accounts / workers** de 1 a 16 (por defecto 4): controla cuántos procesos locales `opencode2api` atienden en paralelo y mejora la concurrencia. No crea cuentas nuevas, no rota identidades y no evade límites. Todos los workers públicos usan la ruta `Bearer public`, y el proveedor gratuito puede limitar solicitudes por IP, cuota, disponibilidad o política del servicio; por eso subir el slider no aumenta la cuota gratuita y puede provocar rate limits. Con una clave privada, todos los workers usan esa clave y siguen aplicando los límites de esa cuenta/proveedor.
+El objetivo es facilitar vibecoding prácticamente gratis usando la ruta DeepSeek Free de OpenCode. El overlay de Pool tiene el slider **Accounts / workers** de 1 a 16 (por defecto 4): controla cuántos procesos locales `opencode2api` atienden en paralelo. Cada worker mantiene su propia sesión independiente contra el servicio OpenCode, y los rate limits se aplican por sesión, por lo que agregar workers incrementa efectivamente el throughput agregado más allá de lo que una sola conexión puede sostener. No crea cuentas nuevas, no rota identidades y no evade límites a nivel de IP. Con una clave privada, todos los workers usan esa clave y siguen aplicando los límites de esa cuenta/proveedor.
+
+**Costo de más workers:** cada proceso `opencode2api` consume RAM (~80–120 MB cada uno); 4 workers ≈ 400 MB, 16 workers ≈ 1.6 GB encima de Electron. Si todos los workers pegan al servicio a la vez, pueden llegar todos al tope de rate limit simultáneamente — más workers no garantiza más cuota, sólo mejor concurrencia cuando hay cuota disponible. Empezá con el default (4) y subí sólo si notás tiempo muerto entre requests.
+
+**Timeouts y paciencia:** la ruta gratuita de DeepSeek puede ser lenta, sobre todo bajo carga alta. Los timeouts están configurados generosamente a propósito para que los streams largos no se corten a mitad de respuesta. Si una respuesta tarda, esperá — el stream sigue vivo, el modelo sigue generando. Al fin y al cabo, es gratis.
 
 Para probar el build Windows generado en este checkout, abrí `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.0-win-x64-portable.exe`; el instalador queda como `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.0-win-x64-setup.exe`. El directorio desempaquetado de desarrollo es `apps/shell/release/win-unpacked/FreeCode DeepSeek Harness.exe`.
 

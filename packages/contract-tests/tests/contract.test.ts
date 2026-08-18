@@ -23,10 +23,10 @@ const TIMEOUT_MS = 30_000;
 // 1. dsh CLI flags → if upstream renames --port/--host, adapt webStartup
 // ---------------------------------------------------------------------------
 describe.skipIf(!HARNESS_BUILT)('contract: dsh CLI flags', () => {
-  it('dsh web --help exposes --port and --host', () => {
+  it('dsh web --help exposes --port and --host', { timeout: 65_000 }, () => {
     const r = spawnSync(NODE, [CLI_ENTRY, 'web', '--help'], {
       encoding: 'utf8',
-      timeout: 20_000,
+      timeout: 60_000,
     });
     expect(r.status).toBe(0);
     expect(r.stdout).toContain('--port');

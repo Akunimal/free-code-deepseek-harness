@@ -27,6 +27,8 @@ export interface ShellRuntimeConfig {
   secretEnvNames?: string[];
   /** Runtime env needed by a packaged Electron child process. */
   nodeEnv?: Record<string, string>;
+  /** Optional logging callback forwarded to the supervisor. */
+  log?: (level: string, msg: string, meta?: Record<string, unknown>) => void;
 }
 
 export interface ShellRuntime {

@@ -46,11 +46,30 @@ for (const { dir, name } of packageDirs) {
   });
 }
 
+function containsNativeBinaries(dir) {
+  if (!fs.existsSync(dir)) return false;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const name = entry.name;
+    if (entry.isFile() && (name.endsWith('.node') || name.endsWith('.dll') || name.endsWith('.dylib') || name.endsWith('.so'))) {
+      return true;
+    }
+    if (entry.isDirectory() && !entry.isSymbolicLink()) {
+      if (containsNativeBinaries(path.join(dir, name))) return true;
+    }
+  }
+  return false;
+}
+
 function removeNestedNodeModules(dir) {
   if (!fs.existsSync(dir)) return;
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.name === 'node_modules' && dir !== stage) {
-      fs.rmSync(path.join(dir, entry.name), { recursive: true, force: true });
+      const nmPath = path.join(dir, entry.name);
+      if (containsNativeBinaries(nmPath)) {
+        console.log(`materialize-runtime: preserving ${nmPath} (contains native binaries)`);
+        continue;
+      }
+      fs.rmSync(nmPath, { recursive: true, force: true });
       continue;
     }
     if (entry.isDirectory() && !entry.isSymbolicLink()) {

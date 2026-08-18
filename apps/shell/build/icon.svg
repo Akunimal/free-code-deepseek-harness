@@ -1,11 +1,4 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="FreeCode DeepSeek Harness">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#70d7ff"/>
-      <stop offset="1" stop-color="#3964fe"/>
-    </linearGradient>
-  </defs>
-  <rect width="256" height="256" rx="56" fill="#0c111d"/>
-  <path d="M54 74h148v32H86v24h94v30H86v22h116v32H54z" fill="url(#g)"/>
-  <circle cx="190" cy="74" r="14" fill="#fff" opacity=".9"/>
+  <rect width="256" height="256" rx="50" fill="#f0f2f5"/>
+  <image href="icon.png" width="256" height="256"/>
 </svg>

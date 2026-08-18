@@ -44,9 +44,8 @@ interface SettingsShape {
 
 const DEFAULT_PROVIDER = 'deepseek-free';
 const DEFAULT_API_KEY_ENV = 'FREECODE_PUBLIC_KEY';
-/** First known model of opencode2api public mode (verified by live probe).
- *  The model-refresher replaces this with the full latency-sorted list. */
-const FALLBACK_MODELS = [{ id: 'deepseek-v4-flash' }];
+/** Seed model — the model-refresher replaces this with the live catalog. */
+const FALLBACK_MODELS = [{ id: 'nemotron-3.5-lightning' }];
 const MARKER_FILE = '.freecode-seeded-v1';
 
 export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: string } {
@@ -59,9 +58,6 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
   const existing = providers[DEFAULT_PROVIDER];
   let seeded = false;
   if (existing) {
-    // Rule: existing deepseek-free -> update baseURL ONLY (port can change
-    // between boots). If the models list is empty (a broken legacy seed),
-    // plant the fallback so the route stays serviceable.
     if (existing.baseURL !== cfg.lbBaseUrl) {
       existing.baseURL = cfg.lbBaseUrl;
       seeded = true;
@@ -70,23 +66,41 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
       existing.models = FALLBACK_MODELS;
       seeded = true;
     }
-    if (seeded) writeSettings(settingsPath, settings);
-    return { seeded, path: settingsPath };
+  } else {
+    providers[DEFAULT_PROVIDER] = {
+      displayName: 'DeepSeek Free (pool)',
+      api: 'openai-completions',
+      baseURL: cfg.lbBaseUrl,
+      apiKeyEnv: cfg.apiKeyEnv ?? DEFAULT_API_KEY_ENV,
+      defaultInput: ['text'],
+      models: FALLBACK_MODELS,
+    };
+    seeded = true;
   }
 
-  // Fresh seed — serviceable from the first boot (models non-empty).
-  providers[DEFAULT_PROVIDER] = {
-    displayName: 'DeepSeek Free (pool)',
-    api: 'openai-completions',
-    baseURL: cfg.lbBaseUrl,
-    apiKeyEnv: cfg.apiKeyEnv ?? DEFAULT_API_KEY_ENV,
-    defaultInput: ['text'],
-    models: FALLBACK_MODELS,
-  };
+  // Ensure agent-default-model points to deepseek-free with a model that
+  // the pool actually serves. If missing or pointing to a provider with no
+  // API key configured (e.g. the built-in deepseek-official on a fresh
+  // install), correct it to the free pool route.
+  const defaultModel = settings['agent-default-model'] as
+    | { provider?: string; model?: string; reasoningEffort?: string }
+    | undefined;
+  const freeModels = (existing?.models ?? FALLBACK_MODELS) as { id: string }[];
+  const firstModel = freeModels[0]?.id ?? FALLBACK_MODELS[0]!.id;
+  if (!defaultModel || defaultModel.provider !== DEFAULT_PROVIDER) {
+    settings['agent-default-model'] = {
+      provider: DEFAULT_PROVIDER,
+      model: firstModel,
+      reasoningEffort: defaultModel?.reasoningEffort ?? 'high',
+    };
+    seeded = true;
+  }
 
-  writeSettings(settingsPath, settings);
-  writeMarker(cfg.homeDir, cfg.lbBaseUrl);
-  return { seeded: true, path: settingsPath };
+  if (seeded) {
+    writeSettings(settingsPath, settings);
+    if (!existing) writeMarker(cfg.homeDir, cfg.lbBaseUrl);
+  }
+  return { seeded, path: settingsPath };
 }
 
 function readSettings(path: string): SettingsShape {

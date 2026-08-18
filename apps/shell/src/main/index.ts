@@ -10,11 +10,23 @@ import { registerIpc } from './ipc.js';
 import { nodeRuntimeEnv, resolveNodePath, resolveResourcesDir } from './resource-paths.js';
 import { createAppLogger, type AppLogger } from './logger.js';
 import { createUpdateService, type UpdateService } from './updater.js';
+import { initLocale, t } from './i18n.js';
 
 /**
  * Electron main — wires the runtime (pool -> LB -> harness), the native
  * window wrapping the harness webview, tray, and the pool overlay.
  */
+
+// Packaged Electron has no attached console; Node 22+ throws EPIPE when
+// console.log writes to a broken stdout/stderr pipe. Silence it globally.
+for (const stream of [process.stdout, process.stderr]) {
+  stream?.on?.('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EPIPE' || err.code === 'ERR_STREAM_DESTROYED') return;
+    throw err;
+  });
+}
+
+app.disableHardwareAcceleration();
 
 const isDev = !app.isPackaged;
 
@@ -66,10 +78,15 @@ async function bootstrap(): Promise<ShellRuntime> {
     secrets,
     secretEnvNames: ['FREECODE_PUBLIC_KEY'],
     nodeEnv: nodeRuntimeEnv(app.isPackaged),
+    log: (level, msg, meta) => {
+      const fn = level === 'error' || level === 'warn' ? level : 'info';
+      appLogger?.logger[fn]?.(meta ?? {}, msg);
+    },
   });
   return runtime;
 }
 
+let splashWindow: BrowserWindow | null = null;
 let mainWindow: BrowserWindow | null = null;
 let overlayWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -79,6 +96,41 @@ let updateService: UpdateService | null = null;
 let updateTimer: NodeJS.Timeout | null = null;
 let overlayOpen = false;
 let localUpdateRunning = false;
+
+function createSplashWindow(): void {
+  splashWindow = new BrowserWindow({
+    width: 380,
+    height: 280,
+    frame: false,
+    resizable: false,
+    transparent: false,
+    center: true,
+    skipTaskbar: false,
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+  });
+  const html = `<!doctype html><html><head><meta charset="utf-8">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,-apple-system,sans-serif;background:#0f1117;color:#d7dae2;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;user-select:none;-webkit-app-region:drag}
+h1{font-size:18px;font-weight:600;margin-bottom:8px}
+p{font-size:13px;color:#9da4b3;margin-bottom:24px}
+.spinner{width:36px;height:36px;border:3px solid #2a2f3a;border-top-color:#ff7a00;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style></head><body>
+<h1>FreeCode DeepSeek Harness</h1>
+<p>${t('splash.loading')}</p>
+<div class="spinner"></div>
+</body></html>`;
+  splashWindow.loadURL('data:text/html,' + encodeURIComponent(html));
+  splashWindow.on('closed', () => { splashWindow = null; });
+}
+
+function closeSplash(): void {
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.close();
+    splashWindow = null;
+  }
+}
 
 function createMainWindow(harnessUrl: string): void {
   mainWindow = new BrowserWindow({
@@ -129,14 +181,41 @@ function renderOverlayHtml(): string {
         `<tr><td>${w.id}</td><td>${w.status}</td><td>127.0.0.1:${w.port}</td><td>${w.pid}</td><td>${w.restarts}</td></tr>`,
     )
     .join('');
-  return `<!doctype html><html><head><meta charset="utf-8"><title>Pool status</title>
-<style>body{font-family:system-ui;background:#0f1117;color:#d7dae2;padding:16px}table{width:100%;border-collapse:collapse}td,th{border:1px solid #2a2f3a;padding:6px 8px;font-size:12px;text-align:left}th{background:#1a1e27}button{background:#ff7a00;border:0;color:#000;padding:8px 12px;border-radius:6px;cursor:pointer;font-weight:600}</style></head>
-<body><h3>Pool status</h3>
-<label for="pool-size">Accounts / workers: <output id="pool-size-value">${poolSize}</output></label>
-<input id="pool-size" type="range" min="1" max="16" step="1" value="${poolSize}" oninput="document.getElementById('pool-size-value').value=this.value" onchange="window.freecode.pool.resize(Number(this.value)).then(()=>location.reload())">
-<p style="font-size:12px;color:#9da4b3">This changes local parallel workers. It does not create extra OpenCode accounts or bypass upstream/IP limits.</p>
-<button onclick="location.reload()">Refresh</button>
-<table><tr><th>id</th><th>status</th><th>addr</th><th>pid</th><th>restarts</th></tr>${rows}</table></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${t('overlay.title')}</title>
+<style>
+*{box-sizing:border-box}
+body{font-family:system-ui;background:#0f1117;color:#d7dae2;padding:16px;margin:0;-webkit-app-region:drag;user-select:none}
+table,input,button,label{-webkit-app-region:no-drag}
+table{width:100%;border-collapse:collapse}
+td,th{border:1px solid #2a2f3a;padding:6px 8px;font-size:12px;text-align:left}
+th{background:#1a1e27}
+button{background:#ff7a00;border:0;color:#000;padding:8px 12px;border-radius:6px;cursor:pointer;font-weight:600}
+.close-btn{position:fixed;top:8px;right:8px;background:transparent;color:#9da4b3;font-size:18px;padding:4px 10px;border-radius:4px;-webkit-app-region:no-drag}
+.close-btn:hover{background:#2a2f3a;color:#fff}
+input[type=range]{width:100%;margin:8px 0}
+</style></head>
+<body>
+<button class="close-btn" onclick="window.close()" title="Close">✕</button>
+<h3 style="margin-top:0">${t('overlay.title')}</h3>
+<label for="pool-size">${t('overlay.workersLabel')} <output id="pool-size-value">${poolSize}</output></label>
+<input id="pool-size" type="range" min="1" max="16" step="1" value="${poolSize}" oninput="document.getElementById('pool-size-value').value=this.value" onchange="window.freecode.pool.resize(Number(this.value))">
+<p style="font-size:12px;color:#9da4b3">${t('overlay.workersNote')}</p>
+<table><thead><tr><th>id</th><th>status</th><th>addr</th><th>pid</th><th>restarts</th></tr></thead><tbody id="pool-rows">${rows}</tbody></table>
+<script>
+window.freecode.pool.onStatus(function(payload) {
+  var tbody = document.getElementById('pool-rows');
+  tbody.innerHTML = payload.workers.map(function(w) {
+    return '<tr><td>'+w.id+'</td><td>'+w.status+'</td><td>127.0.0.1:'+w.port+'</td><td>'+w.pid+'</td><td>'+w.restarts+'</td></tr>';
+  }).join('');
+  var slider = document.getElementById('pool-size');
+  var output = document.getElementById('pool-size-value');
+  if (payload.workers.length !== Number(slider.value)) {
+    slider.value = payload.workers.length;
+    output.value = payload.workers.length;
+  }
+});
+</script>
+</body></html>`;
 }
 
 function bundledUpstreamCommit(resources: string): string | undefined {
@@ -171,21 +250,21 @@ async function updateFromMenu(): Promise<void> {
   const upstreamAvailable = result.upstream?.available === true;
 
   if (releaseAvailable) {
-    const version = result.info?.version ?? 'nueva';
-    const suffix = upstreamAvailable ? '\\nTambién hay cambios nuevos en el harness original.' : '';
+    const version = result.info?.version ?? t('version.new');
+    const suffix = upstreamAvailable ? t('update.available.upstreamSuffix') : '';
     const choice = await dialog.showMessageBox({
       type: 'info',
-      title: 'Actualización disponible',
-      message: `FreeCode DeepSeek Harness ${version} está disponible.${suffix}`,
-      detail: 'La aplicación descargará la release y se reiniciará para instalarla.',
-      buttons: ['Descargar e instalar', 'Ahora no'],
+      title: t('update.available.title'),
+      message: t('update.available.message', version) + suffix,
+      detail: t('update.available.detail'),
+      buttons: [t('update.download'), t('update.notNow')],
       defaultId: 0,
       cancelId: 1,
     });
     if (choice.response === 0) {
       const install = await updateService.downloadAndInstall();
       if (install.status === 'failed') {
-        await dialog.showMessageBox({ type: 'error', title: 'No se pudo actualizar', message: install.error ?? 'La descarga falló.' });
+        await dialog.showMessageBox({ type: 'error', title: t('update.failed.title'), message: install.error ?? t('update.failed.message') });
       }
     }
     return;
@@ -194,10 +273,10 @@ async function updateFromMenu(): Promise<void> {
   if (upstreamAvailable && isDev) {
     const choice = await dialog.showMessageBox({
       type: 'info',
-      title: 'Harness original actualizado',
-      message: 'Hay un commit nuevo de deepseek-ai/deepseek-harness.',
-      detail: 'En este checkout local se puede sincronizar la subtree, ejecutar los tests y recompilar el escritorio automáticamente. El árbol debe estar limpio.',
-      buttons: ['Actualizar y recompilar', 'Ahora no'],
+      title: t('update.upstream.title'),
+      message: t('update.upstream.message'),
+      detail: t('update.upstream.detail'),
+      buttons: [t('update.upstream.action'), t('update.notNow')],
       defaultId: 0,
       cancelId: 1,
     });
@@ -208,18 +287,18 @@ async function updateFromMenu(): Promise<void> {
   if (upstreamAvailable) {
     await dialog.showMessageBox({
       type: 'info',
-      title: 'Upstream tiene cambios nuevos',
-      message: 'El harness original avanzó, pero todavía no hay una release del fork para instalar.',
-      detail: 'Este portable es autocontenido y no trae Git, pnpm ni el toolchain para recompilar. Cuando el fork publique la próxima release, aparecerá aquí para descargarla e instalarla.',
+      title: t('update.upstreamOnly.title'),
+      message: t('update.upstreamOnly.message'),
+      detail: t('update.upstreamOnly.detail'),
     });
     return;
   }
 
-  const details = result.upstream?.error ? `\n\nNo se pudo consultar upstream: ${result.upstream.error}` : '';
+  const details = result.upstream?.error ? `\n\n${t('update.upstreamCheckError', result.upstream.error)}` : '';
   await dialog.showMessageBox({
     type: result.status === 'failed' ? 'warning' : 'info',
-    title: result.status === 'failed' ? 'No se pudo completar la comprobación' : 'Sin actualizaciones',
-    message: result.status === 'failed' ? (result.error ?? 'La comprobación de releases falló.') : 'Ya estás usando la versión disponible.',
+    title: result.status === 'failed' ? t('update.checkFailed.title') : t('update.noUpdates.title'),
+    message: result.status === 'failed' ? (result.error ?? t('update.checkFailed.message')) : t('update.noUpdates.message'),
     detail: details.trim(),
   });
 }
@@ -238,14 +317,14 @@ function runLocalUpstreamUpdate(): void {
   child.once('error', (error) => {
     localUpdateRunning = false;
     appLogger?.logger.error({ err: error }, 'local upstream update failed to start');
-    void dialog.showMessageBox({ type: 'error', title: 'No se pudo actualizar upstream', message: error.message });
+    void dialog.showMessageBox({ type: 'error', title: t('update.localFailed.title'), message: error.message });
   });
   child.once('close', (code) => {
     localUpdateRunning = false;
     if (code === 0) {
-      void dialog.showMessageBox({ type: 'info', title: 'Actualización completa', message: 'Upstream se sincronizó y el build de escritorio terminó correctamente. Reiniciá el checkout de desarrollo para probarlo.' });
+      void dialog.showMessageBox({ type: 'info', title: t('update.localComplete.title'), message: t('update.localComplete.message') });
     } else {
-      void dialog.showMessageBox({ type: 'error', title: 'Actualización incompleta', message: `La sincronización o recompilación terminó con código ${code ?? 'desconocido'}. Revisá la terminal del checkout.` });
+      void dialog.showMessageBox({ type: 'error', title: t('update.localIncomplete.title'), message: t('update.localIncomplete.message', code ?? t('version.unknown')) });
     }
   });
 }
@@ -256,29 +335,29 @@ function buildMenu(): void {
     template.push({ role: 'appMenu' });
   }
   template.push(
-    { role: 'fileMenu', label: 'Archivo' },
+    { role: 'fileMenu', label: t('menu.file') },
     {
-      label: 'Pool',
+      label: t('menu.pool'),
       submenu: [
-        { label: 'Pool status…', click: () => openOverlay() },
+        { label: t('menu.poolStatus'), click: () => openOverlay() },
         {
-          label: 'Restart harness',
+          label: t('menu.restartHarness'),
           click: () => void runtime?.supervisor.restart(),
         },
         { type: 'separator' },
-        { role: 'quit', label: 'Salir' },
+        { role: 'quit', label: t('menu.quit') },
       ],
     },
-    { role: 'viewMenu', label: 'Ver' },
-    { role: 'windowMenu', label: 'Ventana' },
+    { role: 'viewMenu', label: t('menu.view') },
+    { role: 'windowMenu', label: t('menu.window') },
     {
-      label: 'Ayuda',
+      label: t('menu.help'),
       submenu: [
         {
-          label: 'Buscar actualizaciones',
+          label: t('menu.checkUpdates'),
           click: () => void updateFromMenu(),
         },
-        { label: 'Acerca de', click: () => void import('electron').then(({ dialog }) => dialog.showMessageBox({ message: 'FreeCode DeepSeek Harness' })) },
+        { label: t('menu.about'), click: () => void import('electron').then(({ dialog }) => dialog.showMessageBox({ message: 'FreeCode DeepSeek Harness' })) },
       ],
     },
   );
@@ -303,14 +382,14 @@ function createTray(): void {
   tray.setToolTip('FreeCode DeepSeek Harness');
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: 'Mostrar', click: () => mainWindow?.show() },
-      { label: 'Pool status', click: () => openOverlay() },
+      { label: t('tray.show'), click: () => mainWindow?.show() },
+      { label: t('menu.poolStatus'), click: () => openOverlay() },
       {
-        label: 'Restart harness',
+        label: t('menu.restartHarness'),
         click: () => void runtime?.supervisor.restart(),
       },
       { type: 'separator' },
-      { label: 'Salir', click: () => app.quit() },
+      { label: t('menu.quit'), click: () => app.quit() },
     ]),
   );
   tray.on('click', () => mainWindow?.show());
@@ -320,6 +399,8 @@ const REFRESH_INTERVAL_MS = 30 * 60 * 1000;
 
 app.whenReady().then(async () => {
   configurePortableDataDir();
+  initLocale(app.getLocale());
+  createSplashWindow();
   const userDataDir = app.getPath('userData');
   appLogger = createAppLogger(join(userDataDir, 'logs'));
   appLogger.logger.info({ packaged: app.isPackaged, platform: process.platform }, 'shell starting');
@@ -337,7 +418,6 @@ app.whenReady().then(async () => {
   }
   runtime = await bootstrap();
   await runtime.start();
-  await runtime.lb.listen();
 
   const lbUrl = runtime.lb.url();
   // FASE 5: seed once the LB is up.
@@ -372,18 +452,35 @@ app.whenReady().then(async () => {
 
   // Wait for harness readiness, then open the window on its URL.
   runtime.supervisor.onReady((h) => {
+    closeSplash();
     if (!mainWindow) createMainWindow(h.url);
     if (process.platform !== 'darwin') {
-      // Native notifications via wrapper (FASE 9.5): HTML5 notif by default.
       try {
-        new Notification({ title: 'Harness listo', body: h.url }).show();
+        new Notification({ title: t('notify.ready.title'), body: h.url }).show();
       } catch {
         /* fallback silent */
       }
     }
   });
-  // If harness is already ready (fast boot), attach now.
+
+  runtime.supervisor.onStuck((inst) => {
+    const logPath = join(userDataDir, 'logs', 'app.log');
+    appLogger?.logger.error({ restarts: inst.restarts }, 'harness supervisor gave up');
+    void dialog.showMessageBox({
+      type: 'error',
+      title: t('stuck.title'),
+      message: t('stuck.message', inst.restarts),
+      detail: t('stuck.detail', logPath),
+      buttons: [t('stuck.retry'), t('stuck.close')],
+      defaultId: 0,
+      cancelId: 1,
+    }).then((choice) => {
+      if (choice.response === 0) void runtime?.supervisor.restart();
+    });
+  });
+
   if (runtime.supervisor.statusValue === 'ready' && runtime.supervisor.currentUrl) {
+    closeSplash();
     if (!mainWindow) createMainWindow(runtime.supervisor.currentUrl);
   }
 
