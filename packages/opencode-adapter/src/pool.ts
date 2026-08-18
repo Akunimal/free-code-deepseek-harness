@@ -228,7 +228,9 @@ export class OpenCodePool implements Pool {
   private async spawnWorker(id: string, attempt = 0): Promise<void> {
     if (!this.started) return;
     const existing = this.workerMap.get(id);
-    if (existing && existing.proc && existing.proc.exitCode === null) return;
+    // A POSIX process killed by a signal keeps exitCode === null; signalCode
+    // distinguishes that exited state from a child that is still running.
+    if (existing && existing.proc && existing.proc.exitCode === null && existing.proc.signalCode === null) return;
 
     const port = await getFreePort();
     const logFile = join(this.cfg.logDir, `${id}.log`);

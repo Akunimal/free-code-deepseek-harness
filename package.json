@@ -16,7 +16,7 @@
     "build:vendor": "pnpm --dir vendor/deepseek-harness build",
     "build:shell": "pnpm --filter @freecode/shell build",
     "package:runtime": "node scripts/run-package-runtime.mjs",
-    "build:desktop": "pnpm build:shell && pnpm package:runtime && pnpm --filter @freecode/shell package"
+    "build:desktop": "pnpm build && pnpm package:runtime && pnpm --filter @freecode/shell package"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",
