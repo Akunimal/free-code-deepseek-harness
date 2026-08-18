@@ -19,7 +19,7 @@ flowchart LR
 
 1. Electron resolves a development resource root or packaged `resources/freecode`.
 2. The shell starts the `opencode2api` pool and exposes a loopback load balancer.
-3. `dsh web --host 127.0.0.1 --port 0` starts with `OPENCODE2API_LB_URL` and the resolved secret environment.
+3. The shell creates the non-sensitive `FREECODE_PUBLIC_KEY=public` vault default when no user key exists. `dsh web --host 127.0.0.1 --port 0` then starts with `OPENCODE2API_LB_URL` and the resolved secret environment; the pool forwards `Bearer public` to OpenCode's free catalog.
 4. The supervisor waits for the upstream readiness URL and opens a hardened `BrowserWindow` with context isolation, no Node integration, sandboxing, and the preload bridge.
 5. Provider seeding writes a schema-compatible `deepseek-free` route. Model refresh probes every visible model and keeps the catalog plus `settings.yaml` synchronized without deleting user providers.
 6. The browser talks to the harness web server. The shell does not reimplement upstream conversation rendering; it packages the upstream UI and applies the lightweight per-conversation CSS motion layer in `ui-conversation`.

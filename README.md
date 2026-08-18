@@ -23,6 +23,7 @@ Esta aplicación empaqueta el harness upstream y agrega la capa desktop necesari
 - Arranca `opencode2api` en un pool local, con health checks, round-robin, sticky sessions, SSE transparente, backoff y presupuesto de respawn.
 - Levanta `dsh web` en loopback, detecta readiness, reinicia el harness y abre su UI en una ventana Electron aislada/sandboxed.
 - Siembra `deepseek-free` apuntando al pool, conserva providers del usuario y actualiza el catálogo de modelos por latencia cada 30 minutos o bajo demanda.
+- Trae preconfigurada la cuenta pública de OpenCode (`Bearer public`) como `FREECODE_PUBLIC_KEY`, por lo que DeepSeek Free queda utilizable sin API key privada; una clave privada de OpenCode del usuario nunca se sobrescribe.
 - Detecta rutas OpenAI-compatible locales de OmniRoute, guarda secretos mediante keytar o fallback de archivo y expone IPC zod tipado por preload.
 - Incluye ventana, tray, notificaciones, overlay de estado del pool, abrir la carpeta de configuración, importación OpenCode SQLite/ChatML y continuación en workspace.
 - Escribe logs JSONL rotados, soporta actualizaciones GitHub opt-in, prepara stages reproducibles y publica únicamente desde tags `v*`.

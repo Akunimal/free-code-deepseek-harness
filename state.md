@@ -29,7 +29,7 @@
 
 `README.md`, `README.en.md` y `docs/UPSTREAM-FEATURES.md` describen el inventario completo de los **219 paquetes declarados** del harness DeepSeek upstream: web app y boot manifest, CLI `dsh web`, configuración, providers y modelos, OAuth/keys, streaming y conversaciones, extensiones/plugins, skills, MCP, subagents, worktrees, compaction, attachments, export/import, búsqueda, settings, temas, shortcuts, workspace/project management, terminal, permisos, storage, telemetría, assets/build output y límites de empaquetado.
 
-La documentación también cubre las capas propias del proyecto: supervisor de procesos, pool/LB OpenCode, seeding/refresco de providers, detector OmniRoute, secret store, IPC zod, importador de chats, workspace bridge, runtime packaged, logging, updater, tests, release y seguridad. `packages/contract-tests/tests/docs.contract.test.ts` verifica que el inventario de paquetes vendor y sus READMEs no queden sin documentar.
+La documentación también cubre las capas propias del proyecto: supervisor de procesos, pool/LB OpenCode, cuenta pública `Bearer public` preconfigurada para DeepSeek Free sin sobrescribir claves privadas, seeding/refresco de providers, detector OmniRoute, secret store, IPC zod, importador de chats, workspace bridge, runtime packaged, logging, updater, tests, release y seguridad. `packages/contract-tests/tests/docs.contract.test.ts` verifica que el inventario de paquetes vendor y sus READMEs no queden sin documentar.
 
 ## 4. Runtime y empaquetado
 

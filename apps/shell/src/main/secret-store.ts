@@ -272,3 +272,14 @@ export async function resolveSecrets(
   }
   return out;
 }
+
+/** Seed a non-sensitive default only when the user has not configured a value. */
+export async function ensureSecret(
+  store: SecretStore,
+  key: string,
+  value: string,
+): Promise<boolean> {
+  if ((await store.getSecret(key)) !== null) return false;
+  await store.setSecret(key, value);
+  return true;
+}

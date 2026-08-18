@@ -2,7 +2,7 @@ import { app, BrowserWindow, Menu, Tray, nativeImage, Notification } from 'elect
 import { join, resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { createShellRuntime, ShellRuntime } from './runtime.js';
-import { createSecretStore } from './secret-store.js';
+import { createSecretStore, ensureSecret } from './secret-store.js';
 import { seedProviders } from './provider-seeder.js';
 import { refreshModels, ModelCatalog } from './model-refresher.js';
 import { registerIpc } from './ipc.js';
@@ -39,6 +39,12 @@ async function bootstrap(): Promise<ShellRuntime> {
   const userDataDir = app.getPath('userData');
   const resources = resourcesDir();
   const secrets = await createSecretStore(userDataDir);
+  // OpenCode's public route is the zero-config DeepSeek Free account. Keep it
+  // in the vault so llm-pi-ai reports the seeded provider as configured, while
+  // never overwriting a user's private OpenCode key.
+  if (!process.env.FREECODE_PUBLIC_KEY) {
+    await ensureSecret(secrets, 'FREECODE_PUBLIC_KEY', 'public');
+  }
   const runtime = await createShellRuntime({
     resourcesDir: resources,
     nodePath: findNode(),

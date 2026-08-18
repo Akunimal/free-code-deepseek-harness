@@ -23,6 +23,7 @@ This application packages the upstream harness and adds the desktop layer needed
 - Starts an `opencode2api` pool with health checks, round-robin, sticky sessions, transparent SSE, backoff, and a respawn budget.
 - Starts `dsh web` on loopback, detects readiness, restarts the harness, and opens its UI in an isolated/sandboxed Electron window.
 - Seeds `deepseek-free` against the pool, preserves user providers, and refreshes the model catalog by latency every 30 minutes or on demand.
+- Preconfigures OpenCode's public account (`Bearer public`) as `FREECODE_PUBLIC_KEY`, so DeepSeek Free is usable without a private API key; an existing private OpenCode key is never overwritten.
 - Detects local OmniRoute OpenAI-compatible routes, stores secrets through keytar or a file fallback, and exposes typed zod IPC through preload.
 - Includes window, tray, notifications, pool-status overlay, settings-folder access, OpenCode SQLite/ChatML import, and workspace continuation.
 - Writes rotating JSONL logs, supports opt-in GitHub updates, prepares reproducible stages, and publishes only from `v*` tags.

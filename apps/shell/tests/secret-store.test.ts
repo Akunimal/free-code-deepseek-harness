@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createSecretStore, resolveSecrets } from '../src/main/secret-store.js';
+import { createSecretStore, ensureSecret, resolveSecrets } from '../src/main/secret-store.js';
 
 describe('secret-store', () => {
   it('set/get/delete roundtrip on the host vault', async () => {
@@ -31,6 +31,25 @@ describe('secret-store', () => {
       expect(process.env[key]).toBeUndefined();
     } finally {
       await store.deleteSecret(key);
+    }
+  });
+
+  it('seeds the public OpenCode credential only when no user key exists', async () => {
+    const store = await createSecretStore();
+    const key = `public-default-${Date.now()}`;
+    const privateKey = `private-existing-${Date.now()}`;
+    try {
+      expect(await ensureSecret(store, key, 'public')).toBe(true);
+      expect(await store.getSecret(key)).toBe('public');
+      expect(await ensureSecret(store, key, 'public')).toBe(false);
+      expect(await store.getSecret(key)).toBe('public');
+
+      await store.setSecret(privateKey, 'sk-opencode-private-key');
+      expect(await ensureSecret(store, privateKey, 'public')).toBe(false);
+      expect(await store.getSecret(privateKey)).toBe('sk-opencode-private-key');
+    } finally {
+      await store.deleteSecret(key);
+      await store.deleteSecret(privateKey);
     }
   });
 
