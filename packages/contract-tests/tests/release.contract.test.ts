@@ -20,6 +20,7 @@ describe('release and runtime packaging contracts', () => {
     const builder = readFileSync(join(ROOT, 'apps/shell/electron-builder.yml'), 'utf8');
     const runtime = readFileSync(join(ROOT, 'scripts/package-runtime.sh'), 'utf8');
     const materializer = readFileSync(join(ROOT, 'scripts/materialize-runtime.mjs'), 'utf8');
+    const icon = readFileSync(join(ROOT, 'apps/shell/build/icon.ico'));
     expect(builder).toContain('appId: com.freecode.deepseekharness');
     expect(builder).toContain('from: resources/freecode');
     expect(builder).toContain('icon: build/icon.ico');
@@ -27,6 +28,10 @@ describe('release and runtime packaging contracts', () => {
     expect(builder).toContain('artifactName: FreeCode-DeepSeek-Harness-${version}-${os}-${arch}-portable.${ext}');
     expect(builder).toContain('owner: Akunimal');
     expect(builder).toContain('repo: free-code-deepseek-harness');
+    expect(icon.readUInt16LE(0)).toBe(0);
+    expect(icon.readUInt16LE(2)).toBe(1);
+    expect(icon[6]).toBe(0); // ICO width byte 0 means 256px.
+    expect(icon[7]).toBe(0); // ICO height byte 0 means 256px.
     expect(runtime).toContain('--node-linker=hoisted');
     expect(runtime).toContain('upstreamCommit');
     expect(runtime).toContain('git-subtree-split');
