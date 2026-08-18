@@ -21,9 +21,12 @@ describe('release and runtime packaging contracts', () => {
     const runtime = readFileSync(join(ROOT, 'scripts/package-runtime.sh'), 'utf8');
     const materializer = readFileSync(join(ROOT, 'scripts/materialize-runtime.mjs'), 'utf8');
     const icon = readFileSync(join(ROOT, 'apps/shell/build/icon.ico'));
+    const pngIcon = readFileSync(join(ROOT, 'apps/shell/build/icon.png'));
     expect(builder).toContain('appId: com.freecode.deepseekharness');
     expect(builder).toContain('from: resources/freecode');
-    expect(builder).toContain('icon: build/icon.ico');
+    expect(builder).toContain('icon: build/icon.png');
+    expect(builder).toContain('  icon: build/icon.ico');
+    expect(pngIcon.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))).toBe(true);
     expect(builder).toContain('- portable');
     expect(builder).toContain('artifactName: FreeCode-DeepSeek-Harness-${version}-${os}-${arch}-portable.${ext}');
     expect(builder).toContain('owner: Akunimal');

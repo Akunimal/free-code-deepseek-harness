@@ -22,8 +22,9 @@ extraResources:
     to: freecode
     filter:
       - '**/*'
-icon: build/icon.ico
+icon: build/icon.png
 win:
+  icon: build/icon.ico
   target:
     - nsis
     - portable
