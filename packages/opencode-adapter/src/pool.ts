@@ -15,6 +15,7 @@ const BACKOFF_MAX_MS = 30_000;
 const STOP_GRACE_MS = 5_000;
 export const POOL_MIN_SIZE = 1;
 export const POOL_MAX_SIZE = 16;
+export const DEFAULT_POOL_SIZE = 6;
 
 export function normalizePoolSize(value: number): number {
   if (!Number.isFinite(value)) return POOL_MIN_SIZE;
@@ -27,6 +28,8 @@ interface ManagedWorker extends WorkerHandle {
   lastRestartAt: number;
   stopped: boolean;
 }
+
+type PoolInitConfig = Omit<PoolConfig, 'size'> & { size?: number };
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -106,8 +109,11 @@ export class OpenCodePool implements Pool {
   private changeListeners = new Set<(w: WorkerHandle) => void>();
   private stuckListeners = new Set<(w: WorkerHandle) => void>();
 
-  constructor(config: PoolConfig) {
-    this.cfg = { ...config, size: normalizePoolSize(config.size) };
+  constructor(config: PoolInitConfig) {
+    this.cfg = {
+      ...config,
+      size: normalizePoolSize(config.size ?? DEFAULT_POOL_SIZE),
+    };
   }
 
   async start(): Promise<void> {

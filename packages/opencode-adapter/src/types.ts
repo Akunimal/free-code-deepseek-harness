@@ -15,7 +15,7 @@ export interface WorkerHandle {
 }
 
 export interface PoolConfig {
-  size: number; // default 4, min 1, max 16
+  size: number; // default 6, min 1, max 16
   binaryPath: string;
   workDir: string; // per-worker isolated dir under userData
   baseAuthHeader?: string; // 'Bearer public' by default -> free-only
@@ -29,7 +29,7 @@ export interface PoolConfig {
 export interface Pool {
   start(): Promise<void>;
   stop(): Promise<void>;
-  /** Current worker-slot count selected by the account/worker slider. */
+  /** Current worker-slot count selected by the worker slider. */
   size(): number;
   /** Change the worker-slot count live; values are clamped to 1..16. */
   resize(size: number): Promise<void>;

@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
 import { createShellRuntime, ShellRuntime } from './runtime.js';
+import { DEFAULT_POOL_SIZE } from '@freecode/opencode-adapter';
 import { createSecretStore, ensureSecret } from './secret-store.js';
 import { seedProviders } from './provider-seeder.js';
 import { refreshModels, ModelCatalog } from './model-refresher.js';
@@ -73,7 +74,7 @@ async function bootstrap(): Promise<ShellRuntime> {
     resourcesDir: resources,
     nodePath: findNode(),
     userDataDir,
-    poolSize: 4,
+    poolSize: DEFAULT_POOL_SIZE,
     lbAuthHeader: 'Bearer public',
     secrets,
     secretEnvNames: ['FREECODE_PUBLIC_KEY'],
@@ -174,7 +175,7 @@ function createOverlayWindow(): void {
 
 function renderOverlayHtml(): string {
   const workers = runtime?.workers() ?? [];
-  const poolSize = runtime?.pool.size() ?? 4;
+  const poolSize = runtime?.pool.size() ?? DEFAULT_POOL_SIZE;
   const rows = workers
     .map(
       (w) =>

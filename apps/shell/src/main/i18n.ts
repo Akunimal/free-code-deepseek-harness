@@ -95,10 +95,10 @@ const strings = {
 
   // Overlay
   'overlay.title': { es: 'Estado del pool', en: 'Pool status' },
-  'overlay.workersLabel': { es: 'Cuentas / workers:', en: 'Accounts / workers:' },
+  'overlay.workersLabel': { es: 'Workers paralelos:', en: 'Parallel workers:' },
   'overlay.workersNote': {
-    es: 'Esto cambia los workers paralelos locales. No crea cuentas extra de OpenCode ni elude límites upstream/IP.',
-    en: 'This changes local parallel workers. It does not create extra OpenCode accounts or bypass upstream/IP limits.',
+    es: 'El pool arranca con 6 workers y reparte requests en round-robin. Son sesiones locales, no cuentas extra de OpenCode ni una forma de eludir límites upstream/IP.',
+    en: 'The pool starts with 6 workers and distributes requests round-robin. These are local sessions, not extra OpenCode accounts or a way to bypass upstream/IP limits.',
   },
   'overlay.refresh': { es: 'Actualizar', en: 'Refresh' },
 

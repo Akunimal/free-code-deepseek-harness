@@ -1,4 +1,11 @@
-import { createLoadBalancer, LoadBalancer, OpenCodePool, Pool, WorkerHandle } from '@freecode/opencode-adapter';
+import {
+  createLoadBalancer,
+  DEFAULT_POOL_SIZE,
+  LoadBalancer,
+  OpenCodePool,
+  Pool,
+  WorkerHandle,
+} from '@freecode/opencode-adapter';
 import { HarnessSupervisor, HarnessInstance } from './harness-supervisor.js';
 import { SecretStore, resolveSecrets } from './secret-store.js';
 import { join, resolve } from 'node:path';
@@ -44,7 +51,7 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
   const binaryPath = resolveOpencodeBinary(cfg.resourcesDir, process.platform, process.arch);
 
   const pool = new OpenCodePool({
-    size: cfg.poolSize ?? 4,
+    size: cfg.poolSize ?? DEFAULT_POOL_SIZE,
     binaryPath,
     workDir: join(cfg.userDataDir, 'workers'),
     logDir: join(cfg.userDataDir, 'logs'),
