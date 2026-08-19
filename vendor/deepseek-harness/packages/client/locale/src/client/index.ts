@@ -86,8 +86,11 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-/** Fallback locale consulted after the active locale misses (also the last-resort initial locale). */
+/** Fallback locale consulted after the active locale misses in a dictionary. */
 export const FALLBACK_LOCALE: LocaleId = 'zh'
+
+/** Initial locale used when the browser reports no shipped language. */
+export const DEFAULT_LOCALE: LocaleId = 'en'
 
 /** Shared namespace for shell-level texts. */
 export const COMMON_NS = 'common'
@@ -314,11 +317,11 @@ export class LocaleRuntime {
 }
 
 /**
- * The browser's own language wins over {@link FALLBACK_LOCALE}; an explicit
+ * The browser's own language wins over {@link DEFAULT_LOCALE}; an explicit
  * Host preference may replace this provisional value after plugin activation.
  */
 function resolveInitialLocale(): LocaleId {
-  return detectBrowserLocale() ?? FALLBACK_LOCALE
+  return detectBrowserLocale() ?? DEFAULT_LOCALE
 }
 
 /**
