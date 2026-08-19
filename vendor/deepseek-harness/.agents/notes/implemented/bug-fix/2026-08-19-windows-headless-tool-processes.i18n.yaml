@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-19-windows-headless-tool-processes.md
+2026-08-19-windows-headless-tool-processes.md: 3aa97f51f9d39e0d22905b4e8191ad70a9354848
+2026-08-19-windows-headless-tool-processes.zh.md: 554a9cf80f34a57f95ffd88381a2604ccb3e2643

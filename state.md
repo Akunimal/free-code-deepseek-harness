@@ -1,10 +1,10 @@
 # Estado de traspaso — FreeCode DeepSeek Harness
 
-Fecha: **2026-08-18**
+Fecha: **2026-08-19**
 Workspace: `I:\DeepSeek-Harness\free-code-deepseek-harness`
-Rama: `dev` → merge a `main` para release
+Rama: `main`
 
-## Release v0.1.3 — listo para publicar
+## Release v0.1.4 — listo para publicar
 
 Preflight local verificado: locale, typecheck, contratos, frontend y compatibilidad Go del proxy. El empaquetado Electron final queda a cargo del workflow reproducible; la materialización local del runtime fue detenida por su costo de I/O en Windows.
 
@@ -26,6 +26,7 @@ Preflight local verificado: locale, typecheck, contratos, frontend y compatibili
 14. **Español upstream** — el selector existente de Configuración ahora ofrece `Español`; los catálogos de la UI upstream quedaron traducidos y registrados en `zh/en/es`.
 15. **Idioma inicial seguro** — si el navegador no informa `zh`, `en` ni `es`, la aplicación inicia en inglés en lugar de chino; una elección explícita se respeta.
 16. **Rol `developer` compatible** — el proxy convierte `developer` a `system` antes de enviar Chat Completions a DeepSeek, que no acepta ese rol.
+17. **Tool calls headless en Windows** — el subprocess local aplica `windowsHide` a los comandos de herramientas y a `taskkill`, evitando ventanas de PowerShell/sandbox durante la ejecución.
 
 ### Modelo default
 

@@ -52,6 +52,8 @@ export interface SpawnInternals {
   spillDir?: string
   /** Windows tree-termination runner (defaults to `taskkill /PID <pid> /T /F`). */
   taskkill?: (pid: number) => void
+  /** Test-only child-process factory used to inspect platform spawn options. */
+  spawn?: typeof spawn
   /** Host platform override for signalling decisions. */
   platform?: NodeJS.Platform
   /** Linux process-group member probe (defaults to `/proc` inspection). */
@@ -278,7 +280,10 @@ export function taskkillProcessTree(pid: number): void {
   // Outcome deliberately unchecked: an already-absent tree (status 128), exit
   // races, and a missing taskkill binary (spawnSync reports, never throws) are
   // as tolerable here as ESRCH is for a POSIX group signal.
-  spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' })
+  spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
+    stdio: 'ignore',
+    windowsHide: process.platform === 'win32',
+  })
 }
 
 /**
@@ -347,7 +352,8 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
   const stdinMode = spec.stdio.stdin
 
   const env = childEnv(spec.env)
-  const child = spawn(program, args, {
+  const spawnProcess = internals.spawn ?? spawn
+  const child = spawnProcess(program, args, {
     cwd: spec.cwd,
     env,
     stdio: [
@@ -355,6 +361,9 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
       outMode === 'inherit' ? 'inherit' : 'pipe',
       errMode === 'inherit' ? 'inherit' : 'pipe',
     ],
+    // Electron is a GUI process on Windows. Hide every tool subprocess so
+    // PowerShell/sandbox runners never flash a console during a tool call.
+    windowsHide: platform === 'win32',
     // `detached` gives teardown a tree root on POSIX (its own process group);
     // Windows terminates by root pid through taskkill /T instead.
     detached: platform !== 'win32',
