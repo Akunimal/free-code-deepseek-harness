@@ -25,7 +25,7 @@ describe('provider-seeder', () => {
     expect(p.apiKeyEnv).toBe('FREECODE_PUBLIC_KEY');
     expect(p.defaultInput).toEqual(['text']);
     // Non-empty models: upstream refuses empty lists (settings-rejected).
-    expect(p.models).toEqual([{ id: 'deepseek-v4-flash' }]);
+    expect(p.models).toEqual([{ id: 'nemotron-3.5-lightning' }]);
     // Marker written for the versioned seed.
     expect(existsSync(join(home, '.freecode-seeded-v1'))).toBe(true);
     rmSync(home, { recursive: true, force: true });

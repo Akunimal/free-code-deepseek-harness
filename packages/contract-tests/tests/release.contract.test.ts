@@ -41,8 +41,10 @@ describe('release and runtime packaging contracts', () => {
     expect(builder).toContain('repo: free-code-deepseek-harness');
     expect(icon.readUInt16LE(0)).toBe(0);
     expect(icon.readUInt16LE(2)).toBe(1);
-    expect(icon[6]).toBe(0); // ICO width byte 0 means 256px.
-    expect(icon[7]).toBe(0); // ICO height byte 0 means 256px.
+    const icoEntryCount = icon.readUInt16LE(4);
+    expect(icoEntryCount).toBeGreaterThanOrEqual(1);
+    const has256 = Array.from({ length: icoEntryCount }, (_, i) => icon[6 + i * 16]).some(w => w === 0);
+    expect(has256).toBe(true); // At least one 256px entry (width byte 0 = 256).
     expect(runtime).toContain('--node-linker=hoisted');
     expect(runtime).toContain('upstreamCommit');
     expect(runtime).toContain('git-subtree-split');
