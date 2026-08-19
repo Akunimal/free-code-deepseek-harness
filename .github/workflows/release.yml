@@ -87,6 +87,7 @@ jobs:
             apps/shell/release/*.dmg
             apps/shell/release/*.exe
             apps/shell/release/*.yml
+            !apps/shell/release/builder-debug.yml
           if-no-files-found: error
 
   publish:
