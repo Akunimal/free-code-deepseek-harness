@@ -95,6 +95,9 @@ check_native() {
   if [[ -n "$TARGET_OS" ]]; then
     case "$d" in *"$TARGET_OS"*) ;; *) return ;; esac
   fi
+  if [[ -n "$TARGET_CPU" ]]; then
+    case "$d" in *"$TARGET_CPU"*) ;; *) return ;; esac
+  fi
   if [[ ! -d "$STAGE/node_modules/$d" ]]; then
     echo "package-runtime: MISSING native dir: $d" >&2
     NATIVE_OK=false
@@ -108,6 +111,9 @@ check_native "@koromix/koffi-linux-x64/linux_x64"
 check_native "@img/sharp-darwin-x64/lib"
 check_native "@img/sharp-libvips-darwin-x64/lib"
 check_native "@koromix/koffi-darwin-x64/darwin_x64"
+check_native "@img/sharp-darwin-arm64/lib"
+check_native "@img/sharp-libvips-darwin-arm64/lib"
+check_native "@koromix/koffi-darwin-arm64/darwin_arm64"
 if [[ "$NATIVE_OK" != "true" ]]; then
   echo "package-runtime: native optional packages missing from stage; aborting" >&2
   exit 3
