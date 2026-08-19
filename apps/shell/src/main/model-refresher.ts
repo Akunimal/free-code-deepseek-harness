@@ -104,7 +104,13 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
     defaultInput: ['text'],
     models: [],
   });
-  free.models = responders.map((m) => ({ id: m.id }));
+  free.models = responders.map((m) => {
+    const entry: Record<string, unknown> = { id: m.id };
+    if (m.id.startsWith('deepseek-')) {
+      entry.reasoningEfforts = { off: null, low: 'low', high: 'high', max: 'max' };
+    }
+    return entry;
+  });
   writeSettings(settingsPath, settings);
 
   cfg.onUpdate?.(catalog);

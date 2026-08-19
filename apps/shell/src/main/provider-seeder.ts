@@ -33,6 +33,8 @@ interface ProviderEntry {
   apiKeyEnv?: string;
   defaultInput?: string[];
   models?: unknown[];
+  compat?: Record<string, string>;
+  reasoning?: string;
 }
 
 interface SettingsShape {
@@ -74,6 +76,8 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
       apiKeyEnv: cfg.apiKeyEnv ?? DEFAULT_API_KEY_ENV,
       defaultInput: ['text'],
       models: FALLBACK_MODELS,
+      compat: { thinkingFormat: 'deepseek' },
+      reasoning: 'high',
     };
     seeded = true;
   }

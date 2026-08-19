@@ -26,6 +26,9 @@ describe('provider-seeder', () => {
     expect(p.defaultInput).toEqual(['text']);
     // Non-empty models: upstream refuses empty lists (settings-rejected).
     expect(p.models).toEqual([{ id: 'nemotron-3.5-lightning' }]);
+    // Route-level reasoning config for deepseek models in the pool.
+    expect(p.compat).toEqual({ thinkingFormat: 'deepseek' });
+    expect(p.reasoning).toBe('high');
     // Marker written for the versioned seed.
     expect(existsSync(join(home, '.freecode-seeded-v1'))).toBe(true);
     rmSync(home, { recursive: true, force: true });
