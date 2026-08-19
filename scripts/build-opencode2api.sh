@@ -8,10 +8,13 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC="$ROOT/vendor/opencode2api"
 OUT_DIR="$ROOT/apps/shell/resources/opencode2api"
 PATCH="$ROOT/patches/opencode2api-host-flag.patch"
+ROLE_PATCH="$ROOT/patches/opencode2api-developer-role.patch"
 
 # Locate go: PATH first, then common dev SDK location used on this machine
 if command -v go >/dev/null 2>&1; then
   GO_BIN="$(command -v go)"
+elif command -v go.exe >/dev/null 2>&1; then
+  GO_BIN="$(command -v go.exe)"
 elif [ -x "$HOME/go-sdk/go/bin/go.exe" ]; then
   GO_BIN="$HOME/go-sdk/go/bin/go.exe"
 elif [ -x "$HOME/go-sdk/go/bin/go" ]; then
@@ -30,9 +33,11 @@ mkdir -p "$OUT_DIR"
 if command -v cygpath >/dev/null 2>&1; then
   OUT_NATIVE="$(cygpath -w "$OUT_DIR")"
   PATCH_NATIVE="$(cygpath -w "$PATCH")"
+  ROLE_PATCH_NATIVE="$(cygpath -w "$ROLE_PATCH")"
 else
   OUT_NATIVE="$OUT_DIR"
   PATCH_NATIVE="$PATCH"
+  ROLE_PATCH_NATIVE="$ROLE_PATCH"
 fi
 
 PATCHED=0
@@ -53,6 +58,15 @@ if ! grep -q 'hostAddr' "$SRC/internal/app/server.go"; then
   git apply "$PATCH_NATIVE"
   PATCHED=1
   echo "[opencode2api] applied patch: opencode2api-host-flag"
+fi
+
+# DeepSeek chat completions reject the OpenAI-compatible developer role. Map
+# it to the supported system role at the upstream wire boundary.
+if ! grep -q 'while OpenAI-compatible callers may send developer' "$SRC/internal/app/chat.go"; then
+  git apply --check "$ROLE_PATCH_NATIVE"
+  git apply "$ROLE_PATCH_NATIVE"
+  PATCHED=1
+  echo "[opencode2api] applied patch: opencode2api-developer-role"
 fi
 
 cd "$SRC"

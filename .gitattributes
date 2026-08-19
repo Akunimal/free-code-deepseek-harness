@@ -3,3 +3,4 @@
 
 # Vendored upstream trees: keep exactly as upstream has them
 vendor/** text=auto
+patches/*.patch whitespace=-indent-with-non-tab

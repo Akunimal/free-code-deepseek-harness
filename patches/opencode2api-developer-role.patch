@@ -1,0 +1,56 @@
+diff --git a/vendor/opencode2api/internal/app/chat.go b/vendor/opencode2api/internal/app/chat.go
+index b1c3d4e..f5a6b7c 100644
+--- a/vendor/opencode2api/internal/app/chat.go
++++ b/vendor/opencode2api/internal/app/chat.go
+@@ -923,8 +923,15 @@ func convertMessagesForUpstream(messages []Message) []map[string]any {
+ 	converted := make([]map[string]any, 0, len(messages))
+ 	for _, msg := range messages {
+ 		clean := map[string]any{}
+ 		if msg.Role != "" {
+-			clean["role"] = msg.Role
++			role := msg.Role
++			// DeepSeek chat completions accept system/user/assistant/tool,
++			// while OpenAI-compatible callers may send developer. Preserve
++			// the instruction semantics using the supported system role.
++			if role == "developer" {
++				role = "system"
++			}
++			clean["role"] = role
+ 		}
+ 		content := normalizeContent(msg.Content)
+ 		reasoningContent := msg.ReasoningContent
+diff --git a/vendor/opencode2api/internal/app/developer_role_compatibility_test.go b/vendor/opencode2api/internal/app/developer_role_compatibility_test.go
+new file mode 100644
+index 0000000..b7b8c9d
+--- /dev/null
++++ b/vendor/opencode2api/internal/app/developer_role_compatibility_test.go
+@@ -0,0 +1,29 @@
++package app
++
++import "testing"
++
++func TestConvertRequestMapsDeveloperRoleToSystem(t *testing.T) {
++	body := convertRequest(&OpenAIRequest{
++		Model: "m",
++		Messages: []Message{
++			{Role: "developer", Content: "instructions"},
++			{Role: "user", Content: "question"},
++			{Role: "assistant", Content: "answer"},
++			{Role: "tool", ToolCallID: "call-1", Content: "result"},
++		},
++	})
++
++	messages, ok := body["messages"].([]map[string]any)
++	if !ok {
++		t.Fatalf("messages = %T, want []map[string]any", body["messages"])
++	}
++	wantRoles := []string{"system", "user", "assistant", "tool"}
++	if len(messages) != len(wantRoles) {
++		t.Fatalf("message count = %d, want %d: %#v", len(messages), len(wantRoles), messages)
++	}
++	for i, want := range wantRoles {
++		if got := messages[i]["role"]; got != want {
++			t.Fatalf("messages[%d].role = %#v, want %q", i, got, want)
++		}
++	}
++}
