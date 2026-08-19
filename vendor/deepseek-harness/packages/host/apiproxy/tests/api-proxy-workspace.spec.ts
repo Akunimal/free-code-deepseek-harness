@@ -495,7 +495,7 @@ describe('Host Workspace increments', () => {
     expect(await next).toMatchObject({ done: true })
   })
 
-  it('deletes the registration, keeps its session and folder, and streams one removal', async () => {
+  it('deletes the registration, archives its session, keeps its folder, and streams both changes', async () => {
     const { api, ctx, root } = await harness()
     const workspace = expectOk(await api.workspace.create(request({ path: stageDir(root, 'delete-me') }))).workspace
     const sessionId = SessionId('session-kept-after-workspace-delete')
@@ -505,11 +505,16 @@ describe('Host Workspace increments', () => {
     const stream: AsyncIterator<RpcRequest<HostFrame>> =
       api.events.host(request({}), abort.signal)[Symbol.asyncIterator]()
     const removed = nextHostFrame(stream)
+    const archived = nextHostFrame(stream)
     expectOk(await api.workspace.delete(request({ workspaceId: workspace.workspaceId })))
     expect(await removed).toMatchObject({
       payload: { type: 'host/workspace-removed', workspaceId: workspace.workspaceId },
     })
+    expect(await archived).toMatchObject({
+      payload: { type: 'host/archived-sessions-changed', archivedSessionIds: [sessionId] },
+    })
     expect(expectOk(await api.workspace.list(request({}))).items).toEqual([])
+    expect(expectOk(await api.workspace.list(request({}))).archivedSessionIds).toEqual([sessionId])
     expect(expectOk(await api.sessions.list(request({}))).items.map(item => item.sessionId)).toContain(sessionId)
     expect(ctx.agents.get(sessionId)).toBeDefined()
     expect(existsSync(workspace.path)).toBe(true)
@@ -524,6 +529,7 @@ describe('Host Workspace increments', () => {
     expect(reregistered.workspaceId).not.toBe(workspace.workspaceId)
     expect(reregistered.path).toBe(workspace.path)
     expect(reregistered.sessionIds).toEqual([])
+    expect(expectOk(await api.workspace.list(request({}))).archivedSessionIds).toEqual([sessionId])
     expect(expectOk(await api.sessions.list(request({}))).items.map(item => item.sessionId)).toContain(sessionId)
     abort.abort()
   })

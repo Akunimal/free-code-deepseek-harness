@@ -21,5 +21,14 @@ export const en: Record<DeliverablesKey, string> = {
   'produced.showInFolder': 'Show in folder',
 }
 
+/** Spanish dictionary. */
+export const es: Record<DeliverablesKey, string> = {
+  'produced.label': 'Generado',
+  'produced.moreOne': '+ 1 archivo',
+  'produced.more': '+ {count} archivos',
+  'produced.open': 'Abrir {name}',
+  'produced.showInFolder': 'Mostrar en la carpeta',
+}
+
 /** Union of this namespace's dictionary keys. */
 export type DeliverablesKey = keyof typeof zh

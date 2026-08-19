@@ -1,6 +1,6 @@
 {
   "name": "@freecode/shared-types",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Zod-validated IPC contracts shared between Electron main and renderer",
   "type": "module",

@@ -21,7 +21,7 @@ The Host provides the following GUI wiring on the Workspace entity:
 | `workspace.list` | Returns persistent Workspaces in order and filters out Session ids that fail header validation |
 | `workspace.create({ path })` | Adopts an existing directory by canonical path; basename-derived display titles may repeat |
 | `workspace.insertBefore({ workspaceId, beforeWorkspaceId? })` | Moves one Workspace within durable registry order and returns the complete committed order |
-| `workspace.delete({ workspaceId })` | Removes the Workspace registration while retaining its directory and session logs; its Sessions become Ungrouped |
+| `workspace.delete({ workspaceId })` | Removes the Workspace registration while retaining its directory and session logs; its accounted Sessions are archived and stay out of Ungrouped |
 | `session.create({ workspaceId, sessionId? })` | Resolves cwd from the Workspace, idempotently creates a Session with an optional preallocated id, and attaches it |
 | `session.create({ cwd })` | Remains available to non-Workspace callers and creates an Ungrouped Session |
 
@@ -76,7 +76,7 @@ The current blank Session appears as a “New session” row without a count, ti
 
 Real Sessions that cannot be assigned to any Workspace appear under Ungrouped. Host `session-added` and `workspace-changed` events may arrive in either order; list merging does not depend on frame order.
 
-Deleting a Workspace registration removes its group without deleting or closing any Session. Its accounted Sessions immediately join Ungrouped, including the current Session; a reload reconstructs the same result from the independent Workspace and Session baselines.
+Deleting a Workspace registration removes its group without deleting or closing any Session. Its accounted Sessions are archived in the same Host commit, so they stay out of Ungrouped; the projection clears the current selection when the archive frame lands. A reload reconstructs the same result from the independent Workspace and Session baselines.
 
 ### React and slot boundaries
 

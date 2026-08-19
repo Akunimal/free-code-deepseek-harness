@@ -24,3 +24,14 @@ export const en = {
   'overlay.aria': '/{command} options',
   'listbox.aria': '/{command} matches',
 } satisfies Record<CommandKey, string>
+
+/** Spanish dictionary, checked complete against the key set. */
+export const es = {
+  'search.placeholder': 'Buscar…',
+  'search.aria': 'Filtrar opciones',
+  'status.loading': 'Cargando opciones…',
+  'status.applying': 'Aplicando…',
+  'status.empty': 'No hay opciones',
+  'overlay.aria': 'Opciones de /{command}',
+  'listbox.aria': 'Coincidencias de /{command}',
+} satisfies Record<CommandKey, string>

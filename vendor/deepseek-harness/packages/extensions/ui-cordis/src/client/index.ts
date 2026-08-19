@@ -15,7 +15,7 @@ import { createCordisInventory } from './inventory.ts'
 import { CordisRunCardRegistry } from './run-card-index.ts'
 import type { CordisDynamicPort } from './dynamic-port.ts'
 import type { CordisCardFace, CordisPanelFace, CordisRunCardFace } from './slots.ts'
-import { en, NS, zh } from './locales.ts'
+import { en, es, NS, zh } from './locales.ts'
 
 export type { CordisCardFace, CordisPanelFace, CordisRunCardFace, CordisToolViewOwnerProps } from './slots.ts'
 export type { CordisActionResult, CordisDynamicPort, CordisInventoryRow } from './dynamic-port.ts'
@@ -38,7 +38,7 @@ export const inject = [
 
 /** Mount every Cordis browser surface over the shared Host inventory. */
 export function apply(ctx: ClientContext): void {
-  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-cordis: dictionaries')
+  ctx.effect(() => ctx.locale.register(NS, { zh, en, es }), 'ui-cordis: dictionaries')
 
   const port: CordisDynamicPort = {
     stop: async (sessionId, pluginId) => {

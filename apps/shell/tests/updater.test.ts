@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
-import { checkUpstreamUpdate, createUpdateService, type UpdaterAdapter } from '../src/main/updater.js';
+import { checkUpstreamUpdate, createUpdateService, resolveUpdaterAdapter, type UpdaterAdapter } from '../src/main/updater.js';
 
 describe('update service', () => {
+  it('resolves electron-updater from both CommonJS interop shapes', () => {
+    const adapter = { autoDownload: false, autoInstallOnAppQuit: false, checkForUpdates: vi.fn(), quitAndInstall: vi.fn() } as UpdaterAdapter;
+    expect(resolveUpdaterAdapter({ default: { autoUpdater: adapter } })).toBe(adapter);
+    expect(resolveUpdaterAdapter({ autoUpdater: adapter })).toBe(adapter);
+  });
+
   it('is disabled by default and never invokes an adapter', async () => {
     const adapter = { checkForUpdates: vi.fn(), quitAndInstall: vi.fn() } as unknown as UpdaterAdapter;
     const service = createUpdateService({ adapter });

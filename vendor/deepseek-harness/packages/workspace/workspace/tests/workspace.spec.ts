@@ -476,7 +476,7 @@ describe('WorkspaceRegistry create and lookup', () => {
     })
   })
 
-  it('deletes only the registration and leaves its directory and session headers untouched', async () => {
+  it('deletes the registration, archives its account, and leaves its directory and session headers untouched', async () => {
     const dir = await makeDir('delete-registration')
     const result = await harness({ sessions: [header('kept-session', dir)] })
     const workspace = await result.registry.create(dir)
@@ -486,7 +486,11 @@ describe('WorkspaceRegistry create and lookup', () => {
     await expect(result.registry.delete(workspace.id)).resolves.toBe(false)
     expect(result.registry.get(workspace.id)).toBeUndefined()
     expect(result.registry.list()).toEqual([])
-    expect(storedState(result.pool)).toEqual({ initialized: true, workspaceIds: [], archivedSessionIds: [] })
+    expect(storedState(result.pool)).toEqual({
+      initialized: true,
+      workspaceIds: [],
+      archivedSessionIds: ['kept-session'],
+    })
     expect(result.pool.media.get('workspace')!.tables.get('workspaces')!.has(workspace.id)).toBe(false)
     await expect(realpath(dir)).resolves.toBe(dir)
     expect(result.list).toHaveBeenCalledTimes(1)
@@ -504,14 +508,17 @@ describe('WorkspaceRegistry create and lookup', () => {
     const pool = new MemoryMediaPool()
     const result = await harness({
       pool,
+      sessions: [header('rollback-session', dir)],
       backend: selectiveFailureBackend(pool, { deleteAt: 1 }),
     })
     const workspace = await result.registry.create(dir)
+    await workspace.attachSession(SessionId('rollback-session'))
 
     await expect(result.registry.delete(workspace.id)).rejects.toThrow(/selected rollback delete failure/)
     expect(result.registry.get(workspace.id)).toBe(workspace)
     expect(result.registry.list()).toEqual([workspace])
     expect(storedState(pool).workspaceIds).toEqual([workspace.id])
+    expect(storedState(pool).archivedSessionIds).toEqual([])
     expect(storedRecord(pool, workspace.id)).toMatchObject({ path: dir })
   })
 

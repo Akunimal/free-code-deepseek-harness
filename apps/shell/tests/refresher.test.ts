@@ -6,6 +6,11 @@ import { load as loadYaml } from 'js-yaml';
 import { refreshModels, ModelCatalog } from '../src/main/model-refresher.js';
 
 const LB = 'http://127.0.0.1:41234';
+const REASONING_EFFORTS = { off: null, low: 'low', high: 'high', max: 'max' };
+
+function deepseekModel(id: string): { id: string; reasoningEfforts: typeof REASONING_EFFORTS } {
+  return { id, reasoningEfforts: REASONING_EFFORTS };
+}
 
 function tmpDirs(): { home: string; data: string } {
   const base = mkdtempSync(join(tmpdir(), 'dsh-refresh-test-'));
@@ -64,8 +69,8 @@ describe('model-refresher', () => {
     // settings.yaml syncs only responders, as schema-valid model objects.
     const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
     expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([
-      { id: 'deepseek-v3.2-free' },
-      { id: 'deepseek-chat' },
+      deepseekModel('deepseek-v3.2-free'),
+      deepseekModel('deepseek-chat'),
     ]);
     expect(updated).not.toBeNull();
     rmSync(dirname(home), { recursive: true, force: true });
@@ -83,9 +88,9 @@ describe('model-refresher', () => {
     // Upstream has no defaultModel key (schema = {providers}); the harness UI
     // preselects the first model in the list, so the fastest responder leads.
     expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([
-      { id: 'deepseek-v3.2-free' },
-      { id: 'deepseek-reasoner' },
-      { id: 'deepseek-chat' },
+      deepseekModel('deepseek-v3.2-free'),
+      deepseekModel('deepseek-reasoner'),
+      deepseekModel('deepseek-chat'),
     ]);
     expect(settings['llm-pi-ai'].defaultModel).toBeUndefined();
     rmSync(dirname(home), { recursive: true, force: true });
@@ -107,8 +112,8 @@ describe('model-refresher', () => {
     expect(settings['llm-pi-ai'].providers['omniroute'].baseURL).toBe('http://127.0.0.1:8080/v1');
     // ...and deepseek-free was added with responders (objects, not strings).
     expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([
-      { id: 'deepseek-v3.2-free' },
-      { id: 'deepseek-chat' },
+      deepseekModel('deepseek-v3.2-free'),
+      deepseekModel('deepseek-chat'),
     ]);
     rmSync(dirname(home), { recursive: true, force: true });
   });

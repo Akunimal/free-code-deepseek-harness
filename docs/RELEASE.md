@@ -26,8 +26,8 @@ The Help menu checks both the fork's GitHub Release and the upstream commit reco
 On the current Windows checkout, the expected local test paths are:
 
 ```text
-I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\FreeCode-DeepSeek-Harness-0.1.0-win-x64-portable.exe
-I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\FreeCode-DeepSeek-Harness-0.1.0-win-x64-setup.exe
+I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\FreeCode-DeepSeek-Harness-0.1.1-win-x64-portable.exe
+I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\FreeCode-DeepSeek-Harness-0.1.1-win-x64-setup.exe
 I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\win-unpacked\FreeCode DeepSeek Harness.exe
 ```
 
@@ -39,4 +39,4 @@ The release job first builds the four supported `opencode2api` resources (Window
 
 ## Versioning
 
-The first release target from the original plan is `v0.1.0`. Before tagging, verify a zero-config boot, model discovery, provider registration, message streaming, worker restart, tray/overlay actions, import/continuation, and the conversation motion layer.
+The patch release target is `v0.1.1`. Before tagging, verify the full local preflight: zero-config boot, model discovery, provider registration, message streaming, worker restart, tray/overlay actions, import/continuation, workspace lifecycle, update checking, and the conversation motion layer.

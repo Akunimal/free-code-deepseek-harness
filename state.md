@@ -4,7 +4,7 @@ Fecha: **2026-08-18**
 Workspace: `I:\DeepSeek-Harness\free-code-deepseek-harness`
 Rama: `dev` → merge a `main` para release
 
-## Release v0.1.0 — funcional
+## Release v0.1.1 — listo para publicar
 
 Build verificado localmente. Portable + setup generados.
 
@@ -20,6 +20,10 @@ Build verificado localmente. Portable + setup generados.
 8. **Splash screen** — pantalla de carga durante startup del harness.
 9. **Harness supervisor** — logging mejorado, stderr/timeout/exit loggeados.
 10. **Build scripts** — `supportedArchitectures` multi-target, native binary assertions, Git Bash pinning.
+11. **Workspaces** — New Session crea una sesión distinta desde una sesión vacía; borrar workspace archiva sus sesiones sin perder carpeta, logs ni live sessions.
+12. **Update check** — compatibilidad con las dos formas de exportar `electron-updater`; el menú ya no falla con `autoDownload` indefinido.
+13. **Reasoning selector** — modelos DeepSeek del pool mantienen las opciones de esfuerzo de razonamiento al refrescar el catálogo.
+14. **Español upstream** — el selector existente de Configuración ahora ofrece `Español`; los catálogos de la UI upstream quedaron traducidos y registrados en `zh/en/es`.
 
 ### Modelo default
 
@@ -30,6 +34,4 @@ Build verificado localmente. Portable + setup generados.
 
 ### Pendiente futuro
 
-- [ ] Traducciones español del harness upstream (~1100 strings, documentado en `TODO-spanish-translations.md`)
-- [ ] CI workflow `ci.yml` con artifact upload
-- [ ] Probar en macOS/Linux
+- [ ] Probar manualmente en macOS/Linux además de la matriz CI

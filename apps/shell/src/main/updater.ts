@@ -142,7 +142,22 @@ export function createUpdateService(options: UpdateServiceOptions = {}): UpdateS
 }
 
 async function loadElectronUpdater(): Promise<UpdaterAdapter> {
-  const dynamicImport = new Function('return import("electron-updater")') as () => Promise<{ autoUpdater: UpdaterAdapter }>;
-  const module = await dynamicImport();
-  return module.autoUpdater;
+  const dynamicImport = new Function('return import("electron-updater")') as () => Promise<ElectronUpdaterModule>;
+  return resolveUpdaterAdapter(await dynamicImport());
+}
+
+type ElectronUpdaterModule = {
+  autoUpdater?: UpdaterAdapter;
+  default?: {
+    autoUpdater?: UpdaterAdapter;
+  };
+};
+
+/** electron-updater is CommonJS and Electron's dynamic import exposes its
+ * singleton under `default.autoUpdater`; some loaders also provide the named
+ * export. Accept both shapes so the menu check works in packaged builds. */
+export function resolveUpdaterAdapter(module: ElectronUpdaterModule): UpdaterAdapter {
+  const adapter = module.autoUpdater ?? module.default?.autoUpdater;
+  if (!adapter) throw new Error('electron-updater did not expose autoUpdater');
+  return adapter;
 }

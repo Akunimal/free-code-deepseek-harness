@@ -21,7 +21,7 @@ Host 在 Workspace entity 上提供以下 GUI 接线：
 | `workspace.list` | 返回持久有序的 Workspace，并过滤未通过 header 校验的 Session id |
 | `workspace.create({ path })` | 按 canonical path 收编已有目录；由 basename 派生的显示名可以重复 |
 | `workspace.insertBefore({ workspaceId, beforeWorkspaceId? })` | 在持久注册表顺序内移动一个 Workspace，并返回完整的已提交顺序 |
-| `workspace.delete({ workspaceId })` | 移除 Workspace 注册记录，同时保留目录和会话日志；相关 Session 进入 Ungrouped |
+| `workspace.delete({ workspaceId })` | 移除 Workspace 注册记录，同时保留目录和会话日志；相关 Session 会被归档，不会进入 Ungrouped |
 | `session.create({ workspaceId, sessionId? })` | 从 Workspace 解析 cwd，以可选预分配 id 幂等创建 Session 并 attach |
 | `session.create({ cwd })` | 保留给非 Workspace 调用方，创建 Ungrouped Session |
 
@@ -76,7 +76,7 @@ Host 记账保持手动的 `Workspace.sessionIds` 顺序：新 attach 的 Sessio
 
 无法归入任何 Workspace 的真实 Session 进入 Ungrouped。Host `session-added` 与 `workspace-changed` 可以任意顺序到达，列表合并不依赖 frame 顺序。
 
-删除 Workspace 注册记录会移除其分组，但不会删除或关闭任何 Session。已记账的 Session（包括当前 Session）会立即进入 Ungrouped；刷新后，独立的 Workspace 与 Session 基线会重建出相同结果。
+删除 Workspace 注册记录会移除其分组，但不会删除或关闭任何 Session。已记账的 Session 会在同一个 Host 提交中被归档，因此不会进入 Ungrouped；归档帧到达后，投影层会清除当前选择。刷新后，独立的 Workspace 与 Session 基线会重建出相同结果。
 
 ### React 与 slot 边界
 

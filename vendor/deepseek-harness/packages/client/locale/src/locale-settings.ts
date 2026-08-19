@@ -9,7 +9,7 @@ export const LOCALE_SETTINGS_NAMESPACE = 'locale'
 export const LOCALE_PREFERENCE_FIELD = 'preference'
 
 /** Locale identifiers shipped by the browser client. */
-export const LOCALE_IDS = ['zh', 'en'] as const
+export const LOCALE_IDS = ['zh', 'en', 'es'] as const
 
 /** Shipped locale identifier. */
 export type LocaleId = typeof LOCALE_IDS[number]

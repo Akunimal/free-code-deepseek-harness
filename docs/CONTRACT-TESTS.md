@@ -26,3 +26,15 @@ pnpm test:contract
 Tests that require a built upstream CLI are skipped in a bare checkout and become active after `pnpm build:vendor`. The release workflow always builds the vendor first.
 
 The shell suite adds supervisor smoke, provider seeding, model refresh, OmniRoute discovery, secret storage, resource layout, updater behavior, and bounded log rotation tests.
+
+## GitHub execution gate
+
+GitHub Actions quota is protected by a local preflight contract. Do not push,
+open or update a PR, dispatch a workflow, create a release, or otherwise spend
+GitHub CI quota until the equivalent local checks pass and the user explicitly
+authorizes the remote operation.
+
+The required preflight is `pnpm test`, `pnpm test:contract`, `pnpm typecheck`,
+and the relevant build/package check for the changed surface. A failing local
+preflight blocks any GitHub action; it is not a reason to use the remote
+workflow as a diagnostic run.

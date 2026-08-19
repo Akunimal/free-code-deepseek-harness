@@ -3524,8 +3524,14 @@ export function createApiProxy(ctx: Context, defaults: ApiProxyDefaults): ApiPro
                   workspaceIds: [...state.workspaceIds],
                 }))
               }
-              if (state.archivedSessionIds.length !== archivedSessionIds.length
-                || state.archivedSessionIds.some((id, index) => id !== archivedSessionIds[index])) {
+              const archiveChanged = state.archivedSessionIds.length !== archivedSessionIds.length
+                || state.archivedSessionIds.some((id, index) => id !== archivedSessionIds[index])
+              // Workspace deletion stages its archive set in the same durable
+              // global write as the pending marker, then commits the table
+              // row. Hold the public archive frame until the table deletion
+              // has committed so a failed row write cannot transiently hide
+              // Sessions in another tab.
+              if (archiveChanged && state.pendingMutation?.operation !== 'delete') {
                 archivedSessionIds = state.archivedSessionIds
                 queue.push(frame({
                   type: 'host/archived-sessions-changed',

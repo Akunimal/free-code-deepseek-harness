@@ -8,7 +8,7 @@ This is the exhaustive inventory of upstream surfaces shipped through the bundle
 |---|---|
 | `connection` | HTTP-up/WebSocket-down connection controller with reconnect handling. |
 | `hmr` | Development-only hot reload for script-loaded client entries. |
-| `locale` | Host-backed English/Chinese preference, browser fallback, and typed dictionaries. |
+| `locale` | Host-backed English/Chinese/Spanish preference, browser fallback, and typed dictionaries. |
 | `modules` | Client module table and `window.__DSH_BOOT__` plugin graph loading. |
 | `runtime` | Slot registry, session runtime, scope tree, and object layer. |
 | `schema-form` | Schema rehydration, immutable draft editing, validation, and settings form data. |
@@ -83,7 +83,7 @@ The following list is taken from each package's own `package.json` description a
 - **@deepseek-ai/dsh-web-app** (packages/bundle/web-app) — The dsh browser-surface bundle: the web patch layer over dsh-base plus the runtime glue plugin (frontend dist serving, web-surface prompt, bash runtime variables, URL line)
 - **@deepseek-ai/dsh-client-connection** (packages/client/connection) — Wire consumer layer: HTTP-up/WebSocket-down client, ConnectionController dual streams with reconnect, and fixture api
 - **@deepseek-ai/dsh-client-hmr** (packages/client/hmr) — Dev-only hot-reload driver for script-loaded client entries: SSE rebuilt frames → invalidate/prefetch → fiber swap through the vendored Loader entry
-- **@deepseek-ai/dsh-client-locale** (packages/client/locale) — Locale plugin: Host-backed zh/en preference, browser-derived fallback, locale snapshots, and typed namespace dictionaries
+- **@deepseek-ai/dsh-client-locale** (packages/client/locale) — Locale plugin: Host-backed zh/en/es preference, browser-derived fallback, locale snapshots, and typed namespace dictionaries
 - **@deepseek-ai/dsh-client-modules** (packages/client/modules) — Client module system, dual-face: node half composes the __DSH_BOOT__ entry graph (incremental dsh.client scan, bundle route, index tap, webPlugins service); browser half is the lazy-CJS module table the vendored cordis Loader consumes as its internal seam
 - **@deepseek-ai/dsh-client-runtime** (packages/client/runtime) — Client core services: SlotRegistry, SessionRuntime (scope tree + object layer)
 - **@deepseek-ai/dsh-client-schema-form** (packages/client/schema-form) — Schema/draft model layer for settings editors: rehydrates a serialized schemastery schema, validates drafts, and edits them immutably by path

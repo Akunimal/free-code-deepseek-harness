@@ -2,8 +2,9 @@
 
 El shell (menus, splash, diálogos) ya tiene i18n ES/EN en `apps/shell/src/main/i18n.ts`.
 
-El **harness web** (la UI interna de DeepSeek) solo trae chino (zh) e inglés (en).
-Para agregar español hay que traducir ~1100 strings en estos archivos:
+El **harness web** (la UI interna de DeepSeek) ahora incluye chino (zh), inglés (en)
+y español (es). La traducción queda incorporada en la release v0.1.1 mediante el
+selector de idiomas existente en Configuración.
 
 ## Archivos principales
 
@@ -22,15 +23,16 @@ vendor/deepseek-harness/packages/client/ui-sidebar/src/client/locales.ts
 ... (y ~17 más)
 ```
 
-## Pasos
+## Verificación realizada
 
-1. Crear `es.ts` basado en `en.ts` (fuente de verdad para ES es la versión EN)
-2. Traducir todos los strings
-3. Registrar `es` en el index y settings
-4. Agregar entries ES en cada `locales.ts` de los paquetes `ui-*`
-5. Probar con `app.getLocale()` retornando `es-*`
+- Se agregaron catálogos `es` a los 25 namespaces `locales.ts`, además de los
+  catálogos base, settings y el selector de directorios.
+- Se registró `es` en cada plugin que expone UI traducible y en la preferencia
+  persistida `locale.preference`.
+- Se verificó paridad de claves `zh/en/es`, typecheck upstream y las pruebas
+  de locale, settings, conversación y directory picker.
 
 ## Nota
 
-`zh.ts` es el key-set de referencia (repo chino-first). Pero para traducir
-al español es más práctico partir del `en.ts`.
+`zh.ts` sigue siendo el key-set de referencia (repo chino-first); `en` y `es`
+se comprueban contra ese conjunto para evitar claves faltantes.

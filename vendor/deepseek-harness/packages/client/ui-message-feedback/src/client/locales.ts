@@ -41,3 +41,19 @@ export const en = {
   'error.load': 'Could not load feedback',
   'error.generic': 'Could not save feedback',
 } satisfies Record<MessageFeedbackKey, string>
+
+/** Spanish dictionary, checked complete against the key set. */
+export const es = {
+  'action.like': 'Buena respuesta',
+  'action.likeActive': 'Quitar valoración',
+  'action.dislike': 'Mala respuesta',
+  'action.dislikeActive': 'Quitar valoración',
+  'note.open': 'Agregar una nota',
+  'note.placeholder': '¿Qué estuvo bien o qué salió mal? (opcional)',
+  'note.save': 'Guardar',
+  'note.cancel': 'Cancelar',
+  'note.aria': 'Nota de feedback',
+  'error.conflict': 'Este feedback cambió en otro lugar; se muestra el estado más reciente',
+  'error.load': 'No se pudo cargar el feedback',
+  'error.generic': 'No se pudo guardar el feedback',
+} satisfies Record<MessageFeedbackKey, string>
