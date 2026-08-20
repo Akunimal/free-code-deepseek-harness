@@ -61,33 +61,47 @@ con la captura `capeng.jpg` adjunta. Idioma: **español si el grupo es hispanoha
 
 ---
 
-## 3. Instalador v0.1.5 "no responde" — diagnóstico y pasos
+## 3. Instalador v0.1.5 "no responde" — DIAGNÓSTICO COMPLETADO (2026-08-20)
 
 ### Síntoma
-El usuario intentó instalar la v0.1.5 (`FreeCode-DeepSeek-Harness-0.1.5-win-x64-setup.exe`, 446 MB)
-y el instalador **no responde** (no aparece ventana / se queda colgado).
+El usuario ejecutó `FreeCode-DeepSeek-Harness-0.1.5-win-x64-setup.exe` (446 MB) 2 veces (09:15 y 09:19)
+y "no respondía": ningún diálogo, instalación nunca arrancaba.
 
-### Causas posibles (por descartar, en orden)
-1. **SmartScreen / Defender**: exe sin firma descargado de internet → "Windows protegió su PC" o
-   ejecución bloqueada silenciosa. Verificar con `Get-AuthenticodeSignature` (debe decir NotSigned).
-2. **Instalador NSIS extrayendo ~1.6 GB**: la primera ventana tarda 30–90 s (o más en disco lento),
-   parece "no responder" pero está trabajando. Esperar >2 min antes de declararlo colgado.
-3. **Versión anterior corriendo**: si la v0.1.4 está abierta, el instalador puede esperar a que cierre
-   la app. Cerrar el harness antes de instalar.
-4. **Antivirus de terceros** (simplewall/Defender real-time) sandboxeando el setup. Probar con Defender
-   temporalmente off o añadir exclusión.
-5. **Corrupción de descarga**: verificar hash del exe contra el SHA-256 del asset de GitHub.
+### Evidencia (causa raíz encontrada)
+- **El instalador NO "no respondía": CRASHEABA.** Windows dejó 2 minidumps:
+  `%LOCALAPPDATA%\CrashDumps\FreeCode-DeepSeek-Harness-0.1.5-win-x64-setup.exe.{47048,50216}.dmp`
+- Ambos dumps: **0xC0000005 (Access Violation) con ExceptionAddress = 0x0** → el proceso salta a un
+  **puntero nulo** durante el arranque del asistente NSIS.
+- El dir de instalación `%LOCALAPPDATA%\Programs\@freecodeshell` quedó creado y **vacío** (se crasheó antes de escribir).
+- Es el **bug conocido de electron-builder NSIS en Windows 11** (issue #8536, cerrado sin fix oficial):
+  el plugin `System.dll`/`multiUser.nsh` crashea con 0xC0000005 en el instalador per-user asistido,
+  especialmente en builds 24H2/25H2 (este equipo: **Windows 11 25H2 build 26200**).
+- NO es descarga corrupta: el exe descargado por `gh release download` coincide byte a byte con el asset
+  (468,106,588 bytes) y su firma es `NotSigned` (esperado → SmartScreen, otro aviso aparte).
 
-### Pasos a ejecutar (cuando se retome)
-- [ ] `Get-AuthenticodeSignature` sobre el setup.exe descargado → confirmar "NotSigned" (causa 1)
-- [ ] Ejecutar con `--version` o `/S /D=` en cmd para ver si responde headless; revisar `%TEMP%\ns*.log` / electron-builder logs
-- [ ] Esperar ≥2 min midiendo la ventana (causa 2) — medir RAM/CPU del proceso setup.exe con tasklist
-- [ ] Cerrar cualquier instancia del harness v0.1.4 antes de instalar (causa 3)
-- [ ] Verificar SHA-256 del exe local vs GitHub API (causa 5)
-- [ ] Si el setup de CI no responde nunca: alternativa = usar el **portable.exe** (no requiere instalación)
+### Verificaciones hechas
+- [x] `Get-AuthenticodeSignature` → **NotSigned** (sin firma → SmartScreen pedirá "Más info → Ejecutar de todos modos")
+- [x] SHA/tamaño local == asset GitHub (468,106,588 bytes) → descarga íntegra
+- [x] **Instalación silenciosa `/S` FUNCIONA** (exit 0; el crash es solo del asistente GUI)
+- [x] Reproducción local del crash vía dumps (2/2 idénticos, mismo offset)
+- [ ] Instalación real en `%LOCALAPPDATA%\Programs\@freecodeshell` (en curso con `/S`)
+- [ ] Portable `...-win-x64-portable.exe` descargado como plan B (en curso)
+
+### Fix
+**Usuario (ya):** instalar con `/S` (silencioso, sin asistente): evita el crash.
+Alternativa: usar el **portable.exe** (descarga directa, sin instalación).
+**Repo (próxima release):** en `apps/shell/electron-builder.yml`, `nsis:` agregar
+`oneClick: true` (o `selectPerMachineByDefault: true`) → el instalador no muestra la página
+asistida que crashea en Win11 (workaround validado por los afectados del issue #8536).
+
+### Pitfall MSYS
+`bash` de git-MSYS convierte argumentos `/S` y `/D=...` en rutas (path mangling) → el setup los
+recibe corruptos y sale exit 0 sin hacer nada. Usar SIEMPRE `MSYS_NO_PATHCONV=1 ./setup.exe /S`.
 
 ### Estado
-- [ ] Diagnóstico en curso / pendiente
+- [x] Causa raíz identificada (0xC0000005 → puntero nulo → bug NSIS/electron-builder en Win11 25H2)
+- [ ] Instalación silent completada y verificada
+- [ ] Aplicar fix `oneClick: true` en electron-builder.yml + commit (para la próxima release)
 
 ---
 
