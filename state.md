@@ -1,10 +1,35 @@
 # Estado de traspaso — FreeCode DeepSeek Harness
 
-Fecha: **2026-08-19**
+Fecha: **2026-08-20**
 Workspace: `I:\DeepSeek-Harness\free-code-deepseek-harness`
 Rama: `main`
 
-## Release v0.1.4 — listo para publicar
+## Release v0.1.5 — pool con rotación Tor (TorFleet)
+
+Fix de los 429 persistentes del tier free anónimo (`opencode.ai/zen`, `Bearer public` → cuota por IP/sesión): el pool (16 workers + LB) ahora rota las IPs de salida con una flota local de 4 instancias Tor configurada solo desde el `config.json` del pool (sin cambios de código; el config es runtime y está en .gitignore).
+
+### Fixes incluidos
+
+1. **TorFleet (Fase 2)** — 4 instancias `tor.exe` (Tor Expert bundle): `SocksPort 127.0.0.1:9150–9153`, `ControlPort 127.0.0.1:9251–9254`, DataDirectory/log propios por instancia; arranque headless con `start-tor.cmd` (`start "" /B`) + entrada en la carpeta Startup de Windows para sobrevivir logins.
+2. **Round-robin de salida** — `socks5_proxies` ×4 + `active_socks5: "__round_robin__"`: cada request sale por un exit Tor distinto; `socks5_paid_direct: true` mantiene las claves privadas por la ruta directa (límites de cuenta intactos).
+3. **Rotación on-demand** — helper `newnym.py` (ControlPort): `AUTHENTICATE` → `SIGNAL NEWNYM` → `QUIT` fuerza circuito nuevo en ~8 s.
+4. **Verificado** — 4/4 exits Tor distintos devuelven 200 contra `opencode.ai/zen` (Cloudflare no bloquea Tor hoy); E2E completo por LB (chat 200, con conexiones worker→Tor establecidas); overhead +0.8–1.8 s/request.
+
+### Modelo default
+
+- Provider: `deepseek-free` (LB → opencode2api pool round-robin → TorFleet)
+- Model: `nemotron-3.5-lightning` (fastest responding)
+- `deepseek-v4-flash` — con TorFleet activo **vuelve a responder** (antes moría por cuota/rate limit de la IP hogareña)
+- `llm-deepseek` (built-in `deepseek-official`) no tocado — funciona si el usuario pone su DEEPSEEK_API_KEY
+
+### Pendiente futuro
+
+- [ ] Probar manualmente en macOS/Linux además de la matriz CI
+- [ ] TorFleet: si opencode.ai bloquea el ASN de exits Tor, migrar la rotación a Oracle Free + SSH (SOCKS vía `ssh -D`)
+
+---
+
+## Release v0.1.4 — listo para publicar (historial)
 
 Preflight local verificado: locale, typecheck, contratos, frontend y compatibilidad Go del proxy. El empaquetado Electron final queda a cargo del workflow reproducible; la materialización local del runtime fue detenida por su costo de I/O en Windows.
 

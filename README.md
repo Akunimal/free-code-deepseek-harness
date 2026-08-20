@@ -20,15 +20,30 @@ Artifacts are built in a Windows/macOS/Linux matrix, pass the contract tests, an
 
 The product is designed to be self-contained and portable: Node/Electron, the `dsh` CLI, the UI, native dependencies, and the `opencode2api` binaries travel inside the artifact. A release does not require Node, pnpm, Git, Go, or Python to run. Windows publishes both an NSIS installer and a **portable** `.exe` that can be copied to another folder or machine; the portable build keeps its data in a `data/` directory beside the executable. macOS ships the app/DMG and Linux ships an AppImage, also with the runtime included.
 
-The goal is almost-free vibecoding through OpenCode's DeepSeek Free route. The Pool overlay exposes a **Parallel workers** slider from 1 to 16 (default 6): it controls how many local `opencode2api` processes serve requests concurrently. Without session affinity, each request is distributed round-robin across ready workers; an explicitly pinned session keeps its worker so upstream state is not mixed. Each worker maintains its own independent session against the OpenCode service. This does not create accounts, rotate identities, or bypass IP-level limits. With a private key, all workers use that key and remain subject to that account/provider's limits.
+The goal is almost-free vibecoding through OpenCode's DeepSeek Free route. The Pool overlay exposes a **Parallel workers** slider from 1 to 16 (default 6): it controls how many local `opencode2api` processes serve requests concurrently. Without session affinity, each request is distributed round-robin across ready workers; an explicitly pinned session keeps its worker so upstream state is not mixed. Each worker maintains its own independent session against the OpenCode service. By default this does not create accounts, rotate identities, or bypass IP-level limits; the optional Tor egress rotation described below changes only the egress IP, never the identity or the account tier. With a private key, all workers use that key and remain subject to that account/provider's limits.
 
 **Trade-offs of more workers:** each `opencode2api` process consumes RAM (~80–120 MB each); 6 workers ≈ 600–720 MB, 16 workers ≈ 1.6–1.9 GB on top of Electron itself. If all workers hit the service simultaneously, they may all reach the rate limit ceiling at the same time — more workers does not guarantee more quota, just better concurrency when quota is available. The default is now 6; lower it in the overlay if the machine has limited RAM.
+
+**Optional Tor egress rotation (TorFleet):** the free route (`opencode.ai/zen`, anonymous `Bearer public`) rate-limits **per IP/session**, so a single home IP can saturate the ceiling and produce persistent `429`s. The pool can rotate egress IPs through a local Tor fleet — optional, out-of-build, zero code changes — configured entirely through the pool's runtime `config.json` (git-ignored). Run 4 Tor expert instances (`SocksPort 127.0.0.1:9150–9153`, distinct `ControlPort`/`DataDirectory`/log each, launched headless via a `.cmd` with `start "" /B`, kept alive across logins through the Windows Startup folder), then point the pool at them:
+
+```json
+"socks5_proxies": [
+  { "name": "tor-0", "addr": "127.0.0.1:9150" },
+  { "name": "tor-1", "addr": "127.0.0.1:9151" },
+  { "name": "tor-2", "addr": "127.0.0.1:9152" },
+  { "name": "tor-3", "addr": "127.0.0.1:9153" }
+],
+"active_socks5": "__round_robin__",
+"socks5_paid_direct": true
+```
+
+Requests spread round-robin across four exit IPs; `socks5_paid_direct` keeps private-key traffic on the direct route (account limits still apply there). Verified against `opencode.ai/zen` (not Tor-blocked as of 2026-08): a `SIGNAL NEWNYM` over a ControlPort connection forces a fresh circuit on demand, `deepseek-v4-flash` responds again on the free tier (it previously died on quota) and the full 16-worker pool keeps returning 200s. Cost: +0.8–1.8 s per request (~1.7–3.8 s total vs ~0.55 s direct) and a new circuit takes seconds to build. Caveat: Tor exit ASNs can be blocked upstream at any time; rotation only changes the egress IP — it never creates accounts or raises the anonymous tier's quota.
 
 **First launch of the portable:** the portable `.exe` is a self-extracting archive (~444 MB compressed, ~1.6 GB extracted). On each launch it extracts to a temporary directory before Electron starts — this can take 30–90 seconds depending on disk speed and antivirus activity. There is no progress bar during extraction; the window appears once Electron finishes loading. The NSIS installer extracts once at install time, so subsequent launches are faster. If the portable seems stuck, give it a couple of minutes — it is extracting, not frozen.
 
 **Timeouts and patience:** the free DeepSeek route can be slow, especially under heavy load. Timeouts are intentionally generous so that long-running streams are not cut mid-response. If a response takes a while, wait — the stream is still alive, the model is still generating. It is free, after all.
 
-To test the Windows build generated in this checkout, open `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.4-win-x64-portable.exe`; the installer is `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.4-win-x64-setup.exe`. The unpacked development executable is `apps/shell/release/win-unpacked/FreeCode DeepSeek Harness.exe`.
+To test the Windows build generated in this checkout, open `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.5-win-x64-portable.exe`; the installer is `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.5-win-x64-setup.exe`. The unpacked development executable is `apps/shell/release/win-unpacked/FreeCode DeepSeek Harness.exe`.
 
 ## What it delivers
 
@@ -129,13 +144,28 @@ Los artifacts se construyen en una matriz Windows/macOS/Linux, pasan los tests d
 
 El producto está diseñado para ser autocontenido y portable: el runtime de Node/Electron, el CLI `dsh`, la UI, las dependencias nativas y los binarios `opencode2api` viajan dentro del artefacto. No hace falta instalar Node, pnpm, Git, Go ni Python para ejecutar una release. En Windows se publican dos ejecutables: un instalador NSIS y un `.exe` **portable** que se puede copiar a otra carpeta o máquina; el portable guarda sus datos en `data/` junto al ejecutable. macOS entrega la app/DMG y Linux la AppImage, también con el runtime incluido.
 
-El objetivo es facilitar vibecoding prácticamente gratis usando la ruta DeepSeek Free de OpenCode. El overlay de Pool tiene el slider **Workers paralelos** de 1 a 16 (por defecto 6): controla cuántos procesos locales `opencode2api` atienden en paralelo. Sin afinidad de sesión, cada request se reparte en round-robin entre los workers listos; una sesión explícitamente fijada conserva su worker para no mezclar el estado upstream. Cada worker mantiene su propia sesión independiente contra el servicio OpenCode. Esto no crea cuentas nuevas, no rota identidades y no evade límites a nivel de IP. Con una clave privada, todos los workers usan esa clave y siguen aplicando los límites de esa cuenta/proveedor.
+El objetivo es facilitar vibecoding prácticamente gratis usando la ruta DeepSeek Free de OpenCode. El overlay de Pool tiene el slider **Workers paralelos** de 1 a 16 (por defecto 6): controla cuántos procesos locales `opencode2api` atienden en paralelo. Sin afinidad de sesión, cada request se reparte en round-robin entre los workers listos; una sesión explícitamente fijada conserva su worker para no mezclar el estado upstream. Cada worker mantiene su propia sesión independiente contra el servicio OpenCode. Por defecto esto no crea cuentas nuevas, no rota identidades y no evade límites a nivel de IP; la rotación de salida opcional con Tor descrita abajo cambia únicamente la IP de salida, nunca la identidad ni el tier de cuenta. Con una clave privada, todos los workers usan esa clave y siguen aplicando los límites de esa cuenta/proveedor.
 
 **Costo de más workers:** cada proceso `opencode2api` consume RAM (~80–120 MB cada uno); 6 workers ≈ 600–720 MB, 16 workers ≈ 1.6–1.9 GB encima de Electron. Si todos los workers pegan al servicio a la vez, pueden llegar todos al tope de rate limit simultáneamente — más workers no garantiza más cuota, sólo mejor concurrencia cuando hay cuota disponible. El default ahora es 6; bajalo desde el overlay si tu equipo tiene poca RAM.
 
+**Rotación de salida opcional con Tor (TorFleet):** la ruta gratuita (`opencode.ai/zen`, `Bearer public` anónimo) limita por **IP/sesión**, así que una IP hogareña puede saturar el techo y producir 429 persistentes. El pool puede rotar las IPs de salida con una flota Tor local — opcional, fuera del build, cero cambios de código — configurada entera desde el `config.json` del pool (ignorado por git). Corré 4 instancias de Tor expert (`SocksPort 127.0.0.1:9150–9153`, `ControlPort`/`DataDirectory`/log distintos por instancia, arrancadas headless con un `.cmd` y `start "" /B`, mantenidas entre logins con la carpeta Startup de Windows) y después apuntá el pool:
+
+```json
+"socks5_proxies": [
+  { "name": "tor-0", "addr": "127.0.0.1:9150" },
+  { "name": "tor-1", "addr": "127.0.0.1:9151" },
+  { "name": "tor-2", "addr": "127.0.0.1:9152" },
+  { "name": "tor-3", "addr": "127.0.0.1:9153" }
+],
+"active_socks5": "__round_robin__",
+"socks5_paid_direct": true
+```
+
+Los requests se reparten en round-robin entre cuatro IPs de salida; `socks5_paid_direct` mantiene el tráfico con clave privada por la ruta directa (ahí siguen aplicando los límites de cuenta). Verificado contra `opencode.ai/zen` (no bloquea Tor hoy, 2026-08): un `SIGNAL NEWNYM` por una conexión al ControlPort fuerza un circuito nuevo bajo demanda, `deepseek-v4-flash` vuelve a responder en el tier gratuito (antes moría por cuota) y el pool completo de 16 workers sigue devolviendo 200. Costo: +0.8–1.8 s por request (~1.7–3.8 s total vs ~0.55 s directo) y un circuito nuevo tarda segundos en construirse. Salvedad: el ASN de los exits Tor puede ser bloqueado upstream en cualquier momento; la rotación sólo cambia la IP de salida — nunca crea cuentas ni sube la cuota del tier anónimo.
+
 **Timeouts y paciencia:** la ruta gratuita de DeepSeek puede ser lenta, sobre todo bajo carga alta. Los timeouts están configurados generosamente a propósito para que los streams largos no se corten a mitad de respuesta. Si una respuesta tarda, esperá — el stream sigue vivo, el modelo sigue generando. Al fin y al cabo, es gratis.
 
-Para probar el build Windows generado en este checkout, abrí `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.4-win-x64-portable.exe`; el instalador queda como `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.4-win-x64-setup.exe`. El directorio desempaquetado de desarrollo es `apps/shell/release/win-unpacked/FreeCode DeepSeek Harness.exe`.
+Para probar el build Windows generado en este checkout, abrí `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.5-win-x64-portable.exe`; el instalador queda como `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.5-win-x64-setup.exe`. El directorio desempaquetado de desarrollo es `apps/shell/release/win-unpacked/FreeCode DeepSeek Harness.exe`.
 
 ## Qué entrega
 
