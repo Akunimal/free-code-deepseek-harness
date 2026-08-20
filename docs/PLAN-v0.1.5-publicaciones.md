@@ -97,13 +97,16 @@ bug público electron-builder #8536, cerrado sin fix oficial), el modo `/S` abor
 (exit 0 sin instalar) y el portable 7zSFX se cuelga sin extraer. NO es descarga corrupta
 (bytes idénticos al asset), NO es falta de espacio, NO es antivirus.
 
-### Fix
-**Usuario (hoy):** correr la app desde el repo (`pnpm dev`), como ya lo hacés — no hay
-instalador usable en Win11 25H2 hasta la próxima release.
-**Repo (ya commiteado, próxima release):** `apps/shell/electron-builder.yml` → `nsis: oneClick: true`
-(el issue #8536 valida que el instalador one-click arranca bien en Win11; evita la página asistida
-que crashea). Si el portable sigue roto tras el fix → subir electron-builder a 26.x/27.x (NSIS 3.10+)
-en `apps/shell/package.json`.
+### Fix (APLICADO — 2026-08-20)
+Dos bugs distintos, dos fixes:
+1. **0xC0000005 crash (página asistida):** `electron-builder.yml` → `nsis: oneClick: true` evita
+   la página asistida que crashea en Win11 24H2/25H2 (issue #8536).
+2. **"No se puede cerrar" falso positivo:** `build/installer.nsh` define macro
+   `customCheckAppRunning` vacía → electron-builder la incluye ANTES del template, bypaseando
+   el check `nsProcess`/`tasklist | find` que da falsos positivos en Win11 25H2.
+
+Ambos fixes commiteados. Instalador verificado en Win11 25H2 build 26200: instala sin crash ni
+diálogo falso.
 
 ### Pitfall MSYS
 `bash` de git-MSYS convierte argumentos `/S` y `/D=...` en rutas (path mangling) → el setup los
@@ -111,8 +114,10 @@ recibe corruptos y sale exit 0 sin hacer nada. Usar SIEMPRE `MSYS_NO_PATHCONV=1 
 
 ### Estado
 - [x] Causa raíz identificada (0xC0000005 → puntero nulo → bug NSIS/electron-builder en Win11 25H2)
-- [ ] Instalación silent completada y verificada
-- [ ] Aplicar fix `oneClick: true` en electron-builder.yml + commit (para la próxima release)
+- [x] Fix `oneClick: true` en electron-builder.yml (commit `8048097035`)
+- [x] Fix `customCheckAppRunning` en build/installer.nsh (commit `6ac6eceb8a`)
+- [x] Instalador verificado — instala sin crash ni "no se puede cerrar" en Win11 25H2
+- [ ] Release v0.1.5 en GitHub actualizada con el setup.exe corregido
 
 ---
 
