@@ -12,6 +12,13 @@ import { nodeRuntimeEnv, resolveNodePath, resolveResourcesDir } from './resource
 import { createAppLogger, type AppLogger } from './logger.js';
 import { createUpdateService, type UpdateService } from './updater.js';
 import { initLocale, t } from './i18n.js';
+import {
+  TorFleet,
+  loadTorFleetState,
+  saveTorFleetState,
+  resolveTorBinaryPath,
+  resolveTorGeoipDir,
+} from './torfleet.js';
 
 /**
  * Electron main — wires the runtime (pool -> LB -> harness), the native
@@ -97,6 +104,8 @@ let updateService: UpdateService | null = null;
 let updateTimer: NodeJS.Timeout | null = null;
 let overlayOpen = false;
 let localUpdateRunning = false;
+let torfleet: TorFleet | null = null;
+let torfleetEnabled = false;
 
 function createSplashWindow(): void {
   splashWindow = new BrowserWindow({
@@ -202,6 +211,17 @@ input[type=range]{width:100%;margin:8px 0}
 <input id="pool-size" type="range" min="1" max="16" step="1" value="${poolSize}" oninput="document.getElementById('pool-size-value').value=this.value" onchange="window.freecode.pool.resize(Number(this.value))">
 <p style="font-size:12px;color:#9da4b3">${t('overlay.workersNote')}</p>
 <table><thead><tr><th>id</th><th>status</th><th>addr</th><th>pid</th><th>restarts</th></tr></thead><tbody id="pool-rows">${rows}</tbody></table>
+<hr style="border-color:#2a2f3a;margin:16px 0">
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+  <label style="font-weight:600;font-size:14px">TorFleet</label>
+  <label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer;-webkit-app-region:no-drag">
+    <input id="tor-toggle" type="checkbox" ${torfleetEnabled ? 'checked' : ''} style="opacity:0;width:0;height:0" onchange="window.freecode.torfleet.enable(this.checked)">
+    <span style="position:absolute;inset:0;background:${torfleetEnabled ? '#ff7a00' : '#2a2f3a'};border-radius:12px;transition:.3s"></span>
+    <span style="position:absolute;top:2px;left:${torfleetEnabled ? '22px' : '2px'};width:20px;height:20px;background:#fff;border-radius:50%;transition:.3s"></span>
+  </label>
+  <span id="tor-status-label" style="font-size:12px;color:#9da4b3">${torfleetEnabled ? 'ON' : 'OFF'}</span>
+</div>
+<table id="tor-table" style="display:${torfleetEnabled ? 'table' : 'none'}"><thead><tr><th>tor</th><th>status</th><th>SOCKS5</th><th>pid</th></tr></thead><tbody id="tor-rows"></tbody></table>
 <script>
 window.freecode.pool.onStatus(function(payload) {
   var tbody = document.getElementById('pool-rows');
@@ -213,6 +233,24 @@ window.freecode.pool.onStatus(function(payload) {
   if (payload.workers.length !== Number(slider.value)) {
     slider.value = payload.workers.length;
     output.value = payload.workers.length;
+  }
+});
+window.freecode.torfleet.onStatus(function(payload) {
+  var toggle = document.getElementById('tor-toggle');
+  var label = document.getElementById('tor-status-label');
+  var table = document.getElementById('tor-table');
+  var track = toggle.nextElementSibling;
+  var knob = track.nextElementSibling;
+  toggle.checked = payload.enabled;
+  label.textContent = payload.enabled ? 'ON' : 'OFF';
+  track.style.background = payload.enabled ? '#ff7a00' : '#2a2f3a';
+  knob.style.left = payload.enabled ? '22px' : '2px';
+  table.style.display = payload.enabled ? 'table' : 'none';
+  if (payload.instances) {
+    var tbody = document.getElementById('tor-rows');
+    tbody.innerHTML = payload.instances.map(function(i) {
+      return '<tr><td>tor-'+i.index+'</td><td>'+i.status+'</td><td>127.0.0.1:'+i.socksPort+'</td><td>'+i.pid+'</td></tr>';
+    }).join('');
   }
 });
 </script>
@@ -442,6 +480,56 @@ app.whenReady().then(async () => {
   void doRefresh();
   setInterval(() => void doRefresh(), REFRESH_INTERVAL_MS);
 
+  // TorFleet — headless Tor SOCKS5 rotation for pool 429 mitigation.
+  const tfState = loadTorFleetState(userDataDir);
+  torfleetEnabled = tfState.enabled;
+
+  const enableTorfleet = async (on: boolean): Promise<void> => {
+    torfleetEnabled = on;
+    saveTorFleetState(userDataDir, { enabled: on });
+    if (on) {
+      if (!torfleet) {
+        torfleet = new TorFleet({
+          torBinaryPath: resolveTorBinaryPath(resources),
+          dataDir: join(userDataDir, 'torfleet'),
+          geoipDir: resolveTorGeoipDir(resources),
+        });
+      }
+      await torfleet.start();
+      const proxies = torfleet.socksProxies();
+      if (proxies.length > 0 && runtime) {
+        await runtime.pool.setSocks5({
+          socks5_proxies: proxies,
+          active_socks5: '__round_robin__',
+          socks5_paid_direct: false,
+        });
+      }
+      torfleet.onChange(async (instances) => {
+        const ready = instances.filter((i) => i.status === 'ready');
+        if (runtime && ready.length > 0) {
+          const fresh = torfleet!.socksProxies();
+          await runtime.pool.setSocks5({
+            socks5_proxies: fresh,
+            active_socks5: '__round_robin__',
+            socks5_paid_direct: false,
+          });
+        }
+      });
+    } else {
+      if (torfleet) {
+        await torfleet.stop();
+        torfleet = null;
+      }
+      if (runtime) {
+        await runtime.pool.setSocks5(null);
+      }
+    }
+  };
+
+  if (torfleetEnabled) {
+    void enableTorfleet(true);
+  }
+
   // FASE 10: IPC contract.
   registerIpc({
     runtime,
@@ -449,6 +537,11 @@ app.whenReady().then(async () => {
     homeDir: join(userDataDir, 'dsh-home'),
     lbBaseUrl: lbUrl,
     catalogStore: { get: () => catalog },
+    torfleet: {
+      get instance() { return torfleet; },
+      enable: enableTorfleet,
+      isEnabled: () => torfleetEnabled,
+    },
   });
 
   // Wait for harness readiness, then open the window on its URL.
@@ -503,11 +596,13 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', async (e) => {
   if (!runtime) {
+    if (torfleet) await torfleet.stop();
     await appLogger?.close();
     return;
   }
   e.preventDefault();
   if (updateTimer) clearInterval(updateTimer);
+  if (torfleet) await torfleet.stop();
   await runtime.stop();
   await appLogger?.close();
   app.exit(0);

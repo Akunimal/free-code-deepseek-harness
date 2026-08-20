@@ -5,6 +5,7 @@ import type {
   ModelCatalog,
   DetectedRoute,
   WorkerHandle,
+  TorInstance,
 } from '@freecode/shared-types';
 
 const IpcChannels = {
@@ -16,6 +17,8 @@ const IpcChannels = {
   omnirouteDetect: 'omniroute:detect',
   settingsOpenFolder: 'settings:openFolder',
   harnessRestart: 'harness:restart',
+  torfleetEnable: 'torfleet:enable',
+  torfleetStatus: 'torfleet:status',
 } as const;
 
 /**
@@ -51,8 +54,20 @@ const api: FreeCodeApi = {
   settings: {
     openFolder: (): Promise<void> => ipcRenderer.invoke(IpcChannels.settingsOpenFolder),
   },
+  torfleet: {
+    enable: (on: boolean): Promise<void> =>
+      ipcRenderer.invoke(IpcChannels.torfleetEnable, { enabled: on }),
+    onStatus(cb: (payload: IpcPayloads[typeof IpcChannels.torfleetStatus]) => void): () => void {
+      const listener = (
+        _e: unknown,
+        payload: IpcPayloads[typeof IpcChannels.torfleetStatus],
+      ): void => cb(payload);
+      ipcRenderer.on(IpcChannels.torfleetStatus, listener);
+      return () => ipcRenderer.removeListener(IpcChannels.torfleetStatus, listener);
+    },
+  },
 };
 
 contextBridge.exposeInMainWorld('freecode', api);
 
-export type { FreeCodeApi, IpcPayloads, ModelCatalog, DetectedRoute, WorkerHandle };
+export type { FreeCodeApi, IpcPayloads, ModelCatalog, DetectedRoute, WorkerHandle, TorInstance };

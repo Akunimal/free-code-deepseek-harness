@@ -36,6 +36,16 @@ export const DetectedRouteSchema = z.object({
 });
 export type DetectedRoute = z.infer<typeof DetectedRouteSchema>;
 
+/** TorFleet instance snapshot (mirrors torfleet.ts TorInstance). */
+export const TorInstanceSchema = z.object({
+  index: z.number(),
+  socksPort: z.number(),
+  controlPort: z.number(),
+  pid: z.number(),
+  status: z.enum(['starting', 'ready', 'stopped']),
+});
+export type TorInstance = z.infer<typeof TorInstanceSchema>;
+
 /** IPC channel names (single source of truth for main + preload + renderer). */
 export const IpcChannels = {
   poolStatus: 'pool:status',
@@ -46,6 +56,8 @@ export const IpcChannels = {
   omnirouteDetect: 'omniroute:detect',
   settingsOpenFolder: 'settings:openFolder',
   harnessRestart: 'harness:restart',
+  torfleetEnable: 'torfleet:enable',
+  torfleetStatus: 'torfleet:status',
 } as const;
 
 export type IpcChannels = typeof IpcChannels;
@@ -60,6 +72,8 @@ export interface IpcPayloads {
   [IpcChannels.omnirouteDetect]: void;
   [IpcChannels.settingsOpenFolder]: void;
   [IpcChannels.harnessRestart]: void;
+  [IpcChannels.torfleetEnable]: { enabled: boolean };
+  [IpcChannels.torfleetStatus]: { enabled: boolean; instances: TorInstance[] };
 }
 
 /** The API surface exposed on window.freecode by the preload bridge. */
@@ -80,6 +94,10 @@ export interface FreeCodeApi {
   };
   settings: {
     openFolder(): Promise<void>;
+  };
+  torfleet: {
+    enable(on: boolean): Promise<void>;
+    onStatus(cb: (payload: IpcPayloads[typeof IpcChannels.torfleetStatus]) => void): () => void;
   };
 }
 

@@ -1,8 +1,8 @@
 import { spawn, ChildProcess } from 'node:child_process';
 import { createServer, Server } from 'node:net';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Pool, PoolConfig, WorkerHandle, WorkerStatus } from './types.js';
+import type { Pool, PoolConfig, Socks5Config, WorkerHandle, WorkerStatus } from './types.js';
 
 const HEALTH_TIMEOUT_MS = 15_000;
 const HEALTH_POLL_MS = 250;
@@ -244,6 +244,8 @@ export class OpenCodePool implements Pool {
     const wd = join(this.cfg.workDir, id);
     mkdirSync(wd, { recursive: true });
 
+    this.writeSocks5Config(wd);
+
     const handle: ManagedWorker = {
       id,
       pid: -1,
@@ -376,6 +378,65 @@ export class OpenCodePool implements Pool {
         }
       }
     }
+  }
+
+  async setSocks5(config: Socks5Config | null): Promise<void> {
+    if (config) {
+      this.cfg.socks5 = config;
+    } else {
+      delete this.cfg.socks5;
+    }
+
+    const pushes: Promise<void>[] = [];
+    for (const w of this.workerMap.values()) {
+      if (w.status !== 'ready' || w.port <= 0) continue;
+      pushes.push(this.pushSocks5ToWorker(w));
+    }
+    await Promise.allSettled(pushes);
+  }
+
+  private async pushSocks5ToWorker(w: ManagedWorker): Promise<void> {
+    const body = this.cfg.socks5
+      ? {
+          socks5_proxies: this.cfg.socks5.socks5_proxies,
+          active_socks5: this.cfg.socks5.active_socks5,
+          socks5_paid_direct: this.cfg.socks5.socks5_paid_direct,
+        }
+      : { socks5_proxies: [], active_socks5: '', socks5_paid_direct: false };
+
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 5_000);
+    try {
+      await fetch(`http://127.0.0.1:${w.port}/api/config`, {
+        method: 'POST',
+        signal: ctrl.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(this.cfg.baseAuthHeader ? { Authorization: this.cfg.baseAuthHeader } : {}),
+        },
+        body: JSON.stringify(body),
+      });
+    } catch {
+      console.warn(`[pool] failed to push socks5 config to ${w.id}`);
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
+  private writeSocks5Config(workerDir: string): void {
+    if (!this.cfg.socks5) return;
+    const cfgPath = join(workerDir, 'config.json');
+    let existing: Record<string, unknown> = {};
+    try {
+      if (existsSync(cfgPath)) {
+        existing = JSON.parse(readFileSync(cfgPath, 'utf8'));
+      }
+    } catch { /* start fresh */ }
+
+    existing['socks5_proxies'] = this.cfg.socks5.socks5_proxies;
+    existing['active_socks5'] = this.cfg.socks5.active_socks5;
+    existing['socks5_paid_direct'] = this.cfg.socks5.socks5_paid_direct;
+    writeFileSync(cfgPath, JSON.stringify(existing, null, 2), 'utf8');
   }
 
   private emitChange(w: ManagedWorker): void {

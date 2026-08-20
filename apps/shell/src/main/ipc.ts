@@ -8,8 +8,8 @@ import {
 import { ShellRuntime } from './runtime.js';
 import { detectLocalRoutes } from './omniroute-detector.js';
 import { refreshModels } from './model-refresher.js';
-import { join } from 'node:path';
 import { z } from 'zod';
+import type { TorFleet } from './torfleet.js';
 
 const PoolResizePayloadSchema = z.object({ size: z.number().int().min(1).max(16) });
 
@@ -24,6 +24,11 @@ export interface IpcDeps {
   homeDir: string;
   lbBaseUrl: string;
   catalogStore: { get(): unknown };
+  torfleet: {
+    instance: TorFleet | null;
+    enable(on: boolean): Promise<void>;
+    isEnabled(): boolean;
+  };
 }
 
 export function registerIpc(deps: IpcDeps): () => void {
@@ -77,13 +82,37 @@ export function registerIpc(deps: IpcDeps): () => void {
   // settings:openFolder (invoke) — reveal DSH_HOME in the OS file manager
   ipcMain.handle(IpcChannels.settingsOpenFolder, () => shell.openPath(homeDir));
 
+  // torfleet:enable (invoke)
+  ipcMain.handle(IpcChannels.torfleetEnable, async (_e, payload: { enabled: boolean }) => {
+    await deps.torfleet.enable(payload.enabled);
+    emitTorfleetStatus();
+  });
+
+  const emitTorfleetStatus = (): void => {
+    const tf = deps.torfleet;
+    const payload: IpcPayloads[typeof IpcChannels.torfleetStatus] = {
+      enabled: tf.isEnabled(),
+      instances: tf.instance?.status() ?? [],
+    };
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send(IpcChannels.torfleetStatus, payload);
+    }
+  };
+
+  let offTorfleetChange: (() => void) | null = null;
+  if (deps.torfleet.instance) {
+    offTorfleetChange = deps.torfleet.instance.onChange(() => emitTorfleetStatus());
+  }
+
   return () => {
     offChange();
+    offTorfleetChange?.();
     ipcMain.removeHandler(IpcChannels.modelsRefresh);
     ipcMain.removeHandler(IpcChannels.omnirouteDetect);
     ipcMain.removeHandler(IpcChannels.harnessRestart);
     ipcMain.removeHandler(IpcChannels.poolRestartWorker);
     ipcMain.removeHandler(IpcChannels.poolResize);
     ipcMain.removeHandler(IpcChannels.settingsOpenFolder);
+    ipcMain.removeHandler(IpcChannels.torfleetEnable);
   };
 }

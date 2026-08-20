@@ -14,12 +14,24 @@ export interface WorkerHandle {
   restarts: number;
 }
 
+export interface Socks5ProxyEntry {
+  name: string;
+  addr: string;
+}
+
+export interface Socks5Config {
+  socks5_proxies: Socks5ProxyEntry[];
+  active_socks5: string;
+  socks5_paid_direct: boolean;
+}
+
 export interface PoolConfig {
   size: number; // default 6, min 1, max 16
   binaryPath: string;
   workDir: string; // per-worker isolated dir under userData
   baseAuthHeader?: string; // 'Bearer public' by default -> free-only
   logDir: string;
+  socks5?: Socks5Config;
   /** Called on any worker status transition (overlay + logging). */
   onWorkerChange?: (w: WorkerHandle) => void;
   /** Called when a worker exhausted its restart budget (native notification hook). */
@@ -39,4 +51,6 @@ export interface Pool {
   onWorkerChange(cb: (w: WorkerHandle) => void): () => void;
   /** Force-restart a single worker by id (Settings overlay button). */
   restartWorker(id: string): Promise<void>;
+  /** Update SOCKS5 proxy config on all running workers via admin API. */
+  setSocks5(config: Socks5Config | null): Promise<void>;
 }
