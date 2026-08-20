@@ -36,6 +36,9 @@ linux:
     - AppImage
 nsis:
   artifactName: FreeCode-DeepSeek-Harness-${version}-${os}-${arch}-setup.${ext}
+  # oneClick avoids the assisted installer page that crashes NSIS with 0xC0000005
+  # on Windows 11 24H2/25H2 (electron-builder issue #8536, no official fix).
+  oneClick: true
 portable:
   artifactName: FreeCode-DeepSeek-Harness-${version}-${os}-${arch}-portable.${ext}
 publish:
