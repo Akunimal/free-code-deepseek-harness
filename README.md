@@ -26,7 +26,7 @@ The goal is almost-free vibecoding through OpenCode's DeepSeek Free route. The P
 
 **Trade-offs of more workers:** each `opencode2api` process consumes RAM (~80–120 MB each); 6 workers ≈ 600–720 MB, 16 workers ≈ 1.6–1.9 GB on top of Electron itself. If all workers hit the service simultaneously, they may all reach the rate limit ceiling at the same time — more workers does not guarantee more quota, just better concurrency when quota is available. The default is now 6; lower it in the overlay if the machine has limited RAM.
 
-**Optional Tor egress rotation (TorFleet):** the free route (`opencode.ai/zen`, anonymous `Bearer public`) rate-limits **per IP/session**, so a single home IP can saturate the ceiling and produce persistent `429`s. The pool can rotate egress IPs through a local Tor fleet — optional, out-of-build, zero code changes — configured entirely through the pool's runtime `config.json` (git-ignored). Run 4 Tor expert instances (`SocksPort 127.0.0.1:9150–9153`, distinct `ControlPort`/`DataDirectory`/log each, launched headless via a `.cmd` with `start "" /B`, kept alive across logins through the Windows Startup folder), then point the pool at them:
+**Optional Tor egress rotation (TorFleet):** the free route (`opencode.ai/zen`, anonymous `Bearer public`) rate-limits **per IP/session**, so a single home IP can saturate the ceiling and produce persistent `429`s. The pool can rotate egress IPs through a local Tor fleet — optional, out-of-build, zero code changes — configured entirely through the pool's runtime `config.json` (git-ignored). Run 4 Tor expert instances (`SocksPort 127.0.0.1:9150–9153`, distinct `ControlPort`/`DataDirectory`/log each, launched headless via a `.cmd` with `start "" /B`) on demand before using the pool, then point the pool at them:
 
 ```json
 "socks5_proxies": [
@@ -44,6 +44,8 @@ Requests spread round-robin across four exit IPs; `socks5_paid_direct` keeps pri
 **First launch of the portable:** the portable `.exe` is a self-extracting archive (~444 MB compressed, ~1.6 GB extracted). On each launch it extracts to a temporary directory before Electron starts — this can take 30–90 seconds depending on disk speed and antivirus activity. There is no progress bar during extraction; the window appears once Electron finishes loading. The NSIS installer extracts once at install time, so subsequent launches are faster. If the portable seems stuck, give it a couple of minutes — it is extracting, not frozen.
 
 **Timeouts and patience:** the free DeepSeek route can be slow, especially under heavy load. Timeouts are intentionally generous so that long-running streams are not cut mid-response. If a response takes a while, wait — the stream is still alive, the model is still generating. It is free, after all.
+
+**Known issue — Windows 11 24H2/25H2 installer:** electron-builder 25.x ships an NSIS process check (`nsProcess`/`tasklist | find`) that false-positives on recent Windows 11 builds, blocking installation with "cannot close FreeCode DeepSeek Harness" even when the app is not running. The workaround is already applied: `build/installer.nsh` overrides `customCheckAppRunning` with an empty macro. If you build the installer yourself and hit this, ensure the `build/` directory contains `installer.nsh`. The portable `.exe` is not affected.
 
 To test the Windows build generated in this checkout, open `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.5-win-x64-portable.exe`; the installer is `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.5-win-x64-setup.exe`. The unpacked development executable is `apps/shell/release/win-unpacked/FreeCode DeepSeek Harness.exe`.
 
@@ -150,7 +152,7 @@ El objetivo es facilitar vibecoding prácticamente gratis usando la ruta DeepSee
 
 **Costo de más workers:** cada proceso `opencode2api` consume RAM (~80–120 MB cada uno); 6 workers ≈ 600–720 MB, 16 workers ≈ 1.6–1.9 GB encima de Electron. Si todos los workers pegan al servicio a la vez, pueden llegar todos al tope de rate limit simultáneamente — más workers no garantiza más cuota, sólo mejor concurrencia cuando hay cuota disponible. El default ahora es 6; bajalo desde el overlay si tu equipo tiene poca RAM.
 
-**Rotación de salida opcional con Tor (TorFleet):** la ruta gratuita (`opencode.ai/zen`, `Bearer public` anónimo) limita por **IP/sesión**, así que una IP hogareña puede saturar el techo y producir 429 persistentes. El pool puede rotar las IPs de salida con una flota Tor local — opcional, fuera del build, cero cambios de código — configurada entera desde el `config.json` del pool (ignorado por git). Corré 4 instancias de Tor expert (`SocksPort 127.0.0.1:9150–9153`, `ControlPort`/`DataDirectory`/log distintos por instancia, arrancadas headless con un `.cmd` y `start "" /B`, mantenidas entre logins con la carpeta Startup de Windows) y después apuntá el pool:
+**Rotación de salida opcional con Tor (TorFleet):** la ruta gratuita (`opencode.ai/zen`, `Bearer public` anónimo) limita por **IP/sesión**, así que una IP hogareña puede saturar el techo y producir 429 persistentes. El pool puede rotar las IPs de salida con una flota Tor local — opcional, fuera del build, cero cambios de código — configurada entera desde el `config.json` del pool (ignorado por git). Corré 4 instancias de Tor expert (`SocksPort 127.0.0.1:9150–9153`, `ControlPort`/`DataDirectory`/log distintos por instancia, arrancadas headless con un `.cmd` y `start "" /B`) bajo demanda antes de usar el pool, y después apuntá el pool:
 
 ```json
 "socks5_proxies": [
@@ -165,7 +167,11 @@ El objetivo es facilitar vibecoding prácticamente gratis usando la ruta DeepSee
 
 Los requests se reparten en round-robin entre cuatro IPs de salida; `socks5_paid_direct` mantiene el tráfico con clave privada por la ruta directa (ahí siguen aplicando los límites de cuenta). Verificado contra `opencode.ai/zen` (no bloquea Tor hoy, 2026-08): un `SIGNAL NEWNYM` por una conexión al ControlPort fuerza un circuito nuevo bajo demanda, `deepseek-v4-flash` vuelve a responder en el tier gratuito (antes moría por cuota) y el pool completo de 16 workers sigue devolviendo 200. Costo: +0.8–1.8 s por request (~1.7–3.8 s total vs ~0.55 s directo) y un circuito nuevo tarda segundos en construirse. Salvedad: el ASN de los exits Tor puede ser bloqueado upstream en cualquier momento; la rotación sólo cambia la IP de salida — nunca crea cuentas ni sube la cuota del tier anónimo.
 
+**Primera apertura del portable:** el `.exe` portable es un archivo auto-extraíble (~444 MB comprimido, ~1.6 GB extraído). En cada ejecución se extrae a un directorio temporal antes de que arranque Electron — esto puede tardar entre 30 y 90 segundos dependiendo de la velocidad del disco y del antivirus. No hay barra de progreso durante la extracción; la ventana aparece cuando Electron termina de cargar. El instalador NSIS extrae una sola vez al instalar, así que las aperturas siguientes son más rápidas. Si el portable parece trabado, dale un par de minutos — está extrayendo, no está colgado.
+
 **Timeouts y paciencia:** la ruta gratuita de DeepSeek puede ser lenta, sobre todo bajo carga alta. Los timeouts están configurados generosamente a propósito para que los streams largos no se corten a mitad de respuesta. Si una respuesta tarda, esperá — el stream sigue vivo, el modelo sigue generando. Al fin y al cabo, es gratis.
+
+**Problema conocido — Instalador en Windows 11 24H2/25H2:** electron-builder 25.x incluye un chequeo de proceso NSIS (`nsProcess`/`tasklist | find`) que da falsos positivos en builds recientes de Windows 11, bloqueando la instalación con "no se puede cerrar FreeCode DeepSeek Harness" aunque la app no esté corriendo. El workaround ya está aplicado: `build/installer.nsh` sobreescribe `customCheckAppRunning` con una macro vacía. Si compilás el instalador y te pasa, asegurate de que el directorio `build/` contenga `installer.nsh`. El portable `.exe` no se ve afectado.
 
 Para probar el build Windows generado en este checkout, abrí `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.5-win-x64-portable.exe`; el instalador queda como `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.5-win-x64-setup.exe`. El directorio desempaquetado de desarrollo es `apps/shell/release/win-unpacked/FreeCode DeepSeek Harness.exe`.
 
@@ -181,6 +187,8 @@ Esta aplicación empaqueta el harness upstream y agrega la capa desktop necesari
 - Incluye ventana, tray, notificaciones, overlay de estado del pool, abrir la carpeta de configuración, importación OpenCode SQLite/ChatML y continuación en workspace.
 - Escribe logs JSONL rotados, ofrece un botón de actualización GitHub, puede sincronizar upstream y recompilar desde un checkout local, prepara stages reproducibles y publica únicamente desde tags `v*`.
 - Añade un fondo animado por conversación en CSS: dos gradientes radiales livianos, sin canvas ni loop JavaScript, con soporte para `prefers-reduced-motion`.
+
+El selector de idiomas existente en Configuración ahora ofrece chino, inglés y español en toda la UI upstream incluida; la selección se persiste mediante el servicio de configuración de locale.
 
 ## Permisos: exactamente el modelo del harness original
 

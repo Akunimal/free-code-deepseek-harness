@@ -10,10 +10,11 @@ Fix de los 429 persistentes del tier free anónimo (`opencode.ai/zen`, `Bearer p
 
 ### Fixes incluidos
 
-1. **TorFleet (Fase 2)** — 4 instancias `tor.exe` (Tor Expert bundle): `SocksPort 127.0.0.1:9150–9153`, `ControlPort 127.0.0.1:9251–9254`, DataDirectory/log propios por instancia; arranque headless con `start-tor.cmd` (`start "" /B`) + entrada en la carpeta Startup de Windows para sobrevivir logins.
+1. **TorFleet (Fase 2)** — 4 instancias `tor.exe` (Tor Expert bundle): `SocksPort 127.0.0.1:9150–9153`, `ControlPort 127.0.0.1:9251–9254`, DataDirectory/log propios por instancia; arranque headless con `start-tor.cmd` (`start "" /B`), bajo demanda antes de usar el pool.
 2. **Round-robin de salida** — `socks5_proxies` ×4 + `active_socks5: "__round_robin__"`: cada request sale por un exit Tor distinto; `socks5_paid_direct: true` mantiene las claves privadas por la ruta directa (límites de cuenta intactos).
 3. **Rotación on-demand** — helper `newnym.py` (ControlPort): `AUTHENTICATE` → `SIGNAL NEWNYM` → `QUIT` fuerza circuito nuevo en ~8 s.
 4. **Verificado** — 4/4 exits Tor distintos devuelven 200 contra `opencode.ai/zen` (Cloudflare no bloquea Tor hoy); E2E completo por LB (chat 200, con conexiones worker→Tor establecidas); overhead +0.8–1.8 s/request.
+5. **Fix instalador NSIS "no se puede cerrar"** — `build/installer.nsh` con macro `customCheckAppRunning` vacía: el chequeo de proceso de electron-builder 25.x (`nsProcess`/`tasklist | find`) produce falsos positivos en Win11 25H2 y bloquea la instalación incluso sin app corriendo. El override saltea el check. Documentado como known issue.
 
 ### Modelo default
 
