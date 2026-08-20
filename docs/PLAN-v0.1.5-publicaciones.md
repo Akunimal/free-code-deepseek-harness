@@ -117,7 +117,7 @@ recibe corruptos y sale exit 0 sin hacer nada. Usar SIEMPRE `MSYS_NO_PATHCONV=1 
 - [x] Fix `oneClick: true` en electron-builder.yml (commit `8048097035`)
 - [x] Fix `customCheckAppRunning` en build/installer.nsh (commit `6ac6eceb8a`)
 - [x] Instalador verificado — instala sin crash ni "no se puede cerrar" en Win11 25H2
-- [ ] Release v0.1.5 en GitHub actualizada con el setup.exe corregido
+- [x] Release v0.1.5 en GitHub actualizada con setup.exe corregido (asset reemplazado 2026-08-20)
 
 ---
 
