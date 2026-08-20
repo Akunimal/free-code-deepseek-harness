@@ -82,17 +82,28 @@ y "no respondía": ningún diálogo, instalación nunca arrancaba.
 ### Verificaciones hechas
 - [x] `Get-AuthenticodeSignature` → **NotSigned** (sin firma → SmartScreen pedirá "Más info → Ejecutar de todos modos")
 - [x] SHA/tamaño local == asset GitHub (468,106,588 bytes) → descarga íntegra
-- [x] **Instalación silenciosa `/S` FUNCIONA** (exit 0; el crash es solo del asistente GUI)
+- [x] **Instalación silenciosa `/S` "completa" pero NO instala**: exit 0 sin escribir nada
+  (`$INSTDIR` intacto, `7z-out` del NSIS vacío → aborta silencioso en el stub)
+- [x] **Portable.exe TAMBIÉN roto en esta máquina**: el wrapper 7zSFX queda colgado 5+ min
+  sin extraer (37 MB, 0 archivos escritos, sin procesos hijo) → matado con taskkill
 - [x] Reproducción local del crash vía dumps (2/2 idénticos, mismo offset)
-- [ ] Instalación real en `%LOCALAPPDATA%\Programs\@freecodeshell` (en curso con `/S`)
-- [ ] Portable `...-win-x64-portable.exe` descargado como plan B (en curso)
+- [ ] Instalación real en `%LOCALAPPDATA%\Programs\@freecodeshell` (NO HAY vía NSIS/7zSFX usable hoy)
+- [x] Portable `...-win-x64-portable.exe` descargado (467,936,006 bytes) — mismo stub roto
+
+### CONCLUSIÓN CAUSA RAÍZ (2026-08-20)
+**Los stubs NSIS/7zSFX generados por electron-builder 25.1.8 son incompatibles con este
+Windows 11 25H2 (build 26200):** el asistente GUI crashea con 0xC0000005 (call a puntero nulo,
+bug público electron-builder #8536, cerrado sin fix oficial), el modo `/S` aborta silencioso
+(exit 0 sin instalar) y el portable 7zSFX se cuelga sin extraer. NO es descarga corrupta
+(bytes idénticos al asset), NO es falta de espacio, NO es antivirus.
 
 ### Fix
-**Usuario (ya):** instalar con `/S` (silencioso, sin asistente): evita el crash.
-Alternativa: usar el **portable.exe** (descarga directa, sin instalación).
-**Repo (próxima release):** en `apps/shell/electron-builder.yml`, `nsis:` agregar
-`oneClick: true` (o `selectPerMachineByDefault: true`) → el instalador no muestra la página
-asistida que crashea en Win11 (workaround validado por los afectados del issue #8536).
+**Usuario (hoy):** correr la app desde el repo (`pnpm dev`), como ya lo hacés — no hay
+instalador usable en Win11 25H2 hasta la próxima release.
+**Repo (ya commiteado, próxima release):** `apps/shell/electron-builder.yml` → `nsis: oneClick: true`
+(el issue #8536 valida que el instalador one-click arranca bien en Win11; evita la página asistida
+que crashea). Si el portable sigue roto tras el fix → subir electron-builder a 26.x/27.x (NSIS 3.10+)
+en `apps/shell/package.json`.
 
 ### Pitfall MSYS
 `bash` de git-MSYS convierte argumentos `/S` y `/D=...` en rutas (path mangling) → el setup los
