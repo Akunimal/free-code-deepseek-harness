@@ -121,9 +121,9 @@ function patchUninstallOldVersion() {
   // uninstallOldVersion retries 5 times then shows "appCannotBeClosed" dialog.
   // Fix: kill the app before running the old uninstaller, run it once,
   // and treat any exit code as success (files get overwritten anyway).
-  // Match the section after copyFile that runs the old uninstaller
-  // Template varies by version - match from ExecWait through DoesNotExist
-  const oldLoop = /\\s*ExecWait '\\"\\$uninstallerFileNameTemp\\"\\/S \\/KEEP_APP_DATA \\$0 _\\?=\\$installationDir' \\$R0\\s*\\n\\s*ifErrors TryInPlace CheckResult[\\s\\S]*?DoesNotExist:\\s*\\n\\s*SetErrors\\s*\\n/;
+  // Match the uninstall execution block: nsExec through DoesNotExist
+  // This covers both old and new template formats
+  const oldLoop = /nsExec::ExecToLog 'taskkill[\s\S]*?DoesNotExist:\s*\n\s*SetErrors\s*\n/;
 
   if (oldLoop.test(content)) {
     content = content.replace(oldLoop,
