@@ -15,7 +15,7 @@ Fix del instalador NSIS en Windows 11 25H2/24H2: 4 parches al hook `beforePack` 
 3. **patchExtractAppPackage** — cuando `CopyFiles` falla tras 5 reintentos, el template muestra un diálogo `appCannotBeClosed` que bloquea. Patch: eliminar diálogo + label abort, dejar caer al extract no-atómico.
 4. **patchMultiUser** — (ya existía) elimina `SHGetKnownFolderPath` crash en Win11 24H2/25H2.
 5. **installer.nsh** — `customCheckAppRunning` macro ahora ejecuta `taskkill /F /IM` en vez de estar vacía.
-6. **provider-seeder: reasoning** — eliminado `reasoning: 'high'` a nivel de provider (causaba `UNSUPPORTED_REASONING_EFFORT` en modelos que no lo soportan); `model-refresher.ts` setea `reasoningEfforts` per-model solo para `deepseek-*`.
+6. **provider-seeder: reasoning** — eliminado `reasoning: 'high'` a nivel de provider Y default `'high'` de `agent-default-model` (causaba `UNSUPPORTED_REASONING_EFFORT` en modelos como `x-preview-f`); `model-refresher.ts` setea `reasoningEfforts` per-model solo para `deepseek-*`.
 
 ### Modelo default
 
