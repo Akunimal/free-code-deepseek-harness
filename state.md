@@ -21,7 +21,8 @@ Fix del instalador NSIS en Windows 11 25H2/24H2: 4 parches al hook `beforePack` 
 
 - Provider: `deepseek-free` (LB → opencode2api pool round-robin → TorFleet)
 - Model: `nemotron-3.5-lightning` (fastest responding)
-- `deepseek-v4-flash` — con TorFleet activo vuelve a responder (antes moría por cuota/rate limit)
+- Modelos disponibles (verificados 2026-08-21): `nemotron-3.5-lightning`, `nemotron-3-ultra`, `mimo-v2.5`, `x-preview-f`, `laguna-s-2.1`
+- `deepseek-v4-flash` — **retirado del catálogo opencode** (ya no responde)
 
 ### Pendiente futuro
 
@@ -46,7 +47,7 @@ Fix de los 429 persistentes del tier free anónimo (`opencode.ai/zen`, `Bearer p
 
 - Provider: `deepseek-free` (LB → opencode2api pool round-robin → TorFleet)
 - Model: `nemotron-3.5-lightning` (fastest responding)
-- `deepseek-v4-flash` — con TorFleet activo **vuelve a responder** (antes moría por cuota/rate limit de la IP hogareña)
+- `deepseek-v4-flash` — (retirado del catálogo opencode, verificado 2026-08-21)
 - `llm-deepseek` (built-in `deepseek-official`) no tocado — funciona si el usuario pone su DEEPSEEK_API_KEY
 
 ### Pendiente futuro
