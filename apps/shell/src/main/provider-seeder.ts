@@ -96,7 +96,6 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
     settings['agent-default-model'] = {
       provider: DEFAULT_PROVIDER,
       model: firstModel,
-      reasoningEffort: defaultModel?.reasoningEffort ?? 'high',
     };
     seeded = true;
   }
