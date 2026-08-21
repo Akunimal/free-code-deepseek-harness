@@ -745,10 +745,10 @@ export class LlmRuntime extends Service {
     let resolvedConfig = defaulted
     if (reasoning === undefined) {
       if (requested !== undefined) {
-        throw new LlmError(
-          `provider "${config.provider}" model "${config.model}" does not support reasoning effort "${requested}"`,
-          'UNSUPPORTED_REASONING_EFFORT',
-        )
+        // Strip unsupported reasoning effort silently instead of erroring —
+        // opencode2api may forward effort to models that don't declare it.
+        const { reasoningEffort: _dropped, ...rest } = resolvedConfig
+        resolvedConfig = rest as typeof resolvedConfig
       }
     } else {
       const effective = requested ?? reasoning.defaultEffort
