@@ -1,10 +1,36 @@
 # Estado de traspaso — FreeCode DeepSeek Harness
 
-Fecha: **2026-08-20**
+Fecha: **2026-08-21**
 Workspace: `I:\DeepSeek-Harness\free-code-deepseek-harness`
 Rama: `main`
 
-## Release v0.1.5 — pool con rotación Tor (TorFleet)
+## Release v0.1.7 — NSIS hardening multi-parche (Win11 25H2)
+
+Fix del instalador NSIS en Windows 11 25H2/24H2: 4 parches al hook `beforePack` + fix de `reasoning: 'high'` que provocaba `UNSUPPORTED_REASONING_EFFORT` en modelos no-DeepSeek.
+
+### Fixes incluidos
+
+1. **patchAppRunningCheck** — reemplaza el chequeo de proceso `nsProcess`/`tasklist` por `taskkill /F /IM` silencioso: Win11 25H2 produce falsos positivos en `FIND_PROCESS` que bloquean la instalación.
+2. **patchUninstallOldVersion** — el desinstalador viejo (de una instalación previa) falla con exit code ≠ 0 en Win11 25H2 → `handleUninstallResult` aborta ANTES de extraer archivos nuevos. Fix: matar app, correr uninstaller una vez, ignorar exit code (`StrCpy $R0 0`).
+3. **patchExtractAppPackage** — cuando `CopyFiles` falla tras 5 reintentos, el template muestra un diálogo `appCannotBeClosed` que bloquea. Patch: eliminar diálogo + label abort, dejar caer al extract no-atómico.
+4. **patchMultiUser** — (ya existía) elimina `SHGetKnownFolderPath` crash en Win11 24H2/25H2.
+5. **installer.nsh** — `customCheckAppRunning` macro ahora ejecuta `taskkill /F /IM` en vez de estar vacía.
+6. **provider-seeder: reasoning** — eliminado `reasoning: 'high'` a nivel de provider (causaba `UNSUPPORTED_REASONING_EFFORT` en modelos que no lo soportan); `model-refresher.ts` setea `reasoningEfforts` per-model solo para `deepseek-*`.
+
+### Modelo default
+
+- Provider: `deepseek-free` (LB → opencode2api pool round-robin → TorFleet)
+- Model: `nemotron-3.5-lightning` (fastest responding)
+- `deepseek-v4-flash` — con TorFleet activo vuelve a responder (antes moría por cuota/rate limit)
+
+### Pendiente futuro
+
+- [ ] Probar manualmente en macOS/Linux además de la matriz CI
+- [ ] TorFleet: si opencode.ai bloquea el ASN de exits Tor, migrar a Oracle Free + SSH
+
+---
+
+## Release v0.1.5 — pool con rotación Tor (TorFleet) (historial)
 
 Fix de los 429 persistentes del tier free anónimo (`opencode.ai/zen`, `Bearer public` → cuota por IP/sesión): el pool (16 workers + LB) ahora rota las IPs de salida con una flota local de 4 instancias Tor configurada solo desde el `config.json` del pool (sin cambios de código; el config es runtime y está en .gitignore).
 

@@ -5,5 +5,7 @@
 ; !ifmacrondef customCheckAppRunning.
 
 !macro customCheckAppRunning
-  ; intentionally empty — skip nsProcess/tasklist pipe check
+  ; Kill any running instance silently instead of checking (avoids false positives)
+  nsExec::ExecToLog 'taskkill /F /IM "FreeCode DeepSeek Harness.exe"'
+  Sleep 1000
 !macroend

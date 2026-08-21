@@ -77,7 +77,8 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
       defaultInput: ['text'],
       models: FALLBACK_MODELS,
       compat: { thinkingFormat: 'deepseek' },
-      reasoning: 'high',
+      // NOTE: reasoning removed — not all models support it; model-refresher sets
+      // reasoningEfforts per-model for deepseek-* models only.
     };
     seeded = true;
   }

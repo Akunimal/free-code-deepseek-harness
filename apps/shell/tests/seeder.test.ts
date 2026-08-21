@@ -28,7 +28,8 @@ describe('provider-seeder', () => {
     expect(p.models).toEqual([{ id: 'nemotron-3.5-lightning' }]);
     // Route-level reasoning config for deepseek models in the pool.
     expect(p.compat).toEqual({ thinkingFormat: 'deepseek' });
-    expect(p.reasoning).toBe('high');
+    // reasoning removed from provider level — model-refresher sets reasoningEfforts per-model for deepseek-* only.
+    expect(p.reasoning).toBeUndefined();
     // Marker written for the versioned seed.
     expect(existsSync(join(home, '.freecode-seeded-v1'))).toBe(true);
     rmSync(home, { recursive: true, force: true });
