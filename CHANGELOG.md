@@ -29,6 +29,10 @@
 - Se reconstruyeron localmente los cuatro binarios de `opencode2api`; el test de regresión del fallback público pasa.
 - El empaquetado local deja en `apps/shell/release` el asset de actualización del Harness y su `.sha256`; ambos quedaron adjuntos manualmente a la release remota `v0.1.7` junto con los instaladores, sin ejecutar workflows.
 
+### Known issues
+
+- En el build desktop actual, el selector de idioma de Configuración muestra sólo English y 中文. Los catálogos upstream de español siguen presentes, pero su exposición en el selector regresó y queda pendiente.
+
 ### Release status
 
 - La release remota `v0.1.7` fue actualizada manualmente con los artefactos Windows y el runtime del Harness; no se ejecutó ningún workflow de GitHub.

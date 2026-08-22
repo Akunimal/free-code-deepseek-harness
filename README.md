@@ -62,7 +62,11 @@ This application packages the upstream harness and adds the desktop layer needed
 - Writes rotating JSONL logs, offers a GitHub update button, can sync upstream and rebuild from a local checkout, prepares reproducible stages, and publishes only from `v*` tags.
 - Adds a per-conversation CSS animated background: two lightweight radial-gradient layers, no canvas or JavaScript loop, with `prefers-reduced-motion` support.
 
-The existing Settings language selector now offers Chinese, English, and Spanish across the bundled upstream UI; the selection is persisted through the locale settings service.
+The Settings language selector currently exposes Chinese and English. Spanish dictionaries are bundled upstream but are not currently surfaced by the desktop selector; this is a known regression tracked below.
+
+## Known issues
+
+- Spanish is not currently shown in the Settings language selector; the current build visibly offers only English and Chinese. The upstream Spanish dictionaries remain present, but the selector exposure regressed. Use English or Chinese until it is fixed.
 
 ## Permissions: exactly the original harness model
 
@@ -188,7 +192,7 @@ Esta aplicación empaqueta el harness upstream y agrega la capa desktop necesari
 - Escribe logs JSONL rotados, ofrece un botón de actualización GitHub, puede sincronizar upstream y recompilar desde un checkout local, prepara stages reproducibles y publica únicamente desde tags `v*`.
 - Añade un fondo animado por conversación en CSS: dos gradientes radiales livianos, sin canvas ni loop JavaScript, con soporte para `prefers-reduced-motion`.
 
-El selector de idiomas existente en Configuración ahora ofrece chino, inglés y español en toda la UI upstream incluida; la selección se persiste mediante el servicio de configuración de locale.
+El selector de idiomas de Configuración actualmente expone chino e inglés. Los diccionarios de español siguen incluidos en upstream, pero el selector del escritorio no los está mostrando; es una regresión conocida documentada en [Problemas conocidos](#problemas-conocidos).
 
 ## Permisos: exactamente el modelo del harness original
 

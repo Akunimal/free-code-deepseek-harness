@@ -8,7 +8,7 @@ This is the exhaustive inventory of upstream surfaces shipped through the bundle
 |---|---|
 | `connection` | HTTP-up/WebSocket-down connection controller with reconnect handling. |
 | `hmr` | Development-only hot reload for script-loaded client entries. |
-| `locale` | Host-backed English/Chinese/Spanish preference, browser fallback, and typed dictionaries. |
+| `locale` | Host-backed English/Chinese/Spanish preference, browser fallback, and typed dictionaries; the current desktop selector exposes only English and Chinese (known regression). |
 | `modules` | Client module table and `window.__DSH_BOOT__` plugin graph loading. |
 | `runtime` | Slot registry, session runtime, scope tree, and object layer. |
 | `schema-form` | Schema rehydration, immutable draft editing, validation, and settings form data. |
@@ -311,4 +311,4 @@ The desktop product adds zero-config DeepSeek-free provider seeding, a preconfig
 
 ## Configuration-dependent capabilities
 
-The UI can expose a capability without making it usable until its provider, credential, workspace, permission, or OS integration is configured. Web search providers, LSP servers, native directory picking, model APIs, filesystem/code tools, schedules, messaging-like extensions, and external plugin cards therefore report their own readiness/errors rather than being silently claimed as available.
+ The UI can expose a capability without making it usable until its provider, credential, workspace, permission, or OS integration is configured. Web search providers, LSP servers, native directory picking, model APIs, filesystem/code tools, schedules, messaging-like extensions, and external plugin cards therefore report their own readiness/errors rather than being silently claimed as available. The bundled locale dictionaries include Spanish, but the current desktop language selector exposes only English and Chinese; this is a known regression.

@@ -14,7 +14,7 @@ El menú de actualización ahora prioriza el asset compatible del runtime del Ha
 
 El catálogo de modelos conserva la última selección válida cuando todos los probes fallan, reintenta con backoff y notifica por separado `catalog` y `pool` cuando quedan degradados o caídos. La recuperación de `-free` de opencode2api continúa activa para evitar convertir una caída transitoria del catálogo en un falso `API key is invalid`.
 
-El build local genera también el asset del updater junto a los instaladores y su archivo `.sha256`; no se ejecutaron workflows ni se publicó remotamente.
+El build local genera también el asset del updater junto a los instaladores y su archivo `.sha256`; ambos quedaron adjuntos manualmente a la release remota `v0.1.7` junto con setup, portable, blockmap y `latest.yml`. No se ejecutaron workflows.
 
 Verificación de esta actualización: build upstream completo OK; pruebas focalizadas del upstream **133/133**; shell **33/33**; opencode-adapter **10/10**; smoke real del CLI web OK; typecheck del shell OK. `runtime-manifest.json` registra `0.1.1-rc.2` y `b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`; el setup/portable 0.1.7 y el asset Harness-only fueron recompilados localmente.
 
@@ -33,10 +33,14 @@ El arreglo del instalador quedó cerrado localmente y listo para prueba manual:
 - **Código fuente de modelos/effort:** el default existente es `x-preview-f`; la migración de perfiles viejos y la normalización para todos los modelos ya quedó implementada y cubierta.
 - **Pool y round-robin interno:** tests pasan.
 - **Hermes:** fuera de alcance en esta corrección; el diagnóstico histórico queda debajo sólo como contexto.
-- **Release local 0.1.7:** setup NSIS y portable reconstruidos localmente el 2026-08-22; no se ejecutó ningún workflow ni publicación de GitHub.
+- **Release v0.1.7:** setup NSIS, portable y runtime del Harness reconstruidos localmente el 2026-08-22 y publicados manualmente en GitHub; no se ejecutó ningún workflow.
 - **Instalación silenciosa:** exit code `0`; instalación válida verificada en `%LOCALAPPDATA%\Programs\FreeCode`, con shortcut y uninstaller apuntando a esa ruta (el instalador NSIS usa ese directorio base aunque el ejecutable conserva su nombre completo).
 - **Tool calling headless en Windows:** corregidas también las rutas directas del SDK, el helper de limpieza de `node-pty` y el `wscript` auxiliar del picker; los procesos de herramientas no deben abrir consolas fugaces. El diálogo visible de selección de carpeta sigue siendo intencional.
 - **Catálogo público y `AUTH`:** el log de la prueba mostró que el descubrimiento de modelos falló transitoriamente al iniciar y dejó el worker con catálogo vacío; `x-preview-f` no se convertía a `x-preview-f-free` y el upstream devolvía 401, que la UI resumía como `API key is invalid`. `opencode2api` ahora aplica el sufijo `-free` de forma determinista mientras el catálogo está no disponible, para todos los modelos públicos visibles. Se agregó y pasó la regresión correspondiente.
+
+### Known issue actual — locale español
+
+- La captura de usuario `capnew.jpg` del 2026-08-22 confirma que el selector visible de idioma ofrece sólo English y 中文. Los catálogos `es` siguen presentes en upstream, pero su exposición en el selector del escritorio regresó; README y `TODO-spanish-translations.md` lo documentan como regresión pendiente.
 
 ## Hallazgos de Claude y Hermes
 
@@ -143,7 +147,7 @@ El flujo normal ya se pudo ejecutar después de habilitar `electron-winstaller`:
 - `pnpm install`: OK.
 - `pnpm build:desktop`: OK; compiló workspace, runtime vendorizado con el fix de reasoning y targets Windows.
 - Rebuild final del instalador: `pnpm --filter @freecode/shell exec electron-builder --config electron-builder.yml --publish never`: OK.
-- No se dispararon workflows ni se publicó en GitHub.
+- No se dispararon workflows; los artefactos de Windows y el runtime se publicaron manualmente en la release `v0.1.7`.
 
 El worktree queda limpio después de integrar la actualización upstream, los fixes del shell/opencode2api y la documentación. El vault local de secretos y el backup `apps/shell/electron-builder.yml.bak` permanecen fuera de Git mediante `.gitignore`.
 
@@ -154,7 +158,7 @@ El worktree queda limpio después de integrar la actualización upstream, los fi
 3. **Completado:** compilar localmente y reconstruir setup/portable 0.1.7 con `--publish never`.
 4. **Completado:** probar instalación silenciosa y verificar extracción, desinstalador, registro y shortcut.
 5. **Completado:** migrar perfiles existentes, limpiar `reasoningEffort` no soportado y cubrir modelos DeepSeek/no-DeepSeek.
-6. **Completado:** regenerar localmente el runtime y sobreescribir los artefactos 0.1.7 con este fix; sin workflow ni publicación remota.
+6. **Completado:** regenerar localmente el runtime y sobreescribir los artefactos 0.1.7 con este fix; assets publicados manualmente en `v0.1.7` sin workflow.
 7. Hermes queda fuera de esta tarea; no se requiere levantarlo para validar el instalador.
 
 ## Compatibilidad pendiente
@@ -211,7 +215,7 @@ Preflight local verificado: locale, typecheck, contratos, frontend y compatibili
 11. **Workspaces** — New Session crea una sesión distinta desde una sesión vacía; borrar workspace archiva sus sesiones sin perder carpeta, logs ni live sessions.
 12. **Update check** — compatibilidad con las dos formas de exportar `electron-updater`; el menú ya no falla con `autoDownload` indefinido.
 13. **Reasoning selector** — modelos DeepSeek del pool mantienen las opciones de esfuerzo de razonamiento al refrescar el catálogo.
-14. **Español upstream** — el selector existente de Configuración ahora ofrece `Español`; los catálogos de la UI upstream quedaron traducidos y registrados en `zh/en/es`.
+14. **Español upstream (histórico)** — los catálogos de la UI upstream quedaron traducidos y registrados en `zh/en/es`, pero la build actual expone sólo English y 中文 en el selector; queda como regresión conocida.
 15. **Idioma inicial seguro** — si el navegador no informa `zh`, `en` ni `es`, la aplicación inicia en inglés en lugar de chino; una elección explícita se respeta.
 16. **Rol `developer` compatible** — el proxy convierte `developer` a `system` antes de enviar Chat Completions a DeepSeek, que no acepta ese rol.
 17. **Tool calls headless en Windows** — el subprocess local aplica `windowsHide` a los comandos de herramientas y a `taskkill`, evitando ventanas de PowerShell/sandbox durante la ejecución.

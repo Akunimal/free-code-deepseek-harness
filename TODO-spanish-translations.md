@@ -2,9 +2,10 @@
 
 El shell (menus, splash, diálogos) ya tiene i18n ES/EN en `apps/shell/src/main/i18n.ts`.
 
-El **harness web** (la UI interna de DeepSeek) ahora incluye chino (zh), inglés (en)
-y español (es). La traducción queda incorporada en la release v0.1.1 mediante el
-selector de idiomas existente en Configuración.
+El **harness web** (la UI interna de DeepSeek) conserva catálogos chino (zh), inglés
+(en) y español (es), pero en el build desktop actual el selector visible sólo ofrece
+inglés y chino. La exposición de español es una regresión conocida pendiente; no se
+debe documentar como disponible hasta que el selector vuelva a mostrarla.
 
 ## Archivos principales
 

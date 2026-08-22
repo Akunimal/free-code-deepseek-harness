@@ -62,7 +62,11 @@ Esta aplicación empaqueta el harness upstream y agrega la capa desktop necesari
 - Escribe logs JSONL rotados, ofrece un botón de actualización GitHub, puede sincronizar upstream y recompilar desde un checkout local, prepara stages reproducibles y publica únicamente desde tags `v*`.
 - Añade un fondo animado por conversación en CSS: dos gradientes radiales livianos, sin canvas ni loop JavaScript, con soporte para `prefers-reduced-motion`.
 
-El selector de idiomas existente en Configuración ahora ofrece chino, inglés y español en toda la UI upstream incluida; la selección se persiste mediante el servicio de configuración de locale.
+El selector de idiomas de Configuración actualmente expone chino e inglés. Los diccionarios de español siguen incluidos en upstream, pero el selector del escritorio no los está mostrando; es una regresión conocida documentada abajo.
+
+## Problemas conocidos
+
+- Español no aparece actualmente en el selector de idioma de Configuración; el build vigente muestra sólo inglés y chino. Los diccionarios upstream siguen presentes, pero se regresó la exposición del selector. Usá inglés o chino hasta corregirlo.
 
 ## Permisos: exactamente el modelo del harness original
 
