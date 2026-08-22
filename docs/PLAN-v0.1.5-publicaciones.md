@@ -1,6 +1,8 @@
-# PLAN v0.1.5 — publicaciones en grupos + known issue + instalador
+# HISTÓRICO v0.1.5 — publicaciones en grupos + known issue + instalador
 
-Fecha: 2026-08-20 · Repo: `Akunimal/free-code-deepseek-harness` · Estado: EN CURSO
+Fecha: 2026-08-20 · Repo: `Akunimal/free-code-deepseek-harness` · Estado: HISTÓRICO / CERRADO
+
+> Este documento conserva el plan de la publicación v0.1.5. No representa tareas pendientes de la release vigente; el plan actual está en [PLAN-v0.1.7-publicaciones.md](PLAN-v0.1.7-publicaciones.md).
 
 ---
 
