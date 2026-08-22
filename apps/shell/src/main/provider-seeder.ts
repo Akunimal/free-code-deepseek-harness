@@ -47,7 +47,7 @@ interface SettingsShape {
 const DEFAULT_PROVIDER = 'deepseek-free';
 const DEFAULT_API_KEY_ENV = 'FREECODE_PUBLIC_KEY';
 /** Seed model — the model-refresher replaces this with the live catalog. */
-const FALLBACK_MODELS = [{ id: 'nemotron-3.5-lightning' }];
+const FALLBACK_MODELS = [{ id: 'x-preview-f' }];
 const MARKER_FILE = '.freecode-seeded-v1';
 
 export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: string } {
