@@ -33,5 +33,5 @@
 
 - Esta es una actualización de artefactos y documentación local. No se creó release remota ni se ejecutó ningún workflow de GitHub.
 
-Source: working-tree changes audited on 2026-08-22 (no tag range; pre-existing model/pool work remains in the repository).
+Source: commit `de540d714e` audited on 2026-08-22 (no tag range; includes the vendored Harness update and the product/runtime fixes described above).
 Reviewed commands: upstream `0.1.1-rc.2` build, vendored effort/headless tests (133), `pnpm package:runtime`, `pnpm --filter @freecode/shell typecheck`, `pnpm --filter @freecode/shell test -- --run` (8 files / 33 tests), `pnpm --filter @freecode/opencode-adapter test -- --run` (10 tests), local Electron setup/portable packaging, Harness tar/digest verification. No remote release or GitHub workflow was used.

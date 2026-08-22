@@ -22,7 +22,7 @@ La información histórica debajo de esta sección conserva el diagnóstico ante
 
 Fecha: **2026-08-22**
 Workspace: `I:\DeepSeek-Harness\free-code-deepseek-harness`
-Rama: `main` (la actualización documental y funcional pendiente se documenta en este commit)
+Rama: `main` (worktree limpio; la actualización funcional y documental quedó en el historial de la rama)
 
 ## Estado actual verificado
 
@@ -145,13 +145,7 @@ El flujo normal ya se pudo ejecutar después de habilitar `electron-winstaller`:
 - Rebuild final del instalador: `pnpm --filter @freecode/shell exec electron-builder --config electron-builder.yml --publish never`: OK.
 - No se dispararon workflows ni se publicó en GitHub.
 
-El worktree no está limpio; se preservaron cambios preexistentes detectados:
-
-- `pnpm-lock.yaml`
-- `pnpm-workspace.yaml`
-- `apps/shell/electron-builder.yml.bak` (sin trackear)
-
-No se revirtieron esos cambios.
+El worktree queda limpio después de integrar la actualización upstream, los fixes del shell/opencode2api y la documentación. El vault local de secretos y el backup `apps/shell/electron-builder.yml.bak` permanecen fuera de Git mediante `.gitignore`.
 
 ## Próxima secuencia recomendada
 

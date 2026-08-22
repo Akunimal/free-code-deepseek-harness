@@ -7,7 +7,7 @@ A release tag packages the desktop GUI together
 with the complete upstream web harness and publishes one native artifact set
 per operating system.
 
-Releases are tag-only. Pushes to `main` or `dev` do not build or publish installers.
+Releases are tag-only. Branch pushes do not build or publish installers.
 
 ## Local build
 
