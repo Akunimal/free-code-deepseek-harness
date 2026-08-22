@@ -1,0 +1,93 @@
+# Release y packaging
+
+Este repositorio es el fork público `Akunimal/free-code-deepseek-harness` de
+`deepseek-ai/deepseek-harness`. La rama de producto en este checkout es `main`;
+el subtree `vendor/deepseek-harness` conserva la referencia del upstream.
+El tag de release es el límite previsto de versionado para la GUI de escritorio
+y el harness web completo. El código conserva configuración de packaging
+multiplataforma, pero la release publicada `v0.1.7` contiene sólo artefactos
+Windows x64; macOS y Linux no están incluidos ni declarados como probados en
+esa release.
+
+Las releases se versionan por tags. Los pushes a ramas no publican instaladores.
+
+## Build local
+
+```bash
+pnpm install
+pnpm test
+pnpm test:contract
+pnpm build:desktop
+```
+
+`build:desktop` compila el shell, ejecuta `scripts/package-runtime.sh` e invoca
+electron-builder. El script de runtime compila las librerías y la web upstream,
+copia un stage limpio, elimina sólo el `postinstall` de desarrollo del upstream,
+instala el workspace completo, verifica `apps/cli/lib/bin.js` y el link de
+Cordis, y copia el stage a los recursos ignorados del packaging.
+
+El target Windows genera `FreeCode-DeepSeek-Harness-<version>-win-x64-setup.exe`
+(NSIS) y `FreeCode-DeepSeek-Harness-<version>-win-x64-portable.exe`. El portable
+no tiene paso de instalación y guarda su directorio `data/` junto al ejecutable.
+El runtime empaquetado es autocontenido: después de descargar un artefacto, el
+usuario no necesita Node, pnpm, Git, Go ni Python. Los demás targets de plataforma
+quedan como configuración de código fuente hasta que una release futura los
+incluya y pruebe explícitamente.
+
+El menú Ayuda consulta la release de GitHub del fork, el asset compatible del
+Harness y el commit upstream registrado en `runtime-manifest.json`. Si existe un
+asset compatible del Harness, lo descarga, valida, detiene y reinicia sólo `dsh`
+y reemplaza atómicamente `resources/freecode/dsh`; el shell, el pool
+`opencode2api`, Tor y los datos del usuario no se reemplazan. La actualización de
+la aplicación completa sigue siendo una ruta separada de `electron-updater` y no
+se usó para publicar `v0.1.7`. Desde un checkout se puede ejecutar además
+`node scripts/update-upstream-local.mjs`, que actualiza el subtree upstream y
+reconstruye sólo `package:runtime`; la app portable nunca intenta compilar sin
+toolchain.
+
+El package local también genera un asset exclusivo del Harness junto a los
+instaladores:
+
+```text
+apps/shell/release/deepseek-harness-runtime-0.1.1-rc.2-win32-x64.tar.gz
+apps/shell/release/deepseek-harness-runtime-0.1.1-rc.2-win32-x64.tar.gz.sha256
+```
+
+Los tarballs por plataforma y sus digests SHA-256 se adjuntan manualmente a la
+release del fork cuando corresponde. Este camino no usa GitHub Actions ni consume
+cuota de workflows.
+
+En el checkout Windows actual, las rutas de prueba son:
+
+```text
+I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\FreeCode-DeepSeek-Harness-0.1.7-win-x64-portable.exe
+I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\FreeCode-DeepSeek-Harness-0.1.7-win-x64-setup.exe
+I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\win-unpacked\FreeCode DeepSeek Harness.exe
+```
+
+## Release CI opcional
+
+`.github/workflows/release.yml` se conserva como camino opcional por tags y, si
+se ejecuta deliberadamente, prueba y construye una matriz Windows/macOS/Linux.
+No se ejecutó para `v0.1.7`: esa release se compiló y subió localmente para no
+gastar cuota de GitHub Actions.
+
+El job de release construye los cuatro recursos `opencode2api` soportados por su
+configuración (Windows x64, macOS arm64, macOS x64 y Linux x64) y luego ejecuta
+las suites del adapter y de contratos desde un checkout limpio. El owner/repo de
+GitHub es `Akunimal/free-code-deepseek-harness`.
+
+## Versionado y estado de v0.1.7
+
+La release actual es `v0.1.7`. Sus artefactos Windows setup/portable, blockmap,
+`latest.yml`, tarball del runtime del Harness y digest SHA-256 se recompilaron
+localmente el 2026-08-22, se validaron con una instalación por usuario silenciosa
+con exit code `0` y se subieron manualmente a la
+[release publicada en GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.1.7).
+No se ejecutó ningún workflow de GitHub Actions.
+
+Antes de una release futura hay que verificar el preflight local completo:
+arranque zero-config, descubrimiento de modelos, registro del provider, streaming
+de mensajes, reinicio de workers, tray/overlay, importación/continuación,
+ciclo de vida del workspace, actualización del runtime, ejecución headless de
+tools y la capa de movimiento de conversación.

@@ -10,17 +10,20 @@
 
 This repository is the public [Akunimal/free-code-deepseek-harness](https://github.com/Akunimal/free-code-deepseek-harness) fork of [`deepseek-ai/deepseek-harness`](https://github.com/deepseek-ai/deepseek-harness). It keeps the upstream harness and adds a desktop GUI product for running it cross-platform: Electron owns the local processes, prepares the DeepSeek Free provider, starts the `opencode2api` pool, and opens the complete harness web UI inside a native window. **The OpenCode bridge (`opencode2api`) is fully integrated** — no external setup, separate binary download, or manual configuration is required; the bridge ships inside the application and is managed automatically by the worker pool.
 
-The product branch in this checkout is `main`; the vendored `vendor/deepseek-harness` subtree is the upstream reference. Every `v*` tag triggers a reproducible release with native builds for all three supported platforms:
+The product branch in this checkout is `main`; the vendored `vendor/deepseek-harness` subtree is the upstream reference. The source retains cross-platform packaging configuration, but the currently published `v0.1.7` release is a Windows x64 build:
 
 - Windows: NSIS `.exe` installer.
-- macOS: Electron app/DMG.
-- Linux: Electron desktop package/AppImage.
+- macOS/Linux: not included or tested in the published `v0.1.7` artifacts.
 
-Artifacts are built in a Windows/macOS/Linux matrix, pass the contract tests, and are published to the fork's GitHub release. This is not a demo UI: every build contains the harness runtime, its workspace dependencies, the local worker pool, zero-config setup, and the upstream web surfaces documented below.
+The repository still contains the optional tag-based matrix workflow for future platform builds, but `v0.1.7` was compiled locally and uploaded manually to avoid spending GitHub Actions quota. This is not a demo UI: the published Windows artifacts contain the harness runtime, its workspace dependencies, the local worker pool, zero-config setup, and the upstream web surfaces documented below.
+
+### Current release: v0.1.7
+
+The published release includes the Windows NSIS installer, portable executable, blockmap, `latest.yml`, the Harness-only runtime tarball, and its SHA-256 digest. The release was rebuilt locally, installed silently with exit code `0`, and uploaded manually on 2026-08-22. Download it from [GitHub Releases](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.1.7). No GitHub Actions workflow was used for this release.
 
 ## Portable, almost-free vibecoding, and real limits
 
-The product is designed to be self-contained and portable: Node/Electron, the `dsh` CLI, the UI, native dependencies, and the `opencode2api` binaries travel inside the artifact. A release does not require Node, pnpm, Git, Go, or Python to run. Windows publishes both an NSIS installer and a **portable** `.exe` that can be copied to another folder or machine; the portable build keeps its data in a `data/` directory beside the executable. macOS ships the app/DMG and Linux ships an AppImage, also with the runtime included.
+The product is designed to be self-contained and portable: Node/Electron, the `dsh` CLI, the UI, native dependencies, and the `opencode2api` binaries travel inside the artifact. A release does not require Node, pnpm, Git, Go, or Python to run. The published Windows release provides both an NSIS installer and a **portable** `.exe` that can be copied to another folder or machine; the portable build keeps its data in a `data/` directory beside the executable. Other platform targets are not part of the current v0.1.7 download set.
 
 The goal is almost-free vibecoding through OpenCode's DeepSeek Free route. The Pool overlay exposes a **Parallel workers** slider from 1 to 16 (default 6): it controls how many local `opencode2api` processes serve requests concurrently. Without session affinity, each request is distributed round-robin across ready workers; an explicitly pinned session keeps its worker so upstream state is not mixed. Each worker maintains its own independent session against the OpenCode service. By default this does not create accounts, rotate identities, or bypass IP-level limits; the optional Tor egress rotation described below changes only the egress IP, never the identity or the account tier. With a private key, all workers use that key and remain subject to that account/provider's limits.
 
@@ -114,6 +117,7 @@ The stage does not use `pnpm install --prod`: the harness requires its internal 
 - [Animated UI](docs/UI.md)
 - [Logging and updates](docs/LOGGING-AND-UPDATES.md)
 - [Release and packaging](docs/RELEASE.md)
+- [Release and packaging — Español](docs/RELEASE.es.md)
 - [Upstream synchronization](docs/UPSTREAM-SYNC.md)
 
 ## Configuration and security
@@ -140,17 +144,20 @@ Esta sección en español está incluida en el README principal para que la port
 
 Este repositorio es el fork público [Akunimal/free-code-deepseek-harness](https://github.com/Akunimal/free-code-deepseek-harness) de [`deepseek-ai/deepseek-harness`](https://github.com/deepseek-ai/deepseek-harness). Conserva el harness original y agrega una aplicación GUI de escritorio para ejecutarlo como producto multiplataforma: Electron administra los procesos locales, prepara el proveedor DeepSeek Free, levanta el `opencode2api` pool y abre la interfaz web completa del harness dentro de una ventana nativa. **El puente OpenCode (`opencode2api`) viene completamente integrado** — no requiere descarga externa, binario separado ni configuración manual; el puente viaja dentro de la aplicación y el pool de workers lo administra automáticamente.
 
-La rama de producto en este checkout es `main`; el subtree `vendor/deepseek-harness` conserva la referencia del upstream. Cada tag `v*` dispara una release reproducible con builds nativos para las tres plataformas soportadas:
+La rama de producto en este checkout es `main`; el subtree `vendor/deepseek-harness` conserva la referencia del upstream. El código conserva configuración de packaging multiplataforma, pero la release `v0.1.7` publicada actualmente contiene sólo el build Windows x64:
 
 - Windows: instalador NSIS `.exe`.
-- macOS: aplicación/DMG de Electron.
-- Linux: paquete de escritorio/AppImage de Electron.
+- macOS/Linux: no están incluidos ni probados en los artefactos publicados de `v0.1.7`.
 
-Los artifacts se construyen en una matriz Windows/macOS/Linux, pasan los tests de contrato y se publican en la release de GitHub del fork. No es una UI de demostración: cada build incluye el runtime del harness, sus dependencias workspace, el pool local, la configuración zero-config y las superficies web upstream documentadas abajo.
+El repositorio conserva el workflow opcional de matriz por tags para builds futuros, pero `v0.1.7` se compiló localmente y se subió manualmente para no gastar cuota de GitHub Actions. No es una UI de demostración: los artefactos Windows publicados incluyen el runtime del harness, sus dependencias workspace, el pool local, la configuración zero-config y las superficies web upstream documentadas abajo.
+
+### Release actual: v0.1.7
+
+La release publicada incluye el instalador NSIS Windows, el ejecutable portable, el blockmap, `latest.yml`, el tarball del runtime exclusivo del Harness y su digest SHA-256. Se recompiló localmente, se instaló silenciosamente con exit code `0` y se subió manualmente el 2026-08-22. Descargala desde [GitHub Releases](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.1.7). No se usó ningún workflow de GitHub Actions para esta release.
 
 ## Portable, vibecoding casi gratis y límites reales
 
-El producto está diseñado para ser autocontenido y portable: el runtime de Node/Electron, el CLI `dsh`, la UI, las dependencias nativas y los binarios `opencode2api` viajan dentro del artefacto. No hace falta instalar Node, pnpm, Git, Go ni Python para ejecutar una release. En Windows se publican dos ejecutables: un instalador NSIS y un `.exe` **portable** que se puede copiar a otra carpeta o máquina; el portable guarda sus datos en `data/` junto al ejecutable. macOS entrega la app/DMG y Linux la AppImage, también con el runtime incluido.
+El producto está diseñado para ser autocontenido y portable: el runtime de Node/Electron, el CLI `dsh`, la UI, las dependencias nativas y los binarios `opencode2api` viajan dentro del artefacto. No hace falta instalar Node, pnpm, Git, Go ni Python para ejecutar una release. La release Windows publicada entrega dos ejecutables: un instalador NSIS y un `.exe` **portable** que se puede copiar a otra carpeta o máquina; el portable guarda sus datos en `data/` junto al ejecutable. Los demás targets de plataforma no forman parte de la descarga actual de v0.1.7.
 
 El objetivo es facilitar vibecoding prácticamente gratis usando la ruta DeepSeek Free de OpenCode. El overlay de Pool tiene el slider **Workers paralelos** de 1 a 16 (por defecto 6): controla cuántos procesos locales `opencode2api` atienden en paralelo. Sin afinidad de sesión, cada request se reparte en round-robin entre los workers listos; una sesión explícitamente fijada conserva su worker para no mezclar el estado upstream. Cada worker mantiene su propia sesión independiente contra el servicio OpenCode. Por defecto esto no crea cuentas nuevas, no rota identidades y no evade límites a nivel de IP; la rotación de salida opcional con Tor descrita abajo cambia únicamente la IP de salida, nunca la identidad ni el tier de cuenta. Con una clave privada, todos los workers usan esa clave y siguen aplicando los límites de esa cuenta/proveedor.
 
@@ -240,6 +247,8 @@ El stage no usa `pnpm install --prod`: el harness necesita sus workspace links i
 - [UI animada](docs/UI.md)
 - [Logs y updates](docs/LOGGING-AND-UPDATES.md)
 - [Release y packaging](docs/RELEASE.md)
+- [Release y packaging — English](docs/RELEASE.md)
+- [Release y packaging — Español](docs/RELEASE.es.md)
 - [Sincronización upstream](docs/UPSTREAM-SYNC.md)
 
 ## Configuración y seguridad
