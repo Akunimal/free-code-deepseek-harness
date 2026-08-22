@@ -25,10 +25,10 @@ describe('provider-seeder', () => {
     expect(p.apiKeyEnv).toBe('FREECODE_PUBLIC_KEY');
     expect(p.defaultInput).toEqual(['text']);
     // Non-empty models: upstream refuses empty lists (settings-rejected).
-    expect(p.models).toEqual([{ id: 'nemotron-3.5-lightning' }]);
+    expect(p.models).toEqual([{ id: 'x-preview-f', reasoningEfforts: false }]);
     // Route-level reasoning config for deepseek models in the pool.
     expect(p.compat).toEqual({ thinkingFormat: 'deepseek' });
-    // reasoning removed from provider level — model-refresher sets reasoningEfforts per-model for deepseek-* only.
+    // reasoning removed from provider level — each model carries its own capability.
     expect(p.reasoning).toBeUndefined();
     // Marker written for the versioned seed.
     expect(existsSync(join(home, '.freecode-seeded-v1'))).toBe(true);
@@ -85,6 +85,37 @@ describe('provider-seeder', () => {
     expect(seeded).toBe(false);
     const mtime2 = readFileSync(join(home, 'settings.yaml'), 'utf8');
     expect(mtime1).toBe(mtime2); // untouched
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  it('migrates stale route/default reasoning from older pool settings', () => {
+    const home = tmpHome();
+    const path = join(home, 'settings.yaml');
+    writeFileSync(path, `
+llm-pi-ai:
+  providers:
+    deepseek-free:
+      api: openai-completions
+      baseURL: http://127.0.0.1:1111/v1
+      reasoning: high
+      models:
+        - id: x-preview-f
+          reasoningEfforts:
+            off:
+            high: high
+agent-default-model:
+  provider: deepseek-free
+  model: x-preview-f
+  reasoningEffort: high
+`);
+
+    const { seeded } = seedProviders({ homeDir: home, lbBaseUrl: LB });
+    expect(seeded).toBe(true);
+    const settings = loadYaml(readFileSync(path, 'utf8')) as any;
+    const provider = settings['llm-pi-ai'].providers['deepseek-free'];
+    expect(provider.reasoning).toBeUndefined();
+    expect(provider.models).toEqual([{ id: 'x-preview-f', reasoningEfforts: false }]);
+    expect(settings['agent-default-model']).toEqual({ provider: 'deepseek-free', model: 'x-preview-f' });
     rmSync(home, { recursive: true, force: true });
   });
 });

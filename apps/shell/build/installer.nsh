@@ -11,3 +11,16 @@
   ; Ignore errors (exit code 128 = process not found, 0 = killed, 1 = killed with children)
   Sleep 1000
 !macroend
+
+; The previous uninstaller can return a non-zero code after it has already
+; removed the old files. Treat that result as non-fatal so the new payload and
+; shortcuts are still installed.
+!macro customUnInstallCheck
+  StrCpy $R0 0
+  ClearErrors
+!macroend
+
+!macro customUnInstallCheckCurrentUser
+  StrCpy $R0 0
+  ClearErrors
+!macroend

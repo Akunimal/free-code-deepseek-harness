@@ -1,33 +1,129 @@
 # Estado de traspaso — FreeCode DeepSeek Harness
 
-Fecha: **2026-08-21**
+Fecha: **2026-08-22**
 Workspace: `I:\DeepSeek-Harness\free-code-deepseek-harness`
-Rama: `main`
+Rama: `main` (`369e588c5f`, alineada con `origin/main`)
 
-## Release v0.1.7 — NSIS hardening multi-parche (Win11 25H2)
+## Estado actual verificado
 
-Fix del instalador NSIS en Windows 11 25H2/24H2: 4 parches al hook `beforePack` + fix de `reasoning: 'high'` que provocaba `UNSUPPORTED_REASONING_EFFORT` en modelos no-DeepSeek.
+### Veredicto corto
 
-### Fixes incluidos
+El arreglo del instalador quedó cerrado localmente y listo para prueba manual:
 
-1. **patchAppRunningCheck** — reemplaza el chequeo de proceso `nsProcess`/`tasklist` por `taskkill /F /IM` silencioso: Win11 25H2 produce falsos positivos en `FIND_PROCESS` que bloquean la instalación.
-2. **patchUninstallOldVersion** — el desinstalador viejo (de una instalación previa) falla con exit code ≠ 0 en Win11 25H2 → `handleUninstallResult` aborta ANTES de extraer archivos nuevos. Fix: matar app, correr uninstaller una vez, ignorar exit code (`StrCpy $R0 0`).
-3. **patchExtractAppPackage** — cuando `CopyFiles` falla tras 5 reintentos, el template muestra un diálogo `appCannotBeClosed` que bloquea. Patch: eliminar diálogo + label abort, dejar caer al extract no-atómico.
-4. **patchMultiUser** — (ya existía) elimina `SHGetKnownFolderPath` crash en Win11 24H2/25H2.
-5. **installer.nsh** — `customCheckAppRunning` macro ahora ejecuta `taskkill /F /IM` en vez de estar vacía.
-6. **provider-seeder: reasoning** — eliminado `reasoning: 'high'` a nivel de provider Y default `'high'` de `agent-default-model` (causaba `UNSUPPORTED_REASONING_EFFORT` en modelos como `x-preview-f`); `model-refresher.ts` setea `reasoningEfforts` per-model solo para `deepseek-*`.
+- **Código fuente de modelos/effort:** el default existente es `x-preview-f`; la migración de perfiles viejos y la normalización para todos los modelos ya quedó implementada y cubierta.
+- **Pool y round-robin interno:** tests pasan.
+- **Hermes:** fuera de alcance en esta corrección; el diagnóstico histórico queda debajo sólo como contexto.
+- **Release local 0.1.7:** setup NSIS y portable reconstruidos localmente el 2026-08-22; no se ejecutó ningún workflow ni publicación de GitHub.
+- **Instalación silenciosa:** exit code `0`; instalación válida verificada en `%LOCALAPPDATA%\Programs\FreeCode DeepSeek Harness`, con shortcut y uninstaller apuntando a esa ruta.
 
-### Modelo default
+## Hallazgos de Claude y Hermes
 
-- Provider: `deepseek-free` (LB → opencode2api pool round-robin → TorFleet)
-- Model: `nemotron-3.5-lightning` (fastest responding)
-- Modelos disponibles (verificados 2026-08-21): `nemotron-3.5-lightning`, `nemotron-3-ultra`, `mimo-v2.5`, `x-preview-f`, `laguna-s-2.1`
-- `deepseek-v4-flash` — **retirado del catálogo opencode** (ya no responde)
+### Claude
 
-### Pendiente futuro
+El puente local recuperó la sesión de Claude del 2026-08-21. Claude había identificado correctamente la causa probable de los shortcuts rotos: el desinstalador viejo devuelve un exit code distinto de cero y `handleUninstallResult` aborta antes de extraer la instalación nueva. También indicó que había construido/subido los parches NSIS.
 
-- [ ] Probar manualmente en macOS/Linux además de la matriz CI
-- [ ] TorFleet: si opencode.ai bloquea el ASN de exits Tor, migrar a Oracle Free + SSH
+La auditoría del artefacto anterior contradijo esa última conclusión: `apps/shell/release/builder-debug.yml` de esa corrida referenciaba las plantillas anidadas de `app-builder-lib@25.1.8` sin `taskkill`, `PATCHED`, `installer.nsh` ni los cuatro marcadores de parche. Por tanto, los parches existían en el árbol fuente, pero no habían llegado al instalador 0.1.7 anterior; la reconstrucción local documentada abajo corrige ese cableado.
+
+### Hermes (contexto histórico; fuera de alcance)
+
+El `session-bridge` disponible solo recupera Claude y Codex; no tiene una fuente de sesiones Hermes. Hermes se revisó directamente en `C:\Hermes` (launcher, configuración, logs, procesos y puertos).
+
+La configuración live ahora sí dice:
+
+- Hermes → `http://127.0.0.1:8888/v1`.
+- Modelo default/fallback → `x-preview-f`.
+- `agent.reasoning_effort: ""`.
+- `config-tor-0..3.json` → aliases `x-preview-f`, cuatro SOCKS Tor y lanes `tor-0..3`.
+
+Pero al revisar el proceso real solo estaba escuchando el LB en `127.0.0.1:8888`; no estaban escuchando Tor `9150..9153`, workers `8000..8015`, gateway `8642` ni dashboard `9119`. El endpoint `/v1/models` del LB agotó timeout. Esto significa **configuración preparada, servicio no operativo en ese momento**.
+
+Hay además un remanente en `C:\Hermes\hermes-home\auth.json` que todavía apunta a `:20128`; conviene limpiarlo para que no haya una segunda ruta oculta hacia OmniRoute.
+
+Los logs y estadísticas previas tampoco prueban el cambio: registran errores 401 para `north-mini-code-free` y `stats.json` concentra 456.687 requests en `deepseek-v4-flash-free`, sin requests de `x-preview-f`.
+
+## Instalador NSIS — estado corregido y verificado
+
+### Código que sí existe
+
+`apps/shell/build/patch-nsis.cjs` contiene los cuatro parches esperados y el fix `StrCpy $R0 0`. También existe `apps/shell/build/installer.nsh` con `customCheckAppRunning` basado en `taskkill`.
+
+### Causa raíz y corrección
+
+La configuración activa ahora conecta `beforePack: build/patch-nsis.cjs` y `nsis.include: installer.nsh`. El hook resuelve la copia anidada de `app-builder-lib` que usa `electron-builder@25.1.8`, evitando parchear una dependencia distinta.
+
+El desacople de versiones se eliminó del workspace: `electron-builder@25.1.8` usa sus plantillas anidadas 25.1.8. `electron-winstaller` también quedó habilitado explícitamente en `allowBuilds`, por lo que `pnpm install` termina correctamente.
+
+Los parches efectivos son: reemplazo del falso positivo de proceso por `taskkill`, tolerancia al exit code del desinstalador anterior, guarda para entradas de registro que apuntan a un desinstalador inexistente y preservación del fallback nativo de extracción. La primera prueba reveló que reemplazar ese fallback quitaba un `${endIf}` de LogicLib; se retiró ese parche y el NSIS volvió a compilar.
+
+### Verificación de instalación
+
+- Setup: `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.7-win-x64-setup.exe` con `/S` y `/D` citado.
+- Exit code: `0`; el setup no quedó corriendo.
+- Ejecutable: `%LOCALAPPDATA%\Programs\FreeCode DeepSeek Harness\FreeCode DeepSeek Harness.exe`.
+- `resources\app.asar` y `Uninstall FreeCode DeepSeek Harness.exe` presentes.
+- Registro HKCU: versión `0.1.7`, icono y desinstalador apuntan a la ruta real.
+- Shortcut del menú Inicio apunta al ejecutable instalado.
+
+## Modelos y `reasoning_effort`
+
+### Lo que está corregido
+
+- `FALLBACK_MODELS` del seeder ahora usa `x-preview-f`.
+- `model-refresher.ts` usa una política común: publica `off/low/high/max` solo para modelos `deepseek-*` y declara `reasoningEfforts: false` para todos los demás.
+- `provider-seeder.ts` migra settings existentes: quita el `reasoning` de ruta heredado, normaliza la capacidad por modelo y elimina un `agent-default-model.reasoningEffort` que no corresponde a un modelo DeepSeek.
+- El adaptador `llm-pi-ai` ya no reaplica un default de ruta viejo a un modelo que no declara razonamiento; un effort explícito incompatible sigue fallando con `UNSUPPORTED_REASONING_EFFORT`.
+- El runtime upstream, incluido en `vendor` y regenerado en `apps/shell/resources/freecode/dsh`, elimina `reasoningEffort` cuando el modelo no declara soporte.
+- Hermes tiene `reasoning_effort` vacío por defecto.
+
+### Regresión cubierta
+
+La captura se reproduce con un provider `deepseek-free` que conserva `reasoning: high`, un modelo `x-preview-f` sin razonamiento y un `agent-default-model.reasoningEffort: high`. El seeder elimina esos valores viejos y el adaptador permite la solicitud sin enviar `reasoning_effort`.
+
+Las suites relevantes quedan en **8/8 archivos y 28/28 tests OK** para el shell; el typecheck directo también pasa (`tsc --noEmit`). El adaptador pi-ai pasa **46/46 tests** y catálogo/configuración pasan **58/58 tests**. La suite de `@freecode/opencode-adapter` queda en **10/10**, incluido round-robin y respawn.
+
+## TorFleet, opencode2api y round-robin
+
+- `packages/opencode-adapter/tests/pool.test.ts`: **10/10 pasan**, incluido round-robin, respawn de workers y load balancer.
+- El adapter conserva la configuración SOCKS al respawn y la envía a workers listos.
+- El launcher Hermes pretende arrancar 4 Tor, 16 workers y un LB global; cada worker queda en una lane (`port % 4`) y el LB rota globalmente. La secuencia efectiva esperada es `tor-0 → tor-1 → tor-2 → tor-3`.
+- Los cuatro `config-tor-*.json` existen y contienen el alias `x-preview-f`.
+- `lb.py` bufferiza la respuesta completa con `response.read()`; no es streaming SSE real. Para Hermes esto es un riesgo funcional importante, y `lb.log` ya contiene `WinError 10053` por conexiones abortadas.
+
+El diseño está encaminado, pero no hay una prueba live actual que demuestre simultáneamente Tor up, 16 workers up, `/v1/models`, chat con `x-preview-f`, stream y rotación de cuatro exits.
+
+## Build y estado del workspace
+
+El flujo normal ya se pudo ejecutar después de habilitar `electron-winstaller`:
+
+- `pnpm install`: OK.
+- `pnpm build:desktop`: OK; compiló workspace, runtime vendorizado con el fix de reasoning y targets Windows.
+- Rebuild final del instalador: `pnpm --filter @freecode/shell exec electron-builder --config electron-builder.yml --publish never`: OK.
+- No se dispararon workflows ni se publicó en GitHub.
+
+El worktree no está limpio; se preservaron cambios preexistentes detectados:
+
+- `pnpm-lock.yaml`
+- `pnpm-workspace.yaml`
+- `apps/shell/electron-builder.yml.bak` (sin trackear)
+
+No se revirtieron esos cambios.
+
+## Próxima secuencia recomendada
+
+1. **Completado:** habilitar `electron-winstaller` y ejecutar `pnpm install`.
+2. **Completado:** conectar `beforePack`/`nsis.include` y alinear la resolución con `electron-builder@25.1.8`.
+3. **Completado:** compilar localmente y reconstruir setup/portable 0.1.7 con `--publish never`.
+4. **Completado:** probar instalación silenciosa y verificar extracción, desinstalador, registro y shortcut.
+5. **Completado:** migrar perfiles existentes, limpiar `reasoningEffort` no soportado y cubrir modelos DeepSeek/no-DeepSeek.
+6. **Completado:** regenerar localmente el runtime y sobreescribir los artefactos 0.1.7 con este fix; sin workflow ni publicación remota.
+7. Hermes queda fuera de esta tarea; no se requiere levantarlo para validar el instalador.
+
+## Compatibilidad pendiente
+
+- [x] Instalación silenciosa local del setup 0.1.7 con registro y shortcut verificados.
+- [ ] Prueba manual de uso de la aplicación instalada en Windows 11 25H2/24H2.
+- [ ] Prueba manual en Linux; el recurso Tor nativo debe estar presente para esa plataforma.
+- [ ] Medir streaming y rotación real por exit Tor; si opencode.ai bloquea el ASN de Tor, migrar a Oracle Free + SSH/SOCKS.
 
 ---
 

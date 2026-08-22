@@ -45,9 +45,9 @@ Requests spread round-robin across four exit IPs; `socks5_paid_direct` keeps pri
 
 **Timeouts and patience:** the free DeepSeek route can be slow, especially under heavy load. Timeouts are intentionally generous so that long-running streams are not cut mid-response. If a response takes a while, wait — the stream is still alive, the model is still generating. It is free, after all.
 
-**Known issue — Windows 11 24H2/25H2 installer:** electron-builder 25.x ships an NSIS process check (`nsProcess`/`tasklist | find`) that false-positives on recent Windows 11 builds, blocking installation with "cannot close FreeCode DeepSeek Harness" even when the app is not running. The workaround is already applied: `build/installer.nsh` overrides `customCheckAppRunning` with an empty macro. If you build the installer yourself and hit this, ensure the `build/` directory contains `installer.nsh`. The portable `.exe` is not affected.
+**Windows 11 24H2/25H2 installer fix:** electron-builder 25.x ships an NSIS process check (`nsProcess`/`tasklist | find`) that can false-positive on recent Windows 11 builds. The active workaround is applied through `build/installer.nsh` and the `beforePack` hook: the installer uses a silent `taskkill`, tolerates a non-fatal old-uninstaller exit code, and skips stale uninstallers that no longer exist. The portable `.exe` is not affected.
 
-To test the Windows build generated in this checkout, open `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.5-win-x64-portable.exe`; the installer is `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.5-win-x64-setup.exe`. The unpacked development executable is `apps/shell/release/win-unpacked/FreeCode DeepSeek Harness.exe`.
+To test the Windows build generated in this checkout, open `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.7-win-x64-portable.exe`; the installer is `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.7-win-x64-setup.exe`. The unpacked development executable is `apps/shell/release/win-unpacked/FreeCode DeepSeek Harness.exe`.
 
 ## What it delivers
 
@@ -171,9 +171,9 @@ Los requests se reparten en round-robin entre cuatro IPs de salida; `socks5_paid
 
 **Timeouts y paciencia:** la ruta gratuita de DeepSeek puede ser lenta, sobre todo bajo carga alta. Los timeouts están configurados generosamente a propósito para que los streams largos no se corten a mitad de respuesta. Si una respuesta tarda, esperá — el stream sigue vivo, el modelo sigue generando. Al fin y al cabo, es gratis.
 
-**Problema conocido — Instalador en Windows 11 24H2/25H2:** electron-builder 25.x incluye un chequeo de proceso NSIS (`nsProcess`/`tasklist | find`) que da falsos positivos en builds recientes de Windows 11, bloqueando la instalación con "no se puede cerrar FreeCode DeepSeek Harness" aunque la app no esté corriendo. El workaround ya está aplicado: `build/installer.nsh` sobreescribe `customCheckAppRunning` con una macro vacía. Si compilás el instalador y te pasa, asegurate de que el directorio `build/` contenga `installer.nsh`. El portable `.exe` no se ve afectado.
+**Arreglo del instalador en Windows 11 24H2/25H2:** electron-builder 25.x incluye un chequeo de proceso NSIS (`nsProcess`/`tasklist | find`) que puede dar falsos positivos en builds recientes. El workaround activo se aplica mediante `build/installer.nsh` y el hook `beforePack`: el instalador usa `taskkill` silencioso, tolera un exit code no fatal del desinstalador anterior y salta desinstaladores viejos que ya no existen. El portable `.exe` no se ve afectado.
 
-Para probar el build Windows generado en este checkout, abrí `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.5-win-x64-portable.exe`; el instalador queda como `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.5-win-x64-setup.exe`. El directorio desempaquetado de desarrollo es `apps/shell/release/win-unpacked/FreeCode DeepSeek Harness.exe`.
+Para probar el build Windows generado en este checkout, abrí `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.7-win-x64-portable.exe`; el instalador queda como `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.7-win-x64-setup.exe`. El directorio desempaquetado de desarrollo es `apps/shell/release/win-unpacked/FreeCode DeepSeek Harness.exe`.
 
 ## Qué entrega
 

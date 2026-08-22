@@ -15,15 +15,27 @@ const { execSync } = require('child_process');
 function findNsisTemplate(filename) {
   const root = path.resolve(__dirname, '../../..');
 
-  // Try require.resolve first
+  // electron-builder has its own nested app-builder-lib under pnpm. That is
+  // the copy whose templates are actually compiled; a separately installed
+  // app-builder-lib must not win resolution here.
+  const packageJsonPaths = [];
   try {
-    const appBuilderLib = path.dirname(require.resolve('app-builder-lib/package.json'));
-    const p = path.join(appBuilderLib, 'templates', 'nsis',
-      filename.includes('/') ? filename : filename);
+    const electronBuilderPackage = require.resolve('electron-builder/package.json');
+    packageJsonPaths.push(require.resolve('app-builder-lib/package.json', {
+      paths: [path.dirname(electronBuilderPackage)],
+    }));
+  } catch { /* */ }
+  try {
+    packageJsonPaths.push(require.resolve('app-builder-lib/package.json'));
+  } catch { /* */ }
+
+  for (const packageJsonPath of packageJsonPaths) {
+    const appBuilderLib = path.dirname(packageJsonPath);
+    const p = path.join(appBuilderLib, 'templates', 'nsis', filename);
     if (fs.existsSync(p)) return p;
     const p2 = path.join(appBuilderLib, 'templates', 'nsis', 'include', filename);
     if (fs.existsSync(p2)) return p2;
-  } catch { /* */ }
+  }
 
   // Fallback: scan .pnpm
   const candidates = fs.readdirSync(path.join(root, 'node_modules', '.pnpm')).filter(d => d.startsWith('app-builder-lib@'));
@@ -111,7 +123,7 @@ function patchUninstallOldVersion() {
 
   let content = fs.readFileSync(nshPath, 'utf8');
 
-  if (content.includes('PATCHED: skip uninstall retry loop')) {
+  if (content.includes('PATCHED: guard missing old uninstaller')) {
     console.log('[patch-nsis] installUtil.nsh already patched');
     return;
   }
@@ -121,29 +133,40 @@ function patchUninstallOldVersion() {
   // uninstallOldVersion retries 5 times then shows "appCannotBeClosed" dialog.
   // Fix: kill the app before running the old uninstaller, run it once,
   // and treat any exit code as success (files get overwritten anyway).
-  // Match the uninstall execution block: nsExec through DoesNotExist
-  // This covers both old and new template formats
-  const oldLoop = /nsExec::ExecToLog 'taskkill[\s\S]*?DoesNotExist:\s*\n\s*SetErrors\s*\n/;
+  // Replace the retry loop while preserving the two execution fallbacks and
+  // the DoesNotExist error path. Removing only the loop body leaves the
+  // template's LogicLib labels balanced and avoids the prior broken NSIS build.
+  const oldLoop = /  StrCpy \$uninstallerFileNameTemp "\$PLUGINSDIR\\old-uninstaller\.exe"\r?\n  !insertmacro copyFile "\$uninstallerFileName" "\$uninstallerFileNameTemp"\r?\n\r?\n  # Retry counter\r?\n[\s\S]*?  DoesNotExist:\r?\n    SetErrors\r?\n/;
 
   if (oldLoop.test(content)) {
     content = content.replace(oldLoop,
-`# PATCHED: skip uninstall retry loop (old uninstaller false-positives on Win11 25H2)
+`  # PATCHED: guard missing old uninstaller and skip retry loop (old uninstaller false-positives on Win11 25H2)
+    IfFileExists "$uninstallerFileName" 0 OldUninstallerMissing
+    StrCpy $uninstallerFileNameTemp "$PLUGINSDIR\\old-uninstaller.exe"
+    !insertmacro copyFile "$uninstallerFileName" "$uninstallerFileNameTemp"
+    IfFileExists "$uninstallerFileNameTemp" 0 OldUninstallerMissing
+
     nsExec::ExecToLog 'taskkill /F /IM "\${APP_EXECUTABLE_FILENAME}"'
     Sleep 500
 
     ExecWait '"$uninstallerFileNameTemp" /S /KEEP_APP_DATA $0 _?=$installationDir' $R0
     ifErrors TryInPlace CheckResult
 
-    TryInPlace:
+  TryInPlace:
       ExecWait '"$uninstallerFileName" /S /KEEP_APP_DATA $0 _?=$installationDir' $R0
       ifErrors DoesNotExist
 
-    CheckResult:
-      StrCpy $R0 0    ; PATCHED: ignore exit code from old uninstaller (false-positives on Win11 25H2)
-      Return
+  CheckResult:
+    StrCpy $R0 0    ; PATCHED: ignore exit code from old uninstaller (false-positives on Win11 25H2)
+    ClearErrors
+    Return
 
   DoesNotExist:
     SetErrors
+  OldUninstallerMissing:
+    ; A stale registry entry can point at a removed installer directory.
+    ClearErrors
+    Return
 `);
     fs.writeFileSync(nshPath, content, 'utf8');
     console.log('[patch-nsis] installUtil.nsh patched — skip uninstall retry loop');
@@ -153,33 +176,10 @@ function patchUninstallOldVersion() {
 }
 
 function patchExtractAppPackage() {
-  const nshPath = findNsisTemplate('extractAppPackage.nsh');
-  if (!nshPath) {
-    console.warn('[patch-nsis] extractAppPackage.nsh not found');
-    return;
-  }
-
-  let content = fs.readFileSync(nshPath, 'utf8');
-
-  if (content.includes('PATCHED: skip copy-fail dialog')) {
-    console.log('[patch-nsis] extractAppPackage.nsh already patched');
-    return;
-  }
-
-  // When CopyFiles fails after 5 retries, the template shows appCannotBeClosed
-  // dialog and has an AbortExtract7za label. On Win11 25H2 the old uninstaller
-  // may not clean up properly. Patch: remove dialog + dead abort label,
-  // let the else branch fall through to the non-atomic extract.
-  const dialogBlock = /MessageBox MB_RETRYCANCEL\|MB_ICONEXCLAMATION "\$\(appCannotBeClosed\)" \/SD IDRETRY IDCANCEL AbortExtract7za[\s\S]*?AbortExtract7za:\s*\n\s*Quit\s*\n/;
-
-  if (dialogBlock.test(content)) {
-    content = content.replace(dialogBlock,
-      `# PATCHED: skip copy-fail dialog — fall through to non-atomic extract\n`);
-    fs.writeFileSync(nshPath, content, 'utf8');
-    console.log('[patch-nsis] extractAppPackage.nsh patched — skip copy-fail dialog');
-  } else {
-    console.warn('[patch-nsis] extractAppPackage.nsh regex did not match');
-  }
+  // Keep electron-builder's native extraction fallback. Its LogicLib block
+  // changed between builder releases; replacing it here can remove an
+  // ${endIf} and make makensis reject the complete installer script.
+  console.log('[patch-nsis] extractAppPackage.nsh left unchanged — use native fallback');
 }
 
 module.exports.default = async function (context) {

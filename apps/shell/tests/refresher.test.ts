@@ -43,6 +43,25 @@ function mockFetch(okIds: string[], latencies: Record<string, number> = {}): voi
   );
 }
 
+function mockFetchWithModels(modelIds: string[], okIds: string[]): void {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const u = String(url);
+      if (u.endsWith('/v1/models')) {
+        return new Response(JSON.stringify({ data: modelIds.map((id) => ({ id })) }), { status: 200 });
+      }
+      if (u.endsWith('/v1/chat/completions')) {
+        const body = JSON.parse(String(init?.body)) as { model: string };
+        return okIds.includes(body.model)
+          ? new Response(JSON.stringify({ choices: [] }), { status: 200 })
+          : new Response('err', { status: 500 });
+      }
+      return new Response('not found', { status: 404 });
+    }),
+  );
+}
+
 describe('model-refresher', () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -114,6 +133,18 @@ describe('model-refresher', () => {
     expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([
       deepseekModel('deepseek-v3.2-free'),
       deepseekModel('deepseek-chat'),
+    ]);
+    rmSync(dirname(home), { recursive: true, force: true });
+  });
+
+  it('marks non-DeepSeek models as non-reasoning instead of inheriting an effort', async () => {
+    mockFetchWithModels(['x-preview-f', 'deepseek-v3.2-free'], ['x-preview-f', 'deepseek-v3.2-free']);
+    const { home, data } = tmpDirs();
+    await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
+    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+    expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([
+      { id: 'x-preview-f', reasoningEfforts: false },
+      deepseekModel('deepseek-v3.2-free'),
     ]);
     rmSync(dirname(home), { recursive: true, force: true });
   });

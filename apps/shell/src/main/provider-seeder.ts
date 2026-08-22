@@ -1,6 +1,8 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { load as loadYaml, dump as dumpYaml } from 'js-yaml';
+import { isDeepSeekModel, reasoningEffortsForModel } from './reasoning-policy.js';
+import type { ModelReasoningEfforts } from './reasoning-policy.js';
 
 /**
  * Provider seeder — runs ONCE the harness-supervisor reports ready.
@@ -47,7 +49,7 @@ interface SettingsShape {
 const DEFAULT_PROVIDER = 'deepseek-free';
 const DEFAULT_API_KEY_ENV = 'FREECODE_PUBLIC_KEY';
 /** Seed model — the model-refresher replaces this with the live catalog. */
-const FALLBACK_MODELS = [{ id: 'x-preview-f' }];
+const FALLBACK_MODELS = [{ id: 'x-preview-f', reasoningEfforts: reasoningEffortsForModel('x-preview-f') }];
 const MARKER_FILE = '.freecode-seeded-v1';
 
 export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: string } {
@@ -65,8 +67,21 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
       seeded = true;
     }
     if (Array.isArray(existing.models) && existing.models.length === 0) {
-      existing.models = FALLBACK_MODELS;
+      existing.models = cloneFallbackModels();
       seeded = true;
+    }
+    if (existing.reasoning !== undefined) {
+      // Older shell releases put a route-wide effort here. The pool is
+      // heterogeneous, so that value is unsafe for every non-DeepSeek model.
+      delete existing.reasoning;
+      seeded = true;
+    }
+    if (Array.isArray(existing.models)) {
+      const normalized = normalizeModelEntries(existing.models);
+      if (normalized.some((entry, index) => entry !== existing.models![index])) {
+        existing.models = normalized;
+        seeded = true;
+      }
     }
   } else {
     providers[DEFAULT_PROVIDER] = {
@@ -75,10 +90,10 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
       baseURL: cfg.lbBaseUrl,
       apiKeyEnv: cfg.apiKeyEnv ?? DEFAULT_API_KEY_ENV,
       defaultInput: ['text'],
-      models: FALLBACK_MODELS,
+      models: cloneFallbackModels(),
       compat: { thinkingFormat: 'deepseek' },
-      // NOTE: reasoning removed — not all models support it; model-refresher sets
-      // reasoningEfforts per-model for deepseek-* models only.
+      // NOTE: reasoning removed — the pool is heterogeneous; model-refresher
+      // sets reasoningEfforts per model.
     };
     seeded = true;
   }
@@ -90,13 +105,23 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
   const defaultModel = settings['agent-default-model'] as
     | { provider?: string; model?: string; reasoningEffort?: string }
     | undefined;
-  const freeModels = (existing?.models ?? FALLBACK_MODELS) as { id: string }[];
-  const firstModel = freeModels[0]?.id ?? FALLBACK_MODELS[0]!.id;
+  const freeModels = Array.isArray(providers[DEFAULT_PROVIDER]?.models)
+    ? providers[DEFAULT_PROVIDER]!.models as { id?: unknown }[]
+    : [];
+  const firstModel = freeModels.find((entry) => typeof entry?.id === 'string')?.id as string
+    | undefined ?? FALLBACK_MODELS[0]!.id;
   if (!defaultModel || defaultModel.provider !== DEFAULT_PROVIDER) {
     settings['agent-default-model'] = {
       provider: DEFAULT_PROVIDER,
       model: firstModel,
     };
+    seeded = true;
+  } else if (
+    defaultModel.reasoningEffort !== undefined
+    && !isDeepSeekModel(defaultModel.model)
+  ) {
+    const { reasoningEffort: _staleEffort, ...withoutStaleEffort } = defaultModel;
+    settings['agent-default-model'] = withoutStaleEffort;
     seeded = true;
   }
 
@@ -105,6 +130,22 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
     if (!existing) writeMarker(cfg.homeDir, cfg.lbBaseUrl);
   }
   return { seeded, path: settingsPath };
+}
+
+function cloneFallbackModels(): { id: string; reasoningEfforts: ModelReasoningEfforts }[] {
+  return FALLBACK_MODELS.map((model) => ({ ...model }));
+}
+
+function normalizeModelEntries(models: unknown[]): unknown[] {
+  return models.map((model) => {
+    if (model === null || typeof model !== 'object' || Array.isArray(model)) return model;
+    const entry = model as { id?: unknown; reasoningEfforts?: unknown };
+    if (typeof entry.id !== 'string') return model;
+    const desired = reasoningEffortsForModel(entry.id);
+    return JSON.stringify(entry.reasoningEfforts) === JSON.stringify(desired)
+      ? model
+      : { ...entry, reasoningEfforts: desired };
+  });
 }
 
 function readSettings(path: string): SettingsShape {

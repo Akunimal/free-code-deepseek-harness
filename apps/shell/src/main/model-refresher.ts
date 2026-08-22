@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { load as loadYaml, dump as dumpYaml } from 'js-yaml';
+import { reasoningEffortsForModel } from './reasoning-policy.js';
 
 /**
  * Model refresher — probes /v1/models through the LB, pings each model,
@@ -105,11 +106,7 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
     models: [],
   });
   free.models = responders.map((m) => {
-    const entry: Record<string, unknown> = { id: m.id };
-    if (m.id.startsWith('deepseek-')) {
-      entry.reasoningEfforts = { off: null, low: 'low', high: 'high', max: 'max' };
-    }
-    return entry;
+    return { id: m.id, reasoningEfforts: reasoningEffortsForModel(m.id) };
   });
   writeSettings(settingsPath, settings);
 

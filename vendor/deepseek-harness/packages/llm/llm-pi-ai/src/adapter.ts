@@ -290,9 +290,14 @@ export class PiAiAdapter extends LlmAdapter {
     const snapshot = this.current()
     const profile = this.profileOf(snapshot, options.provider)
     const model = this.modelOf(snapshot, options.provider, options.model)
+    // A route-level reasoning default is only meaningful for models that
+    // advertise reasoning. The free pool is heterogeneous, and an older
+    // profile may still carry `reasoning: high`; applying it to a model with
+    // no reasoning capability would fail an otherwise valid request before I/O.
+    const profileReasoning = model.reasoning ? profile.reasoning : undefined
     const reasoning = resolveReasoningLevel(
       model,
-      options.reasoningEffort ?? profile.reasoning,
+      options.reasoningEffort ?? profileReasoning,
     )
     const apiKey = await this.config.resolveApiKey(options.provider, profile)
 

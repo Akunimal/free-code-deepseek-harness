@@ -481,6 +481,29 @@ describe('provider profile lifecycle', () => {
       .resolves.toMatchObject({ reasoning: { defaultEffort: ReasoningEffortId('off') } })
   })
 
+  it('ignores a stale route reasoning default for a non-reasoning model', async () => {
+    const server = await mockServer([{ events: textEvents }])
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    await ctx.plugin(LlmPiAi, {
+      providers: {
+        'free-pool': {
+          apiKeyEnv: 'PI_TEST_KEY',
+          api: 'openai-completions',
+          baseURL: `${server.url}/v1`,
+          // This is the legacy setting that caused x-preview-f to fail.
+          reasoning: 'high',
+          models: [{ id: 'x-preview-f' }],
+        },
+      },
+    })
+
+    const result = await assemble(ctx, { provider: 'free-pool', model: 'x-preview-f', messages: [] })
+
+    expect(result.message.content).toEqual([{ type: 'text', text: 'hello' }])
+    expect(server.requests[0]).not.toHaveProperty('reasoning_effort')
+  })
+
   it('serves declared reasoning efforts to selectors and honours the profile default', async () => {
     const ctx = new Context()
     await ctx.plugin(LlmRuntime)
