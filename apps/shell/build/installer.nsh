@@ -6,6 +6,8 @@
 
 !macro customCheckAppRunning
   ; Kill any running instance silently instead of checking (avoids false positives)
-  nsExec::ExecToLog 'taskkill /F /IM "FreeCode DeepSeek Harness.exe"'
+  nsExec::ExecToStack 'taskkill /F /IM "${APP_EXECUTABLE_FILENAME}" /T'
+  Pop $0
+  ; Ignore errors (exit code 128 = process not found, 0 = killed, 1 = killed with children)
   Sleep 1000
 !macroend

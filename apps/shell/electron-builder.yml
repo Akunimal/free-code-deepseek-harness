@@ -3,7 +3,6 @@ productName: FreeCode DeepSeek Harness
 artifactName: FreeCode-DeepSeek-Harness-${version}-${os}-${arch}.${ext}
 asar: true
 compression: maximum
-beforePack: build/patch-nsis.cjs
 directories:
   output: release
   buildResources: build
