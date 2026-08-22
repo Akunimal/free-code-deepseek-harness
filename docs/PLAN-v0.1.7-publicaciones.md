@@ -1,12 +1,12 @@
-# PLAN v0.1.7 — publicaciones en grupos de OpenCode
+# PLAN v0.1.7 — publicaciones en grupos de code
 
 Fecha: 2026-08-22 · Repo: `Akunimal/free-code-deepseek-harness` · Estado: PENDIENTE DE CONFIRMACIÓN DEL USUARIO
 
 ## Alcance
 
-La release publicada es [v0.1.7](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.1.7). Se localizaron en Facebook los resultados cuyo título contiene `OpenCode`/`opencode`. Se publicará sólo donde la cuenta ya es miembro; no se solicitará entrar a grupos nuevos sin una instrucción separada.
+La release publicada es [v0.1.7](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.1.7). La búsqueda se amplió en Facebook a todos los títulos que contienen `code`, pero se mantienen como candidatos sólo los grupos claramente relacionados con programación, IA, OpenCode, Claude Code, Codex o herramientas de desarrollo. Se publicará sólo donde la cuenta ya es miembro; no se solicitará entrar a grupos nuevos sin una instrucción separada.
 
-## Grupos localizados
+## Grupos relevantes donde la cuenta ya es miembro
 
 | Grupo | Idioma del texto | Estado visible |
 |---|---|---|
@@ -14,17 +14,23 @@ La release publicada es [v0.1.7](https://github.com/Akunimal/free-code-deepseek-
 | `Devs: Antigravity, Codex, Claude Code y OpenCode en Español` | Español | Miembro |
 | `OPENCODE \| AVANZADO` | Español | Miembro |
 | `OpenCode en Español` | Español | Miembro |
+| `Automatización, N8N, Claude code, Make, Odoo, IA` | Español | Miembro |
 | `opencode-crew` | Inglés | Miembro |
 | `OpenCode VN - Cộng Đồng AI Coding Agent` | Inglés | Miembro |
 | `Opencode-harness-Deepseek` | Inglés | Miembro |
+| `Claude Code openSource` | Inglés | Miembro |
+| `Claude Code & OpenClaw & Vibe Coding Québec` | Inglés | Miembro |
+| `Code@Open source` | Inglés | Miembro; confirmado por notificación de bienvenida |
 
-También aparecen resultados públicos en los que la cuenta todavía muestra `Unirte` —por ejemplo `AI Developers & Vibe Coders (Claude Code, Hermes, OpenCode, OpenClaw, more)`, `أخبار OpenCode بالعربي`, `Opencode PH`, `OpenCode`, `OpenCode En Español` y `Claude code / open code (Sin Hate)`—. No se solicitará entrar a esos grupos dentro de esta publicación.
+También aparecen resultados relevantes en los que la cuenta todavía muestra `Unirte` —por ejemplo `Codex en Español`, `Claude Code en Español`, `Claude Code México`, `Claude Code Chile`, `AI Developers & Vibe Coders (Claude Code, Hermes, OpenCode, OpenClaw, more)`, `أخبار OpenCode بالعربي`, `Opencode PH`, `OpenCode`, `OpenCode En Español` y `Claude code / open code (Sin Hate)`—. No se solicitará entrar a esos grupos dentro de esta publicación.
+
+Se excluyen resultados que contienen `code` pero no son comunidades de desarrollo relevantes para este anuncio, como `japan codes`, `Downloader codes list 2025/26`, `HTML Codes`, `SHEIN Discount Codes` y `Pokemon GO Official Friend Codes`, además de comunidades generales no claramente relacionadas con IA coding.
 
 ## Texto en español
 
 > 🚀 **FreeCode DeepSeek Harness v0.1.7 — vibecoding casi gratis con OpenCode**
 >
-> Buenas, les comparto algo que armé originalmente para no quedarme sin poder programar cuando se terminan los créditos: una aplicación de escritorio basada en DeepSeek Harness que integra `opencode2api`, un pool de workers con round-robin y Tor rotativo opcional para repartir la salida entre distintos exits y evitar saturar tan rápido el límite por IP. No crea cuentas ni elimina los límites del proveedor: ayuda a aprovechar mejor la cuota pública disponible.
+> Buenas, les comparto algo que armé originalmente para no quedarme sin poder programar cuando se terminan los créditos: una aplicación de escritorio para Windows basada en DeepSeek Harness que integra `opencode2api`, un pool de workers con round-robin y Tor rotativo opcional para repartir la salida entre distintos exits y evitar saturar tan rápido el límite por IP. Arranca sin API key privada ni configuración manual. No crea cuentas ni elimina los límites del proveedor: ayuda a aprovechar mejor la cuota pública disponible.
 >
 > ¿Estabas usando OpenCode y se te terminó el uso? FreeCode incluye el puente OpenCode ya configurado; elegís la carpeta de trabajo y podés continuar desde el Harness sin descargar ni configurar nada extra. La v0.1.7 ya está estable para uso normal en Windows e incluye descubrimiento dinámico de modelos gratuitos, tool calling headless, instalador NSIS y versión portable.
 >
@@ -42,7 +48,7 @@ También aparecen resultados públicos en los que la cuenta todavía muestra `Un
 
 > 🚀 **FreeCode DeepSeek Harness v0.1.7 — almost-free coding with OpenCode**
 >
-> Hi everyone, I originally built this because I did not want to lose the ability to code after running out of credits. It is a Windows desktop app based on DeepSeek Harness with the OpenCode bridge (`opencode2api`) already configured, a round-robin worker pool, and optional rotating Tor egress to spread traffic across exits and avoid saturating the same IP ceiling too quickly. It does not create accounts or remove provider limits; it only helps use the available public quota more efficiently.
+> Hi everyone, I originally built this because I did not want to lose the ability to code after running out of credits. It is a Windows desktop app based on DeepSeek Harness with the OpenCode bridge (`opencode2api`) already configured, a round-robin worker pool, and optional rotating Tor egress to spread traffic across exits and avoid saturating the same IP ceiling too quickly. It starts without a private API key or manual setup. It does not create accounts or remove provider limits; it only helps use the available public quota more efficiently.
 >
 > If you were using OpenCode and ran out of usage, you can choose your workspace folder and continue from the Harness without downloading or configuring anything else. v0.1.7 is stable for normal Windows use and includes dynamic free-model discovery, headless tool calling, an NSIS installer, and a portable build.
 >
@@ -62,8 +68,8 @@ The current desktop language selector shows only English and Chinese. Spanish di
 
 ## Publication gate
 
-- [x] Search completed in the embedded Facebook browser.
+- [x] Search completed in the embedded Facebook browser, expanded from `opencode` to `code`.
 - [x] Drafts prepared in both languages.
 - [ ] User confirms the two texts immediately before posting.
-- [ ] Publish to the seven groups where the account is already a member.
+- [ ] Publish to the eleven relevant groups where the account is already a member.
 - [ ] Verify each post contains the intended text and release link.
