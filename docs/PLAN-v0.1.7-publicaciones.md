@@ -21,8 +21,10 @@ La release publicada es [v0.1.7](https://github.com/Akunimal/free-code-deepseek-
 | `Claude Code openSource` | Inglés | Miembro |
 | `Claude Code & OpenClaw & Vibe Coding Québec` | Inglés | Miembro |
 | `Code@Open source` | Inglés | Miembro; confirmado por notificación de bienvenida |
+| `Codex OpenAI & Vibe Coding & AI Coding` | Inglés | Miembro; aprobado recientemente |
+| `Vibe Coding español - Claude, Google Antigravity, Lovable, Bolt, Cursor, v0` | Español | Miembro; aprobado recientemente |
 
-Las diez publicaciones anteriores fueron enviadas con `capnew.jpg` y verificadas en pantalla después del envío: título de v0.1.7 y enlace a la release presentes. El texto se publicó en español en los cinco grupos marcados como Español y en inglés en los cinco restantes.
+Las doce publicaciones fueron enviadas con `capnew.jpg` y verificadas en pantalla después del envío: título de v0.1.7 y enlace a la release presentes. El texto se publicó en español en seis grupos y en inglés en seis grupos.
 
 `OpenCode VN - Cộng Đồng AI Coding Agent` figuraba en el relevamiento anterior, pero la búsqueda actual no devuelve una comunidad con ese título ni una URL de grupo válida. No se publicó allí ni se sustituyó por otra comunidad vietnamita parecida.
 
@@ -75,6 +77,6 @@ The current desktop language selector shows only English and Chinese. Spanish di
 - [x] Search completed in the embedded Facebook browser, expanded from `opencode` to `code`.
 - [x] Drafts prepared in both languages.
 - [x] User confirmed both texts and the screenshot before posting.
-- [x] Publish to the ten reachable relevant groups where the account is already a member.
+- [x] Publish to the twelve reachable relevant groups where the account is already a member.
 - [x] Verify each published post contains the intended text, release link, and attached screenshot.
 - [ ] Revisit `OpenCode VN - Cộng Đồng AI Coding Agent` only if Facebook exposes a valid group URL.
