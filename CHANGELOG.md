@@ -27,11 +27,11 @@
 - Se ejecutó el setup silenciosamente con exit code `0` usando el destino citado; se verificaron ejecutable, `app.asar`, runtime con el fix, desinstalador, registro HKCU y shortcut del menú Inicio apuntando a la ruta correcta.
 - Se verificaron 3 suites de headless tool processes (19 tests) y el typecheck/build completo del vendor.
 - Se reconstruyeron localmente los cuatro binarios de `opencode2api`; el test de regresión del fallback público pasa.
-- El empaquetado local deja en `apps/shell/release` el asset de actualización del Harness y su `.sha256`, listo para adjuntar manualmente a la release sin ejecutar workflows.
+- El empaquetado local deja en `apps/shell/release` el asset de actualización del Harness y su `.sha256`; ambos quedaron adjuntos manualmente a la release remota `v0.1.7` junto con los instaladores, sin ejecutar workflows.
 
 ### Release status
 
-- Esta es una actualización de artefactos y documentación local. No se creó release remota ni se ejecutó ningún workflow de GitHub.
+- La release remota `v0.1.7` fue actualizada manualmente con los artefactos Windows y el runtime del Harness; no se ejecutó ningún workflow de GitHub.
 
 Source: commit `de540d714e` audited on 2026-08-22 (no tag range; includes the vendored Harness update and the product/runtime fixes described above).
-Reviewed commands: upstream `0.1.1-rc.2` build, vendored effort/headless tests (133), `pnpm package:runtime`, `pnpm --filter @freecode/shell typecheck`, `pnpm --filter @freecode/shell test -- --run` (8 files / 33 tests), `pnpm --filter @freecode/opencode-adapter test -- --run` (10 tests), local Electron setup/portable packaging, Harness tar/digest verification. No remote release or GitHub workflow was used.
+Reviewed commands: upstream `0.1.1-rc.2` build, vendored effort/headless tests (133), `pnpm package:runtime`, `pnpm --filter @freecode/shell typecheck`, `pnpm --filter @freecode/shell test -- --run` (8 files / 33 tests), `pnpm --filter @freecode/opencode-adapter test -- --run` (10 tests), local Electron setup/portable packaging, Harness tar/digest verification, and GitHub Release asset verification. Assets were uploaded manually; no GitHub workflow was used.
