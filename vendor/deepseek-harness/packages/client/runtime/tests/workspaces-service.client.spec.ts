@@ -442,31 +442,6 @@ describe('WorkspaceRuntime', () => {
     expect(clear).toHaveBeenCalledOnce()
   })
 
-  it('creates a distinct session when New Session is clicked from the current blank session', async () => {
-    const ctx = new Context()
-    const api = new FakeApiClient()
-    const sessions = new SessionRuntime(ctx, api, fakeRemote())
-    const workspaces = new WorkspaceRuntime(ctx, api, sessions)
-    api.onWorkspaceList = () => Promise.resolve(ok({
-      items: [workspace('alpha', [sid('s-blank')])] as never[],
-    }))
-    api.onList = () => Promise.resolve(ok({
-      items: [{
-        sessionId: sid('s-blank'), updatedAt: 1, running: false, blank: true, cwd: '/w/alpha',
-      }] as never[],
-    }))
-    api.onCreate = () => Promise.resolve(ok({ sessionId: sid('s-fresh') }))
-    await Promise.all([workspaces.refresh(), sessions.refresh()])
-    sessions.open(sid('s-blank'))
-
-    workspaces.startSession()
-    await Promise.resolve()
-    await Promise.resolve()
-
-    expect(api.callsOf('session.create')).toEqual([{ workspaceId: 'alpha' }])
-    await vi.waitFor(() => expect(sessions.list.getSnapshot().current).toBe('s-fresh'))
-  })
-
   it('archives a session, projects the set from the response, list, and frame, and clears only the current one', async () => {
     const ctx = new Context()
     const api = new FakeApiClient()

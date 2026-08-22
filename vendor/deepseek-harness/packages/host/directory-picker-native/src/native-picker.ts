@@ -2,11 +2,6 @@
 
 import { runNativeCommand, type NativeCommandRunner } from '@deepseek-ai/dsh-native-command'
 import { pickWin32Directory } from './win32-dialog.ts'
-import { tmpdir } from 'node:os'
-import { writeFileSync, unlinkSync, readFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { randomBytes } from 'node:crypto'
-import { execFile } from 'node:child_process'
 
 /** Testable command boundary; native implementations never invoke a shell. */
 export type DirectoryPickerRunner = NativeCommandRunner
@@ -72,42 +67,11 @@ export async function pickNativeDirectory(
   }
 
   if (platform === 'win32') {
-    // Under ELECTRON_RUN_AS_NODE the Electron exe runs as Node but koffi's
-    // NAPI surface is incompatible with Electron's runtime, causing a fatal
-    // crash in readUtf16. Fall back to the built-in BrowseForFolder COM
-    // dialog via cscript (available on every Windows since XP).
-    if (process.env.ELECTRON_RUN_AS_NODE) {
-      const tag = randomBytes(4).toString('hex')
-      const vbs = join(tmpdir(), `dsh-pick-${tag}.vbs`)
-      const resultFile = join(tmpdir(), `dsh-pick-${tag}.txt`)
-      writeFileSync(vbs, [
-        'Set s=CreateObject("Shell.Application")',
-        'Set f=s.BrowseForFolder(0,"Select Workspace Directory",&H0041,"")',
-        'Dim fso: Set fso=CreateObject("Scripting.FileSystemObject")',
-        `Dim out: Set out=fso.CreateTextFile("${resultFile.replace(/\\/g, '\\\\')}", True)`,
-        'If Not f Is Nothing Then out.Write f.Self.Path',
-        'out.Close',
-      ].join('\r\n'))
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const child = execFile('wscript', [vbs], (err) => {
-            if (err) reject(err); else resolve()
-          })
-          const onAbort = (): void => { child.kill(); reject(new Error('native directory picker aborted')) }
-          signal.addEventListener('abort', onAbort, { once: true })
-        })
-        try {
-          const picked = readFileSync(resultFile, 'utf-8').trim()
-          return picked || null
-        } catch { return null }
-      } catch (error: unknown) {
-        rethrowIfAborted(signal, error)
-        return null
-      } finally {
-        try { unlinkSync(vbs) } catch {}
-        try { unlinkSync(resultFile) } catch {}
-      }
-    }
+    // The koffi-backed IFileOpenDialog child process — the modern picker with
+    // per-monitor-v2 DPI and abort support. koffi is a packaged dependency
+    // whose availability the install guarantees, so there is no fallback
+    // tier: any failure surfaces as-is (no PowerShell fallback tier; see
+    // .agents/notes/implemented/simplification/2026-08-04-drop-windows-powershell-picker-fallback.md).
     const pickDialog = internals.pickWin32Dialog ?? pickWin32Directory
     return await pickDialog(signal)
   }

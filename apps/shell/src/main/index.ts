@@ -11,6 +11,7 @@ import { registerIpc } from './ipc.js';
 import { nodeRuntimeEnv, resolveNodePath, resolveResourcesDir } from './resource-paths.js';
 import { createAppLogger, type AppLogger } from './logger.js';
 import { createUpdateService, type UpdateService } from './updater.js';
+import { createHarnessUpdater } from './harness-updater.js';
 import { initLocale, t } from './i18n.js';
 import {
   TorFleet,
@@ -25,12 +26,16 @@ import {
  * window wrapping the harness webview, tray, and the pool overlay.
  */
 
-// Packaged Electron has no attached console; Node 22+ throws EPIPE when
-// console.log writes to a broken stdout/stderr pipe. Silence it globally.
+// Packaged Electron has no attached console. On Windows the detached
+// stdout/stderr pipe can report `write EOF` while a console call is flushing;
+// that error must never become an uncaught main-process exception. Structured
+// application logs are the authoritative diagnostic sink.
 for (const stream of [process.stdout, process.stderr]) {
   stream?.on?.('error', (err: NodeJS.ErrnoException) => {
-    if (err.code === 'EPIPE' || err.code === 'ERR_STREAM_DESTROYED') return;
-    throw err;
+    // Intentionally swallow every error from these optional diagnostic pipes.
+    // Electron's GUI process remains alive even if its inherited console was
+    // closed by the launcher or by Windows.
+    void err;
   });
 }
 
@@ -106,6 +111,40 @@ let overlayOpen = false;
 let localUpdateRunning = false;
 let torfleet: TorFleet | null = null;
 let torfleetEnabled = false;
+type BackendState = 'unknown' | 'ready' | 'degraded' | 'down';
+const backendStates: Record<'catalog' | 'pool', BackendState> = { catalog: 'unknown', pool: 'unknown' };
+
+function reportBackendState(kind: 'catalog' | 'pool', state: Exclude<BackendState, 'unknown'>, detail?: string): void {
+  const previous = backendStates[kind];
+  backendStates[kind] = state;
+  const changed = previous !== state;
+  if (!changed || (state === 'ready' && previous === 'unknown')) return;
+
+  const key = state === 'down'
+    ? `status.${kind}.down`
+    : state === 'degraded'
+      ? `status.${kind}.degraded`
+      : `status.${kind}.ready`;
+  const title = t(`${key}.title` as Parameters<typeof t>[0]);
+  const message = t(`${key}.message` as Parameters<typeof t>[0]);
+  const body = detail ? `${message}\n${detail}` : message;
+  appLogger?.logger[state === 'ready' ? 'info' : 'warn']({ component: kind, state, detail }, 'backend state changed');
+  try {
+    new Notification({ title, body }).show();
+  } catch {
+    // Native notifications are best effort; the state remains in the log.
+  }
+}
+
+function reportModelRefreshFailure(error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  const readyWorkers = runtime?.workers().filter((worker) => worker.status === 'ready').length ?? 0;
+  if (readyWorkers === 0) {
+    reportBackendState('pool', 'down', message);
+  } else {
+    reportBackendState('catalog', 'down', message);
+  }
+}
 
 function createSplashWindow(): void {
   splashWindow = new BrowserWindow({
@@ -276,6 +315,18 @@ function bundledUpstreamCommit(resources: string): string | undefined {
   return match?.[1];
 }
 
+function bundledHarnessVersion(resources: string): string | undefined {
+  for (const manifestPath of [join(resources, 'runtime-manifest.json'), join(resources, 'freecode', 'runtime-manifest.json')]) {
+    try {
+      const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { version?: unknown };
+      if (typeof manifest.version === 'string') return manifest.version;
+    } catch {
+      // A clean source checkout may not have a generated runtime yet.
+    }
+  }
+  return undefined;
+}
+
 function projectRoot(): string {
   // dist/src/main -> repository root. This is used only by the source checkout
   // updater; packaged builds never execute the local rebuild path.
@@ -285,8 +336,31 @@ function projectRoot(): string {
 async function updateFromMenu(): Promise<void> {
   if (!updateService) return;
   const result = await updateService.check();
+  const harnessAvailable = result.harness?.available === true;
   const releaseAvailable = Boolean(result.info?.version);
   const upstreamAvailable = result.upstream?.available === true;
+
+  if (harnessAvailable) {
+    const version = result.harness?.latestVersion ?? t('version.new');
+    const choice = await dialog.showMessageBox({
+      type: 'info',
+      title: t('update.harnessAvailable.title'),
+      message: t('update.harnessAvailable.message', version),
+      detail: t('update.harnessAvailable.detail'),
+      buttons: [t('update.downloadHarness'), t('update.notNow')],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (choice.response === 0) {
+      const install = await updateService.installHarness(result.harness!);
+      if (install.status === 'installed') {
+        await dialog.showMessageBox({ type: 'info', title: t('update.harnessComplete.title'), message: t('update.harnessComplete.message') });
+      } else {
+        await dialog.showMessageBox({ type: 'error', title: t('update.failed.title'), message: install.error ?? t('update.failed.message') });
+      }
+    }
+    return;
+  }
 
   if (releaseAvailable) {
     const version = result.info?.version ?? t('version.new');
@@ -333,7 +407,10 @@ async function updateFromMenu(): Promise<void> {
     return;
   }
 
-  const details = result.upstream?.error ? `\n\n${t('update.upstreamCheckError', result.upstream.error)}` : '';
+  const details = [
+    result.upstream?.error ? t('update.upstreamCheckError', result.upstream.error) : '',
+    result.harness?.error ? t('update.harnessCheckError', result.harness.error) : '',
+  ].filter(Boolean).join('\n\n');
   await dialog.showMessageBox({
     type: result.status === 'failed' ? 'warning' : 'info',
     title: result.status === 'failed' ? t('update.checkFailed.title') : t('update.noUpdates.title'),
@@ -435,6 +512,7 @@ function createTray(): void {
 }
 
 const REFRESH_INTERVAL_MS = 30 * 60 * 1000;
+const REFRESH_RETRY_DELAYS_MS = [5_000, 15_000, 30_000, 60_000, 120_000];
 
 app.whenReady().then(async () => {
   configurePortableDataDir();
@@ -444,10 +522,26 @@ app.whenReady().then(async () => {
   appLogger = createAppLogger(join(userDataDir, 'logs'));
   appLogger.logger.info({ packaged: app.isPackaged, platform: process.platform }, 'shell starting');
   const resources = resourcesDir();
+  const harnessUpdater = createHarnessUpdater({
+    resourcesDir: resources,
+    currentVersion: bundledHarnessVersion(resources),
+  });
   updateService = createUpdateService({
     enabled: true,
     checkReleases: app.isPackaged,
     upstreamCommit: bundledUpstreamCommit(resources),
+    harness: {
+      check: harnessUpdater.check,
+      downloadAndInstall: async (info) => {
+        const supervisor = runtime?.supervisor;
+        if (supervisor) await supervisor.stop();
+        try {
+          await harnessUpdater.downloadAndInstall(info);
+        } finally {
+          if (supervisor) await supervisor.start();
+        }
+      },
+    },
     log: (message, details) => appLogger?.logger.info({ details }, message),
   });
   if (process.env.FREECODE_ENABLE_UPDATES === '1') {
@@ -459,22 +553,52 @@ app.whenReady().then(async () => {
   await runtime.start();
 
   const lbUrl = runtime.lb.url();
+  const reportPoolState = (): void => {
+    const readyWorkers = runtime?.workers().filter((worker) => worker.status === 'ready').length ?? 0;
+    reportBackendState('pool', readyWorkers > 0 ? 'ready' : 'down', `${readyWorkers} worker(s) ready`);
+  };
+  runtime.pool.onWorkerChange(reportPoolState);
+  reportPoolState();
   // FASE 5: seed once the LB is up.
   seedProviders({ homeDir: join(userDataDir, 'dsh-home'), lbBaseUrl: `${lbUrl}/v1` });
 
   // FASE 6: model refresh at boot + every 30 min.
   let catalog: ModelCatalog | null = null;
+  let refreshInFlight = false;
+  let refreshRetryAttempt = 0;
+  let refreshRetryTimer: NodeJS.Timeout | null = null;
+  const scheduleRefreshRetry = (): void => {
+    if (refreshRetryTimer) return;
+    const delay = REFRESH_RETRY_DELAYS_MS[Math.min(refreshRetryAttempt, REFRESH_RETRY_DELAYS_MS.length - 1)]!;
+    refreshRetryAttempt++;
+    refreshRetryTimer = setTimeout(() => {
+      refreshRetryTimer = null;
+      void doRefresh();
+    }, delay);
+    refreshRetryTimer.unref();
+  };
   const doRefresh = async (): Promise<void> => {
+    if (refreshInFlight) return;
+    refreshInFlight = true;
     try {
       catalog = await refreshModels({
         lbBaseUrl: lbUrl,
         homeDir: join(userDataDir, 'dsh-home'),
         userDataDir,
         authHeader: 'Bearer public',
-        onUpdate: (c) => (catalog = c),
+        onUpdate: (c) => {
+          catalog = c;
+          reportBackendState('catalog', c.availability === 'degraded' ? 'degraded' : 'ready',
+            c.availability === 'degraded' ? 'No model probe responded; keeping the last known-good selection.' : undefined);
+        },
       });
+      refreshRetryAttempt = 0;
     } catch (err) {
+      reportModelRefreshFailure(err);
       console.error('[main] model refresh failed:', err);
+      scheduleRefreshRetry();
+    } finally {
+      refreshInFlight = false;
     }
   };
   void doRefresh();
@@ -542,6 +666,7 @@ app.whenReady().then(async () => {
       enable: enableTorfleet,
       isEnabled: () => torfleetEnabled,
     },
+    reportModelRefreshFailure,
   });
 
   // Wait for harness readiness, then open the window on its URL.

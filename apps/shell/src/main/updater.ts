@@ -1,3 +1,5 @@
+import type { HarnessUpdateInfo, HarnessUpdaterAdapter } from './harness-updater.js';
+
 export interface UpdateInfo {
   version?: string;
   releaseName?: string;
@@ -13,6 +15,7 @@ export interface UpstreamUpdateInfo {
 export interface UpdateCheckResult {
   status: 'disabled' | 'checked' | 'failed';
   info?: UpdateInfo;
+  harness?: HarnessUpdateInfo;
   upstream?: UpstreamUpdateInfo;
   error?: string;
 }
@@ -29,6 +32,7 @@ export interface UpdateService {
   readonly enabled: boolean;
   check(): Promise<UpdateCheckResult>;
   downloadAndInstall(): Promise<{ status: 'disabled' | 'installed' | 'failed'; error?: string }>;
+  installHarness(info: HarnessUpdateInfo): Promise<{ status: 'disabled' | 'installed' | 'failed'; error?: string }>;
   install(): void;
 }
 
@@ -40,6 +44,7 @@ export interface UpdateServiceOptions {
   upstreamRepo?: string;
   fetchImpl?: typeof fetch;
   adapter?: UpdaterAdapter;
+  harness?: HarnessUpdaterAdapter;
   log?: (message: string, details?: unknown) => void;
 }
 
@@ -94,6 +99,7 @@ export function createUpdateService(options: UpdateServiceOptions = {}): UpdateS
       const upstream = options.upstreamCommit || options.fetchImpl
         ? await checkUpstreamUpdate(options.upstreamCommit, options.fetchImpl, options.upstreamRepo)
         : undefined;
+      const harness = options.harness ? await options.harness.check() : undefined;
       let info: UpdateInfo | undefined;
       let releaseError: string | undefined;
 
@@ -111,10 +117,13 @@ export function createUpdateService(options: UpdateServiceOptions = {}): UpdateS
         }
       }
 
-      if (releaseError && !upstream) return { status: 'failed', error: releaseError };
+      const harnessError = harness?.error && !harness.available ? harness.error : undefined;
+      if (releaseError && !upstream && !harness) return { status: 'failed', error: releaseError };
+      if (!releaseError && !upstream && harnessError) return { status: 'failed', harness, error: harnessError };
       return {
-        status: releaseError ? 'failed' : 'checked',
+        status: releaseError && !harness?.available ? 'failed' : 'checked',
         info,
+        ...(harness ? { harness } : {}),
         upstream,
         ...(releaseError ? { error: releaseError } : {}),
       };
@@ -131,6 +140,19 @@ export function createUpdateService(options: UpdateServiceOptions = {}): UpdateS
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         log('update download failed', message);
+        return { status: 'failed', error: message };
+      }
+    },
+    async installHarness(info) {
+      if (!enabled) return { status: 'disabled' };
+      if (!options.harness) return { status: 'failed', error: 'Harness-only updater is unavailable' };
+      try {
+        await options.harness.downloadAndInstall(info);
+        log('harness runtime update installed', { version: info.latestVersion, asset: info.assetName });
+        return { status: 'installed' };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        log('harness runtime update failed', message);
         return { status: 'failed', error: message };
       }
     },

@@ -1,10 +1,12 @@
 import { readFile } from 'node:fs/promises'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { AttachmentId, AttachmentStore } from '@deepseek-ai/dsh-attachment'
+import { AttachmentId, AttachmentStore, ImageVariantId } from '@deepseek-ai/dsh-attachment'
 import type {
   ImageAttachmentLimits,
   ImageAttachmentRef,
+  ImageRequestPolicy,
+  RequestImageAttachment,
   SaveImageAttachment,
   StoredImageAttachment,
 } from '@deepseek-ai/dsh-attachment'
@@ -70,6 +72,7 @@ async function harness(image?: StoredImageAttachment): Promise<Context> {
         maxImagesPerMessage: 1,
         maxMessageImageBytes: fixture.data.byteLength,
         maxImagePixels: fixture.ref.width * fixture.ref.height,
+        maxImageDimension: Math.max(fixture.ref.width, fixture.ref.height),
         mediaTypes: [fixture.ref.mediaType],
       }
 
@@ -86,6 +89,24 @@ async function harness(image?: StoredImageAttachment): Promise<Context> {
           return Promise.reject(new Error('unknown e2e attachment fixture'))
         }
         return Promise.resolve(fixture)
+      }
+
+      override readImageRequest(ref: ImageAttachmentRef, _policy: ImageRequestPolicy): Promise<RequestImageAttachment> {
+        if (ref.attachmentId !== fixture.ref.attachmentId) {
+          return Promise.reject(new Error('unknown e2e attachment fixture'))
+        }
+        return Promise.resolve({
+          variantId: ImageVariantId(`sha256:${'f'.repeat(64)}`),
+          attachment: fixture.ref,
+          data: fixture.data,
+          mediaType: fixture.ref.mediaType,
+          bytes: fixture.data.byteLength,
+          width: fixture.ref.width,
+          height: fixture.ref.height,
+          depth: 'uchar',
+          space: 'srgb',
+          hasAlpha: fixture.ref.mediaType === 'image/png',
+        })
       }
     }
     await ctx.plugin(E2eAttachmentStore)
@@ -209,7 +230,7 @@ for (const profile of providerCases) {
       if (profile.provider === 'anthropic') {
         it('sends a real image through the authenticated Anthropic visual path', async () => {
           const data = new Uint8Array(await readFile(
-            new URL('../../../../assets/community-wecom-survey.png', import.meta.url),
+            new URL('./fixtures/qr-code.png', import.meta.url),
           ))
           const ref: ImageAttachmentRef = {
             attachmentId: AttachmentId(`sha256:${'a'.repeat(64)}`),

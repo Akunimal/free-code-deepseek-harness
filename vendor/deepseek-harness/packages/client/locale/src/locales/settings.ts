@@ -12,8 +12,3 @@ export type SettingsLocaleKey = keyof typeof zh
 export const en = {
   'language.title': 'Language',
 } satisfies Record<SettingsLocaleKey, string>
-
-/** Spanish dictionary, checked complete against the zh key set. */
-export const es = {
-  'language.title': 'Idioma',
-} satisfies Record<SettingsLocaleKey, string>

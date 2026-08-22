@@ -30,8 +30,6 @@ git(['fetch', '--no-tags', remote, ref]);
 console.log(`update-upstream-local: updating ${prefix}`);
 git(['subtree', 'pull', `--prefix=${prefix}`, remote, 'FETCH_HEAD', '--squash', '-m', `chore: sync ${prefix} from ${remote}/${ref}`]);
 
-console.log('update-upstream-local: running tests');
-run(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', ['test']);
-console.log('update-upstream-local: rebuilding desktop artifact');
-run(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', ['build:desktop']);
-console.log('update-upstream-local: update and rebuild complete');
+console.log('update-upstream-local: rebuilding only the DeepSeek Harness runtime');
+run(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', ['package:runtime']);
+console.log('update-upstream-local: Harness runtime update complete; opencode2api and the shell were preserved');

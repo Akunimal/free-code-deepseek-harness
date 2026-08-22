@@ -168,10 +168,8 @@ export class WorkspaceRuntime implements IWorkspaces {
    * The shared New Session action behind the shell entry points (sidebar
    * button, workspace browser): resolve the target Workspace — explicit wins,
    * then the current Session's Workspace, then the recent-Workspace
-   * projection — connect its blank session and navigate there. If the current
-   * session is already that Workspace's blank session, create a fresh one so
-   * the button always changes the page; with no Workspace at all, clear the
-   * selection into the New Session view state.
+   * projection — connect its blank session and navigate there; with no
+   * Workspace at all, clear the selection into the New Session view state.
    * Connect failures are non-fatal (console diagnostics; the current view
    * stays usable).
    * @param workspaceId - explicit target Workspace for scoped actions.
@@ -182,16 +180,12 @@ export class WorkspaceRuntime implements IWorkspaces {
     const currentWorkspaceId = current === undefined
       ? undefined
       : workspace.items.find(item => item.sessionIds.includes(current))?.workspaceId
-    const currentSummary = current === undefined ? undefined : this.sessions.list.getSnapshot().byId[current]
     const target = workspaceId ?? currentWorkspaceId ?? workspace.recentWorkspaceId
     if (target === undefined) {
       this.sessions.clear()
       return
     }
-    const connection = currentSummary?.blank === true && currentWorkspaceId === target
-      ? this.sessions.create({ workspaceId: target })
-      : this.connectWorkspace(target)
-    void connection.then(
+    void this.connectWorkspace(target).then(
       (sessionId) => { this.sessions.open(sessionId) },
       (reason: unknown) => { console.warn('new session failed:', reason) },
     )

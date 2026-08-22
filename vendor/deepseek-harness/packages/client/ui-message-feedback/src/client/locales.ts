@@ -7,6 +7,7 @@ export const zh = {
   'action.dislike': '有问题的回答',
   'action.dislikeActive': '取消标记',
   'note.open': '补充说明',
+  'note.dialog': '反馈',
   'note.placeholder': '这条回答哪里好，或哪里有问题？（可选）',
   'note.save': '保存',
   'note.cancel': '取消',
@@ -33,6 +34,7 @@ export const en = {
   'action.dislike': 'Bad response',
   'action.dislikeActive': 'Remove rating',
   'note.open': 'Add a note',
+  'note.dialog': 'Feedback',
   'note.placeholder': 'What was good, or what went wrong? (optional)',
   'note.save': 'Save',
   'note.cancel': 'Cancel',
@@ -40,20 +42,4 @@ export const en = {
   'error.conflict': 'This feedback changed elsewhere; the latest state is shown',
   'error.load': 'Could not load feedback',
   'error.generic': 'Could not save feedback',
-} satisfies Record<MessageFeedbackKey, string>
-
-/** Spanish dictionary, checked complete against the key set. */
-export const es = {
-  'action.like': 'Buena respuesta',
-  'action.likeActive': 'Quitar valoración',
-  'action.dislike': 'Mala respuesta',
-  'action.dislikeActive': 'Quitar valoración',
-  'note.open': 'Agregar una nota',
-  'note.placeholder': '¿Qué estuvo bien o qué salió mal? (opcional)',
-  'note.save': 'Guardar',
-  'note.cancel': 'Cancelar',
-  'note.aria': 'Nota de feedback',
-  'error.conflict': 'Este feedback cambió en otro lugar; se muestra el estado más reciente',
-  'error.load': 'No se pudo cargar el feedback',
-  'error.generic': 'No se pudo guardar el feedback',
 } satisfies Record<MessageFeedbackKey, string>

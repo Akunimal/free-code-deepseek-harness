@@ -17,7 +17,7 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { MessageFeedbackController } from './controller.ts'
 import { MessageFeedbackActions } from './MessageFeedbackActions.tsx'
 import type { MessageFeedbackInjected } from './slots.ts'
-import { en, es, zh } from './locales.ts'
+import { en, zh } from './locales.ts'
 
 export type {
   MessageFeedbackActionResult, MessageFeedbackStatus, MessageFeedbackView, MessageFeedbackRemote,
@@ -37,7 +37,7 @@ export const inject = ['slots', 'remote', 'remote.messageFeedback', 'locale']
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
-  ctx.effect(() => ctx.locale.register(NS, { zh, en, es }), 'ui-message-feedback: dictionaries')
+  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-message-feedback: dictionaries')
 
   const controllers = new Map<SessionId, MessageFeedbackController>()
   const controllerFor = (sessionId: SessionId): MessageFeedbackController => {

@@ -29,6 +29,7 @@ export interface IpcDeps {
     enable(on: boolean): Promise<void>;
     isEnabled(): boolean;
   };
+  reportModelRefreshFailure?: (error: unknown) => void;
 }
 
 export function registerIpc(deps: IpcDeps): () => void {
@@ -47,17 +48,22 @@ export function registerIpc(deps: IpcDeps): () => void {
 
   // models:refresh (invoke)
   ipcMain.handle(IpcChannels.modelsRefresh, async () => {
-    const catalog = await refreshModels({
-      lbBaseUrl,
-      homeDir,
-      userDataDir,
-      authHeader: 'Bearer public',
-    });
-    const parsed = ModelCatalogSchema.parse(catalog);
-    for (const win of BrowserWindow.getAllWindows()) {
-      win.webContents.send(IpcChannels.modelsCatalog, parsed);
+    try {
+      const catalog = await refreshModels({
+        lbBaseUrl,
+        homeDir,
+        userDataDir,
+        authHeader: 'Bearer public',
+      });
+      const parsed = ModelCatalogSchema.parse(catalog);
+      for (const win of BrowserWindow.getAllWindows()) {
+        win.webContents.send(IpcChannels.modelsCatalog, parsed);
+      }
+      return parsed;
+    } catch (error) {
+      deps.reportModelRefreshFailure?.(error);
+      throw error;
     }
-    return parsed;
   });
 
   // omniroute:detect (invoke)

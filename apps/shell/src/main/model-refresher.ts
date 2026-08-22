@@ -19,7 +19,20 @@ export interface CatalogModel {
 
 export interface ModelCatalog {
   refreshedAt: number;
+  availability?: 'ready' | 'degraded';
   providers: Record<string, { models: CatalogModel[] }>;
+}
+
+export type ModelRefreshFailureCode = 'CATALOG_UNAVAILABLE';
+
+export class ModelRefreshError extends Error {
+  readonly code: ModelRefreshFailureCode;
+
+  constructor(code: ModelRefreshFailureCode, message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'ModelRefreshError';
+    this.code = code;
+  }
 }
 
 export interface RefresherConfig {
@@ -39,13 +52,19 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
   const authHeader = cfg.authHeader;
 
   // 1. List models through the LB.
-  const modelsRes = await fetch(`${cfg.lbBaseUrl}/v1/models`, {
-    headers: authHeader ? { Authorization: authHeader } : {},
-    signal: AbortSignal.timeout(timeoutMs),
-  });
-  if (!modelsRes.ok) throw new Error(`models list failed: ${modelsRes.status}`);
+  let modelsRes: Response;
+  try {
+    modelsRes = await fetch(`${cfg.lbBaseUrl}/v1/models`, {
+      headers: authHeader ? { Authorization: authHeader } : {},
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (error) {
+    throw new ModelRefreshError('CATALOG_UNAVAILABLE', 'models catalog request failed', { cause: error });
+  }
+  if (!modelsRes.ok) throw new ModelRefreshError('CATALOG_UNAVAILABLE', `models list failed: ${modelsRes.status}`);
   const modelsBody = (await modelsRes.json()) as { data: { id: string }[] };
   const ids: string[] = (modelsBody.data ?? []).map((m) => m.id);
+  if (ids.length === 0) throw new ModelRefreshError('CATALOG_UNAVAILABLE', 'models catalog returned no models');
 
   // 2. Probe each model in parallel (bounded by timeout).
   const entries: CatalogModel[] = await Promise.all(
@@ -81,6 +100,7 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
   // 3. Persist catalog (all models, responders + non-responders).
   const catalog: ModelCatalog = {
     refreshedAt: Math.floor(Date.now() / 1000),
+    availability: entries.some((model) => model.responds) ? 'ready' : 'degraded',
     providers: { 'deepseek-free': { models: entries } },
   };
   const catalogPath = join(cfg.userDataDir, CATALOG_FILE);
@@ -105,9 +125,13 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
     defaultInput: ['text'],
     models: [],
   });
-  free.models = responders.map((m) => {
-    return { id: m.id, reasoningEfforts: reasoningEffortsForModel(m.id) };
-  });
+  // A live catalog with zero responding probes is a degraded upstream, not a
+  // reason to erase the last known-good automatic model selection.
+  if (responders.length > 0) {
+    free.models = responders.map((m) => {
+      return { id: m.id, reasoningEfforts: reasoningEffortsForModel(m.id) };
+    });
+  }
   writeSettings(settingsPath, settings);
 
   cfg.onUpdate?.(catalog);

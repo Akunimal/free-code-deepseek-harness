@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 import { createLanguageRowStore } from '../src/client/settings-store.ts'
 
-const OPTIONS = [{ id: 'zh', label: '中文' }, { id: 'en', label: 'English' }, { id: 'es', label: 'Español' }]
+const OPTIONS = [{ id: 'zh', label: '中文' }, { id: 'en', label: 'English' }]
 
 describe('createLanguageRowStore', () => {
   it('init shape: empty mirror with revision at -1', () => {

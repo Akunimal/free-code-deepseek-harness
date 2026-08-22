@@ -36,7 +36,7 @@ import type { InputTriggerServiceContract, InputTriggerSource } from '@deepseek-
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { SkillRow } from './SkillRow.tsx'
-import { en, es, NS, zh, type SkillKey } from './locales.ts'
+import { en, NS, zh, type SkillKey } from './locales.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
@@ -61,7 +61,7 @@ export const inject = ['inputTriggers', 'connection', 'sessions', 'slots', 'loca
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
-  ctx.effect(() => ctx.locale.register(NS, { zh, en, es }), 'ui-skill: dictionaries')
+  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-skill: dictionaries')
   ctx.slots.inject('tool.call.toolview', () => ctx.slots.register(
     { name: 'tool.call.toolview', key: 'skill', locale: NS },
     SkillRow,

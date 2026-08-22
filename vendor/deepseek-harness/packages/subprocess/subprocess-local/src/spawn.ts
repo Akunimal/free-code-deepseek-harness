@@ -52,8 +52,6 @@ export interface SpawnInternals {
   spillDir?: string
   /** Windows tree-termination runner (defaults to `taskkill /PID <pid> /T /F`). */
   taskkill?: (pid: number) => void
-  /** Test-only child-process factory used to inspect platform spawn options. */
-  spawn?: typeof spawn
   /** Host platform override for signalling decisions. */
   platform?: NodeJS.Platform
   /** Linux process-group member probe (defaults to `/proc` inspection). */
@@ -352,8 +350,7 @@ export function spawnSubprocess(spec: SubprocessSpawnSpec, internals: SpawnInter
   const stdinMode = spec.stdio.stdin
 
   const env = childEnv(spec.env)
-  const spawnProcess = internals.spawn ?? spawn
-  const child = spawnProcess(program, args, {
+  const child = spawn(program, args, {
     cwd: spec.cwd,
     env,
     stdio: [

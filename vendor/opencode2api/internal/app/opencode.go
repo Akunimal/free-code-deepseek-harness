@@ -91,6 +91,29 @@ var (
 	modelsLoaded  bool
 )
 
+// fallbackFreeModels keeps local clients discoverable during a transient
+// Tor/upstream outage. The live catalog still wins whenever fetchModels or the
+// ten-minute refresh succeeds; these IDs are only the known public free models
+// used by the Harness aliases.
+func fallbackFreeModels() []ModelInfo {
+	now := time.Now().Unix()
+	ids := []string{
+		"deepseek-v4-flash-free",
+		"x-preview-f-free",
+		"muse-spark-1.2-contributor-free",
+		"mimo-v2.5-free",
+		"hy3-free",
+		"nemotron-3-ultra-free",
+		"nemotron-3.5-lightning-free",
+		"laguna-s-2.1-free",
+	}
+	models := make([]ModelInfo, 0, len(ids))
+	for _, id := range ids {
+		models = append(models, ModelInfo{ID: id, Object: "model", Created: now, OwnedBy: "opencode-fallback"})
+	}
+	return models
+}
+
 func fetchModels() ([]ModelInfo, error) {
 	req, _ := http.NewRequest("GET", "https://opencode.ai/zen/v1/models", nil)
 	req.Header.Set("Authorization", "Bearer public")

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, rmSync, existsSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { HarnessSupervisor } from '../src/main/harness-supervisor.js';
+import { DSH_WEB_ARGS, HarnessSupervisor } from '../src/main/harness-supervisor.js';
 
 /**
  * C5 — supervisor smoke: spawn the real dsh CLI (if built), grab the
@@ -36,6 +36,10 @@ describe('HarnessSupervisor (C5)', { skip: !built() }, () => {
     } catch {
       /* best effort */
     }
+  });
+
+  it('keeps the child web runtime headless', () => {
+    expect(DSH_WEB_ARGS).toContain('--no-open');
   });
 
   it('spawns dsh web, grabs readiness URL, shuts down', async () => {

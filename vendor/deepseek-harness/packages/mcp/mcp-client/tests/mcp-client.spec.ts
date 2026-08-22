@@ -73,6 +73,7 @@ const IMAGE_LIMITS: ImageAttachmentLimits = {
   maxImagesPerMessage: 4,
   maxMessageImageBytes: 2048,
   maxImagePixels: 1024,
+  maxImageDimension: 2000,
   mediaTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
 }
 
@@ -88,13 +89,14 @@ class RecordingAttachmentStore extends AttachmentStore {
   saveImage(input: SaveImageAttachment): Promise<ImageAttachmentRef> {
     this.saved.push(input)
     const marker = input.data[0] ?? 0
-    return Promise.resolve({
+    const ref: ImageAttachmentRef = {
       attachmentId: AttachmentId(`sha256:${marker.toString(16).padStart(64, '0')}`),
       mediaType: input.mediaType,
       bytes: input.data.byteLength,
       width: 1,
       height: 1,
-    })
+    }
+    return Promise.resolve(ref)
   }
 
   readImage(_ref: ImageAttachmentRef): Promise<StoredImageAttachment> {

@@ -12,17 +12,15 @@ The existing visual-only menu row also left deletion semantics undefined across 
 
 ## Decision
 
-`ctx.workspaceRegistry.delete(id)` deletes only the Workspace registration: its id leaves durable `workspaceIds`, its `workspaces` table row and entity-cache entry disappear, and its ordered `sessionIds` account disappears with that row. Before the table deletion, every currently accounted Session id is added to the registry-global archive set. It never calls filesystem removal or `SessionPersistence`; the directory, every user file, every live Session, and every persisted Session log remain. Archived Sessions are hidden from grouping surfaces, so deleting a Workspace cannot leave its Sessions as Ungrouped rows.
+`ctx.workspaceRegistry.delete(id)` deletes only the Workspace registration: its id leaves durable `workspaceIds`, its `workspaces` table row and entity-cache entry disappear, and its ordered `sessionIds` account disappears with that row. It never calls filesystem removal or `SessionPersistence`; the directory, every user file, every live Session, and every persisted Session log remain. Because sidebar grouping is the complement of all surviving Workspace accounts, those Sessions immediately appear under Ungrouped, including the current Session.
 
 Unknown ids return `false` at the domain contract. `workspace.delete({ workspaceId })` maps that distinction to `workspace-not-found`; success returns `{ deleted: true }`. `workspace.list` remains the reconnect baseline.
 
 ## Durable commit and publication
 
-Registry operations serialize create and delete. Deletion first writes the Workspace order without the id and the updated archive set, then removes the entity from the cache, then deletes the table row. The table deletion is the notification commit point: the package invariant accepts it only after the cache stopped publishing the entity, and the Host emits `host/workspace-removed` only from that committed deletion. A table-write failure restores the cache, prior durable order, and prior archive set; no removal frame is published.
+Registry operations serialize create and delete. Deletion first writes the Workspace order without the id, then removes the entity from the cache, then deletes the table row. The table deletion is the notification commit point: the package invariant accepts it only after the cache stopped publishing the entity, and the Host emits `host/workspace-removed` only from that committed deletion. A table-write failure restores the cache and prior durable order; no removal frame is published.
 
 The Host stream keeps its committed-id set through the preceding global-order write and removes the id only on the table deletion. Create rollback therefore emits no false removal, while every connected tab receives exactly the id needed to delete its projection.
-
-The Host also suppresses the staged archive-set frame while a delete pending marker is present. The archive frame is emitted only after the table deletion has committed; a failed row write therefore cannot transiently hide Sessions in another tab.
 
 Create and delete write a durable `pendingMutation` before their record/order pair can diverge. Startup completes only the operation named by that marker and clears it; an orphan row alone does not identify which operation was interrupted. Unmarked order/table divergence therefore retains the registry's fail-loud corruption behavior. A deletion whose table write committed but marker cleanup failed still reports success—the requested state and removal frame are already committed—and the next startup clears that marker idempotently.
 
@@ -34,15 +32,13 @@ The delete confirmation remains pending until the React Workspace projection has
 
 ## Confirmation interaction
 
-The existing Workspace row menu opens a shared `Modal` before deletion. The text states all three consequences: the Workspace leaves the list, the folder and session logs remain, and its Sessions are archived rather than shown under Ungrouped. While the request is pending, the confirm and Cancel controls are disabled, duplicate confirmation is ignored, and Escape or Close cannot dismiss the operation. Failure keeps the Modal open with the error; Cancel, Escape, and Close before submission never delete.
+The existing Workspace row menu opens a shared `Modal` before deletion. The text states all three consequences: the Workspace leaves the list, the folder and session logs remain, and its Sessions appear under Ungrouped. While the request is pending, the confirm and Cancel controls are disabled, duplicate confirmation is ignored, and Escape or Close cannot dismiss the operation. Failure keeps the Modal open with the error; Cancel, Escape, and Close before submission never delete.
 
 The menu, Modal, and buttons retain their existing structure and design tokens. Session deletion remains visual-only and outside this decision.
 
 ## Alternatives considered
 
-**Cascade-delete Sessions.** Rejected because Workspace registration does not own Session persistence. Archive preserves histories without making Workspace deletion destructive; Session deletion needs its own lifecycle, running checks, descendant semantics, and explicit UI.
-
-**Leave Sessions under Ungrouped.** Rejected because deleting a Workspace would leave the user with the same histories as orphan rows and no owning Workspace. The existing registry-global archive set hides them consistently across tabs while preserving the logs for a future unarchive surface.
+**Cascade-delete Sessions.** Rejected because Workspace registration does not own Session persistence and the product requirement is to preserve histories under Ungrouped. Session deletion needs its own lifecycle, running checks, descendant semantics, and explicit UI.
 
 **Move the folder to Trash.** Rejected because the record cannot prove directory ownership. A future destructive filesystem action must be separately named, separately confirmed, and enforce explicit safety boundaries.
 
@@ -54,10 +50,10 @@ The menu, Modal, and buttons retain their existing structure and design tokens. 
 
 ## Verification
 
-Workspace package tests pin successful registration deletion with session archiving, same-path re-registration, unknown-id idempotence, table-failure rollback of the archive set, explicit-marker restart recovery, unexplained-corruption rejection, and cache/table invariant behavior. Apiproxy and carrier tests pin the schema, handler, `workspace-not-found`, retained Session/folder, archived-session frame, fresh-id re-registration, and committed `host/workspace-removed` frame. Client tests pin unary direct echo, duplicate removal, late changed frames, and deletion racing an in-flight baseline. Component tests pin confirmation, projection-settled closing, success-frame-before-unary ordering, failure, Cancel, Escape, and Close. The browser scenario observes every transient alert, slot error, console error, and page error while reusing a deleted title for a different directory.
+Workspace package tests pin successful metadata-only deletion, same-path re-registration, unknown-id idempotence, table-failure rollback, explicit-marker restart recovery, unexplained-corruption rejection, and cache/table invariant behavior. Apiproxy and carrier tests pin the schema, handler, `workspace-not-found`, retained Session/folder, fresh-id re-registration, and committed `host/workspace-removed` frame. Client tests pin unary direct echo, duplicate removal, late changed frames, and deletion racing an in-flight baseline. Component tests pin confirmation, projection-settled closing, success-frame-before-unary ordering, failure, Cancel, Escape, and Close. The browser scenario observes every transient alert, slot error, console error, and page error while reusing a deleted title for a different directory.
 
-The assembled keyless Web scenario registers an existing temporary project directory, accounts a persisted Session, makes that Session current, confirms deletion in Chromium, and verifies the Workspace group disappears while the archived Session does not appear under Ungrouped. It checks the user file and JSONL log before and after deletion and repeats the UI, directory, archive-set, and log assertions after reload.
+The assembled keyless Web scenario registers an existing temporary project directory, accounts a persisted Session, makes that Session current, confirms deletion in Chromium, and verifies the Workspace group disappears while Ungrouped retains the current Session. It checks the user file and JSONL log before and after deletion and repeats the UI, directory, and log assertions after reload.
 
 ## Consequences
 
-Deleting a Workspace is intentionally non-destructive for directories and Session logs, and reversible at the registration level by registering the same directory again with a fresh id. Its prior manual Session order is gone, and its old Sessions remain archived rather than being automatically re-adopted after bootstrap. A future unarchive surface can restore those histories; until then, deletion gives up one-click cleanup in exchange for a deletion boundary that matches what the record actually owns.
+Deleting a Workspace is intentionally reversible by registering the same directory again with a fresh id, although its prior manual Session order is gone; re-registration does not automatically re-adopt existing Sessions after bootstrap. The operation gives up a one-click cleanup of Session histories or source directories in exchange for a deletion boundary that matches what the record actually owns.

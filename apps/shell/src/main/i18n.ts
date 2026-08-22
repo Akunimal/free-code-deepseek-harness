@@ -18,6 +18,25 @@ const strings = {
 
   // Notifications
   'notify.ready.title': { es: 'Harness listo', en: 'Harness ready' },
+  'status.catalog.down.title': { es: 'Catálogo de modelos no disponible', en: 'Model catalog unavailable' },
+  'status.catalog.down.message': {
+    es: 'No se pudo consultar el catálogo. Se conserva la última selección válida y se reintentará automáticamente.',
+    en: 'The catalog could not be reached. The last valid selection is preserved and a retry is scheduled.',
+  },
+  'status.catalog.degraded.title': { es: 'Catálogo de modelos degradado', en: 'Model catalog degraded' },
+  'status.catalog.degraded.message': {
+    es: 'El catálogo respondió, pero ningún modelo pasó la prueba. No se borró la configuración anterior.',
+    en: 'The catalog responded, but no model passed the probe. The previous configuration was kept.',
+  },
+  'status.catalog.ready.title': { es: 'Catálogo de modelos recuperado', en: 'Model catalog recovered' },
+  'status.catalog.ready.message': { es: 'La detección automática de modelos volvió a funcionar.', en: 'Automatic model discovery is working again.' },
+  'status.pool.down.title': { es: 'Pool opencode2api no disponible', en: 'opencode2api pool unavailable' },
+  'status.pool.down.message': {
+    es: 'No hay workers opencode2api listos. El problema es del puente local, no de la API key.',
+    en: 'No opencode2api workers are ready. This is a local bridge problem, not an API-key problem.',
+  },
+  'status.pool.ready.title': { es: 'Pool opencode2api recuperado', en: 'opencode2api pool recovered' },
+  'status.pool.ready.message': { es: 'Hay workers listos nuevamente.', en: 'Ready workers are available again.' },
 
   // Update dialogs
   'update.available.title': { es: 'Actualización disponible', en: 'Update available' },
@@ -34,9 +53,24 @@ const strings = {
     en: 'The application will download the release and restart to install it.',
   },
   'update.download': { es: 'Descargar e instalar', en: 'Download and install' },
+  'update.downloadHarness': { es: 'Actualizar solo Harness', en: 'Update Harness only' },
   'update.notNow': { es: 'Ahora no', en: 'Not now' },
   'update.failed.title': { es: 'No se pudo actualizar', en: 'Update failed' },
   'update.failed.message': { es: 'La descarga falló.', en: 'Download failed.' },
+  'update.harnessAvailable.title': { es: 'Actualización del Harness disponible', en: 'Harness update available' },
+  'update.harnessAvailable.message': {
+    es: 'El runtime DeepSeek Harness $1 está disponible.',
+    en: 'DeepSeek Harness runtime $1 is available.',
+  },
+  'update.harnessAvailable.detail': {
+    es: 'Se reemplazará solo el runtime del Harness y se reiniciará ese proceso. La aplicación, el pool opencode2api, Tor y tus datos quedan intactos.',
+    en: 'Only the Harness runtime will be replaced and that process will restart. The app, opencode2api pool, Tor, and your data stay intact.',
+  },
+  'update.harnessComplete.title': { es: 'Harness actualizado', en: 'Harness updated' },
+  'update.harnessComplete.message': {
+    es: 'El runtime del Harness se actualizó sin reemplazar la aplicación ni el pool.',
+    en: 'The Harness runtime was updated without replacing the app or the pool.',
+  },
 
   'update.upstream.title': { es: 'Harness original actualizado', en: 'Original harness updated' },
   'update.upstream.message': {
@@ -44,10 +78,10 @@ const strings = {
     en: 'There is a new commit from deepseek-ai/deepseek-harness.',
   },
   'update.upstream.detail': {
-    es: 'En este checkout local se puede sincronizar la subtree, ejecutar los tests y recompilar el escritorio automáticamente. El árbol debe estar limpio.',
-    en: 'In this local checkout you can synchronize the subtree, run the tests and rebuild the desktop automatically. The working tree must be clean.',
+    es: 'En este checkout local se puede sincronizar la subtree y recompilar solo el runtime del Harness. El shell, opencode2api y Tor quedan intactos. El árbol debe estar limpio.',
+    en: 'In this local checkout you can synchronize the subtree and rebuild only the Harness runtime. The shell, opencode2api, and Tor stay intact. The working tree must be clean.',
   },
-  'update.upstream.action': { es: 'Actualizar y recompilar', en: 'Update and rebuild' },
+  'update.upstream.action': { es: 'Actualizar Harness', en: 'Update Harness' },
 
   'update.upstreamOnly.title': { es: 'Upstream tiene cambios nuevos', en: 'Upstream has new changes' },
   'update.upstreamOnly.message': {
@@ -67,12 +101,16 @@ const strings = {
     es: 'No se pudo consultar upstream: $1',
     en: 'Could not check upstream: $1',
   },
+  'update.harnessCheckError': {
+    es: 'No se pudo consultar el runtime del Harness: $1',
+    en: 'Could not check the Harness runtime: $1',
+  },
 
   'update.localFailed.title': { es: 'No se pudo actualizar upstream', en: 'Could not update upstream' },
   'update.localComplete.title': { es: 'Actualización completa', en: 'Update complete' },
   'update.localComplete.message': {
-    es: 'Upstream se sincronizó y el build de escritorio terminó correctamente. Reiniciá el checkout de desarrollo para probarlo.',
-    en: 'Upstream was synchronized and the desktop build completed successfully. Restart the development checkout to test it.',
+    es: 'Upstream se sincronizó y el runtime del Harness terminó correctamente. El shell y opencode2api no fueron reemplazados; reiniciá el checkout de desarrollo para probarlo.',
+    en: 'Upstream was synchronized and the Harness runtime rebuilt successfully. The shell and opencode2api were not replaced; restart the development checkout to test it.',
   },
   'update.localIncomplete.title': { es: 'Actualización incompleta', en: 'Incomplete update' },
   'update.localIncomplete.message': {

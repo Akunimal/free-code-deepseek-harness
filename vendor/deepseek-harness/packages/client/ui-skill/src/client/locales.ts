@@ -23,12 +23,3 @@ export const en = {
   'row.instructions': 'Instructions',
   'menu.userOnly': 'user-only',
 } satisfies Record<SkillKey, string>
-
-/** Spanish dictionary, checked complete against the key set. */
-export const es = {
-  'row.running': 'Cargando habilidad',
-  'row.failed': 'Falló la carga de la habilidad',
-  'row.stopped': 'Se detuvo la carga de la habilidad',
-  'row.instructions': 'Instrucciones',
-  'menu.userOnly': 'solo usuario',
-} satisfies Record<SkillKey, string>

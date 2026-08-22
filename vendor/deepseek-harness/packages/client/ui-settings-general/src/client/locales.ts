@@ -22,13 +22,3 @@ export const en = {
   'openDocument.error': 'Could not open configuration file',
   'general.nav': 'General',
 } satisfies Record<SettingsKey, string>
-
-/** Spanish dictionary, checked complete against the key set. */
-export const es = {
-  'trigger': 'Configuración',
-  'title': 'Configuración',
-  'close': 'Cerrar',
-  'openDocument': 'Abrir archivo de configuración',
-  'openDocument.error': 'No se pudo abrir el archivo de configuración',
-  'general.nav': 'General',
-} satisfies Record<SettingsKey, string>

@@ -124,7 +124,13 @@ rm -rf "$OUT/dsh" "$OUT/opencode2api"
 cp -a "$STAGE" "$OUT/dsh"
 cp -a "$ROOT/apps/shell/resources/opencode2api" "$OUT/opencode2api"
 
-UPSTREAM_COMMIT="$(git log --all --format='%b' --grep='git-subtree-dir: vendor/deepseek-harness' | sed -n 's/^git-subtree-split: //p' | head -n 1)"
+UPSTREAM_COMMIT=""
+if [[ -f "$VENDOR/.upstream-commit" ]]; then
+  UPSTREAM_COMMIT="$(tr -d '[:space:]' < "$VENDOR/.upstream-commit")"
+fi
+if [[ -z "$UPSTREAM_COMMIT" ]]; then
+  UPSTREAM_COMMIT="$(git log --all --format='%b' --grep='git-subtree-dir: vendor/deepseek-harness' | sed -n 's/^git-subtree-split: //p' | head -n 1)"
+fi
 node -e "const fs=require('node:fs'); const p=process.argv[1]; const j={version:require(process.argv[2]).version, source:'deepseek-ai/deepseek-harness', upstreamCommit:process.argv[3]||null, cli:'dsh/apps/cli/lib/bin.js', install:'complete-workspace'}; fs.writeFileSync(p, JSON.stringify(j,null,2)+'\n')" "$OUT/runtime-manifest.json" "$VENDOR/package.json" "$UPSTREAM_COMMIT"
 
 echo "package-runtime: ready at $OUT"

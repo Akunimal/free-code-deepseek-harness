@@ -159,7 +159,7 @@ export function ConversationRoot({
   const composerBar = (
     <div className={clsx(css.composerStack, hero && css.composerHero)}>
       {hero && <HeroGlow className={css.heroGlow} />}
-      {hero && <HeroShell t={t} />}
+      {hero && <HeroShell t={t} renderSlot={renderSlot} />}
       {hero && heroWorkspaceRow}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
       {inputBar}
@@ -185,11 +185,6 @@ export function ConversationRoot({
 
   return (
     <div className={css.root} data-phase={phase}>
-      <div
-        className={css.motionBackground}
-        data-conversation-motion="css"
-        aria-hidden="true"
-      />
       {renderSlot('conversation.session.header', {})}
       <div className={css.scrollBody} data-conversation-scroll="">
         {renderSlot('conversation.session', {})}

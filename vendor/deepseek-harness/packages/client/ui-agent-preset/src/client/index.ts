@@ -31,7 +31,7 @@ import type { AgentPresetSectionInjected } from './AgentPresetSection.tsx'
 import { AgentPresetSeatController } from './seat-store.ts'
 import type { SeatSessionSummary } from './seat-store.ts'
 import { AgentPresetSectionController } from './section-store.ts'
-import { en, es, zh } from './locales.ts'
+import { en, zh } from './locales.ts'
 import { AGENT_PRESET_SETTINGS_NS, AgentPresetSettingsController } from './settings-store.ts'
 
 export type { AgentPresetLabelInjected, AgentPresetLabelProps } from './AgentPresetLabel.tsx'
@@ -46,7 +46,7 @@ export type { AgentPresetOption, AgentPresetSettingsState } from './settings-sto
 export { AGENT_PRESET_SETTINGS_NS, writeDefaultPreset } from './settings-store.ts'
 
 /** Required services (cordis fiber inject). */
-export const inject = ['slots', 'locale', 'connection', 'remote']
+export const inject = ['slots', 'locale', 'connection', 'remote', 'settingsScope']
 
 /**
  * Mount the General-settings row.
@@ -54,7 +54,7 @@ export const inject = ['slots', 'locale', 'connection', 'remote']
  */
 export function apply(ctx: ClientContext): void {
   const { api } = ctx.get('connection') as ConnectionHandle
-  const controller = new AgentPresetSettingsController(api)
+  const controller = new AgentPresetSettingsController(api, ctx.settingsScope.describe())
   // One roster, four surfaces. The chip is registered in a later scope, so it
   // subscribes here rather than being reached from this one.
   const rosterReaders = new Set<() => void>()
@@ -63,7 +63,7 @@ export function apply(ctx: ClientContext): void {
     for (const read of rosterReaders) read()
   })
 
-  ctx.effect(() => ctx.locale.register('settings.agentPreset', { zh, en, es }), 'ui-agent-preset: settings row dictionaries')
+  ctx.effect(() => ctx.locale.register('settings.agentPreset', { zh, en }), 'ui-agent-preset: settings row dictionaries')
 
   const injected = (): AgentPresetRowInjected => ({
     hooks: { agentPreset: controller.store },

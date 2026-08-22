@@ -4,7 +4,7 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import { PluginInventorySettingsTab, type PluginInventorySettingsTabInjected } from './PluginInventorySettingsTab.tsx'
-import { en, es, zh, type PluginInventoryLocaleKey } from './locales.ts'
+import { en, zh, type PluginInventoryLocaleKey } from './locales.ts'
 
 export type { PluginInventorySettingsTabInjected, PluginInventorySettingsTabProps } from './PluginInventorySettingsTab.tsx'
 export type { PluginInventoryLocaleKey } from './locales.ts'
@@ -24,7 +24,7 @@ export const inject = ['slots', 'locale', 'remote', 'remote.pluginInventory']
 
 /** Contribute the lazy inventory tab to the Plugins settings section. */
 export function apply(ctx: ClientContext): void {
-  ctx.effect(() => ctx.locale.register(NS, { zh, en, es }), 'ui-settings-plugin-inventory: dictionaries')
+  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-settings-plugin-inventory: dictionaries')
 
   const t = ctx.locale.bind(NS)
   const list: PluginInventorySettingsTabInjected['list'] = async () => {

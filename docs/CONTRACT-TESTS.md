@@ -25,7 +25,7 @@ pnpm test:contract
 
 Tests that require a built upstream CLI are skipped in a bare checkout and become active after `pnpm build:vendor`. The release workflow always builds the vendor first.
 
-The shell suite adds supervisor smoke, provider seeding, model refresh, OmniRoute discovery, secret storage, resource layout, updater behavior, and bounded log rotation tests.
+The shell suite adds supervisor smoke, provider seeding, model refresh, compatible-local-route discovery, secret storage, resource layout, updater behavior, and bounded log rotation tests.
 
 ## GitHub execution gate
 

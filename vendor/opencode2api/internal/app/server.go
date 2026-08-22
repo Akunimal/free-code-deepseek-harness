@@ -16,6 +16,7 @@ import (
 
 func Run() {
 	var showVersion bool
+	flag.StringVar(&host, "host", "127.0.0.1", "地址 de escucha")
 	flag.StringVar(&port, "port", "8000", "服务端口")
 	flag.StringVar(&configPath, "config", "config.json", "配置文件路径")
 	flag.StringVar(&adminPassword, "password", "123456", "管理面板密码（留空则不启用登录验证）")
@@ -51,6 +52,12 @@ func Run() {
 	models, err := fetchModels()
 	if err != nil {
 		slog.Warn("failed to fetch models on startup", "error", err)
+		models = fallbackFreeModels()
+		modelMu.Lock()
+		modelsCache = models
+		modelsLoaded = true
+		modelMu.Unlock()
+		slog.Warn("using fallback free model catalog", "count", len(models))
 	} else {
 		modelMu.Lock()
 		modelsCache = models
@@ -103,7 +110,7 @@ func Run() {
 		http.NotFound(w, r)
 	}))
 
-	addr := ":" + port
+	addr := host + ":" + port
 	server := &http.Server{Addr: addr, Handler: mux}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

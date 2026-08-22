@@ -207,6 +207,9 @@ export class HarnessClient {
       cwd: this.options.cwd,
       env: this.options.env ?? process.env,
       stdio: ['pipe', 'pipe', 'pipe'],
+      // SDK-managed runtimes are tool-side children too; keep their console
+      // hidden on Windows just like the dsh-subprocess service does.
+      windowsHide: process.platform === 'win32',
     })
     this.child = child
     child.once('error', (error) => {

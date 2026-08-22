@@ -12,6 +12,7 @@ import (
 // ======================== 配置 ========================
 
 var (
+	host                 = "127.0.0.1"
 	port                 string
 	configPath           = "config.json"
 	modelAlias           = map[string]string{}

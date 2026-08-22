@@ -160,4 +160,21 @@ describe('model-refresher', () => {
     ).rejects.toThrow(/models list failed/);
     rmSync(dirname(home), { recursive: true, force: true });
   });
+
+  it('keeps the last known-good settings when every catalog probe is degraded', async () => {
+    const { home, data } = tmpDirs();
+    const { mkdirSync, writeFileSync } = await import('node:fs');
+    mkdirSync(home, { recursive: true });
+    writeFileSync(
+      join(home, 'settings.yaml'),
+      `llm-pi-ai:\n  providers:\n    deepseek-free:\n      models:\n        - id: last-known-good\n`,
+    );
+    mockFetchWithModels(['x-preview-f', 'deepseek-v3.2-free'], []);
+
+    const catalog = await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
+    expect(catalog.availability).toBe('degraded');
+    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+    expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([{ id: 'last-known-good' }]);
+    rmSync(dirname(home), { recursive: true, force: true });
+  });
 });

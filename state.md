@@ -1,8 +1,28 @@
 # Estado de traspaso — FreeCode DeepSeek Harness
 
+## Hotfix final de Electron/Windows — 2026-08-22
+
+La captura `write EOF` provenía del proceso principal de Electron: en una GUI empaquetada, `stdout/stderr` puede cerrarse mientras el supervisor volcaba la salida del hijo DSH. El supervisor ahora trata esos diagnósticos como best-effort y el proceso principal absorbe cualquier error de sus pipes de consola; los logs estructurados siguen siendo la fuente diagnóstica. El runtime web hijo recibe `--no-open`, por lo que la app no debe abrir Mozilla/Firefox además de su ventana Electron.
+
+Verificación final: `pnpm --filter @freecode/shell build` OK; smoke del supervisor **2/2** OK; `git diff --check` OK; setup local 0.1.7 reconstruido con `--publish never`; instalación silenciosa ` /S ` terminó con `installer_exit_code=0`; ejecutable instalado en `%LOCALAPPDATA%\Programs\FreeCode\FreeCode DeepSeek Harness.exe` con versión `0.1.7.0`; el `app.asar` instalado contiene ambos parches. No quedó instalador, desinstalador ni app ejecutándose. Falta sólo la prueba manual del usuario.
+
+## Actualización upstream y updater Harness-only — 2026-08-22
+
+El vendored `vendor/deepseek-harness` quedó sincronizado con upstream `deepseek-ai/deepseek-harness` en `0.1.1-rc.2`, commit `b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`. Se conservó la integración del fork para Windows/headless y la normalización de `reasoning_effort` para modelos que no declaran razonamiento.
+
+El menú de actualización ahora prioriza el asset compatible del runtime del Harness. Si existe una versión nueva, descarga `deepseek-harness-runtime-<version>-<os>-<arch>.tar.gz`, verifica el digest SHA-256 cuando GitHub lo publica, valida el CLI, detiene y reinicia únicamente `dsh`, y hace un reemplazo atómico con rollback. La aplicación, el pool opencode2api, Tor y los datos no se actualizan por esa ruta.
+
+El catálogo de modelos conserva la última selección válida cuando todos los probes fallan, reintenta con backoff y notifica por separado `catalog` y `pool` cuando quedan degradados o caídos. La recuperación de `-free` de opencode2api continúa activa para evitar convertir una caída transitoria del catálogo en un falso `API key is invalid`.
+
+El build local genera también el asset del updater junto a los instaladores y su archivo `.sha256`; no se ejecutaron workflows ni se publicó remotamente.
+
+Verificación de esta actualización: build upstream completo OK; pruebas focalizadas del upstream **133/133**; shell **33/33**; opencode-adapter **10/10**; smoke real del CLI web OK; typecheck del shell OK. `runtime-manifest.json` registra `0.1.1-rc.2` y `b150a551b8d465e31e418e1b2eaf5e79bbb7d28e`; el setup/portable 0.1.7 y el asset Harness-only fueron recompilados localmente.
+
+La información histórica debajo de esta sección conserva el diagnóstico anterior del instalador, TorFleet y modelos; cuando difiere, esta sección es la fuente actual.
+
 Fecha: **2026-08-22**
 Workspace: `I:\DeepSeek-Harness\free-code-deepseek-harness`
-Rama: `main` (`369e588c5f`, alineada con `origin/main`)
+Rama: `main` (la actualización documental y funcional pendiente se documenta en este commit)
 
 ## Estado actual verificado
 
@@ -14,7 +34,9 @@ El arreglo del instalador quedó cerrado localmente y listo para prueba manual:
 - **Pool y round-robin interno:** tests pasan.
 - **Hermes:** fuera de alcance en esta corrección; el diagnóstico histórico queda debajo sólo como contexto.
 - **Release local 0.1.7:** setup NSIS y portable reconstruidos localmente el 2026-08-22; no se ejecutó ningún workflow ni publicación de GitHub.
-- **Instalación silenciosa:** exit code `0`; instalación válida verificada en `%LOCALAPPDATA%\Programs\FreeCode DeepSeek Harness`, con shortcut y uninstaller apuntando a esa ruta.
+- **Instalación silenciosa:** exit code `0`; instalación válida verificada en `%LOCALAPPDATA%\Programs\FreeCode`, con shortcut y uninstaller apuntando a esa ruta (el instalador NSIS usa ese directorio base aunque el ejecutable conserva su nombre completo).
+- **Tool calling headless en Windows:** corregidas también las rutas directas del SDK, el helper de limpieza de `node-pty` y el `wscript` auxiliar del picker; los procesos de herramientas no deben abrir consolas fugaces. El diálogo visible de selección de carpeta sigue siendo intencional.
+- **Catálogo público y `AUTH`:** el log de la prueba mostró que el descubrimiento de modelos falló transitoriamente al iniciar y dejó el worker con catálogo vacío; `x-preview-f` no se convertía a `x-preview-f-free` y el upstream devolvía 401, que la UI resumía como `API key is invalid`. `opencode2api` ahora aplica el sufijo `-free` de forma determinista mientras el catálogo está no disponible, para todos los modelos públicos visibles. Se agregó y pasó la regresión correspondiente.
 
 ## Hallazgos de Claude y Hermes
 
@@ -37,7 +59,7 @@ La configuración live ahora sí dice:
 
 Pero al revisar el proceso real solo estaba escuchando el LB en `127.0.0.1:8888`; no estaban escuchando Tor `9150..9153`, workers `8000..8015`, gateway `8642` ni dashboard `9119`. El endpoint `/v1/models` del LB agotó timeout. Esto significa **configuración preparada, servicio no operativo en ese momento**.
 
-Hay además un remanente en `C:\Hermes\hermes-home\auth.json` que todavía apunta a `:20128`; conviene limpiarlo para que no haya una segunda ruta oculta hacia OmniRoute.
+Ese diagnóstico pertenece a la integración histórica de Hermes y no a la ruta actual del producto; FreeCode usa exclusivamente el puente local `opencode2api` administrado por el shell.
 
 Los logs y estadísticas previas tampoco prueban el cambio: registran errores 401 para `north-mini-code-free` y `stats.json` concentra 456.687 requests en `deepseek-v4-flash-free`, sin requests de `x-preview-f`.
 
@@ -59,10 +81,33 @@ Los parches efectivos son: reemplazo del falso positivo de proceso por `taskkill
 
 - Setup: `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.7-win-x64-setup.exe` con `/S` y `/D` citado.
 - Exit code: `0`; el setup no quedó corriendo.
-- Ejecutable: `%LOCALAPPDATA%\Programs\FreeCode DeepSeek Harness\FreeCode DeepSeek Harness.exe`.
+- Ejecutable: `%LOCALAPPDATA%\Programs\FreeCode\FreeCode DeepSeek Harness.exe`.
 - `resources\app.asar` y `Uninstall FreeCode DeepSeek Harness.exe` presentes.
 - Registro HKCU: versión `0.1.7`, icono y desinstalador apuntan a la ruta real.
 - Shortcut del menú Inicio apunta al ejecutable instalado.
+
+## Tool calling headless en Windows — corrección adicional
+
+### Causa raíz
+
+El spawn común ya enviaba `windowsHide: true`, pero había tres caminos fuera de esa protección:
+
+- `HarnessClient` del SDK creaba el runtime con un `spawn` directo sin `windowsHide`.
+- El cierre de terminales ConPTY de `node-pty` forkeaba `conpty_console_list_agent` sin ocultar su consola; por eso una ventana podía aparecer y desaparecer al terminar un tool call.
+- El fallback `wscript` del picker nativo no debía recibir `windowsHide`: es un helper GUI y ese flag también ocultaba el diálogo que aloja.
+
+La ruta `sandbox-windows-acl` no se modificó: su documentación registra que `CREATE_NO_WINDOW` rompe el token restringido con `STATUS_DLL_INIT_FAILED`. Los comandos pipeados siguen ocultos desde `spawnSubprocess`.
+
+### Corrección y verificación
+
+- `packages/sdk/client/src/client.ts` pasa `windowsHide: process.platform === 'win32'`.
+- `packages/host/directory-picker-native/src/native-picker.ts` mantiene `wscript` sin `windowsHide`; al ser un ejecutable GUI no abre una consola fugaz y conserva visible el diálogo intencional.
+- La prueba del fallback Electron verifica que no se pase `windowsHide` a `wscript`.
+- `patches/node-pty@1.2.0-beta.15.patch` incluye el hunk generado por pnpm para ocultar el fork de limpieza de ConPTY; el lockfile fue actualizado.
+- La resolución real del workspace apunta al paquete parcheado en `node_modules/.pnpm`, no a la copia vieja dejada por otro package manager; esa copia se apartó de forma recuperable en `node_modules/.ignored/node-pty`.
+- Suites focalizadas: **3 archivos / 19 tests OK**.
+- `pnpm typecheck`: **OK**, incluyendo el build de librerías del vendor y `dsh-sdk-client`.
+- `scripts/build-opencode2api.sh`: **OK**, cuatro binarios locales reconstruidos con el fallback público y los parches existentes; no se ejecutaron workflows.
 
 ## Modelos y `reasoning_effort`
 

@@ -62,21 +62,3 @@ export const en: Record<TrajectoryKey, string> = {
   'toolbar.search': 'Search trajectory',
   'toolbar.searchPlaceholder': 'Search',
 }
-
-/** Spanish dictionary. */
-export const es: Record<TrajectoryKey, string> = {
-  'view.trajectory': 'Trayectoria',
-  'toolbar.aria': 'Barra de herramientas de trayectoria',
-  'toolbar.duration': 'Duración',
-  'toolbar.useActualDuration': 'Usar duración real',
-  'toolbar.useEqualWidth': 'Usar operaciones de ancho uniforme',
-  'toolbar.actualTime': 'Tiempo real',
-  'toolbar.turns': 'Turnos',
-  'toolbar.expandTurns': 'Expandir turnos',
-  'toolbar.collapseTurns': 'Contraer turnos',
-  'toolbar.calls': 'Llamadas',
-  'toolbar.expandCalls': 'Expandir llamadas',
-  'toolbar.collapseCalls': 'Contraer llamadas',
-  'toolbar.search': 'Buscar en la trayectoria',
-  'toolbar.searchPlaceholder': 'Buscar',
-}

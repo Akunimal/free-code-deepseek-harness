@@ -26,33 +26,5 @@ export const zh = {
   'truncated': '已截断',
 } satisfies Record<string, string>
 
-/** Spanish base dictionary. */
-export const es = {
-  'ok': 'Aceptar',
-  'cancel': 'Cancelar',
-  'close': 'Cerrar',
-  'copy': 'Copiar',
-  'copied': 'Copiado',
-  'retry': 'Reintentar',
-  'loading': 'Cargando…',
-  'load.failed': 'No se pudo cargar',
-  'submit': 'Enviar',
-  'submitting': 'Enviando…',
-  'next': 'Siguiente',
-  'previous': 'Anterior',
-  'skip': 'Omitir',
-  'delete': 'Eliminar',
-  'edit': 'Editar',
-  'save': 'Guardar',
-  'search': 'Buscar',
-  'more': 'Más',
-  'collapse': 'Contraer',
-  'expand': 'Expandir',
-  'back': 'Atrás',
-  'unknown': 'Desconocido',
-  'none': 'Ninguno',
-  'truncated': 'Truncado',
-} satisfies Record<CommonKey, string>
-
 /** The common vocabulary key union (zh is the key-set source of truth). */
 export type CommonKey = keyof typeof zh

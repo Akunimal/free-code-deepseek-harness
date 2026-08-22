@@ -33,6 +33,7 @@ logs/
 .env
 .env.*
 !.env.example
+apps/shell/.secret-vault/
 
 # Runtime data
 userData/
@@ -52,6 +53,7 @@ desktop.ini
 .vscode/
 .idea/
 *.swp
+apps/shell/electron-builder.yml.bak
 
 # Test artifacts
 coverage/

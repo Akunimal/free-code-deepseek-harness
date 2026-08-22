@@ -10,7 +10,7 @@
 
 Este repositorio es el fork público [Akunimal/free-code-deepseek-harness](https://github.com/Akunimal/free-code-deepseek-harness) de [`deepseek-ai/deepseek-harness`](https://github.com/deepseek-ai/deepseek-harness). Conserva el harness original y agrega una aplicación GUI de escritorio para ejecutarlo como producto multiplataforma: Electron administra los procesos locales, prepara el proveedor DeepSeek Free, levanta el `opencode2api` pool y abre la interfaz web completa del harness dentro de una ventana nativa. **El puente OpenCode (`opencode2api`) viene completamente integrado** — no requiere descarga externa, binario separado ni configuración manual; el puente viaja dentro de la aplicación y el pool de workers lo administra automáticamente.
 
-La rama de producto es `dev`; el fork mantiene `master` como referencia del upstream. Cada tag `v*` dispara una release reproducible con builds nativos para las tres plataformas soportadas:
+La rama de producto en este checkout es `main`; el subtree `vendor/deepseek-harness` conserva la referencia del upstream. Cada tag `v*` dispara una release reproducible con builds nativos para las tres plataformas soportadas:
 
 - Windows: instalador NSIS `.exe`.
 - macOS: aplicación/DMG de Electron.
@@ -39,7 +39,7 @@ El objetivo es facilitar vibecoding prácticamente gratis usando la ruta DeepSee
 "socks5_paid_direct": true
 ```
 
-Los requests se reparten en round-robin entre cuatro IPs de salida; `socks5_paid_direct` mantiene el tráfico con clave privada por la ruta directa (ahí siguen aplicando los límites de cuenta). Verificado contra `opencode.ai/zen` (no bloquea Tor hoy, 2026-08): un `SIGNAL NEWNYM` por una conexión al ControlPort fuerza un circuito nuevo bajo demanda. Modelos disponibles (verificados 2026-08-21): `nemotron-3.5-lightning`, `nemotron-3-ultra`, `mimo-v2.5`, `x-preview-f`, `laguna-s-2.1`. Costo: +0.8–1.8 s por request (~1.7–3.8 s total vs ~0.55 s directo) y un circuito nuevo tarda segundos en construirse. Salvedad: el ASN de los exits Tor puede ser bloqueado upstream en cualquier momento; la rotación sólo cambia la IP de salida — nunca crea cuentas ni sube la cuota del tier anónimo.
+Los requests se reparten en round-robin entre cuatro IPs de salida; `socks5_paid_direct` mantiene el tráfico con clave privada por la ruta directa (ahí siguen aplicando los límites de cuenta). Verificado contra `opencode.ai/zen` (no bloquea Tor hoy, 2026-08): un `SIGNAL NEWNYM` por una conexión al ControlPort fuerza un circuito nuevo bajo demanda. El catálogo público es dinámico; la comprobación local de `/v1/models` del 2026-08-22 devolvió `deepseek-v4-flash`, `x-preview-f`, `muse-spark-1.2-contributor`, `mimo-v2.5`, `hy3`, `nemotron-3-ultra`, `nemotron-3.5-lightning` y `laguna-s-2.1`. Costo: +0.8–1.8 s por request (~1.7–3.8 s total vs ~0.55 s directo) y un circuito nuevo tarda segundos en construirse. Salvedad: el ASN de los exits Tor puede ser bloqueado upstream en cualquier momento; la rotación sólo cambia la IP de salida — nunca crea cuentas ni sube la cuota del tier anónimo.
 
 **Primera apertura del portable:** el `.exe` portable es un archivo auto-extraíble (~444 MB comprimido, ~1.6 GB extraído). En cada ejecución se extrae a un directorio temporal antes de que arranque Electron — esto puede tardar entre 30 y 90 segundos dependiendo de la velocidad del disco y del antivirus. No hay barra de progreso durante la extracción; la ventana aparece cuando Electron termina de cargar. El instalador NSIS extrae una sola vez al instalar, así que las aperturas siguientes son más rápidas. Si el portable parece trabado, dale un par de minutos — está extrayendo, no está colgado.
 
@@ -57,7 +57,7 @@ Esta aplicación empaqueta el harness upstream y agrega la capa desktop necesari
 - Levanta `dsh web` en loopback, detecta readiness, reinicia el harness y abre su UI en una ventana Electron aislada/sandboxed.
 - Siembra `deepseek-free` apuntando al pool, conserva providers del usuario y actualiza el catálogo de modelos por latencia cada 30 minutos o bajo demanda.
 - Trae preconfigurada la cuenta pública de OpenCode (`Bearer public`) como `FREECODE_PUBLIC_KEY`, por lo que DeepSeek Free queda utilizable sin API key privada; una clave privada de OpenCode del usuario nunca se sobrescribe.
-- Detecta rutas OpenAI-compatible locales de OmniRoute, guarda secretos mediante keytar o fallback de archivo y expone IPC zod tipado por preload.
+- Detecta bajo demanda rutas OpenAI compatibles locales, guarda secretos mediante keytar o fallback de archivo y expone IPC zod tipado por preload. La ruta propia del producto es el pool `opencode2api` incluido.
 - Incluye ventana, tray, notificaciones, overlay de estado del pool, abrir la carpeta de configuración, importación OpenCode SQLite/ChatML y continuación en workspace.
 - Escribe logs JSONL rotados, ofrece un botón de actualización GitHub, puede sincronizar upstream y recompilar desde un checkout local, prepara stages reproducibles y publica únicamente desde tags `v*`.
 - Añade un fondo animado por conversación en CSS: dos gradientes radiales livianos, sin canvas ni loop JavaScript, con soporte para `prefers-reduced-motion`.
@@ -118,7 +118,7 @@ Todo lo local escucha en `127.0.0.1`. El vault resuelve secretos hacia el proces
 
 ## Estado del proyecto
 
-La rama de trabajo es `dev`. El contrato del harness, la suite del shell, la UI upstream modificada y el empaquetado reproducible deben pasar antes de fusionar a `main`. Ver [state.md](state.md) para continuidad operativa.
+La rama de trabajo activa es `main`. El contrato del harness, la suite del shell, la UI upstream modificada y el empaquetado reproducible deben pasar antes de publicar. Ver [state.md](state.md) para continuidad operativa.
 
 ## Licencia
 

@@ -11,7 +11,7 @@
     "test": "vitest run --config vitest.config.ts",
     "dev": "pnpm build && electron .",
     "package:runtime": "node ../../scripts/run-package-runtime.mjs",
-    "package": "pnpm build && electron-builder --config electron-builder.yml --publish never"
+    "package": "pnpm build && electron-builder --config electron-builder.yml --publish never && node ../../scripts/package-harness-update.mjs"
   },
   "dependencies": {
     "@freecode/opencode-adapter": "workspace:*",

@@ -23,6 +23,7 @@ export type CatalogModel = z.infer<typeof CatalogModelSchema>;
 /** ModelCatalog — persisted refresh output. */
 export const ModelCatalogSchema = z.object({
   refreshedAt: z.number(),
+  availability: z.enum(['ready', 'degraded']).optional(),
   providers: z.record(z.string(), z.object({ models: z.array(CatalogModelSchema) })),
 });
 export type ModelCatalog = z.infer<typeof ModelCatalogSchema>;

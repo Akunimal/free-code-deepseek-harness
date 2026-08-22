@@ -7,7 +7,7 @@ import { mkdirSync } from 'node:fs';
  *
  * The real CLI entry (`vendor/deepseek-harness/apps/cli/lib/bin.js`) is run
  * with the bundled Node runtime:
- *   node <cli-entry> web --port 0 --host 127.0.0.1
+ *   node <cli-entry> web --port 0 --host 127.0.0.1 --no-open
  * `--port 0` lets the OS pick a free port; the web bundle prints the readonly
  * line `dsh web: http://127.0.0.1:<PORT>` once the Loader tree settles, which
  * is the readiness signal this supervisor grabs.
@@ -48,6 +48,31 @@ const READY_TIMEOUT_MS = 30_000;
 const RESTART_WINDOW_MS = 60_000;
 const STOP_GRACE_MS = 5_000;
 const BACKOFF_MAX_MS = 30_000;
+
+/** The Electron shell owns the UI; the child web runtime must never open a browser. */
+export const DSH_WEB_ARGS = [
+  'web',
+  '--port',
+  '0',
+  '--host',
+  '127.0.0.1',
+  '--no-open',
+] as const;
+
+/**
+ * Electron GUI processes do not own a durable console stream. On Windows the
+ * stream can close while the child is still flushing data; writing to that
+ * pipe then raises an unhandled `write EOF` in the main process. The
+ * structured app logger remains the authoritative diagnostic sink.
+ */
+function writeConsoleDiagnostic(stream: NodeJS.WriteStream, text: string): void {
+  if (!stream.isTTY || stream.destroyed || !stream.writable) return;
+  try {
+    stream.write(text);
+  } catch {
+    // Console diagnostics are best effort and must never crash the shell.
+  }
+}
 
 export class HarnessSupervisor {
   private cfg: HarnessSupervisorConfig;
@@ -131,7 +156,7 @@ export class HarnessSupervisor {
     mkdirSync(this.cfg.homeDir, { recursive: true });
     this.startedAt = Date.now();
 
-    const dshArgs = ['web', '--port', '0', '--host', '127.0.0.1'];
+    const dshArgs = [...DSH_WEB_ARGS];
     const env: Record<string, string> = {
       ...process.env as Record<string, string>,
       ...this.cfg.nodeEnv,
@@ -158,7 +183,7 @@ export class HarnessSupervisor {
 
     proc.stdout?.on('data', (chunk: Buffer) => {
       const text = chunk.toString();
-      process.stdout.write(`[dsh] ${text}`);
+      writeConsoleDiagnostic(process.stdout, `[dsh] ${text}`);
       this.cfg.log?.('debug', text.trimEnd());
       this.outBuffer += text;
       if (this.outBuffer.length > 65_536) this.outBuffer = this.outBuffer.slice(-32_768);
@@ -166,7 +191,7 @@ export class HarnessSupervisor {
     });
     proc.stderr?.on('data', (chunk: Buffer) => {
       const text = chunk.toString();
-      process.stderr.write(`[dsh:err] ${text}`);
+      writeConsoleDiagnostic(process.stderr, `[dsh:err] ${text}`);
       this.cfg.log?.('warn', `dsh stderr: ${text.trimEnd()}`);
       this.outBuffer += text;
       if (this.outBuffer.length > 65_536) this.outBuffer = this.outBuffer.slice(-32_768);
