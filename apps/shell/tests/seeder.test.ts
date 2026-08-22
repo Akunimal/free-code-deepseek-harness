@@ -19,7 +19,7 @@ describe('provider-seeder', () => {
     const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
     expect(settings['llm-pi-ai'].defaultProvider).toBeUndefined(); // no such key upstream
     const p = settings['llm-pi-ai'].providers['deepseek-free'];
-    expect(p.displayName).toBe('DeepSeek Free (pool)');
+    expect(p.displayName).toBe('OpenCode Free Pool');
     expect(p.api).toBe('openai-completions');
     expect(p.baseURL).toBe(LB);
     expect(p.apiKeyEnv).toBe('FREECODE_PUBLIC_KEY');

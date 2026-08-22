@@ -85,7 +85,7 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
     }
   } else {
     providers[DEFAULT_PROVIDER] = {
-      displayName: 'DeepSeek Free (pool)',
+      displayName: 'OpenCode Free Pool',
       api: 'openai-completions',
       baseURL: cfg.lbBaseUrl,
       apiKeyEnv: cfg.apiKeyEnv ?? DEFAULT_API_KEY_ENV,

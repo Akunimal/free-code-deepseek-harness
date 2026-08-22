@@ -98,7 +98,7 @@ describe.skipIf(!HARNESS_BUILT)('contract: host RPC + provider registration', ()
         'llm-pi-ai:',
         '  providers:',
         '    deepseek-free:',
-        '      displayName: DeepSeek Free (pool)',
+        '      displayName: OpenCode Free Pool',
         '      apiKeyEnv: FREECODE_PUBLIC_KEY',
         '      api: openai-completions',
         '      baseURL: http://127.0.0.1:9999/v1',
@@ -183,7 +183,9 @@ describe.skipIf(!HARNESS_BUILT)('contract: browser boot manifest', () => {
       const base = line.match(/http:\/\/127\.0\.0\.1:\d+/)?.[0];
       expect(base).toBeDefined();
       const html = await (await fetch(`${base}/`)).text();
-      const marker = 'window.__DSH_BOOT__ = ';
+      const marker = ['globalThis["__DSH_BOOT__"] = ', 'window.__DSH_BOOT__ = ']
+        .find((candidate) => html.includes(candidate));
+      if (marker === undefined) throw new Error('boot manifest marker not found');
       const start = html.indexOf(marker);
       expect(start).toBeGreaterThanOrEqual(0);
       const jsonStart = start + marker.length;

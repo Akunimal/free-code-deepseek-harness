@@ -89,6 +89,7 @@ The following list is taken from each package's own `package.json` description a
 - **@deepseek-ai/dsh-client-schema-form** (packages/client/schema-form) — Schema/draft model layer for settings editors: rehydrates a serialized schemastery schema, validates drafts, and edits them immutably by path
 - **@deepseek-ai/dsh-client-ui-agent-preset** (packages/client/ui-agent-preset) — Agent-preset surfaces: the default for later sessions, this session's seat, and the composition editor
 - **@deepseek-ai/dsh-client-ui-attachment** (packages/client/ui-attachment) — Pure React attachment atoms for the dsh web UI: draft-image rail, message image gallery, and original-image lightbox (zero cordis)
+- **@deepseek-ai/dsh-client-ui-brand-official** (packages/client/ui-brand-official) — Official DeepSeek Harness brand occupants for the Web client's sidebar and conversation Hero slots
 - **@deepseek-ai/dsh-client-ui-commands** (packages/client/ui-commands) — Client command surface: global directory cache, '/' source, three command UI kinds, popupSelect registry
 - **@deepseek-ai/dsh-client-ui-conversation** (packages/client/ui-conversation) — Conversation domain: skeleton, ordered chat flow, composer with the Host-backed busy-Enter preference, and details host
 - **@deepseek-ai/dsh-client-ui-deliverables** (packages/client/ui-deliverables) — Produced-files turn tail and clickable final-response file references for Web
@@ -100,9 +101,11 @@ The following list is taken from each package's own `package.json` description a
 - **@deepseek-ai/dsh-client-ui-layout** (packages/client/ui-layout) — Shell plugin: three-column AppFrame with drag handles, ctx.layout viewing-state service (navigation + panels)
 - **@deepseek-ai/dsh-client-ui-message-feedback** (packages/client/ui-message-feedback) — Per-message feedback controls contributed to the assistant-message action strip, backed by the messageFeedback Host Remote
 - **@deepseek-ai/dsh-client-ui-model-selection** (packages/client/ui-model-selection) — Model selection: the /model popupSelect over session.models / session.selectModel
+- **@deepseek-ai/dsh-client-ui-reference** (packages/client/ui-reference) — Unified Web @file and @session reference source
 - **@deepseek-ai/dsh-client-ui-permission-presets** (packages/client/ui-permission-presets) — Permission surfaces: a new-session default in General settings and a current-session /permission popup over the permissions projection
 - **@deepseek-ai/dsh-client-ui-plan** (packages/client/ui-plan) — Plan-mode composer control: the conversation.input.plan seat over the plan projection and the /plan command channel
 - **@deepseek-ai/dsh-client-ui-primitives** (packages/client/ui-primitives) — Pure React atoms for the dsh web UI: controls, icons, markdown, and JSON inspectors (zero cordis)
+- **@deepseek-ai/dsh-client-ui-renderer** (packages/client/ui-renderer) — Browser UI renderer: React slot bindings, ctx.uiRenderer, and the assembled application root
 - **@deepseek-ai/dsh-client-ui-settings** (packages/client/ui-settings) — Settings domain base plugin: the settings-namespace scope service and the canonical settings slot-type contract
 - **@deepseek-ai/dsh-client-ui-settings-general** (packages/client/ui-settings-general) — Settings ownerless-copy and product onboarding plugin: the General section, shell trigger/header chrome content, settings dictionaries, and the versioned welcome notice
 - **@deepseek-ai/dsh-client-ui-settings-models** (packages/client/ui-settings-models) — Models settings and shared product-onboarding dialogs over existing settings and credential joins
@@ -121,12 +124,15 @@ The following list is taken from each package's own `package.json` description a
 - **@deepseek-ai/dsh-client-web** (packages/client/web) — Web shell kernel: bootWebShell (module system holding + seed table + two-stage boot + AppRoot gate + app-shell assembly entry), consumed by the apps/web vite entry
 - **@deepseek-ai/dsh-client-web-react** (packages/client/web-react) — Shell-side React glue: createSlotRenderer, SessionProvider, bindSnapshotSelector (uSES bridge), useInvoke
 - **@deepseek-ai/dsh-code-runtime** (packages/code-runtime/code-runtime) — Abstract code-execution seam (ctx.codeRuntime) for the DeepSeek Harness
+- **@deepseek-ai/dsh-code-runtime-python** (packages/code-runtime/code-runtime-python) — CPython subprocess implementation of the DeepSeek Harness code-execution seam
 - **@deepseek-ai/dsh-code-runtime-worker-thread** (packages/code-runtime/code-runtime-worker-thread) — Worker-thread implementation of the DeepSeek Harness code-execution seam
 - **@deepseek-ai/dsh-command-compact** (packages/compaction/command-compact) — Human-facing slash command for explicit session compaction
 - **@deepseek-ai/dsh-compaction** (packages/compaction/compaction) — Abstract compaction service seam (ctx.compaction) for the DeepSeek Harness
 - **@deepseek-ai/dsh-compaction-basic** (packages/compaction/compaction-basic) — Token-meter-driven compaction policy and LLM summarization backend for the DeepSeek Harness
 - **@deepseek-ai/dsh-compaction-tool-result-pruner** (packages/compaction/compaction-tool-result-pruner) — Replay-safe model-free head/middle/tail pruning for tool-result surface nodes
 - **@deepseek-ai/dsh-agent-instructions** (packages/context/agent-instructions) — Workspace context loader for AGENTS.md/CLAUDE.md instruction files
+- **@deepseek-ai/dsh-file-reference** (packages/context/file-reference) — File-reference discovery contract and shared @file grammar
+- **@deepseek-ai/dsh-file-reference-local** (packages/context/file-reference-local) — Local-filesystem ctx.fileReferences provider with bounded fuzzy indexes
 - **@deepseek-ai/dsh-session-reference** (packages/context/session-reference) — Cross-session snapshot references and durable untrusted model context (ctx.sessionReferenceResolver)
 - **@deepseek-ai/dsh-time-context** (packages/context/time-context) — Opt-in durable per-step context with the current time and elapsed time
 - **@deepseek-ai/dsh-tmux-context** (packages/context/tmux-context) — Opt-in durable per-step context with this agent's tmux pane and window location
@@ -139,10 +145,13 @@ The following list is taken from each package's own `package.json` description a
 - **@deepseek-ai/dsh-system-prompt** (packages/core/system-prompt) — System prompt assembly registry for the DeepSeek Harness
 - **@deepseek-ai/dsh-tools** (packages/core/tools) — Tool registry and execution pipeline for the DeepSeek Harness
 - **@deepseek-ai/dsh-credentials** (packages/credentials/credentials) — Abstract credential seam (ctx.credentials): settings carry references to secrets, providers own the values
+- **@deepseek-ai/dsh-authorization** (packages/credentials/authorization) — Authorization seam (ctx.authorization): plugin-owned flows that obtain a credential through a conversation with the human
 - **@deepseek-ai/dsh-credentials-local** (packages/credentials/credentials-local) — File-backed credentials provider ($DSH_HOME/.env under the live process environment) for the DeepSeek Harness
 - **@deepseek-ai/dsh-e2b** (packages/e2b/e2b) — Shared E2B sandbox lifecycle for DeepSeek Harness provider adapters
 - **@deepseek-ai/dsh-fs-e2b** (packages/e2b/fs-e2b) — E2B filesystem implementation for DeepSeek Harness
 - **@deepseek-ai/dsh-subprocess-e2b** (packages/e2b/subprocess-e2b) — E2B subprocess implementation for DeepSeek Harness
+- **@deepseek-ai/dsh-experimental-agent-team** (packages/experimental/agent-team) — Implicit-root Agent Teams roster, durable peer mailbox, and shared task DAG
+- **@deepseek-ai/dsh-experimental-tool-agent-team** (packages/experimental/tool-agent-team) — Scoped model-facing Agent Teams tools over ctx.agentTeams
 - **@deepseek-ai/dsh-acp-demo** (packages/examples/acp-demo) — ACP automation server app: agent spine + JSONL persistence + ACP transport, with a JSON-RPC stdio bin
 - **@deepseek-ai/dsh-agent-spine-demo** (packages/examples/agent-spine-demo) — The default executor-less/UI-less agent spine with fallback session titles, provider-routed retry, and optional persisted goals
 - **@deepseek-ai/dsh-sdk-jsonrpc-demo** (packages/examples/jsonrpc-demo) — Bin that boots an external Cordis config for the stdio JSON-RPC SDK runtime
@@ -234,6 +243,7 @@ The following list is taken from each package's own `package.json` description a
 - **@deepseek-ai/dsh-tool-bash** (packages/shell/tool-bash) — Model-facing bash tool with optional generic background-job and sandbox-escalation support
 - **@deepseek-ai/dsh-tool-bash-persistent** (packages/shell/tool-bash-persistent) — Model-facing owner-scoped persistent Bash tool backed by the Harness PTY service
 - **@deepseek-ai/dsh-tool-pwsh** (packages/shell/tool-pwsh) — Model-facing pwsh tool over the bash executor seam
+- **@deepseek-ai/dsh-tool-pwsh-persistent** (packages/shell/tool-pwsh-persistent) — Model-facing owner-scoped persistent PowerShell tool backed by the Harness PTY service
 - **@deepseek-ai/dsh-skill** (packages/skill/skill) — Agent skill provider registry for the DeepSeek Harness
 - **@deepseek-ai/dsh-skill-badge** (packages/skill/skill-badge) — Bundled dsh badge skill provider for DeepSeek Harness
 - **@deepseek-ai/dsh-skill-filesystem** (packages/skill/skill-filesystem) — Local filesystem skill provider for the DeepSeek Harness
