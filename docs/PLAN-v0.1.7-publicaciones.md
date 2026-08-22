@@ -1,6 +1,6 @@
 # PLAN v0.1.7 — publicaciones en grupos de code
 
-Fecha: 2026-08-22 · Repo: `Akunimal/free-code-deepseek-harness` · Estado: PENDIENTE DE CONFIRMACIÓN DEL USUARIO
+Fecha: 2026-08-22 · Repo: `Akunimal/free-code-deepseek-harness` · Estado: PUBLICACIÓN COMPLETADA EN GRUPOS ACCESIBLES
 
 ## Alcance
 
@@ -21,6 +21,10 @@ La release publicada es [v0.1.7](https://github.com/Akunimal/free-code-deepseek-
 | `Claude Code openSource` | Inglés | Miembro |
 | `Claude Code & OpenClaw & Vibe Coding Québec` | Inglés | Miembro |
 | `Code@Open source` | Inglés | Miembro; confirmado por notificación de bienvenida |
+
+Las diez publicaciones anteriores fueron enviadas con `capnew.jpg` y verificadas en pantalla después del envío: título de v0.1.7 y enlace a la release presentes. El texto se publicó en español en los cinco grupos marcados como Español y en inglés en los cinco restantes.
+
+`OpenCode VN - Cộng Đồng AI Coding Agent` figuraba en el relevamiento anterior, pero la búsqueda actual no devuelve una comunidad con ese título ni una URL de grupo válida. No se publicó allí ni se sustituyó por otra comunidad vietnamita parecida.
 
 También aparecen resultados relevantes en los que la cuenta todavía muestra `Unirte` —por ejemplo `Codex en Español`, `Claude Code en Español`, `Claude Code México`, `Claude Code Chile`, `AI Developers & Vibe Coders (Claude Code, Hermes, OpenCode, OpenClaw, more)`, `أخبار OpenCode بالعربي`, `Opencode PH`, `OpenCode`, `OpenCode En Español` y `Claude code / open code (Sin Hate)`—. No se solicitará entrar a esos grupos dentro de esta publicación.
 
@@ -70,6 +74,7 @@ The current desktop language selector shows only English and Chinese. Spanish di
 
 - [x] Search completed in the embedded Facebook browser, expanded from `opencode` to `code`.
 - [x] Drafts prepared in both languages.
-- [ ] User confirms the two texts immediately before posting.
-- [ ] Publish to the eleven relevant groups where the account is already a member.
-- [ ] Verify each post contains the intended text and release link.
+- [x] User confirmed both texts and the screenshot before posting.
+- [x] Publish to the ten reachable relevant groups where the account is already a member.
+- [x] Verify each published post contains the intended text, release link, and attached screenshot.
+- [ ] Revisit `OpenCode VN - Cộng Đồng AI Coding Agent` only if Facebook exposes a valid group URL.
