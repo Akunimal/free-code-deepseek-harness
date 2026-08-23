@@ -36,6 +36,8 @@ export interface ShellRuntimeConfig {
   nodeEnv?: Record<string, string>;
   /** Optional logging callback forwarded to the supervisor. */
   log?: (level: string, msg: string, meta?: Record<string, unknown>) => void;
+  /** Additional stable environment for the bundled Harness web client. */
+  extraEnv?: Record<string, string>;
   /** Authenticated loopback bridge for the visible persistent browser. */
   browserBridge?: { endpoint: string; token: string };
 }
@@ -81,7 +83,7 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
     cliEntry,
     homeDir: join(cfg.userDataDir, 'dsh-home'),
     lbUrl: lb.url(),
-    extraEnv,
+    extraEnv: { ...cfg.extraEnv, ...extraEnv },
     browserBridge: cfg.browserBridge,
     nodeEnv: cfg.nodeEnv,
   });

@@ -8,7 +8,7 @@ The logger records lifecycle, update checks, and operational metadata. It does n
 
 ## Updates
 
-The Help menu always provides an explicit **Buscar actualizaciones / Check for updates** action. It checks the fork's GitHub Releases and compares the bundled upstream commit with `deepseek-ai/deepseek-harness`; it never downloads or installs without the user's confirmation. A release update is downloaded and installed from that button. Background checks on startup and every six hours remain opt-in through `FREECODE_ENABLE_UPDATES=1`.
+FreeCode checks the fork's GitHub Releases automatically and compares the bundled upstream commit with `deepseek-ai/deepseek-harness`. When a release or Harness runtime update is available, a localized download-arrow indicator appears beside Settings; clicking it still asks for confirmation before downloading or installing. Background checks run at startup and every six hours, with a single in-flight check so transient network failures cannot create overlapping updater work.
 
 When the app is running from a source checkout, the same dialog can run **Update upstream and rebuild locally**. That action requires a clean checkout, pulls the upstream subtree, runs the full tests, and runs `pnpm build:desktop`; it is intentionally unavailable in packaged builds because a portable artifact does not contain Git, pnpm, or the build toolchain.
 

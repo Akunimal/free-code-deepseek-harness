@@ -83,8 +83,8 @@ export async function checkUpstreamUpdate(
   }
 }
 
-/** Updates are explicit from the Help menu. Background checks are separately
- * controlled by the caller so portable/offline use remains deterministic. */
+/** The shell owns the background schedule. This service only performs one
+ * resilient check at a time and leaves the UI responsible for presenting it. */
 export function createUpdateService(options: UpdateServiceOptions = {}): UpdateService {
   let adapter = options.adapter;
   const enabled = options.enabled === true;

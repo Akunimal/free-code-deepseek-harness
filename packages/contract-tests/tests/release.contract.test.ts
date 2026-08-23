@@ -18,7 +18,7 @@ describe('release and runtime packaging contracts', () => {
     const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
     const spanishReadme = readFileSync(join(ROOT, 'README.es.md'), 'utf8');
     const template = readFileSync(join(ROOT, 'docs/RELEASE-NOTES-TEMPLATE.md'), 'utf8');
-    const currentNotes = readFileSync(join(ROOT, 'docs/RELEASE-NOTES-v0.1.8.md'), 'utf8');
+    const currentNotes = readFileSync(join(ROOT, 'docs/RELEASE-NOTES-v0.2.0.md'), 'utf8');
     expect(readme).toContain('[Leer en español](README.es.md)');
     expect(readme).toMatch(/^## English$/m);
     expect(readme).toMatch(/^## Español$/m);
@@ -66,5 +66,29 @@ describe('release and runtime packaging contracts', () => {
     expect(runtime).not.toContain('--exclude=native');
     expect(materializer).toContain("'native'");
     expect(materializer).toContain("entry.name === '.bin'");
+  });
+
+  it('keeps the FreeCode browser, update indicator, and naming contracts aligned', () => {
+    const browser = readFileSync(join(ROOT, 'apps/shell/src/main/embedded-browser.ts'), 'utf8');
+    const shell = readFileSync(join(ROOT, 'apps/shell/src/main/index.ts'), 'utf8');
+    const browserTool = readFileSync(join(ROOT, 'vendor/deepseek-harness/packages/web/tool-web/src/browser.ts'), 'utf8');
+    const sidebar = readFileSync(join(ROOT, 'vendor/deepseek-harness/packages/client/ui-sidebar/src/client/SidebarRoot.tsx'), 'utf8');
+    const compaction = readFileSync(join(ROOT, 'vendor/deepseek-harness/packages/compaction/compaction-basic/src/config.ts'), 'utf8');
+    const rtk = readFileSync(join(ROOT, 'vendor/deepseek-harness/packages/shell/bash-local/src/rtk.ts'), 'utf8');
+    expect(browser).toContain('new WebContentsView');
+    expect(browser).toContain('session.fromPath');
+    expect(browser).toContain('browser-state.json');
+    expect(browser).toContain('contentView.addChildView');
+    expect(browser).not.toContain('new BrowserWindow');
+    expect(browserTool).toContain("'tabs'");
+    expect(browserTool).toContain("'new_tab'");
+    expect(browserTool).toContain('computer_use');
+    expect(sidebar).toContain('fallbackBrandName}>FreeCode');
+    expect(shell).toContain('setInterval(() => void checkForUpdates()');
+    expect(shell).toContain('freecode://updates/open');
+    expect(shell).not.toContain("t('menu.checkUpdates')");
+    expect(compaction).toContain('DEFAULT_THRESHOLD_RATIO = 0.75');
+    expect(rtk).toContain('spawnSync');
+    expect(rtk).toContain('return false');
   });
 });

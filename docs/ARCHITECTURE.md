@@ -54,7 +54,7 @@ The complete workspace install is deliberate. A production-only pnpm install lea
 - The renderer receives only `window.freecode` from preload.
 - Secrets are read from the host vault and injected into child process environments; they are not written into `process.env` by the resolver.
 - All local services bind to `127.0.0.1`.
-- The updater is disabled unless `FREECODE_ENABLE_UPDATES=1`.
+- The updater performs one automatic check at startup and every six hours; an in-flight guard prevents overlapping checks, and the native download arrow beside Settings is the confirmation surface.
 - The web harness remains responsible for upstream permission, sandbox, filesystem, and tool policies.
 
 ## Portable pool controls

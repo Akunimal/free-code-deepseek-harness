@@ -18,6 +18,7 @@ The package root exports the default and named `LocalBashExecutor` plugin plus i
     maxOutputBytes: 64000      # per-stream in-memory cap; overflow spills to disk
     maxSpillBytes: 67108864    # per-stream full-output spill cap
     graceMs: 3000              # kill escalation and post-exit pipe-drain grace
+    rtk: true                  # use an already-installed RTK for eligible plain CLI commands
 ```
 
 ## Behavior
@@ -27,6 +28,7 @@ The package root exports the default and named `LocalBashExecutor` plugin plus i
 - **Configured budgets over managed groups** — `resolve()` fills `workdir`/`timeoutMs`/`stdoutMaxBytes` from config, and every spawn hands the service explicit byte caps, spill cap, and `graceMs`. The grace must be positive, finite, and no greater than [`MAX_TIMER_DELAY_MS`](../../util/timeout/README.md), so Node can represent it with one timer. Process-group kills, post-exit pipe draining, tail retention, and bounded spill files are [`dsh-subprocess-local`](../../subprocess/subprocess-local/README.md) mechanics. A foreground `ShellExecRequest.stdoutMaxBytes` can raise stdout's capture budget for one trusted caller; stderr and background runs still use `maxOutputBytes`.
 - **Timeout and cancel classification** — `run()` fuses its config-clamped timeout with the caller's signal through one deadline; only the executor's own timeout reports `timedOut`, an upstream cancel reports `aborted`, and a self-signaled command reports neither ([timeout-library Agent Note](../../../.agents/notes/implemented/architecture/2026-07-06-timeout-deadline-library.md)).
 - **Model-friendly terminal env** — `NO_COLOR=1 TERM=dumb PAGER=cat GIT_PAGER=cat` prevents pagers and ANSI color from garbling results. These values merge as ordinary env under the service's credential scrub and `DSH_*` channel rules; an explicit caller entry still wins. See the [stdin/env Agent Note](../../../.agents/notes/implemented/architecture/2026-06-30-bash-stdin-env-trusted-plugin-api.md) and [managed environment Agent Note](../../../.agents/notes/implemented/feature/2026-07-10-agent-session-identity-and-log-location.md).
+- **Optional RTK compression** — when `rtk: true` (the default) and an `rtk` executable is already on PATH, eligible plain commands such as `git`, `gh`, `pnpm`, `rg`, and `vitest` run through RTK for smaller model-facing output. Pipelines, redirects, substitutions, and other shell syntax remain unchanged. Missing RTK is a no-op; the package never installs it.
 - **Background processes** — `start()` returns a live `ShellProcess` handle immediately with no timeout, and `readOutput()` merges offset-based stdout/stderr reads into one consuming delta, placing stderr under a `[stderr]` marker when present. A running process belongs to the subprocess service, survives executor reloads, and is killed and joined on service disposal. Job ids, ownership, polling, and notices belong to the generic [`ctx.jobs` runtime](../../jobs/jobs/README.md), which the tool layer registers the handle with.
 
 ## Model Experience

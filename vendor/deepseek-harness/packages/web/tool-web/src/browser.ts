@@ -2,9 +2,9 @@ import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-tools'
 
-export const BROWSER_ACTIONS = ['status', 'navigate', 'snapshot', 'click', 'type', 'key', 'scroll', 'back', 'forward', 'reload', 'screenshot'] as const
+export const BROWSER_ACTIONS = ['status', 'tabs', 'new_tab', 'select_tab', 'close_tab', 'wait', 'navigate', 'snapshot', 'click', 'type', 'key', 'scroll', 'back', 'forward', 'reload', 'screenshot'] as const
 type BrowserAction = typeof BROWSER_ACTIONS[number]
-interface BrowserArgs { action: BrowserAction; url?: string; ref?: number; text?: string; key?: string; deltaX?: number; deltaY?: number }
+interface BrowserArgs { action: BrowserAction; url?: string; tabId?: string; ref?: number; text?: string; key?: string; deltaX?: number; deltaY?: number; timeoutMs?: number }
 interface BrowserResponse { ok: boolean; result?: unknown; error?: string }
 
 async function callBrowser(args: BrowserArgs, signal: AbortSignal): Promise<JsonValue> {
@@ -26,19 +26,21 @@ export function applyEmbeddedBrowser(ctx: Context): void {
   ctx.systemPrompt.section({
     name: 'tool:computer_use',
     order: 116,
-    text: 'The computer_use tool controls the FreeCode visible embedded Chromium browser. The browser is persistent and non-headless for manual login and review. Use snapshot first, then click/type using its refs. Only use http(s) navigation; never claim a click succeeded without a tool result.',
+    text: 'The computer_use tool controls the FreeCode visible embedded Chromium browser. The browser is persistent and non-headless for manual login and review. Use status/tabs to inspect tabs, snapshot first, then click/type using its refs. Only use http(s) navigation; never claim a click succeeded without a tool result.',
   })
   ctx.tools.register(defineTool({
     name: 'computer_use',
-    description: 'Control the persistent visible embedded Chromium browser. Use snapshot to inspect interactive refs, then click or type. Supports navigation, keyboard, scrolling, history, reload, status, and screenshot.',
+    description: 'Control the persistent visible embedded Chromium browser. Use status/tabs to inspect tabs and snapshot to inspect interactive refs, then click or type. Supports tabs, navigation, keyboard, scrolling, history, reload, waiting, status, and screenshot.',
     parameters: {
       action: { type: 'string', required: true, enum: [...BROWSER_ACTIONS] },
       url: { type: 'string', description: 'http(s) URL for navigate' },
+      tabId: { type: 'string', description: 'Tab id from status or tabs' },
       ref: { type: 'number', description: 'Interactive element ref from the latest snapshot' },
       text: { type: 'string', description: 'Text for type' },
       key: { type: 'string', description: 'Key name for key' },
       deltaX: { type: 'number', description: 'Horizontal scroll delta' },
       deltaY: { type: 'number', description: 'Vertical scroll delta' },
+      timeoutMs: { type: 'number', description: 'Maximum wait time in milliseconds for wait' },
     },
     output: {
       schema: { type: 'json' },

@@ -57,6 +57,28 @@ describe('provider-seeder', () => {
     rmSync(home, { recursive: true, force: true });
   });
 
+  it('migrates the legacy DeepSeek Free pool label to OpenCode Free Pool', () => {
+    const home = tmpHome();
+    const path = join(home, 'settings.yaml');
+    writeFileSync(path, `
+llm-pi-ai:
+  providers:
+    deepseek-free:
+      displayName: DeepSeek Free (pool)
+      api: openai-completions
+      baseURL: ${LB}
+      models:
+        - id: x-preview-f
+`);
+
+    const { seeded } = seedProviders({ homeDir: home, lbBaseUrl: LB });
+    expect(seeded).toBe(true);
+    const settings = loadYaml(readFileSync(path, 'utf8')) as any;
+    expect(settings['llm-pi-ai'].providers['deepseek-free'].displayName)
+      .toBe('OpenCode Free Pool');
+    rmSync(home, { recursive: true, force: true });
+  });
+
   it('never deletes user-added providers', () => {
     const home = tmpHome();
     const path = join(home, 'settings.yaml');

@@ -411,6 +411,7 @@ export class BasicCompactionEngine extends CompactionEngine {
         }
       })
     } catch (error: unknown) {
+      if (error instanceof ManualCompactionError) throw error
       throw new ManualCompactionError(
         'busy',
         'manual compaction requires an idle agent with no waking queued work',

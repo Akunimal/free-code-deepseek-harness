@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, Tray, nativeImage, Notification, dialog } from 'electron';
+import { app, BrowserWindow, Menu, Tray, WebContentsView, nativeImage, Notification, dialog } from 'electron';
 import { join, resolve } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
@@ -10,7 +10,7 @@ import { refreshModels, ModelCatalog } from './model-refresher.js';
 import { registerIpc } from './ipc.js';
 import { nodeRuntimeEnv, resolveNodePath, resolveResourcesDir } from './resource-paths.js';
 import { createAppLogger, type AppLogger } from './logger.js';
-import { createUpdateService, type UpdateService } from './updater.js';
+import { createUpdateService, type UpdateCheckResult, type UpdateService } from './updater.js';
 import { createHarnessUpdater } from './harness-updater.js';
 import { createEmbeddedBrowser, type EmbeddedBrowser } from './embedded-browser.js';
 import { initLocale, setLocale as setNativeLocale, t } from './i18n.js';
@@ -92,6 +92,7 @@ async function bootstrap(): Promise<ShellRuntime> {
     secrets,
     secretEnvNames: ['FREECODE_PUBLIC_KEY'],
     nodeEnv: nodeRuntimeEnv(app.isPackaged),
+    extraEnv: { DSH_CLIENT_TITLE: 'FreeCode' },
     browserBridge: embeddedBrowser ? { endpoint: embeddedBrowser.endpoint, token: embeddedBrowser.token } : undefined,
     log: (level, msg, meta) => {
       const fn = level === 'error' || level === 'warn' ? level : 'info';
@@ -113,6 +114,9 @@ let overlayOpen = false;
 let localUpdateRunning = false;
 let torfleet: TorFleet | null = null;
 let embeddedBrowser: EmbeddedBrowser | null = null;
+let updateIndicatorView: WebContentsView | null = null;
+let latestUpdateResult: UpdateCheckResult | null = null;
+let updateCheckInFlight = false;
 let torfleetEnabled = false;
 type BackendState = 'unknown' | 'ready' | 'degraded' | 'down';
 const backendStates: Record<'catalog' | 'pool', BackendState> = { catalog: 'unknown', pool: 'unknown' };
@@ -197,9 +201,92 @@ function createMainWindow(harnessUrl: string): void {
     },
   });
   mainWindow.loadURL(harnessUrl);
+  embeddedBrowser?.attachWindow(mainWindow);
+  ensureUpdateIndicator();
+  mainWindow.on('resize', updateUpdateIndicatorBounds);
   mainWindow.on('closed', () => {
+    updateIndicatorView = null;
     mainWindow = null;
   });
+}
+
+function updateIsAvailable(result: UpdateCheckResult | null): boolean {
+  return Boolean(
+    result?.harness?.available
+    || result?.info?.version
+    || (isDev && result?.upstream?.available),
+  );
+}
+
+function renderUpdateIndicatorHtml(): string {
+  const label = t('update.indicator');
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:transparent;overflow:hidden}
+a{width:34px;height:32px;display:flex;align-items:center;justify-content:center;text-decoration:none;
+  color:#c9ced8;background:#262a33;border:1px solid #3c424e;border-radius:8px;
+  font:600 20px/1 system-ui,-apple-system,sans-serif;cursor:pointer;box-shadow:0 2px 8px #0005}
+a:hover{color:#fff;background:#343a46;border-color:#6b7484}a:active{transform:translateY(1px)}
+</style></head><body><a href="freecode://updates/open" aria-label="${label}" title="${label}">&#8595;</a></body></html>`;
+}
+
+function updateUpdateIndicatorBounds(): void {
+  if (!mainWindow || mainWindow.isDestroyed() || !updateIndicatorView) return;
+  const height = mainWindow.getContentSize()[1] ?? 820;
+  const visible = updateIsAvailable(latestUpdateResult);
+  updateIndicatorView.setBounds(visible
+    ? { x: 6, y: Math.max(0, height - 42), width: 34, height: 32 }
+    : { x: 0, y: 0, width: 0, height: 0 });
+}
+
+function refreshUpdateIndicator(): void {
+  if (!updateIndicatorView || updateIndicatorView.webContents.isDestroyed()) return;
+  void updateIndicatorView.webContents
+    .loadURL('data:text/html;charset=UTF-8,' + encodeURIComponent(renderUpdateIndicatorHtml()))
+    .catch(() => undefined);
+  updateUpdateIndicatorBounds();
+}
+
+function ensureUpdateIndicator(): void {
+  if (!mainWindow || mainWindow.isDestroyed() || updateIndicatorView) return;
+  updateIndicatorView = new WebContentsView({
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
+  });
+  mainWindow.contentView.addChildView(updateIndicatorView);
+  updateIndicatorView.webContents.on('will-navigate', (event, url) => {
+    if (url === 'freecode://updates/open') {
+      event.preventDefault();
+      void updateFromIndicator();
+    } else {
+      event.preventDefault();
+    }
+  });
+  refreshUpdateIndicator();
+}
+
+async function checkForUpdates(): Promise<UpdateCheckResult | null> {
+  if (!updateService || updateCheckInFlight) return latestUpdateResult;
+  updateCheckInFlight = true;
+  try {
+    latestUpdateResult = await updateService.check();
+    updateUpdateIndicatorBounds();
+    return latestUpdateResult;
+  } catch (error) {
+    latestUpdateResult = {
+      status: 'failed',
+      error: error instanceof Error ? error.message : String(error),
+    };
+    appLogger?.logger.warn({ err: error }, 'automatic update check failed');
+    updateUpdateIndicatorBounds();
+    return latestUpdateResult;
+  } finally {
+    updateCheckInFlight = false;
+  }
+}
+
+async function updateFromIndicator(): Promise<void> {
+  const result = await checkForUpdates();
+  if (!result) return;
+  await presentUpdateResult(result);
 }
 
 function createOverlayWindow(): void {
@@ -336,9 +423,9 @@ function projectRoot(): string {
   return resolve(import.meta.dirname, '../../../../');
 }
 
-async function updateFromMenu(): Promise<void> {
-  if (!updateService) return;
-  const result = await updateService.check();
+async function presentUpdateResult(result: UpdateCheckResult): Promise<void> {
+  const service = updateService;
+  if (!service) return;
   const harnessAvailable = result.harness?.available === true;
   const releaseAvailable = Boolean(result.info?.version);
   const upstreamAvailable = result.upstream?.available === true;
@@ -355,7 +442,7 @@ async function updateFromMenu(): Promise<void> {
       cancelId: 1,
     });
     if (choice.response === 0) {
-      const install = await updateService.installHarness(result.harness!);
+      const install = await service.installHarness(result.harness!);
       if (install.status === 'installed') {
         await dialog.showMessageBox({ type: 'info', title: t('update.harnessComplete.title'), message: t('update.harnessComplete.message') });
       } else {
@@ -378,7 +465,7 @@ async function updateFromMenu(): Promise<void> {
       cancelId: 1,
     });
     if (choice.response === 0) {
-      const install = await updateService.downloadAndInstall();
+      const install = await service.downloadAndInstall();
       if (install.status === 'failed') {
         await dialog.showMessageBox({ type: 'error', title: t('update.failed.title'), message: install.error ?? t('update.failed.message') });
       }
@@ -478,10 +565,6 @@ function buildMenu(): void {
     {
       label: t('menu.help'),
       submenu: [
-        {
-          label: t('menu.checkUpdates'),
-          click: () => void updateFromMenu(),
-        },
         { label: t('menu.about'), click: () => void import('electron').then(({ dialog }) => dialog.showMessageBox({ message: t('menu.aboutMessage') })) },
       ],
     },
@@ -529,6 +612,7 @@ function applyNativeLocale(value: 'zh' | 'en' | 'es'): void {
   setNativeLocale(value);
   buildMenu();
   updateTrayMenu();
+  refreshUpdateIndicator();
 }
 
 const REFRESH_INTERVAL_MS = 30 * 60 * 1000;
@@ -564,13 +648,11 @@ app.whenReady().then(async () => {
     },
     log: (message, details) => appLogger?.logger.info({ details }, message),
   });
-  if (process.env.FREECODE_ENABLE_UPDATES === '1') {
-    void updateService.check();
-    updateTimer = setInterval(() => void updateService?.check(), 6 * 60 * 60 * 1_000);
-    updateTimer.unref();
-  }
+  void checkForUpdates();
+  updateTimer = setInterval(() => void checkForUpdates(), 6 * 60 * 60 * 1_000);
+  updateTimer.unref();
   try {
-    embeddedBrowser = await createEmbeddedBrowser(userDataDir);
+    embeddedBrowser = await createEmbeddedBrowser(userDataDir, () => mainWindow);
   } catch (error) {
     appLogger?.logger.warn({ err: error }, 'embedded browser unavailable; computer_use will report capability absence');
   }

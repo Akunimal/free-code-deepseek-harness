@@ -5,13 +5,13 @@ describe('native shell locale', () => {
   it('supports the same three locales as the web selector', () => {
     setLocale('zh');
     expect(locale()).toBe('zh');
-    expect(t('menu.checkUpdates')).toBe('检查更新');
+    expect(t('update.indicator')).toBe('发现更新');
 
     setLocale('en');
-    expect(t('menu.checkUpdates')).toBe('Check for updates');
+    expect(t('update.indicator')).toBe('Update available');
 
     setLocale('es');
-    expect(t('menu.checkUpdates')).toBe('Buscar actualizaciones');
+    expect(t('update.indicator')).toBe('Actualización disponible');
   });
 
   it('maps regional system locales to the same native choices', () => {

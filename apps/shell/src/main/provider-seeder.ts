@@ -48,6 +48,11 @@ interface SettingsShape {
 
 const DEFAULT_PROVIDER = 'deepseek-free';
 const DEFAULT_API_KEY_ENV = 'FREECODE_PUBLIC_KEY';
+const FREE_PROVIDER_DISPLAY_NAME = 'OpenCode Free Pool';
+const LEGACY_FREE_PROVIDER_DISPLAY_NAMES = new Set([
+  'DeepSeek Free (pool)',
+  'DeepSeek Free Pool',
+]);
 /** Seed model — the model-refresher replaces this with the live catalog. */
 const FALLBACK_MODELS = [{ id: 'x-preview-f', reasoningEfforts: reasoningEffortsForModel('x-preview-f') }];
 const MARKER_FILE = '.freecode-seeded-v1';
@@ -62,6 +67,14 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
   const existing = providers[DEFAULT_PROVIDER];
   let seeded = false;
   if (existing) {
+    // Migrate the label written by older releases. Keep unrelated user edits,
+    // but never leave the built-in OpenCode Free pool under the old name.
+    if (!existing.displayName || LEGACY_FREE_PROVIDER_DISPLAY_NAMES.has(existing.displayName)) {
+      if (existing.displayName !== FREE_PROVIDER_DISPLAY_NAME) {
+        existing.displayName = FREE_PROVIDER_DISPLAY_NAME;
+        seeded = true;
+      }
+    }
     if (existing.baseURL !== cfg.lbBaseUrl) {
       existing.baseURL = cfg.lbBaseUrl;
       seeded = true;
@@ -85,7 +98,7 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
     }
   } else {
     providers[DEFAULT_PROVIDER] = {
-      displayName: 'OpenCode Free Pool',
+      displayName: FREE_PROVIDER_DISPLAY_NAME,
       api: 'openai-completions',
       baseURL: cfg.lbBaseUrl,
       apiKeyEnv: cfg.apiKeyEnv ?? DEFAULT_API_KEY_ENV,

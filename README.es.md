@@ -19,7 +19,7 @@ workers separado para usar la release de Windows.
 
 ## Empezá en tres pasos
 
-1. Descargá el instalador de Windows desde la [release v0.1.8](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.1.8).
+1. Descargá el instalador de Windows desde la [release v0.2.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.2.0).
 2. Instalá FreeCode, abrilo y elegí la carpeta de tu proyecto.
 3. Contale al modelo en lenguaje natural qué querés construir.
 
@@ -39,7 +39,9 @@ otra carpeta o máquina.
 - Inglés, español y chino en la aplicación, incluidos los menús nativos y la
   bandeja.
 - Fondos CSS animados con soporte para reducir el movimiento.
-- Actualización integrada desde Ayuda → Buscar actualizaciones.
+- Comprobación automática de actualizaciones, con una flecha de descarga junto a Configuración cuando hay una nueva versión.
+- Compactado automático al 75% del contexto del modelo activo, también al cambiar a un modelo con menor contexto.
+- Compresión opcional de salidas con RTK si ya tenés el ejecutable `rtk`; FreeCode nunca lo instala automáticamente.
 
 ## Algunos límites prácticos
 
@@ -51,9 +53,10 @@ no crean más cuota.
 
 ## Actualización
 
-Usá Ayuda → Buscar actualizaciones. Las releases se compilan y suben
-manualmente, sin workflow de release de GitHub Actions, para no consumir la
-cuota gratuita de CI. El checklist y las notas bilingües están en
+FreeCode busca actualizaciones automáticamente. Cuando encuentra una, usá la
+flecha de descarga junto a Configuración. Las releases se compilan y suben
+manualmente, sin workflow de release de GitHub Actions, para no consumir la cuota
+gratuita de CI. El checklist y las notas bilingües están en
 [docs/RELEASE-POLICY.md](docs/RELEASE-POLICY.md).
 
 ## Para contribuir

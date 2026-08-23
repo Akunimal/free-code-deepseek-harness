@@ -5,7 +5,7 @@ Este repositorio es el fork público `Akunimal/free-code-deepseek-harness` de
 el subtree `vendor/deepseek-harness` conserva la referencia del upstream.
 El tag de release es el límite previsto de versionado para la GUI de escritorio
 y el harness web completo. El código conserva configuración de packaging
-multiplataforma, pero la release publicada `v0.1.8` contiene sólo artefactos
+multiplataforma, pero la release publicada `v0.2.0` contiene sólo artefactos
 Windows x64; macOS y Linux no están incluidos ni declarados como probados en
 esa release.
 
@@ -36,10 +36,12 @@ usuario no necesita Node, pnpm, Git, Go ni Python. Los demás targets de platafo
 quedan como configuración de código fuente hasta que una release futura los
 incluya y pruebe explícitamente.
 
-El menú Ayuda consulta la release de GitHub del fork, el asset compatible del
-Harness y el commit upstream registrado en `runtime-manifest.json`. Si existe un
-asset compatible del Harness, lo descarga, valida, detiene y reinicia sólo `dsh`
-y reemplaza atómicamente `resources/freecode/dsh`; el shell, el pool
+FreeCode consulta automáticamente la release de GitHub del fork, el asset
+compatible del Harness y el commit upstream registrado en `runtime-manifest.json`.
+Cuando hay una actualización compatible, la flecha de descarga junto a
+Configuración abre el flujo de confirmación; la descarga valida, detiene y
+reinicia sólo `dsh` para una actualización del Harness y reemplaza atómicamente
+`resources/freecode/dsh`; el shell, el pool
 `opencode2api`, Tor y los datos del usuario no se reemplazan. La actualización de
 la aplicación completa sigue siendo una ruta separada de `electron-updater` y no
 se usa para publicar releases. Desde un checkout se puede ejecutar además
@@ -62,8 +64,8 @@ cuota de workflows.
 En el checkout Windows actual, las rutas de prueba son:
 
 ```text
-I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\FreeCode-DeepSeek-Harness-0.1.8-win-x64-portable.exe
-I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\FreeCode-DeepSeek-Harness-0.1.8-win-x64-setup.exe
+I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\FreeCode-DeepSeek-Harness-0.2.0-win-x64-portable.exe
+I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\FreeCode-DeepSeek-Harness-0.2.0-win-x64-setup.exe
 I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\win-unpacked\FreeCode DeepSeek Harness.exe
 ```
 
@@ -75,12 +77,13 @@ release para no consumir cuota de GitHub Actions.
 
 El owner/repo de GitHub es `Akunimal/free-code-deepseek-harness`.
 
-## Versionado y estado de v0.1.8
+## Versionado y estado de v0.2.0
 
-La release actual es `v0.1.8`. Sus artefactos Windows setup/portable, blockmap,
-`latest.yml`, tarball del runtime del Harness, digest SHA-256 y screenshot
-actualizado se recompilaron localmente el 2026-08-23 y se subieron manualmente a
-la [release publicada en GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.1.8).
+La release actual es `v0.2.0`. Sus artefactos Windows setup/portable, blockmap,
+`latest.yml`, tarball del runtime del Harness y digest SHA-256 se compilarán y
+subirán manualmente después del preflight local. La captura del README queda sin
+cambios hasta que el maintainer entregue la nueva imagen. La release se seguirá
+en [GitHub v0.2.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.2.0).
 
 Antes de una release futura hay que verificar el preflight local completo:
 arranque zero-config, descubrimiento de modelos, registro del provider, streaming
