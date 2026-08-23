@@ -19,8 +19,8 @@ describe('release and runtime packaging contracts', () => {
     const spanishReadme = readFileSync(join(ROOT, 'README.es.md'), 'utf8');
     const template = readFileSync(join(ROOT, 'docs/RELEASE-NOTES-TEMPLATE.md'), 'utf8');
     const currentNotes = readFileSync(join(ROOT, 'docs/RELEASE-NOTES-v0.1.8.md'), 'utf8');
-    expect(readme).toContain('[Español](README.es.md)');
-    expect(spanishReadme).toContain('[English](README.md)');
+    expect(readme).toContain('[Leer en español](README.es.md)');
+    expect(spanishReadme).toContain('[Read this in English](README.md)');
     for (const notes of [template, currentNotes]) {
       expect(notes).toMatch(/^## English$/m);
       expect(notes).toMatch(/^## Español$/m);
