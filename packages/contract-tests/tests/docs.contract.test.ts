@@ -37,11 +37,29 @@ describe('documentation feature inventory', () => {
       'https://github.com/jasonxu114514/opencode2api',
       'https://github.com/deepseek-ai/deepseek-harness',
       'https://github.com/rtk-ai/rtk',
+      'https://github.com/JuliusBrussee/caveman',
     ]) {
       expect(readme).toContain(url);
       expect(spanishReadme).toContain(url);
     }
     expect(readme).toContain('RTK is not bundled, downloaded, or installed by FreeCode');
     expect(spanishReadme).toContain('FreeCode no incluye, descarga ni instala RTK');
+    expect(readme).toContain('docs/ROADMAP.md');
+    expect(spanishReadme).toContain('docs/ROADMAP.md');
+    expect(readme).toContain('docs/KNOWN-ISSUES.md');
+    expect(spanishReadme).toContain('docs/KNOWN-ISSUES.md');
+  });
+
+  it('keeps Caveman explicitly planned and the known-issues baseline honest', () => {
+    const roadmap = readFileSync(join(ROOT, 'docs/ROADMAP.md'), 'utf8');
+    const knownIssues = readFileSync(join(ROOT, 'docs/KNOWN-ISSUES.md'), 'utf8');
+
+    expect(roadmap).toContain('https://github.com/JuliusBrussee/caveman');
+    expect(roadmap).toContain('not integrated');
+    expect(roadmap).toContain('fail-closed');
+    expect(roadmap).toContain('RTK+Caveman');
+    expect(knownIssues).toContain('No hay un bug funcional bloqueante confirmado');
+    expect(knownIssues).toContain('Caveman is not implemented yet');
+    expect(knownIssues).not.toContain('Español está pendiente de una corrección');
   });
 });

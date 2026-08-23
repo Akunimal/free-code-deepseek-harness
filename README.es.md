@@ -73,7 +73,8 @@ pnpm build:desktop
 Más detalle en [la guía de arquitectura](docs/ARCHITECTURE.md),
 [el inventario de funciones](docs/UPSTREAM-FEATURES.md),
 [la guía de releases](docs/RELEASE.es.md) y
-[las notas de UI](docs/UI.md).
+[las notas de UI](docs/UI.md), el [roadmap](docs/ROADMAP.md) y los
+[problemas conocidos](docs/KNOWN-ISSUES.md).
 
 ## Proyecto
 
@@ -91,6 +92,7 @@ FreeCode integra y se apoya en estos proyectos de código abierto:
 - [OpenCode2API](https://github.com/jasonxu114514/opencode2api) — puente local compatible con OpenCode y pool de workers usado por la ruta de modelos gratuitos.
 - [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — harness upstream de agentes y runtime web basado en plugins.
 - [RTK (Rust Token Killer)](https://github.com/rtk-ai/rtk) — compresor opcional de salidas CLI que puede reducir lo que llega al contexto del modelo.
+- [Caveman](https://github.com/JuliusBrussee/caveman) — capa opcional candidata de compresión de respuestas/contexto en evaluación; FreeCode no la incluye ni la instala.
 
 FreeCode no incluye, descarga ni instala RTK. Cuando el toggle de RTK está
 habilitado y el ejecutable `rtk` ya está disponible, FreeCode envuelve sólo

@@ -151,7 +151,8 @@ pnpm build:desktop
 Más detalle en [la guía de arquitectura](docs/ARCHITECTURE.md),
 [el inventario de funciones](docs/UPSTREAM-FEATURES.md),
 [la guía de releases](docs/RELEASE.es.md) y
-[las notas de UI](docs/UI.md).
+[las notas de UI](docs/UI.md), el [roadmap](docs/ROADMAP.md) y los
+[problemas conocidos](docs/KNOWN-ISSUES.md).
 
 ### Proyecto
 
@@ -169,5 +170,6 @@ FreeCode integrates and builds on these open-source projects:
 - [OpenCode2API](https://github.com/jasonxu114514/opencode2api) — local OpenCode-compatible bridge and worker pool used by the free-model route. / Puente local compatible con OpenCode y pool de workers usado por la ruta de modelos gratuitos.
 - [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — upstream agent harness and plugin-based web runtime. / Harness de agentes upstream y runtime web basado en plugins.
 - [RTK (Rust Token Killer)](https://github.com/rtk-ai/rtk) — optional CLI output compressor that can reduce model-facing shell output. / Compresor opcional de salidas CLI que puede reducir lo que llega al contexto del modelo.
+- [Caveman](https://github.com/JuliusBrussee/caveman) — candidate optional response/context compression layer under evaluation; not bundled or installed by FreeCode. / Capa opcional candidata de compresión de respuestas/contexto en evaluación; FreeCode no la incluye ni la instala.
 
 RTK is not bundled, downloaded, or installed by FreeCode. When the RTK toggle is enabled and an `rtk` executable is already available, FreeCode wraps only eligible plain CLI commands; pipelines, redirects, substitutions, and other shell syntax are left unchanged. If RTK is missing, execution falls back to the original command.
