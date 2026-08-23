@@ -1,8 +1,8 @@
 # Contract tests
 
-Contract tests protect the seams between this shell, `opencode2api`, and the vendored DeepSeek Harness. They run before upstream subtree merges and release tags. Release CI builds the native `opencode2api` resources first and builds the adapter package before importing it, so the suite is valid from a clean checkout rather than depending on ignored local `dist/` or `resources/` output.
+Contract tests protect the seams between this shell, `opencode2api`, and the vendored DeepSeek Harness. They run before upstream subtree merges and manual releases. The local preflight builds the native `opencode2api` resources first and builds the adapter package before importing it, so the suite is valid from a clean checkout rather than depending on ignored local `dist/` or `resources/` output.
 
-The release contract also checks the portable Windows target, unique setup/portable artifact names, the actual fork owner/repository, and the tag-only multiplatform workflow. Pool unit coverage verifies the 1..16 account/worker slider clamp; the desktop overlay routes live changes through zod-validated preload IPC.
+The release contract also checks the portable Windows target, unique setup/portable artifact names, the actual fork owner/repository, and the manual-release policy. Pool unit coverage verifies the 1..16 account/worker slider clamp; the desktop overlay routes live changes through zod-validated preload IPC.
 
 Run them with:
 
@@ -23,18 +23,19 @@ pnpm test:contract
 9. The load balancer returns a JSON `503` when no worker is healthy.
 10. Every upstream client/web package is represented in `docs/UPSTREAM-FEATURES.md`; a new package fails this documentation contract until it is explained.
 
-Tests that require a built upstream CLI are skipped in a bare checkout and become active after `pnpm build:vendor`. The release workflow always builds the vendor first.
+Tests that require a built upstream CLI are skipped in a bare checkout and become active after `pnpm build:vendor`. The manual release checklist builds the vendor first.
 
 The shell suite adds supervisor smoke, provider seeding, model refresh, compatible-local-route discovery, secret storage, resource layout, updater behavior, and bounded log rotation tests.
 
-## GitHub execution gate
+## Manual release gate
 
-GitHub Actions quota is protected by a local preflight contract. Do not push,
-open or update a PR, dispatch a workflow, create a release, or otherwise spend
-GitHub CI quota until the equivalent local checks pass and the user explicitly
-authorizes the remote operation.
+GitHub Actions quota is protected by a local preflight contract. Releases are
+performed manually; there is intentionally no release workflow. Do not push,
+open or update a PR, create a release, or otherwise spend remote quota until
+the equivalent local checks pass and the user explicitly authorizes the remote
+operation.
 
 The required preflight is `pnpm test`, `pnpm test:contract`, `pnpm typecheck`,
 and the relevant build/package check for the changed surface. A failing local
-preflight blocks any GitHub action; it is not a reason to use the remote
-workflow as a diagnostic run.
+preflight blocks publication; it is not a reason to use a remote workflow as a
+diagnostic run.

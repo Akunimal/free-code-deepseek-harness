@@ -149,6 +149,17 @@ describe('model-refresher', () => {
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
+  it('keeps x-preview-f exposed when its slow probe is temporarily unavailable', async () => {
+    mockFetchWithModels(['x-preview-f', 'deepseek-v3.2-free'], ['deepseek-v3.2-free']);
+    const { home, data } = tmpDirs();
+    await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
+    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+    expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual(
+      expect.arrayContaining([deepseekModel('deepseek-v3.2-free'), { id: 'x-preview-f', reasoningEfforts: false }]),
+    );
+    rmSync(dirname(home), { recursive: true, force: true });
+  });
+
   it('throws when LB models list fails', async () => {
     vi.stubGlobal(
       'fetch',
@@ -174,7 +185,10 @@ describe('model-refresher', () => {
     const catalog = await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
     expect(catalog.availability).toBe('degraded');
     const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
-    expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([{ id: 'last-known-good' }]);
+    expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([
+      { id: 'last-known-good' },
+      { id: 'x-preview-f', reasoningEfforts: false },
+    ]);
     rmSync(dirname(home), { recursive: true, force: true });
   });
 });

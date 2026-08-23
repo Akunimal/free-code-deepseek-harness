@@ -5,10 +5,12 @@ This repository is the public `Akunimal/free-code-deepseek-harness` fork of
 the vendored `vendor/deepseek-harness` subtree remains the upstream reference.
 A release tag is the intended versioning boundary for the desktop GUI and the
 complete upstream web harness. The source contains cross-platform packaging
-configuration, but the published `v0.1.7` artifact set is Windows x64 only;
+configuration, but the published `v0.1.8` artifact set is Windows x64 only;
 macOS and Linux are not included or claimed as tested in that release.
 
-Releases are tag-only. Branch pushes do not build or publish installers.
+Releases are performed manually. Branch pushes do not build or publish
+installers, and this repository intentionally has no GitHub Actions release
+workflow.
 
 ## Local build
 
@@ -37,19 +39,30 @@ Attach the platform-specific `.tar.gz` files and their SHA-256 digests to the fo
 On the current Windows checkout, the expected local test paths are:
 
 ```text
-I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\FreeCode-DeepSeek-Harness-0.1.7-win-x64-portable.exe
-I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\FreeCode-DeepSeek-Harness-0.1.7-win-x64-setup.exe
+I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\FreeCode-DeepSeek-Harness-0.1.8-win-x64-portable.exe
+I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\FreeCode-DeepSeek-Harness-0.1.8-win-x64-setup.exe
 I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\win-unpacked\FreeCode DeepSeek Harness.exe
 ```
 
-## CI release (not used for v0.1.7)
+## Manual publication
 
-`.github/workflows/release.yml` is retained as an optional tag-based path and, when deliberately run, tests and builds a Windows, macOS, and Linux matrix. It was not run for `v0.1.7`, because that release was built and uploaded locally without spending GitHub Actions quota. The GitHub owner/repository is `Akunimal/free-code-deepseek-harness`; the deleted standalone repository is not part of the release path.
+Follow [RELEASE-POLICY.md](RELEASE-POLICY.md) to run the local preflight,
+review the artifacts, and upload them manually. The GitHub owner/repository is
+`Akunimal/free-code-deepseek-harness`; the deleted standalone repository is not
+part of the release path.
 
-The release job first builds the four supported `opencode2api` resources (Windows x64, macOS arm64, macOS x64, and Linux x64), then runs the adapter and contract suites from a clean checkout. This prevents native-resource and workspace-build assumptions from being hidden by a developer's ignored local artifacts.
+The local build prevents native-resource and workspace-build assumptions from
+being hidden by a developer's ignored local artifacts.
 
 ## Versioning
 
-The current patch release is `v0.1.7`. Its Windows setup/portable artifacts, blockmap, `latest.yml`, Harness runtime tarball, and SHA-256 digest were rebuilt locally on 2026-08-22, validated with a silent per-user install that returned exit code `0`, and uploaded manually to the [published GitHub release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.1.7). No GitHub Actions workflow was used. Before a future release, verify the full local preflight: zero-config boot, model discovery, provider registration, message streaming, worker restart, tray/overlay actions, import/continuation, workspace lifecycle, update checking, headless tool execution, and the conversation motion layer.
+The current patch release is `v0.1.8`. Its Windows setup/portable artifacts,
+blockmap, `latest.yml`, Harness runtime tarball, SHA-256 digest, and updated
+README screenshot were rebuilt locally on 2026-08-23 and uploaded manually to
+the [published GitHub release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.1.8).
+Before a future release, verify the full local preflight: zero-config boot,
+model discovery, provider registration, message streaming, worker restart,
+tray/overlay actions, import/continuation, workspace lifecycle, update
+checking, headless tool execution, and the conversation motion layer.
 
 For the Spanish release guide, see [RELEASE.es.md](RELEASE.es.md).

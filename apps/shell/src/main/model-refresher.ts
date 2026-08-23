@@ -40,12 +40,16 @@ export interface RefresherConfig {
   homeDir: string; // DSH_HOME (settings.yaml lives here)
   userDataDir: string; // model-catalog.json lives here
   authHeader?: string; // e.g. 'Bearer public'
-  probeTimeoutMs?: number; // default 5000
+  probeTimeoutMs?: number; // default 120000; free models can take >60s to answer
   onUpdate?: (catalog: ModelCatalog) => void;
 }
 
 const CATALOG_FILE = 'model-catalog.json';
-const PROBE_TIMEOUT_MS = 5_000;
+// x-preview-f has been observed taking about a minute on a cold/upstream path.
+// A short probe timeout makes a healthy, advertised model disappear from the
+// user's selector while an in-flight request is still viable.
+const PROBE_TIMEOUT_MS = 120_000;
+const ALWAYS_EXPOSED_MODELS = new Set(['x-preview-f']);
 
 export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog> {
   const timeoutMs = cfg.probeTimeoutMs ?? PROBE_TIMEOUT_MS;
@@ -107,12 +111,13 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
   mkdirSync(cfg.userDataDir, { recursive: true });
   writeFileSync(catalogPath, JSON.stringify(catalog, null, 2), 'utf8');
 
-  // 4. Sync settings.yaml models: only responders, latency asc. Upstream
+  // 4. Sync settings.yaml models: responders, latency asc. Upstream
   // schema wants model objects ({id,...}), not bare strings — a plain string
   // list fails the llm-pi-ai route validator.
   const responders = entries
     .filter((m) => m.responds)
     .sort((a, b) => (a.latencyMs ?? Infinity) - (b.latencyMs ?? Infinity));
+  const advertisedFallbacks = entries.filter((m) => ALWAYS_EXPOSED_MODELS.has(m.id));
   const settingsPath = join(cfg.homeDir, 'settings.yaml');
   const settings = readSettings(settingsPath);
   const section = settings['llm-pi-ai'] ?? (settings['llm-pi-ai'] = {});
@@ -128,9 +133,21 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
   // A live catalog with zero responding probes is a degraded upstream, not a
   // reason to erase the last known-good automatic model selection.
   if (responders.length > 0) {
-    free.models = responders.map((m) => {
+    const responderIds = new Set(responders.map((m) => m.id));
+    free.models = [...responders, ...advertisedFallbacks.filter((m) => !responderIds.has(m.id))].map((m) => {
       return { id: m.id, reasoningEfforts: reasoningEffortsForModel(m.id) };
     });
+  } else if (advertisedFallbacks.length > 0) {
+    // Keep the last known-good list intact during a degraded refresh, but do
+    // not let the advertised x-preview-f disappear from the selector.
+    const current = Array.isArray(free.models) ? free.models : [];
+    const currentIds = new Set(current.map((m: any) => (typeof m === 'string' ? m : m?.id)));
+    free.models = [
+      ...current,
+      ...advertisedFallbacks
+        .filter((m) => !currentIds.has(m.id))
+        .map((m) => ({ id: m.id, reasoningEfforts: reasoningEffortsForModel(m.id) })),
+    ];
   }
   writeSettings(settingsPath, settings);
 

@@ -5,11 +5,13 @@ Este repositorio es el fork público `Akunimal/free-code-deepseek-harness` de
 el subtree `vendor/deepseek-harness` conserva la referencia del upstream.
 El tag de release es el límite previsto de versionado para la GUI de escritorio
 y el harness web completo. El código conserva configuración de packaging
-multiplataforma, pero la release publicada `v0.1.7` contiene sólo artefactos
+multiplataforma, pero la release publicada `v0.1.8` contiene sólo artefactos
 Windows x64; macOS y Linux no están incluidos ni declarados como probados en
 esa release.
 
-Las releases se versionan por tags. Los pushes a ramas no publican instaladores.
+Las releases se realizan manualmente. Los pushes a ramas no publican
+instaladores y este repositorio no tiene workflow de GitHub Actions para
+releases.
 
 ## Build local
 
@@ -40,7 +42,7 @@ asset compatible del Harness, lo descarga, valida, detiene y reinicia sólo `dsh
 y reemplaza atómicamente `resources/freecode/dsh`; el shell, el pool
 `opencode2api`, Tor y los datos del usuario no se reemplazan. La actualización de
 la aplicación completa sigue siendo una ruta separada de `electron-updater` y no
-se usó para publicar `v0.1.7`. Desde un checkout se puede ejecutar además
+se usa para publicar releases. Desde un checkout se puede ejecutar además
 `node scripts/update-upstream-local.mjs`, que actualiza el subtree upstream y
 reconstruye sólo `package:runtime`; la app portable nunca intenta compilar sin
 toolchain.
@@ -60,31 +62,25 @@ cuota de workflows.
 En el checkout Windows actual, las rutas de prueba son:
 
 ```text
-I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\FreeCode-DeepSeek-Harness-0.1.7-win-x64-portable.exe
-I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\FreeCode-DeepSeek-Harness-0.1.7-win-x64-setup.exe
+I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\FreeCode-DeepSeek-Harness-0.1.8-win-x64-portable.exe
+I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\FreeCode-DeepSeek-Harness-0.1.8-win-x64-setup.exe
 I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\win-unpacked\FreeCode DeepSeek Harness.exe
 ```
 
-## Release CI opcional
+## Publicación manual
 
-`.github/workflows/release.yml` se conserva como camino opcional por tags y, si
-se ejecuta deliberadamente, prueba y construye una matriz Windows/macOS/Linux.
-No se ejecutó para `v0.1.7`: esa release se compiló y subió localmente para no
-gastar cuota de GitHub Actions.
+Seguí [RELEASE-POLICY.md](RELEASE-POLICY.md) para ejecutar el preflight local,
+revisar los artefactos y subirlos manualmente. No se agrega un workflow de
+release para no consumir cuota de GitHub Actions.
 
-El job de release construye los cuatro recursos `opencode2api` soportados por su
-configuración (Windows x64, macOS arm64, macOS x64 y Linux x64) y luego ejecuta
-las suites del adapter y de contratos desde un checkout limpio. El owner/repo de
-GitHub es `Akunimal/free-code-deepseek-harness`.
+El owner/repo de GitHub es `Akunimal/free-code-deepseek-harness`.
 
-## Versionado y estado de v0.1.7
+## Versionado y estado de v0.1.8
 
-La release actual es `v0.1.7`. Sus artefactos Windows setup/portable, blockmap,
-`latest.yml`, tarball del runtime del Harness y digest SHA-256 se recompilaron
-localmente el 2026-08-22, se validaron con una instalación por usuario silenciosa
-con exit code `0` y se subieron manualmente a la
-[release publicada en GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.1.7).
-No se ejecutó ningún workflow de GitHub Actions.
+La release actual es `v0.1.8`. Sus artefactos Windows setup/portable, blockmap,
+`latest.yml`, tarball del runtime del Harness, digest SHA-256 y screenshot
+actualizado se recompilaron localmente el 2026-08-23 y se subieron manualmente a
+la [release publicada en GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.1.8).
 
 Antes de una release futura hay que verificar el preflight local completo:
 arranque zero-config, descubrimiento de modelos, registro del provider, streaming

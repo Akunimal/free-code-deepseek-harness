@@ -142,27 +142,24 @@ describe('OpenCodePool', () => {
     const pool = new OpenCodePool({ size: 4, binaryPath: BIN, workDir, logDir });
     await pool.start();
     await waitFor(() => pool.workers().filter((w) => w.status === 'ready').length === 4, 30_000);
+    const spawnedPids = pool.workers().map((w) => w.pid).filter((pid) => pid > 0);
     await pool.stop();
     await waitFor(() => pool.workers().length === 0, 10_000);
-    // Verify processes are gone via tasklist on Windows / ps elsewhere.
-    const pids = new Set<number>();
-    for (const w of pool.workers()) pids.add(w.pid);
-    // After stop() workers() is empty, so re-check with the OS.
-    let leaked: string[] = [];
+    // Verify only this test's processes are gone. FreeCode may have its own
+    // live workers, so a global image-name check would be invalid.
     if (process.platform === 'win32') {
-      const out = execFileSync('tasklist', ['/FI', 'IMAGENAME eq opencode2api-win-x64.exe'], {
-        encoding: 'utf8',
-      });
-      leaked = out
-        .split('\n')
-        .filter((l) => /opencode2api-win-x64\.exe/.test(l));
+      for (const pid of spawnedPids) {
+        const out = execFileSync('tasklist', ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'], {
+          encoding: 'utf8',
+        });
+        expect(out).not.toMatch(/opencode2api-win-x64\.exe/i);
+      }
     } else {
-      const out = execFileSync('ps', ['-ef'], { encoding: 'utf8' });
-      leaked = out
-        .split('\n')
-        .filter((l) => /opencode2api-(win-x64|mac-arm64|linux-x64)/.test(l));
+      for (const pid of spawnedPids) {
+        const out = execFileSync('ps', ['-p', String(pid), '-o', 'comm='], { encoding: 'utf8' });
+        expect(out).not.toMatch(/opencode2api-(win-x64|mac-arm64|linux-x64)/);
+      }
     }
-    expect(leaked).toHaveLength(0);
   }, 90_000);
 });
 

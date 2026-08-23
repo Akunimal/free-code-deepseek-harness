@@ -1,25 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROOT = join(import.meta.dirname, '../../..');
 
 describe('release and runtime packaging contracts', () => {
-  it('keeps release automation tag-only and multiplatform', () => {
-    const workflow = readFileSync(join(ROOT, '.github/workflows/release.yml'), 'utf8');
+  it('keeps releases manual and multiplatform packaging available', () => {
     const shellPackage = readFileSync(join(ROOT, 'apps/shell/package.json'), 'utf8');
-    expect(workflow).toMatch(/push:\s*\n\s*tags:\s*\n\s*- ['"]v\*['"]/);
-    expect(workflow).not.toMatch(/branches:/);
-    expect(workflow).toContain('windows-latest');
-    expect(workflow).toContain('macos-latest');
-    expect(workflow).toContain('ubuntu-latest');
-    expect(workflow).toContain('pnpm test:contract');
-    expect(workflow).toContain('pnpm build:desktop');
+    const policy = readFileSync(join(ROOT, 'docs/RELEASE-POLICY.md'), 'utf8');
+    expect(existsSync(join(ROOT, '.github/workflows/release.yml'))).toBe(false);
+    expect(policy).toContain('performed manually');
+    expect(policy).toContain('free GitHub Actions quota');
     expect(shellPackage).toContain('electron-builder --config electron-builder.yml --publish never');
-    expect(workflow).toContain('apps/shell/release/*.AppImage');
-    expect(workflow).toContain('apps/shell/release/*.dmg');
-    expect(workflow).toContain('apps/shell/release/*.exe');
-    expect(workflow).not.toContain('apps/shell/release/*\n');
   });
 
   it('keeps the desktop bundle and native runtime closure wired together', () => {

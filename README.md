@@ -10,20 +10,20 @@
 
 This repository is the public [Akunimal/free-code-deepseek-harness](https://github.com/Akunimal/free-code-deepseek-harness) fork of [`deepseek-ai/deepseek-harness`](https://github.com/deepseek-ai/deepseek-harness). It keeps the upstream harness and adds a desktop GUI product for running it cross-platform: Electron owns the local processes, prepares the DeepSeek Free provider, starts the `opencode2api` pool, and opens the complete harness web UI inside a native window. **The OpenCode bridge (`opencode2api`) is fully integrated** — no external setup, separate binary download, or manual configuration is required; the bridge ships inside the application and is managed automatically by the worker pool.
 
-The product branch in this checkout is `main`; the vendored `vendor/deepseek-harness` subtree is the upstream reference. The source retains cross-platform packaging configuration, but the currently published `v0.1.7` release is a Windows x64 build:
+The product branch in this checkout is `main`; the vendored `vendor/deepseek-harness` subtree is the upstream reference. The currently published `v0.1.8` release is a Windows x64 build:
 
 - Windows: NSIS `.exe` installer.
-- macOS/Linux: not included or tested in the published `v0.1.7` artifacts.
+- macOS/Linux: not included or tested in the published `v0.1.8` artifacts.
 
-The repository still contains the optional tag-based matrix workflow for future platform builds, but `v0.1.7` was compiled locally and uploaded manually to avoid spending GitHub Actions quota. This is not a demo UI: the published Windows artifacts contain the harness runtime, its workspace dependencies, the local worker pool, zero-config setup, and the upstream web surfaces documented below.
+Releases are compiled and uploaded manually from a maintainer workstation; the repository intentionally has no release workflow so publishing does not consume GitHub Actions quota. This is not a demo UI: the published Windows artifacts contain the harness runtime, its workspace dependencies, the local worker pool, zero-config setup, and the upstream web surfaces documented below.
 
-### Current release: v0.1.7
+### Current release: v0.1.8
 
-The published release includes the Windows NSIS installer, portable executable, blockmap, `latest.yml`, the Harness-only runtime tarball, and its SHA-256 digest. The release was rebuilt locally, installed silently with exit code `0`, and uploaded manually on 2026-08-22. Download it from [GitHub Releases](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.1.7). No GitHub Actions workflow was used for this release.
+The published release includes the Windows NSIS installer, portable executable, blockmap, `latest.yml`, the Harness-only runtime tarball, and its SHA-256 digest. The release was rebuilt locally and uploaded manually on 2026-08-23. Download it from [GitHub Releases](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.1.8). No GitHub Actions workflow is used for this release.
 
 ## Portable, almost-free vibecoding, and real limits
 
-The product is designed to be self-contained and portable: Node/Electron, the `dsh` CLI, the UI, native dependencies, and the `opencode2api` binaries travel inside the artifact. A release does not require Node, pnpm, Git, Go, or Python to run. The published Windows release provides both an NSIS installer and a **portable** `.exe` that can be copied to another folder or machine; the portable build keeps its data in a `data/` directory beside the executable. Other platform targets are not part of the current v0.1.7 download set.
+The product is designed to be self-contained and portable: Node/Electron, the `dsh` CLI, the UI, native dependencies, and the `opencode2api` binaries travel inside the artifact. A release does not require Node, pnpm, Git, Go, or Python to run. The published Windows release provides both an NSIS installer and a **portable** `.exe` that can be copied to another folder or machine; the portable build keeps its data in a `data/` directory beside the executable. Other platform targets are not part of the current v0.1.8 download set.
 
 The goal is almost-free vibecoding through OpenCode's DeepSeek Free route. The Pool overlay exposes a **Parallel workers** slider from 1 to 16 (default 6): it controls how many local `opencode2api` processes serve requests concurrently. Without session affinity, each request is distributed round-robin across ready workers; an explicitly pinned session keeps its worker so upstream state is not mixed. Each worker maintains its own independent session against the OpenCode service. By default this does not create accounts, rotate identities, or bypass IP-level limits; the optional Tor egress rotation described below changes only the egress IP, never the identity or the account tier. With a private key, all workers use that key and remain subject to that account/provider's limits.
 
@@ -50,7 +50,7 @@ Requests spread round-robin across four exit IPs; `socks5_paid_direct` keeps pri
 
 **Windows 11 24H2/25H2 installer fix:** electron-builder 25.x ships an NSIS process check (`nsProcess`/`tasklist | find`) that can false-positive on recent Windows 11 builds. The active workaround is applied through `build/installer.nsh` and the `beforePack` hook: the installer uses a silent `taskkill`, tolerates a non-fatal old-uninstaller exit code, and skips stale uninstallers that no longer exist. The portable `.exe` is not affected.
 
-To test the Windows build generated in this checkout, open `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.7-win-x64-portable.exe`; the installer is `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.7-win-x64-setup.exe`. The unpacked development executable is `apps/shell/release/win-unpacked/FreeCode DeepSeek Harness.exe`.
+To test the Windows build generated in this checkout, open `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.8-win-x64-portable.exe`; the installer is `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.8-win-x64-setup.exe`. The unpacked development executable is `apps/shell/release/win-unpacked/FreeCode DeepSeek Harness.exe`.
 
 ## What it delivers
 
@@ -62,14 +62,14 @@ This application packages the upstream harness and adds the desktop layer needed
 - Preconfigures OpenCode's public account (`Bearer public`) as `FREECODE_PUBLIC_KEY`, so DeepSeek Free is usable without a private API key; an existing private OpenCode key is never overwritten.
 - Detects compatible local OpenAI routes on demand, stores secrets through keytar or a file fallback, and exposes typed zod IPC through preload. The product's own route is the bundled `opencode2api` pool.
 - Includes window, tray, notifications, pool-status overlay, settings-folder access, OpenCode SQLite/ChatML import, and workspace continuation.
-- Writes rotating JSONL logs, offers a GitHub update button, can sync upstream and rebuild from a local checkout, prepares reproducible stages, and publishes only from `v*` tags.
+- Writes rotating JSONL logs, offers a GitHub update button, can sync upstream and rebuild from a local checkout, and prepares reproducible stages. Releases are published manually according to [the release policy](docs/RELEASE-POLICY.md).
 - Adds a per-conversation CSS animated background: two lightweight radial-gradient layers, no canvas or JavaScript loop, with `prefers-reduced-motion` support.
 
-The Settings language selector currently exposes Chinese and English. Spanish dictionaries are bundled upstream but are not currently surfaced by the desktop selector; this is a known regression tracked below.
+The Settings language selector exposes English, Spanish, and Chinese, and the desktop menus follow the selected language. The selector and locale keys are covered by contract tests.
 
 ## Known issues
 
-- Spanish is not currently shown in the Settings language selector; the current build visibly offers only English and Chinese. The upstream Spanish dictionaries remain present, but the selector exposure regressed. Use English or Chinese until it is fixed.
+- The anonymous DeepSeek Free route remains subject to upstream IP/session rate limits. The model catalog keeps the last known-good selection during transient refresh failures and gives `x-preview-f` a 120-second probe budget because it can be slow on a cold path.
 
 ## Permissions: exactly the original harness model
 
@@ -144,20 +144,20 @@ Esta sección en español está incluida en el README principal para que la port
 
 Este repositorio es el fork público [Akunimal/free-code-deepseek-harness](https://github.com/Akunimal/free-code-deepseek-harness) de [`deepseek-ai/deepseek-harness`](https://github.com/deepseek-ai/deepseek-harness). Conserva el harness original y agrega una aplicación GUI de escritorio para ejecutarlo como producto multiplataforma: Electron administra los procesos locales, prepara el proveedor DeepSeek Free, levanta el `opencode2api` pool y abre la interfaz web completa del harness dentro de una ventana nativa. **El puente OpenCode (`opencode2api`) viene completamente integrado** — no requiere descarga externa, binario separado ni configuración manual; el puente viaja dentro de la aplicación y el pool de workers lo administra automáticamente.
 
-La rama de producto en este checkout es `main`; el subtree `vendor/deepseek-harness` conserva la referencia del upstream. El código conserva configuración de packaging multiplataforma, pero la release `v0.1.7` publicada actualmente contiene sólo el build Windows x64:
+La rama de producto en este checkout es `main`; el subtree `vendor/deepseek-harness` conserva la referencia del upstream. La release publicada actualmente es `v0.1.8` y contiene el build Windows x64:
 
 - Windows: instalador NSIS `.exe`.
-- macOS/Linux: no están incluidos ni probados en los artefactos publicados de `v0.1.7`.
+- macOS/Linux: no están incluidos ni probados en los artefactos publicados de `v0.1.8`.
 
-El repositorio conserva el workflow opcional de matriz por tags para builds futuros, pero `v0.1.7` se compiló localmente y se subió manualmente para no gastar cuota de GitHub Actions. No es una UI de demostración: los artefactos Windows publicados incluyen el runtime del harness, sus dependencias workspace, el pool local, la configuración zero-config y las superficies web upstream documentadas abajo.
+Las releases se compilan y suben manualmente desde una estación de mantenimiento; el repositorio no tiene workflow de release para no consumir cuota de GitHub Actions. No es una UI de demostración: los artefactos Windows publicados incluyen el runtime del harness, sus dependencias workspace, el pool local, la configuración zero-config y las superficies web upstream documentadas abajo.
 
-### Release actual: v0.1.7
+### Release actual: v0.1.8
 
-La release publicada incluye el instalador NSIS Windows, el ejecutable portable, el blockmap, `latest.yml`, el tarball del runtime exclusivo del Harness y su digest SHA-256. Se recompiló localmente, se instaló silenciosamente con exit code `0` y se subió manualmente el 2026-08-22. Descargala desde [GitHub Releases](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.1.7). No se usó ningún workflow de GitHub Actions para esta release.
+La release publicada incluye el instalador NSIS Windows, el ejecutable portable, el blockmap, `latest.yml`, el tarball del runtime exclusivo del Harness y su digest SHA-256. Se recompiló y subió manualmente el 2026-08-23. Descargala desde [GitHub Releases](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.1.8). No se usa ningún workflow de GitHub Actions para esta release.
 
 ## Portable, vibecoding casi gratis y límites reales
 
-El producto está diseñado para ser autocontenido y portable: el runtime de Node/Electron, el CLI `dsh`, la UI, las dependencias nativas y los binarios `opencode2api` viajan dentro del artefacto. No hace falta instalar Node, pnpm, Git, Go ni Python para ejecutar una release. La release Windows publicada entrega dos ejecutables: un instalador NSIS y un `.exe` **portable** que se puede copiar a otra carpeta o máquina; el portable guarda sus datos en `data/` junto al ejecutable. Los demás targets de plataforma no forman parte de la descarga actual de v0.1.7.
+El producto está diseñado para ser autocontenido y portable: el runtime de Node/Electron, el CLI `dsh`, la UI, las dependencias nativas y los binarios `opencode2api` viajan dentro del artefacto. No hace falta instalar Node, pnpm, Git, Go ni Python para ejecutar una release. La release Windows publicada entrega dos ejecutables: un instalador NSIS y un `.exe` **portable** que se puede copiar a otra carpeta o máquina; el portable guarda sus datos en `data/` junto al ejecutable. Los demás targets de plataforma no forman parte de la descarga actual de v0.1.8.
 
 El objetivo es facilitar vibecoding prácticamente gratis usando la ruta DeepSeek Free de OpenCode. El overlay de Pool tiene el slider **Workers paralelos** de 1 a 16 (por defecto 6): controla cuántos procesos locales `opencode2api` atienden en paralelo. Sin afinidad de sesión, cada request se reparte en round-robin entre los workers listos; una sesión explícitamente fijada conserva su worker para no mezclar el estado upstream. Cada worker mantiene su propia sesión independiente contra el servicio OpenCode. Por defecto esto no crea cuentas nuevas, no rota identidades y no evade límites a nivel de IP; la rotación de salida opcional con Tor descrita abajo cambia únicamente la IP de salida, nunca la identidad ni el tier de cuenta. Con una clave privada, todos los workers usan esa clave y siguen aplicando los límites de esa cuenta/proveedor.
 
@@ -184,7 +184,7 @@ Los requests se reparten en round-robin entre cuatro IPs de salida; `socks5_paid
 
 **Arreglo del instalador en Windows 11 24H2/25H2:** electron-builder 25.x incluye un chequeo de proceso NSIS (`nsProcess`/`tasklist | find`) que puede dar falsos positivos en builds recientes. El workaround activo se aplica mediante `build/installer.nsh` y el hook `beforePack`: el instalador usa `taskkill` silencioso, tolera un exit code no fatal del desinstalador anterior y salta desinstaladores viejos que ya no existen. El portable `.exe` no se ve afectado.
 
-Para probar el build Windows generado en este checkout, abrí `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.7-win-x64-portable.exe`; el instalador queda como `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.7-win-x64-setup.exe`. El directorio desempaquetado de desarrollo es `apps/shell/release/win-unpacked/FreeCode DeepSeek Harness.exe`.
+Para probar el build Windows generado en este checkout, abrí `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.8-win-x64-portable.exe`; el instalador queda como `apps/shell/release/FreeCode-DeepSeek-Harness-0.1.8-win-x64-setup.exe`. El directorio desempaquetado de desarrollo es `apps/shell/release/win-unpacked/FreeCode DeepSeek Harness.exe`.
 
 ## Qué entrega
 
@@ -196,10 +196,10 @@ Esta aplicación empaqueta el harness upstream y agrega la capa desktop necesari
 - Trae preconfigurada la cuenta pública de OpenCode (`Bearer public`) como `FREECODE_PUBLIC_KEY`, por lo que DeepSeek Free queda utilizable sin API key privada; una clave privada de OpenCode del usuario nunca se sobrescribe.
 - Detecta bajo demanda rutas OpenAI compatibles locales, guarda secretos mediante keytar o fallback de archivo y expone IPC zod tipado por preload. La ruta propia del producto es el pool `opencode2api` incluido.
 - Incluye ventana, tray, notificaciones, overlay de estado del pool, abrir la carpeta de configuración, importación OpenCode SQLite/ChatML y continuación en workspace.
-- Escribe logs JSONL rotados, ofrece un botón de actualización GitHub, puede sincronizar upstream y recompilar desde un checkout local, prepara stages reproducibles y publica únicamente desde tags `v*`.
+- Escribe logs JSONL rotados, ofrece un botón de actualización GitHub, puede sincronizar upstream y recompilar desde un checkout local y prepara stages reproducibles. Las releases se publican manualmente según [la política de release](docs/RELEASE-POLICY.md).
 - Añade un fondo animado por conversación en CSS: dos gradientes radiales livianos, sin canvas ni loop JavaScript, con soporte para `prefers-reduced-motion`.
 
-El selector de idiomas de Configuración actualmente expone chino e inglés. Los diccionarios de español siguen incluidos en upstream, pero el selector del escritorio no los está mostrando; es una regresión conocida documentada en [Problemas conocidos](#problemas-conocidos).
+El selector de idiomas de Configuración expone inglés, español y chino, y los menús de la aplicación siguen el idioma elegido. Las claves y el selector están cubiertos por tests de contrato.
 
 ## Permisos: exactamente el modelo del harness original
 

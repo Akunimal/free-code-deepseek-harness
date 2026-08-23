@@ -10,7 +10,8 @@ import { z } from 'zod';
  *
  * Every test states WHAT contract it verifies and WHAT to do if it fails
  * (see each describe block). Run locally with `pnpm test:contract` before
- * every squash/tag; CI only inside release.yml on v* tags.
+ * every squash/tag; releases are intentionally manual (see
+ * docs/RELEASE-POLICY.md) to preserve the free GitHub Actions quota.
  */
 
 const VENDOR = join(import.meta.dirname, '../../../vendor/deepseek-harness');
