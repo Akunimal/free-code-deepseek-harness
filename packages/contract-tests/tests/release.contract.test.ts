@@ -14,6 +14,21 @@ describe('release and runtime packaging contracts', () => {
     expect(shellPackage).toContain('electron-builder --config electron-builder.yml --publish never');
   });
 
+  it('keeps README and release descriptions bilingual', () => {
+    const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
+    const spanishReadme = readFileSync(join(ROOT, 'README.es.md'), 'utf8');
+    const template = readFileSync(join(ROOT, 'docs/RELEASE-NOTES-TEMPLATE.md'), 'utf8');
+    const currentNotes = readFileSync(join(ROOT, 'docs/RELEASE-NOTES-v0.1.8.md'), 'utf8');
+    expect(readme).toContain('[Español](README.es.md)');
+    expect(spanishReadme).toContain('[English](README.md)');
+    for (const notes of [template, currentNotes]) {
+      expect(notes).toMatch(/^## English$/m);
+      expect(notes).toMatch(/^## Español$/m);
+      expect(notes).toContain('manually');
+      expect(notes).toContain('manualmente');
+    }
+  });
+
   it('keeps the desktop bundle and native runtime closure wired together', () => {
     const builder = readFileSync(join(ROOT, 'apps/shell/electron-builder.yml'), 'utf8');
     const runtime = readFileSync(join(ROOT, 'scripts/package-runtime.sh'), 'utf8');

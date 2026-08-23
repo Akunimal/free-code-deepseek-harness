@@ -12,5 +12,7 @@ Manual release checklist:
    scripts.
 2. Review the generated installers and update metadata locally.
 3. Create or update the GitHub release and upload the artifacts manually.
-4. Record the version, commit, assets, and verification result in the release
+4. Write the description from `docs/RELEASE-NOTES-TEMPLATE.md` with both the
+   `English` and `Español` sections, keeping facts aligned.
+5. Record the version, commit, assets, and verification result in the release
    notes.
