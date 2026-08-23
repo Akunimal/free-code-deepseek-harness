@@ -12,7 +12,8 @@ import { nodeRuntimeEnv, resolveNodePath, resolveResourcesDir } from './resource
 import { createAppLogger, type AppLogger } from './logger.js';
 import { createUpdateService, type UpdateService } from './updater.js';
 import { createHarnessUpdater } from './harness-updater.js';
-import { initLocale, t } from './i18n.js';
+import { createEmbeddedBrowser, type EmbeddedBrowser } from './embedded-browser.js';
+import { initLocale, setLocale as setNativeLocale, t } from './i18n.js';
 import {
   TorFleet,
   loadTorFleetState,
@@ -91,6 +92,7 @@ async function bootstrap(): Promise<ShellRuntime> {
     secrets,
     secretEnvNames: ['FREECODE_PUBLIC_KEY'],
     nodeEnv: nodeRuntimeEnv(app.isPackaged),
+    browserBridge: embeddedBrowser ? { endpoint: embeddedBrowser.endpoint, token: embeddedBrowser.token } : undefined,
     log: (level, msg, meta) => {
       const fn = level === 'error' || level === 'warn' ? level : 'info';
       appLogger?.logger[fn]?.(meta ?? {}, msg);
@@ -110,6 +112,7 @@ let updateTimer: NodeJS.Timeout | null = null;
 let overlayOpen = false;
 let localUpdateRunning = false;
 let torfleet: TorFleet | null = null;
+let embeddedBrowser: EmbeddedBrowser | null = null;
 let torfleetEnabled = false;
 type BackendState = 'unknown' | 'ready' | 'degraded' | 'down';
 const backendStates: Record<'catalog' | 'pool', BackendState> = { catalog: 'unknown', pool: 'unknown' };
@@ -464,7 +467,13 @@ function buildMenu(): void {
         { role: 'quit', label: t('menu.quit') },
       ],
     },
-    { role: 'viewMenu', label: t('menu.view') },
+    {
+      role: 'viewMenu',
+      label: t('menu.view'),
+      submenu: [
+        { label: t('menu.embeddedBrowser'), click: () => void embeddedBrowser?.show() },
+      ],
+    },
     { role: 'windowMenu', label: t('menu.window') },
     {
       label: t('menu.help'),
@@ -473,7 +482,7 @@ function buildMenu(): void {
           label: t('menu.checkUpdates'),
           click: () => void updateFromMenu(),
         },
-        { label: t('menu.about'), click: () => void import('electron').then(({ dialog }) => dialog.showMessageBox({ message: 'FreeCode DeepSeek Harness' })) },
+        { label: t('menu.about'), click: () => void import('electron').then(({ dialog }) => dialog.showMessageBox({ message: t('menu.aboutMessage') })) },
       ],
     },
   );
@@ -489,14 +498,9 @@ function openOverlay(): void {
   createOverlayWindow();
 }
 
-function createTray(): void {
-  const iconPath = join(resourcesDir(), 'tray.png');
-  const icon = existsSync(iconPath)
-    ? nativeImage.createFromPath(iconPath)
-    : nativeImage.createEmpty();
-  tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
-  tray.setToolTip('FreeCode DeepSeek Harness');
-  tray.setContextMenu(
+function updateTrayMenu(): void {
+  tray?.setToolTip(t('tray.tooltip'));
+  tray?.setContextMenu(
     Menu.buildFromTemplate([
       { label: t('tray.show'), click: () => mainWindow?.show() },
       { label: t('menu.poolStatus'), click: () => openOverlay() },
@@ -508,7 +512,23 @@ function createTray(): void {
       { label: t('menu.quit'), click: () => app.quit() },
     ]),
   );
+}
+
+function createTray(): void {
+  const iconPath = join(resourcesDir(), 'tray.png');
+  const icon = existsSync(iconPath)
+    ? nativeImage.createFromPath(iconPath)
+    : nativeImage.createEmpty();
+  tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
+  updateTrayMenu();
   tray.on('click', () => mainWindow?.show());
+}
+
+/** Apply the web selector to all native surfaces without restarting FreeCode. */
+function applyNativeLocale(value: 'zh' | 'en' | 'es'): void {
+  setNativeLocale(value);
+  buildMenu();
+  updateTrayMenu();
 }
 
 const REFRESH_INTERVAL_MS = 30 * 60 * 1000;
@@ -548,6 +568,11 @@ app.whenReady().then(async () => {
     void updateService.check();
     updateTimer = setInterval(() => void updateService?.check(), 6 * 60 * 60 * 1_000);
     updateTimer.unref();
+  }
+  try {
+    embeddedBrowser = await createEmbeddedBrowser(userDataDir);
+  } catch (error) {
+    appLogger?.logger.warn({ err: error }, 'embedded browser unavailable; computer_use will report capability absence');
   }
   runtime = await bootstrap();
   await runtime.start();
@@ -667,6 +692,7 @@ app.whenReady().then(async () => {
       isEnabled: () => torfleetEnabled,
     },
     reportModelRefreshFailure,
+    setLocale: applyNativeLocale,
   });
 
   // Wait for harness readiness, then open the window on its URL.
@@ -728,6 +754,8 @@ app.on('before-quit', async (e) => {
   e.preventDefault();
   if (updateTimer) clearInterval(updateTimer);
   if (torfleet) await torfleet.stop();
+  await embeddedBrowser?.close();
+  embeddedBrowser = null;
   await runtime.stop();
   await appLogger?.close();
   app.exit(0);

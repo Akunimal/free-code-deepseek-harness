@@ -43,3 +43,19 @@ export const en = {
   'error.load': 'Could not load feedback',
   'error.generic': 'Could not save feedback',
 } satisfies Record<MessageFeedbackKey, string>
+export const es = {
+  ...en,
+  'action.like': 'Buena respuesta',
+  'action.likeActive': 'Quitar valoración',
+  'action.dislike': 'Mala respuesta',
+  'action.dislikeActive': 'Quitar valoración',
+  'note.open': 'Agregar una nota',
+  'note.dialog': 'Comentarios',
+  'note.placeholder': '¿Qué estuvo bien o qué salió mal? (opcional)',
+  'note.save': 'Guardar',
+  'note.cancel': 'Cancelar',
+  'note.aria': 'Nota de comentarios',
+  'error.conflict': 'Estos comentarios cambiaron en otro lugar; se muestra el estado más reciente',
+  'error.load': 'No se pudieron cargar los comentarios',
+  'error.generic': 'No se pudieron guardar los comentarios',
+} satisfies Record<MessageFeedbackKey, string>

@@ -26,3 +26,14 @@ export const en = {
   'listbox.aria': '/{command} matches',
   'notice.imagesUnsupported': '/{command} does not accept image attachments; remove them first',
 } satisfies Record<CommandKey, string>
+export const es = {
+  ...en,
+  'search.placeholder': 'Buscar…',
+  'search.aria': 'Filtrar opciones',
+  'status.loading': 'Cargando opciones…',
+  'status.applying': 'Aplicando…',
+  'status.empty': 'No hay opciones',
+  'overlay.aria': 'Opciones de /{command}',
+  'listbox.aria': 'Coincidencias de /{command}',
+  'notice.imagesUnsupported': '/{command} no admite adjuntos de imagen; quítalos primero',
+} satisfies Record<CommandKey, string>

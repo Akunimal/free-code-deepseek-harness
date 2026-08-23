@@ -4,10 +4,13 @@
    a 2px active bar. */
 
 .root {
+  position: relative;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   height: 100%;
   min-width: 0;
+  overflow: hidden;
   background: var(--dsw-alias-bg-base);
 
   /* Shared width axis for the whole column: one content width W
@@ -25,8 +28,77 @@
   --dsh-composer-dock-inset: 8px;
 }
 
+/* FreeCode atmosphere: two oversized compositor-friendly layers stay behind
+   the conversation while a turn is active. They are CSS-only so the effect
+   cannot compete with streaming, tool calls, or the session store. */
+.motionBackground {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.motionBackground::before,
+.motionBackground::after {
+  content: '';
+  position: absolute;
+  width: 130%;
+  height: 130%;
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform;
+}
+
+.motionBackground::before {
+  top: -52%;
+  left: -34%;
+  background: radial-gradient(
+    ellipse at center,
+    color-mix(in srgb, var(--dsw-static-deepseek-300) 13%, transparent) 0%,
+    transparent 66%
+  );
+  animation: dsh-conversation-motion-a 14s ease-in-out infinite alternate;
+}
+
+.motionBackground::after {
+  right: -36%;
+  bottom: -54%;
+  background: radial-gradient(
+    ellipse at center,
+    color-mix(in srgb, var(--dsw-static-deepseek-400) 10%, transparent) 0%,
+    transparent 64%
+  );
+  animation: dsh-conversation-motion-b 18s ease-in-out infinite alternate;
+}
+
+.root[data-phase='active'] .motionBackground::before,
+.root[data-phase='active'] .motionBackground::after {
+  opacity: 1;
+}
+
+@keyframes dsh-conversation-motion-a {
+  from { transform: translate3d(-3%, -2%, 0) scale(0.98); }
+  to { transform: translate3d(8%, 6%, 0) scale(1.06); }
+}
+
+@keyframes dsh-conversation-motion-b {
+  from { transform: translate3d(4%, 3%, 0) scale(1.04); }
+  to { transform: translate3d(-7%, -6%, 0) scale(0.97); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motionBackground::before,
+  .motionBackground::after {
+    animation: none;
+    transform: none;
+  }
+}
+
 .header {
   position: relative;
+  z-index: 1;
   flex: none;
   padding: 12px 28px 0 20px;
   border-bottom: 1px solid transparent;
@@ -228,6 +300,8 @@
 }
 
 .scrollBody {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex: 1;
   flex-direction: column;

@@ -12,6 +12,7 @@ import { z } from 'zod';
 import type { TorFleet } from './torfleet.js';
 
 const PoolResizePayloadSchema = z.object({ size: z.number().int().min(1).max(16) });
+const LocaleSetPayloadSchema = z.object({ locale: z.enum(['zh', 'en', 'es']) });
 
 /**
  * IPC contract — zod-validated channel handlers exposed to the renderer
@@ -30,6 +31,7 @@ export interface IpcDeps {
     isEnabled(): boolean;
   };
   reportModelRefreshFailure?: (error: unknown) => void;
+  setLocale: (locale: 'zh' | 'en' | 'es') => void;
 }
 
 export function registerIpc(deps: IpcDeps): () => void {
@@ -94,6 +96,12 @@ export function registerIpc(deps: IpcDeps): () => void {
     emitTorfleetStatus();
   });
 
+  // locale:set — keep native Electron menus/tray in step with the web selector.
+  ipcMain.handle(IpcChannels.localeSet, (_e, payload: unknown) => {
+    const parsed = LocaleSetPayloadSchema.parse(payload);
+    deps.setLocale(parsed.locale);
+  });
+
   const emitTorfleetStatus = (): void => {
     const tf = deps.torfleet;
     const payload: IpcPayloads[typeof IpcChannels.torfleetStatus] = {
@@ -120,5 +128,6 @@ export function registerIpc(deps: IpcDeps): () => void {
     ipcMain.removeHandler(IpcChannels.poolResize);
     ipcMain.removeHandler(IpcChannels.settingsOpenFolder);
     ipcMain.removeHandler(IpcChannels.torfleetEnable);
+    ipcMain.removeHandler(IpcChannels.localeSet);
   };
 }

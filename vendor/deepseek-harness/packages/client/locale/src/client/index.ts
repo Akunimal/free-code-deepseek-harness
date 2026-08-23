@@ -21,9 +21,9 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import {
   LOCALE_PREFERENCE_FIELD, LOCALE_SETTINGS_NAMESPACE, type LocaleId, type LocaleSettings,
 } from '../locale-settings.ts'
-import { en, zh, type CommonKey } from '../locales/index.ts'
+import { en, es, zh, type CommonKey } from '../locales/index.ts'
 import {
-  en as settingsEn, zh as settingsZh, type SettingsLocaleKey,
+  en as settingsEn, es as settingsEs, zh as settingsZh, type SettingsLocaleKey,
 } from '../locales/settings.ts'
 import type { LanguageRowInjected } from './LanguageRow.tsx'
 import { LanguageRow } from './LanguageRow.tsx'
@@ -55,7 +55,7 @@ export type LocaleDict = Record<string, string>
 export interface LocaleDefinition {
   /** Locale id (persisted; the setLocale argument). */
   id: LocaleId
-  /** Display name in its own language (中文 / English). */
+  /** Display name in its own language (中文 / English / Español). */
   label: string
 }
 
@@ -103,10 +103,11 @@ export const COMMON_NS = 'common'
 /** Namespace owning this feature's settings-row copy. */
 export const SETTINGS_NS = 'settings.locale'
 
-/** The two shipped locales. */
+/** The shipped locales. */
 const LOCALES: readonly LocaleDefinition[] = Object.freeze([
   { id: 'zh', label: '中文' },
   { id: 'en', label: 'English' },
+  { id: 'es', label: 'Español' },
 ])
 
 /**
@@ -117,7 +118,7 @@ const LOCALES: readonly LocaleDefinition[] = Object.freeze([
  * behavior. `zh` alone leaves the script ambiguous, so the shipped Chinese
  * copy names the variant it actually is.
  */
-const DOCUMENT_LANGUAGE: Record<LocaleId, string> = { zh: 'zh-CN', en: 'en' }
+const DOCUMENT_LANGUAGE: Record<LocaleId, string> = { zh: 'zh-CN', en: 'en', es: 'es' }
 
 /**
  * Point `<html lang>` at the active locale. Called on every locale change,
@@ -129,6 +130,11 @@ function syncDocumentLanguage(active: LocaleId): void {
   // Non-browser runs (node boots of the client tree) have no document.
   if (typeof document === 'undefined') return
   document.documentElement.lang = DOCUMENT_LANGUAGE[active]
+  // FreeCode's Electron preload optionally mirrors the selection into native
+  // menus/tray. Upstream web hosts do not expose this bridge, so this remains
+  // a no-op outside the desktop shell.
+  const native = (globalThis as { freecode?: { locale?: { set(locale: LocaleId): Promise<void> } } }).freecode?.locale
+  if (native !== undefined) void native.set(active).catch(() => {})
 }
 
 /**
@@ -392,8 +398,8 @@ export const inject = ['slots', 'connection', 'remote', 'settingsScope']
 export function apply(ctx: ClientContext): void {
   const host = ctx.settingsScope.bind<LocaleSettings>({ namespace: LOCALE_SETTINGS_NAMESPACE })
   const locale = new LocaleRuntime(ctx, host)
-  locale.register(COMMON_NS, { zh, en })
-  locale.register(SETTINGS_NS, { zh: settingsZh, en: settingsEn })
+  locale.register(COMMON_NS, { zh, en, es })
+  locale.register(SETTINGS_NS, { zh: settingsZh, en: settingsEn, es: settingsEs })
   ctx.provide('locale', locale)
   // The service IS the LocaleFace (bind + getSnapshot/subscribe): install it
   // so the render machinery can synthesize the `t` standard seat.

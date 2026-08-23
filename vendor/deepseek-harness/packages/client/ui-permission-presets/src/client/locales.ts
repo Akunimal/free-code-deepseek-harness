@@ -6,11 +6,11 @@ export const zh = {
   'description': '选择新会话的默认权限模式',
   'loading': '加载中',
   'unavailable': '不可用',
-  'confirm.title': '确认启用 Full access？',
-  'confirm.description': '启用 Full access 后，新会话将减少确认步骤，并且可以直接执行更多操作，包括敏感操作、文件修改或外部命令。仅建议在你信任后续任务时使用。',
+  'confirm.title': '确认启用完全访问？',
+  'confirm.description': '启用完全访问后，新会话将减少确认步骤，并且可以直接执行更多操作，包括敏感操作、文件修改或外部命令。仅建议在你信任后续任务时使用。',
   'confirm.acknowledge': '我已了解风险，并愿意继续',
   'confirm.cancel': '取消',
-  'confirm.enable': '启用 Full access',
+  'confirm.enable': '启用完全访问',
 } satisfies Record<string, string>
 
 /** The settings.permission namespace key union. */
@@ -29,13 +29,26 @@ export const en = {
   'confirm.enable': 'Enable Full access',
 } satisfies Record<PermissionSettingsKey, string>
 
+/** Spanish dictionary. */
+export const es = {
+  'title': 'Permisos',
+  'description': 'Elige el modo de permisos predeterminado para las nuevas sesiones',
+  'loading': 'Cargando',
+  'unavailable': 'No disponible',
+  'confirm.title': '¿Activar el acceso total?',
+  'confirm.description': 'El acceso total reduce los pasos de confirmación y permite realizar más acciones directamente, incluidas operaciones sensibles, cambios de archivos o comandos externos. Úsalo solo cuando confíes en las tareas posteriores.',
+  'confirm.acknowledge': 'Entiendo los riesgos y quiero continuar',
+  'confirm.cancel': 'Cancelar',
+  'confirm.enable': 'Activar el acceso total',
+} satisfies Record<PermissionSettingsKey, string>
+
 /** Simplified Chinese dictionary for the current-session popup gate. */
 export const accessZh = {
-  'confirm.title': '确认启用 Full access？',
-  'confirm.description': '启用 Full access 后，agent 将减少确认步骤，并且可以直接执行更多操作，包括敏感操作、文件修改或外部命令。仅建议在你信任当前任务时使用。',
+  'confirm.title': '确认启用完全访问？',
+  'confirm.description': '启用完全访问后，智能体将减少确认步骤，并且可以直接执行更多操作，包括敏感操作、文件修改或外部命令。仅建议在你信任当前任务时使用。',
   'confirm.acknowledge': '我已了解风险，并愿意继续',
   'confirm.cancel': '取消',
-  'confirm.enable': '启用 Full access',
+  'confirm.enable': '启用完全访问',
 } satisfies Record<string, string>
 
 /** Current-session popup-gate key union. */
@@ -48,4 +61,13 @@ export const accessEn = {
   'confirm.acknowledge': 'I understand the risks and want to continue',
   'confirm.cancel': 'Cancel',
   'confirm.enable': 'Enable Full access',
+} satisfies Record<PermissionAccessKey, string>
+
+/** Spanish dictionary for the current-session popup gate. */
+export const accessEs = {
+  'confirm.title': '¿Activar el acceso total?',
+  'confirm.description': 'El acceso total reduce los pasos de confirmación y permite al agente realizar más acciones directamente, incluidas operaciones sensibles, cambios de archivos o comandos externos. Úsalo solo cuando confíes en la tarea actual.',
+  'confirm.acknowledge': 'Entiendo los riesgos y quiero continuar',
+  'confirm.cancel': 'Cancelar',
+  'confirm.enable': 'Activar el acceso total',
 } satisfies Record<PermissionAccessKey, string>

@@ -11,7 +11,7 @@ import { createLanguageRowStore } from '../src/client/settings-store.ts'
 
 afterEach(cleanup)
 
-const OPTIONS = [{ id: 'zh', label: '中文' }, { id: 'en', label: 'English' }]
+const OPTIONS = [{ id: 'zh', label: '中文' }, { id: 'en', label: 'English' }, { id: 'es', label: 'Español' }]
 
 /** Empty global standard-kit hooks (the row reads neither). */
 function emptySessions() {
@@ -61,6 +61,14 @@ describe('LanguageRow', () => {
     expect(b.setLocale).toHaveBeenCalledWith('zh')
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
     expect(screen.queryByRole('menuitem', { name: '中文' })).toBeNull()
+  })
+
+  it('keeps Español selectable after the locale list is synchronized', () => {
+    const b = mount('en')
+    fireEvent.click(screen.getByRole('button', { name: /English/ }))
+    expect(screen.getByRole('menuitem', { name: 'Español' })).toBeDefined()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Español' }))
+    expect(b.setLocale).toHaveBeenCalledWith('es')
   })
 
   it('closes on outside pointerdown without selecting', () => {

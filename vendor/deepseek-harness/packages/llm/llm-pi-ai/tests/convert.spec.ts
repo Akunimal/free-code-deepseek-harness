@@ -825,6 +825,7 @@ describe('mapStopReason / mapUsage', () => {
   })
 
   it.each([
+    'network_error',
     'other side closed',
     'HTTP2 request did not get a response',
     'WebSocket closed unexpectedly',

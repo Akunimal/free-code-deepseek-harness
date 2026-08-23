@@ -12,7 +12,7 @@ import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ChatFileMentions } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import { ProducedFiles } from './ProducedFiles.tsx'
-import { en, NS, zh, type DeliverablesKey } from './locales.ts'
+import { en, es, NS, zh, type DeliverablesKey } from './locales.ts'
 import {
   deliverablesDefinition, producedFileMentions, selectProducedFiles,
 } from './turn-deliverables.ts'
@@ -37,7 +37,7 @@ export const inject = ['slots', 'locale', 'conversationEvents', 'connection']
 export function apply(ctx: ClientContext): void {
   const connection = ctx.get('connection') as ConnectionHandle
   ctx.conversationEvents.register(deliverablesDefinition)
-  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-deliverables: dictionaries')
+  ctx.effect(() => ctx.locale.register(NS, { zh, en, es }), 'ui-deliverables: dictionaries')
   ctx.slots.inject(
     'conversation.chat.turnTail',
     () => ctx.slots.register({

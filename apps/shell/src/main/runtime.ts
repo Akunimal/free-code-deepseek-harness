@@ -36,6 +36,8 @@ export interface ShellRuntimeConfig {
   nodeEnv?: Record<string, string>;
   /** Optional logging callback forwarded to the supervisor. */
   log?: (level: string, msg: string, meta?: Record<string, unknown>) => void;
+  /** Authenticated loopback bridge for the visible persistent browser. */
+  browserBridge?: { endpoint: string; token: string };
 }
 
 export interface ShellRuntime {
@@ -80,6 +82,7 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
     homeDir: join(cfg.userDataDir, 'dsh-home'),
     lbUrl: lb.url(),
     extraEnv,
+    browserBridge: cfg.browserBridge,
     nodeEnv: cfg.nodeEnv,
   });
 

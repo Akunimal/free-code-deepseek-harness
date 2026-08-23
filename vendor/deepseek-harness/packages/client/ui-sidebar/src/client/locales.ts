@@ -18,3 +18,11 @@ export const en = {
   'toggle.open': 'Open sidebar',
   'toggle.collapse': 'Collapse sidebar',
 } satisfies Record<SidebarKey, string>
+
+/** Spanish dictionary, checked complete against the key set. */
+export const es = {
+  'session.new': 'Nueva sesión',
+  'session.new.label': 'Nueva sesión',
+  'toggle.open': 'Abrir barra lateral',
+  'toggle.collapse': 'Contraer barra lateral',
+} satisfies Record<SidebarKey, string>

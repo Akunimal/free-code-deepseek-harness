@@ -19,6 +19,7 @@ const IpcChannels = {
   harnessRestart: 'harness:restart',
   torfleetEnable: 'torfleet:enable',
   torfleetStatus: 'torfleet:status',
+  localeSet: 'locale:set',
 } as const;
 
 /**
@@ -65,6 +66,10 @@ const api: FreeCodeApi = {
       ipcRenderer.on(IpcChannels.torfleetStatus, listener);
       return () => ipcRenderer.removeListener(IpcChannels.torfleetStatus, listener);
     },
+  },
+  locale: {
+    set: (locale: 'zh' | 'en' | 'es'): Promise<void> =>
+      ipcRenderer.invoke(IpcChannels.localeSet, { locale }),
   },
 };
 

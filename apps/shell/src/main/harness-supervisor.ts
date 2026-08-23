@@ -24,6 +24,8 @@ export interface HarnessSupervisorConfig {
   lbUrl: string | null;
   /** Extra env passed through to the child. */
   extraEnv?: Record<string, string>;
+  /** Optional visible embedded Chromium bridge exposed to computer_use. */
+  browserBridge?: { endpoint: string; token: string };
   /** Runtime-specific env (for example ELECTRON_RUN_AS_NODE=1). */
   nodeEnv?: Record<string, string>;
   /** Respawn backoff base (ms). Default 1000. */
@@ -162,6 +164,10 @@ export class HarnessSupervisor {
       ...this.cfg.nodeEnv,
       DSH_HOME: this.cfg.homeDir,
       ...(this.cfg.lbUrl ? { OPENCODE2API_LB_URL: this.cfg.lbUrl } : {}),
+      ...(this.cfg.browserBridge ? {
+        FREECODE_EMBEDDED_BROWSER_ENDPOINT: this.cfg.browserBridge.endpoint,
+        FREECODE_EMBEDDED_BROWSER_TOKEN: this.cfg.browserBridge.token,
+      } : {}),
       ...this.cfg.extraEnv,
     };
 

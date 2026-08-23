@@ -59,6 +59,7 @@ export const IpcChannels = {
   harnessRestart: 'harness:restart',
   torfleetEnable: 'torfleet:enable',
   torfleetStatus: 'torfleet:status',
+  localeSet: 'locale:set',
 } as const;
 
 export type IpcChannels = typeof IpcChannels;
@@ -75,6 +76,7 @@ export interface IpcPayloads {
   [IpcChannels.harnessRestart]: void;
   [IpcChannels.torfleetEnable]: { enabled: boolean };
   [IpcChannels.torfleetStatus]: { enabled: boolean; instances: TorInstance[] };
+  [IpcChannels.localeSet]: { locale: 'zh' | 'en' | 'es' };
 }
 
 /** The API surface exposed on window.freecode by the preload bridge. */
@@ -99,6 +101,9 @@ export interface FreeCodeApi {
   torfleet: {
     enable(on: boolean): Promise<void>;
     onStatus(cb: (payload: IpcPayloads[typeof IpcChannels.torfleetStatus]) => void): () => void;
+  };
+  locale: {
+    set(locale: 'zh' | 'en' | 'es'): Promise<void>;
   };
 }
 

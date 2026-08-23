@@ -117,3 +117,33 @@ export const en = {
   'body.copy': 'Copy',
   'body.copied': 'Copied',
 } satisfies Record<CordisKey, string>
+
+/** Spanish Cordis UI messages; English remains the safety net for new keys. */
+export const es = {
+  ...en,
+  'row.defineTitle': 'Registrar plugin de Cordis',
+  'row.runTitle': 'Ejecutar plugin de Cordis',
+  'row.updateTitle': 'Actualizar plugin de Cordis',
+  'row.stopTitle': 'Detener plugin de Cordis',
+  'row.removeTitle': 'Eliminar plugin de Cordis',
+  'purpose.missing': '(sin propósito)',
+  'status.idle': 'Listo',
+  'status.awaitingApproval': 'Esperando aprobación',
+  'status.failed': 'La ejecución falló',
+  'status.running': 'En ejecución',
+  'status.removed': 'Eliminado',
+  'action.approve': 'Permitir',
+  'action.decline': 'Rechazar',
+  'action.run': 'Ejecutar',
+  'action.stop': 'Detener',
+  'action.remove': 'Eliminar',
+  'action.retry': 'Reintentar',
+  'action.rollback': 'Revertir',
+  'panel.title': 'Plugins de Cordis',
+  'panel.empty': 'Aún no hay plugins definidos',
+  'panel.loading': 'Leyendo…',
+  'body.source': 'Código del plugin',
+  'body.output': 'Resultado',
+  'body.copy': 'Copiar',
+  'body.copied': 'Copiado',
+} satisfies Record<CordisKey, string>

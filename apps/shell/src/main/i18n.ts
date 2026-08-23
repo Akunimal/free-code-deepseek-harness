@@ -1,4 +1,4 @@
-type Locale = 'es' | 'en';
+export type Locale = 'zh' | 'es' | 'en';
 
 const strings = {
   // Menu
@@ -12,9 +12,12 @@ const strings = {
   'menu.help': { es: 'Ayuda', en: 'Help' },
   'menu.checkUpdates': { es: 'Buscar actualizaciones', en: 'Check for updates' },
   'menu.about': { es: 'Acerca de', en: 'About' },
+  'menu.aboutMessage': { es: 'FreeCode DeepSeek Harness', en: 'FreeCode DeepSeek Harness' },
+  'menu.embeddedBrowser': { es: 'Navegador embebido', en: 'Embedded browser' },
 
   // Tray
   'tray.show': { es: 'Mostrar', en: 'Show' },
+  'tray.tooltip': { es: 'FreeCode DeepSeek Harness', en: 'FreeCode DeepSeek Harness' },
 
   // Notifications
   'notify.ready.title': { es: 'Harness listo', en: 'Harness ready' },
@@ -147,19 +150,98 @@ const strings = {
   // Version label
   'version.new': { es: 'nueva', en: 'new' },
   'version.unknown': { es: 'desconocido', en: 'unknown' },
-} as const satisfies Record<string, Record<Locale, string>>;
+} as const satisfies Record<string, Record<'es' | 'en', string>>;
 
 export type I18nKey = keyof typeof strings;
+
+/** Native-shell Chinese copy. Keep this key-complete with `strings`. */
+const zhStrings = {
+  'menu.file': '文件',
+  'menu.pool': '池',
+  'menu.poolStatus': '池状态…',
+  'menu.restartHarness': '重启 Harness',
+  'menu.quit': '退出',
+  'menu.view': '查看',
+  'menu.window': '窗口',
+  'menu.help': '帮助',
+  'menu.checkUpdates': '检查更新',
+  'menu.about': '关于',
+  'menu.aboutMessage': 'FreeCode DeepSeek Harness',
+  'menu.embeddedBrowser': '内嵌浏览器',
+  'tray.show': '显示',
+  'tray.tooltip': 'FreeCode DeepSeek Harness',
+  'notify.ready.title': 'Harness 已就绪',
+  'status.catalog.down.title': '模型目录不可用',
+  'status.catalog.down.message': '无法访问模型目录。已保留上一次有效选择，并会自动重试。',
+  'status.catalog.degraded.title': '模型目录服务降级',
+  'status.catalog.degraded.message': '目录已响应，但没有模型通过测试。之前的配置未被删除。',
+  'status.catalog.ready.title': '模型目录已恢复',
+  'status.catalog.ready.message': '自动发现模型已恢复正常。',
+  'status.pool.down.title': 'opencode2api 池不可用',
+  'status.pool.down.message': '当前没有就绪的 opencode2api worker。这是本地桥接问题，不是 API key 问题。',
+  'status.pool.ready.title': 'opencode2api 池已恢复',
+  'status.pool.ready.message': '已有 worker 再次就绪。',
+  'update.available.title': '发现更新',
+  'update.available.message': 'FreeCode DeepSeek Harness $1 可用。',
+  'update.available.upstreamSuffix': '\n原始 Harness 也有新的更改。',
+  'update.available.detail': '应用将下载此版本并重启以完成安装。',
+  'update.download': '下载并安装',
+  'update.downloadHarness': '仅更新 Harness',
+  'update.notNow': '暂不更新',
+  'update.failed.title': '更新失败',
+  'update.failed.message': '下载失败。',
+  'update.harnessAvailable.title': 'Harness 有可用更新',
+  'update.harnessAvailable.message': 'DeepSeek Harness runtime $1 可用。',
+  'update.harnessAvailable.detail': '只会替换 Harness runtime 并重启该进程。应用、opencode2api 池、Tor 和你的数据均保持不变。',
+  'update.harnessComplete.title': 'Harness 已更新',
+  'update.harnessComplete.message': 'Harness runtime 已更新，应用和池未被替换。',
+  'update.upstream.title': '原始 Harness 已更新',
+  'update.upstream.message': 'deepseek-ai/deepseek-harness 有新的 commit。',
+  'update.upstream.detail': '可以在本地 checkout 中同步 subtree，并只重新构建 Harness runtime。Shell、opencode2api 和 Tor 保持不变。工作树必须干净。',
+  'update.upstream.action': '更新 Harness',
+  'update.upstreamOnly.title': 'Upstream 有新的更改',
+  'update.upstreamOnly.message': '原始 Harness 已前进，但 fork 还没有可安装的 release。',
+  'update.upstreamOnly.detail': '此 portable 自包含，不附带 Git、pnpm 或构建工具链。fork 发布下一版 release 后，便可在此下载并安装。',
+  'update.checkFailed.title': '检查未完成',
+  'update.noUpdates.title': '没有更新',
+  'update.checkFailed.message': '检查 release 失败。',
+  'update.noUpdates.message': '你正在使用当前可用版本。',
+  'update.upstreamCheckError': '无法检查 upstream：$1',
+  'update.harnessCheckError': '无法检查 Harness runtime：$1',
+  'update.localFailed.title': '无法更新 upstream',
+  'update.localComplete.title': '更新完成',
+  'update.localComplete.message': 'Upstream 已同步，Harness runtime 也已成功构建。Shell 和 opencode2api 未被替换；请重启开发 checkout 进行测试。',
+  'update.localIncomplete.title': '更新未完成',
+  'update.localIncomplete.message': '同步或重新构建以代码 $1 结束。请检查 checkout 终端。',
+  'stuck.title': 'Harness 无法启动',
+  'stuck.message': 'dsh 进程连续失败 $1 次，始终未达到就绪状态。',
+  'stuck.detail': '请检查日志：\n$1',
+  'stuck.retry': '重试',
+  'stuck.close': '关闭',
+  'overlay.title': '池状态',
+  'overlay.workersLabel': '并行 worker：',
+  'overlay.workersNote': '池启动 6 个 worker，并以 round-robin 分配请求。这些是本地会话，不是额外的 OpenCode 账号，也不是绕过 upstream/IP 限制的方式。',
+  'overlay.refresh': '刷新',
+  'splash.loading': '正在启动 Harness…',
+  'splash.pool': '正在准备 worker 池…',
+  'version.new': '新版本',
+  'version.unknown': '未知',
+} as const satisfies Record<I18nKey, string>;
 
 let currentLocale: Locale = 'en';
 
 export function initLocale(electronLocale: string): void {
-  currentLocale = electronLocale.startsWith('es') ? 'es' : 'en';
+  currentLocale = electronLocale.startsWith('zh') ? 'zh' : electronLocale.startsWith('es') ? 'es' : 'en';
+}
+
+/** Set the native shell language after the web locale selector changes. */
+export function setLocale(value: string): void {
+  currentLocale = value === 'zh' ? 'zh' : value === 'es' ? 'es' : 'en';
 }
 
 export function t(key: I18nKey, ...args: (string | number)[]): string {
   const entry = strings[key];
-  let text: string = entry[currentLocale];
+  let text: string = currentLocale === 'zh' ? zhStrings[key] : entry[currentLocale];
   for (let i = 0; i < args.length; i++) {
     text = text.replace(`$${i + 1}`, String(args[i]));
   }

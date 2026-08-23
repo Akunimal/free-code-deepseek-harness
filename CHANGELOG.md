@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.8 — 2026-08-23
+
+### Fixed
+
+- Se restauró Español como opción persistente del selector y se reforzó la paridad de diccionarios `zh/en/es` con una prueba AST.
+- Los tool calls mantienen las rutas de proceso headless; el selector de proyecto sigue siendo la única superficie GUI intencional.
+- `network_error` ahora se clasifica como transporte transitorio y usa el retry policy existente, con backoff acotado y sin repetir herramientas parcialmente iniciadas.
+- La interfaz web y los menús nativos mantienen el idioma elegido en español, inglés o chino; se eliminaron textos visibles residuales como `Deep diving`, `Full access` y `feedback`.
+- El fondo animado de las conversaciones vuelve a renderizarse con CSS y respeta `prefers-reduced-motion`.
+
+### Added
+
+- Navegador Chromium embebido visible con perfil persistente, sesión reutilizable y herramienta `computer_use` para el Harness.
+- Actualización desde dentro de la aplicación para el shell y para el runtime del Harness, con validación de digest y reemplazo atómico.
+
 ## 0.1.7 — 2026-08-22
 
 ### Fixed
@@ -28,10 +43,6 @@
 - Se verificaron 3 suites de headless tool processes (19 tests) y el typecheck/build completo del vendor.
 - Se reconstruyeron localmente los cuatro binarios de `opencode2api`; el test de regresión del fallback público pasa.
 - El empaquetado local deja en `apps/shell/release` el asset de actualización del Harness y su `.sha256`; ambos quedaron adjuntos manualmente a la release remota `v0.1.7` junto con los instaladores, sin ejecutar workflows.
-
-### Known issues
-
-- En el build desktop actual, el selector de idioma de Configuración muestra sólo English y 中文. Los catálogos upstream de español siguen presentes, pero su exposición en el selector regresó y queda pendiente.
 
 ### Release status
 
