@@ -1,6 +1,6 @@
 # FreeCode DeepSeek Harness
 
-> Vibecoding en Windows con DeepSeek Free: abrí un proyecto, describí lo que querés construir y empezá.
+> Vibecoding en Windows con modelos OpenCode Free: abrí un proyecto, describí lo que querés construir y empezá.
 
 [Read this in English](README.md)
 
@@ -8,10 +8,11 @@
 
 ## ¿Qué es FreeCode?
 
-FreeCode es una aplicación de escritorio que incluye el DeepSeek Harness
-completo con un puente OpenCode ya configurado. Te da un espacio local para
-programar con chat, archivos, herramientas, sesiones y un navegador Chromium
-embebido con sesiones persistentes.
+FreeCode es la aplicación de escritorio del DeepSeek Harness con un puente
+OpenCode ya configurado. Su pool gratuito predeterminado usa modelos de
+OpenCode Free. Te da un espacio local para programar con chat, archivos,
+herramientas, sesiones y un navegador Chromium embebido con sesiones
+persistentes.
 
 No necesitás instalar Node, pnpm, Git, Python, OpenCode ni un servicio de
 workers separado para usar la release de Windows.
@@ -28,7 +29,7 @@ otra carpeta o máquina.
 
 ## Qué incluye
 
-- DeepSeek Free listo para usar, incluido `x-preview-f` cuando está disponible.
+- Modelos OpenCode Free listos para usar, incluido `x-preview-f` cuando está disponible.
 - Navegador Chromium persistente para investigar y usar computer use desde el
   navegador.
 - Tool calling headless para el trabajo normal; sólo el selector de proyecto
@@ -42,11 +43,11 @@ otra carpeta o máquina.
 
 ## Algunos límites prácticos
 
-La ruta gratuita es compartida y puede tener límites upstream por IP/sesión.
-Una respuesta puede tardar o fallar temporalmente. FreeCode conserva la última
-selección válida, da más tiempo a las probes lentas de `x-preview-f` y reintenta
-fallos de red transitorios. Más workers mejoran la concurrencia, pero no crean
-más cuota.
+La ruta OpenCode Free es compartida y puede tener límites upstream por
+IP/sesión. Una respuesta puede tardar o fallar temporalmente. FreeCode conserva
+la última selección válida, da más tiempo a las probes lentas de `x-preview-f` y
+reintenta fallos de red transitorios. Más workers mejoran la concurrencia, pero
+no crean más cuota.
 
 ## Actualización
 

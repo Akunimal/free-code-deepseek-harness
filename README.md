@@ -1,6 +1,6 @@
 # FreeCode DeepSeek Harness
 
-> Vibe coding on Windows with DeepSeek Free — open a project, describe what you want to build, and start.
+> Vibe coding on Windows with OpenCode Free models — open a project, describe what you want to build, and start.
 
 [Leer en español](README.es.md)
 
@@ -10,9 +10,10 @@
 
 ## What is FreeCode?
 
-FreeCode is a desktop app that bundles the complete DeepSeek Harness with an
-OpenCode bridge already configured. It gives you a local coding workspace with
-chat, files, tools, sessions, and a persistent embedded Chromium browser.
+FreeCode is the DeepSeek Harness desktop app with an OpenCode bridge already
+configured. Its default free model pool comes from OpenCode Free. It gives you
+a local coding workspace with chat, files, tools, sessions, and a persistent
+embedded Chromium browser.
 
 You do not need to install Node, pnpm, Git, Python, OpenCode, or a separate
 worker service to use the Windows release.
@@ -29,7 +30,7 @@ useful when you want to carry the app with you.
 
 ## What you get
 
-- DeepSeek Free ready to use, including `x-preview-f` when it is available.
+- OpenCode Free models ready to use, including `x-preview-f` when it is available.
 - A persistent Chromium browser for research and browser-based computer use.
 - Headless tool calling for normal coding work; only the project selector needs
   to open a visible chooser when required.
@@ -41,11 +42,11 @@ useful when you want to carry the app with you.
 
 ## A few practical limits
 
-The free route is shared and can be limited by upstream IP/session rate limits.
-That means a response can take a while or temporarily fail. FreeCode keeps the
-last known-good model selection, gives slow `x-preview-f` probes extra time, and
-retries transient network failures. More workers improve concurrency; they do
-not create more quota.
+The OpenCode Free route is shared and can be limited by upstream IP/session
+rate limits. That means a response can take a while or temporarily fail.
+FreeCode keeps the last known-good model selection, gives slow `x-preview-f`
+probes extra time, and retries transient network failures. More workers improve
+concurrency; they do not create more quota.
 
 ## Updating
 
@@ -81,12 +82,13 @@ MIT — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 ## Español
 
-> Vibecoding en Windows con DeepSeek Free: abrí un proyecto, describí lo que querés construir y empezá.
+> Vibecoding en Windows con modelos OpenCode Free: abrí un proyecto, describí lo que querés construir y empezá.
 
-FreeCode es una aplicación de escritorio que incluye el DeepSeek Harness
-completo con un puente OpenCode ya configurado. Te da un espacio local para
-programar con chat, archivos, herramientas, sesiones y un navegador Chromium
-embebido con sesiones persistentes.
+FreeCode es la aplicación de escritorio del DeepSeek Harness con un puente
+OpenCode ya configurado. Su pool gratuito predeterminado usa modelos de
+OpenCode Free. Te da un espacio local para programar con chat, archivos,
+herramientas, sesiones y un navegador Chromium embebido con sesiones
+persistentes.
 
 No necesitás instalar Node, pnpm, Git, Python, OpenCode ni un servicio de
 workers separado para usar la release de Windows.
@@ -103,7 +105,7 @@ otra carpeta o máquina.
 
 ### Qué incluye
 
-- DeepSeek Free listo para usar, incluido `x-preview-f` cuando está disponible.
+- Modelos OpenCode Free listos para usar, incluido `x-preview-f` cuando está disponible.
 - Navegador Chromium persistente para investigar y usar computer use desde el
   navegador.
 - Tool calling headless para el trabajo normal; sólo el selector de proyecto
@@ -117,11 +119,11 @@ otra carpeta o máquina.
 
 ### Algunos límites prácticos
 
-La ruta gratuita es compartida y puede tener límites upstream por IP/sesión.
-Una respuesta puede tardar o fallar temporalmente. FreeCode conserva la última
-selección válida, da más tiempo a las probes lentas de `x-preview-f` y reintenta
-fallos de red transitorios. Más workers mejoran la concurrencia, pero no crean
-más cuota.
+La ruta OpenCode Free es compartida y puede tener límites upstream por
+IP/sesión. Una respuesta puede tardar o fallar temporalmente. FreeCode conserva
+la última selección válida, da más tiempo a las probes lentas de `x-preview-f` y
+reintenta fallos de red transitorios. Más workers mejoran la concurrencia, pero
+no crean más cuota.
 
 ### Actualización
 

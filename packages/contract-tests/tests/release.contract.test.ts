@@ -22,7 +22,11 @@ describe('release and runtime packaging contracts', () => {
     expect(readme).toContain('[Leer en español](README.es.md)');
     expect(readme).toMatch(/^## English$/m);
     expect(readme).toMatch(/^## Español$/m);
-    expect(readme).toContain('Vibecoding en Windows con DeepSeek Free');
+    expect(readme).toContain('OpenCode Free models');
+    expect(readme).toContain('modelos OpenCode Free');
+    expect(readme).not.toContain('DeepSeek Free');
+    expect(spanishReadme).toContain('modelos OpenCode Free');
+    expect(spanishReadme).not.toContain('DeepSeek Free');
     expect(spanishReadme).toContain('[Read this in English](README.md)');
     for (const notes of [template, currentNotes]) {
       expect(notes).toMatch(/^## English$/m);

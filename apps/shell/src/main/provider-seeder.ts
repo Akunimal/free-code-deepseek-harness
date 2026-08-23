@@ -18,8 +18,8 @@ import type { ModelReasoningEfforts } from './reasoning-policy.js';
  *     (`settings-rejected`) and the provider never registers. `models: []`
  *     is NOT serviceable — the seeder must plant at least one known model;
  *     the model-refresher then syncs the full latency-sorted list.
- *   - Only DeepSeek free is seeded; OmniRoute stays out of the seed (the
- *     user adds it via the on-demand wizard).
+ *   - Only the OpenCode Free pool is seeded; OmniRoute stays out of the seed
+ *     (the user adds it via the on-demand wizard).
  */
 
 export interface SeederConfig {

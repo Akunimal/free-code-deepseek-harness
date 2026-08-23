@@ -77,8 +77,8 @@ async function bootstrap(): Promise<ShellRuntime> {
   const userDataDir = app.getPath('userData');
   const resources = resourcesDir();
   const secrets = await createSecretStore(userDataDir);
-  // OpenCode's public route is the zero-config DeepSeek Free account. Keep it
-  // in the vault so llm-pi-ai reports the seeded provider as configured, while
+  // OpenCode's public route is the zero-config OpenCode Free pool. Keep it in
+  // the vault so llm-pi-ai reports the seeded provider as configured, while
   // never overwriting a user's private OpenCode key.
   if (!process.env.FREECODE_PUBLIC_KEY) {
     await ensureSecret(secrets, 'FREECODE_PUBLIC_KEY', 'public');
