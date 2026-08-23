@@ -1,13 +1,13 @@
 # Known issues / Problemas conocidos
 
 Última revisión / Last reviewed: 2026-08-23  
-Baseline revisada / Reviewed baseline: `v0.2.1`
+Baseline revisada / Reviewed baseline: `v0.2.2`
 
 ## Estado actual / Current status
 
-No hay un bug funcional bloqueante confirmado en el checkout actual. Los problemas de selector de idioma, ventanas de tool-calling, fondos animados, avisos de apagado del pool y documentación bilingüe que aparecen en planes históricos no describen el estado actual; se conservan allí como registro de versiones anteriores.
+No hay un bug funcional bloqueante confirmado en el checkout actual. La alerta degradada del primer arranque quedó corregida en `v0.2.2`. Los problemas de selector de idioma, ventanas de tool-calling, fondos animados, avisos de apagado del pool y documentación bilingüe que aparecen en planes históricos no describen el estado actual; se conservan allí como registro de versiones anteriores.
 
-There is no confirmed release-blocking functional bug in the current checkout. The language-selector, tool-calling window, animated-background, pool-shutdown notice, and bilingual-documentation issues mentioned in historical plans do not describe the current state; they remain there as historical release records.
+There is no confirmed release-blocking functional bug in the current checkout. The first-start degraded-catalog alert was fixed in `v0.2.2`. The language-selector, tool-calling window, animated-background, pool-shutdown notice, and bilingual-documentation issues mentioned in historical plans do not describe the current state; they remain there as historical release records.
 
 ## Limitaciones operativas / Operational limitations
 
@@ -44,6 +44,7 @@ These entries are kept here so an old report is easy to classify:
 - The FreeCode animated working background is present.
 - Pool shutdown errors are handled as state/diagnostic information rather than an API-key failure.
 - The primary README, Spanish README, and release descriptions have bilingual coverage.
+- The embedded Chromium address bar and panel layout were corrected in `v0.2.2`; Enter/Go, bare-host HTTPS navigation, and text reflow are covered by the release implementation.
 
 Estas entradas quedan para clasificar rápidamente reportes antiguos:
 
@@ -52,6 +53,7 @@ Estas entradas quedan para clasificar rápidamente reportes antiguos:
 - Está presente el fondo animado de trabajo de FreeCode.
 - Los errores de apagado del pool se tratan como estado/diagnóstico y no como fallo de API key.
 - El README principal, el README en español y las descripciones de release tienen cobertura bilingüe.
+- La barra de direcciones y el layout del Chromium embebido se corrigieron en `v0.2.2`; Enter/Ir, navegación HTTPS de hosts simples y reflow del texto quedan cubiertos por la implementación del release.
 
 ## Cómo reportar un problema nuevo / How to report a new issue
 

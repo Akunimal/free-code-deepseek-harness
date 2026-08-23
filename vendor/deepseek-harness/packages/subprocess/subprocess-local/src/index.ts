@@ -13,7 +13,6 @@ import { access, stat } from 'node:fs/promises'
 import { delimiter, extname, isAbsolute, resolve } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import * as nodePty from 'node-pty'
-import type { IPtyForkOptions } from 'node-pty'
 import { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import type {
   SubprocessHandle,
@@ -164,12 +163,16 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
       throw new Error('subprocess-local: terminal argv must contain a program')
     }
     spec.signal?.throwIfAborted()
-    const options: IPtyForkOptions = {
+    const options = {
       name: 'dumb',
       rows: spec.rows,
       cols: spec.cols,
       cwd: spec.cwd,
       env: childEnv(spec.env),
+      // ConPTY avoids the legacy Windows console fallback, which can flash a
+      // visible cmd window during tool-calling even when regular child
+      // processes use windowsHide.
+      ...(process.platform === 'win32' ? { useConpty: true } : {}),
     }
     const inspector = this.terminalInspector ?? createProcessInspector()
     const terminal = nodePty.spawn(file, [...spec.argv.slice(1)], options)

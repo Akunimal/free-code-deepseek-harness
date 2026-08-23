@@ -17,5 +17,8 @@ export function shouldNotifyBackendState(
   shuttingDown: boolean,
 ): boolean {
   if (shuttingDown || previous === state) return false
-  return !(state === 'ready' && previous === 'unknown')
+  // The first observation is part of startup settling. The pool and model
+  // catalog can report down/degraded while their workers are still warming;
+  // only a transition after an observed state is actionable to the user.
+  return previous !== 'unknown'
 }

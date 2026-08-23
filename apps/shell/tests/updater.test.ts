@@ -3,10 +3,18 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
-import { checkUpstreamUpdate, createUpdateService, resolveUpdaterAdapter, type UpdaterAdapter } from '../src/main/updater.js';
+import { checkUpstreamUpdate, createUpdateService, isNewerVersion, resolveUpdaterAdapter, type UpdaterAdapter } from '../src/main/updater.js';
 import { checkHarnessRelease, harnessAssetName, installHarnessRuntime } from '../src/main/harness-updater.js';
 
 describe('update service', () => {
+  it('only treats a strictly newer release as available', () => {
+    expect(isNewerVersion('0.2.2', '0.2.2')).toBe(false);
+    expect(isNewerVersion('0.2.2', '0.2.3')).toBe(true);
+    expect(isNewerVersion('0.2.2', '0.2.1')).toBe(false);
+    expect(isNewerVersion('0.2.2-beta.2', '0.2.2-beta.10')).toBe(true);
+    expect(isNewerVersion('0.2.2-beta.2', '0.2.2')).toBe(true);
+  });
+
   it('resolves electron-updater from both CommonJS interop shapes', () => {
     const adapter = { autoDownload: false, autoInstallOnAppQuit: false, checkForUpdates: vi.fn(), quitAndInstall: vi.fn() } as UpdaterAdapter;
     expect(resolveUpdaterAdapter({ default: { autoUpdater: adapter } })).toBe(adapter);
@@ -37,6 +45,29 @@ describe('update service', () => {
     expect(adapter.autoInstallOnAppQuit).toBe(true);
     service.install();
     expect(adapter.quitAndInstall).toHaveBeenCalledTimes(1);
+  });
+
+  it('shares an in-flight check so concurrent callers cannot use stale update state', async () => {
+    let releaseCheck!: (value: { updateInfo: { version: string } }) => void;
+    const checkForUpdates = vi.fn(() => new Promise<{ updateInfo: { version: string } }>((resolve) => {
+      releaseCheck = resolve;
+    }));
+    const adapter: UpdaterAdapter = {
+      autoDownload: false,
+      autoInstallOnAppQuit: false,
+      checkForUpdates,
+      downloadUpdate: vi.fn(async () => undefined),
+      quitAndInstall: vi.fn(),
+    };
+    const service = createUpdateService({ enabled: true, adapter });
+    const first = service.check();
+    const second = service.check();
+    expect(checkForUpdates).toHaveBeenCalledTimes(1);
+    releaseCheck({ updateInfo: { version: '0.2.2' } });
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      { status: 'checked', info: { version: '0.2.2' }, upstream: undefined },
+      { status: 'checked', info: { version: '0.2.2' }, upstream: undefined },
+    ]);
   });
 
   it('downloads a confirmed release before asking electron to install it', async () => {

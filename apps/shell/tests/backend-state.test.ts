@@ -6,6 +6,11 @@ describe('backend state notifications', () => {
     expect(shouldNotifyBackendState('unknown', 'ready', false)).toBe(false)
   })
 
+  it('does not notify for initial pool or catalog degradation', () => {
+    expect(shouldNotifyBackendState('unknown', 'down', false)).toBe(false)
+    expect(shouldNotifyBackendState('unknown', 'degraded', false)).toBe(false)
+  })
+
   it('notifies for a real runtime transition', () => {
     expect(shouldNotifyBackendState('ready', 'down', false)).toBe(true)
     expect(shouldNotifyBackendState('down', 'ready', false)).toBe(true)

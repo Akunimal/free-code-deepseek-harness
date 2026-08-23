@@ -50,6 +50,50 @@ export interface UpdateServiceOptions {
 
 const DEFAULT_UPSTREAM_REPO = 'deepseek-ai/deepseek-harness';
 
+/** Return true only when candidate is semantically newer than current. */
+export function isNewerVersion(currentVersion?: string, candidateVersion?: string): boolean {
+  if (!currentVersion || !candidateVersion) return false;
+  const parse = (value: string): { numbers: number[]; prerelease: string[] | null } | null => {
+    const match = value.trim().replace(/^v/i, '').match(/^(\d+(?:\.\d+)*)(?:-([0-9A-Za-z.-]+))?/);
+    if (!match) return null;
+    return {
+      numbers: match[1]!.split('.').map(Number),
+      prerelease: match[2] ? match[2].split('.') : null,
+    };
+  };
+  const current = parse(currentVersion);
+  const candidate = parse(candidateVersion);
+  if (!current || !candidate) return false;
+
+  const length = Math.max(current.numbers.length, candidate.numbers.length);
+  for (let index = 0; index < length; index += 1) {
+    const left = current.numbers[index] ?? 0;
+    const right = candidate.numbers[index] ?? 0;
+    if (left !== right) return right > left;
+  }
+
+  // A stable release is newer than its own prereleases; a prerelease is not
+  // newer than the corresponding stable release.
+  if (current.prerelease === null && candidate.prerelease !== null) return false;
+  if (current.prerelease !== null && candidate.prerelease === null) return true;
+  if (!current.prerelease || !candidate.prerelease) return false;
+
+  const preLength = Math.max(current.prerelease.length, candidate.prerelease.length);
+  for (let index = 0; index < preLength; index += 1) {
+    const left = current.prerelease[index];
+    const right = candidate.prerelease[index];
+    if (left === right) continue;
+    if (left === undefined) return true;
+    if (right === undefined) return false;
+    const leftNumeric = /^\d+$/.test(left);
+    const rightNumeric = /^\d+$/.test(right);
+    if (leftNumeric && rightNumeric) return Number(right) > Number(left);
+    if (leftNumeric !== rightNumeric) return !rightNumeric;
+    return right > left;
+  }
+  return false;
+}
+
 /** Compare the commit embedded in a packaged runtime with upstream's default
  * branch. This is deliberately an explicit check: no background network call
  * is made unless the caller opts into it. */
@@ -90,47 +134,62 @@ export function createUpdateService(options: UpdateServiceOptions = {}): UpdateS
   const enabled = options.enabled === true;
   const checkReleases = options.checkReleases !== false;
   const log = options.log ?? (() => {});
+  let checkInFlight: Promise<UpdateCheckResult> | null = null;
 
   return {
     enabled,
-    async check() {
-      if (!enabled) return { status: 'disabled' };
+    check() {
+      if (!enabled) return Promise.resolve({ status: 'disabled' as const });
+      if (checkInFlight) return checkInFlight;
 
-      const upstream = options.upstreamCommit || options.fetchImpl
-        ? await checkUpstreamUpdate(options.upstreamCommit, options.fetchImpl, options.upstreamRepo)
-        : undefined;
-      const harness = options.harness ? await options.harness.check() : undefined;
-      let info: UpdateInfo | undefined;
-      let releaseError: string | undefined;
+      const run = (async (): Promise<UpdateCheckResult> => {
+        const upstream = options.upstreamCommit || options.fetchImpl
+          ? await checkUpstreamUpdate(options.upstreamCommit, options.fetchImpl, options.upstreamRepo)
+          : undefined;
+        const harness = options.harness ? await options.harness.check() : undefined;
+        let info: UpdateInfo | undefined;
+        let releaseError: string | undefined;
 
-      if (checkReleases) {
-        try {
-          adapter ??= await loadElectronUpdater();
-          adapter.autoDownload = false;
-          adapter.autoInstallOnAppQuit = true;
-          const result = await adapter.checkForUpdates();
-          info = result?.updateInfo;
-          log('update check completed', info);
-        } catch (error) {
-          releaseError = error instanceof Error ? error.message : String(error);
-          log('update check failed', releaseError);
+        if (checkReleases) {
+          try {
+            adapter ??= await loadElectronUpdater();
+            adapter.autoDownload = false;
+            adapter.autoInstallOnAppQuit = true;
+            const result = await adapter.checkForUpdates();
+            info = result?.updateInfo;
+            log('update check completed', info);
+          } catch (error) {
+            releaseError = error instanceof Error ? error.message : String(error);
+            log('update check failed', releaseError);
+          }
         }
-      }
 
-      const harnessError = harness?.error && !harness.available ? harness.error : undefined;
-      if (releaseError && !upstream && !harness) return { status: 'failed', error: releaseError };
-      if (!releaseError && !upstream && harnessError) return { status: 'failed', harness, error: harnessError };
-      return {
-        status: releaseError && !harness?.available ? 'failed' : 'checked',
-        info,
-        ...(harness ? { harness } : {}),
-        upstream,
-        ...(releaseError ? { error: releaseError } : {}),
-      };
+        const harnessError = harness?.error && !harness.available ? harness.error : undefined;
+        if (releaseError && !upstream && !harness) return { status: 'failed', error: releaseError };
+        if (!releaseError && !upstream && harnessError) return { status: 'failed', harness, error: harnessError };
+        return {
+          status: releaseError && !harness?.available ? 'failed' : 'checked',
+          info,
+          ...(harness ? { harness } : {}),
+          upstream,
+          ...(releaseError ? { error: releaseError } : {}),
+        };
+      })();
+      checkInFlight = run;
+      return run.finally(() => {
+        if (checkInFlight === run) checkInFlight = null;
+      });
     },
     async downloadAndInstall() {
       if (!enabled) return { status: 'disabled' };
       try {
+        // electron-updater rejects downloadUpdate() unless its own check has
+        // completed on the same adapter. Always perform a fresh preflight so
+        // a stale indicator or a direct caller cannot bypass that contract.
+        const checked = await this.check();
+        if (!checked.info?.version) {
+          return { status: 'failed', error: checked.error ?? 'No release update is ready to download' };
+        }
         adapter ??= await loadElectronUpdater();
         adapter.autoDownload = true;
         adapter.autoInstallOnAppQuit = true;

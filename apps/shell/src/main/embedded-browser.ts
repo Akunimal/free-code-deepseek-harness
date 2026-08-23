@@ -106,6 +106,16 @@ function allowedUrl(value: string): boolean {
   }
 }
 
+/** Accept the same convenient address forms as a normal browser bar. */
+function normalizeAddress(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed || allowedUrl(trimmed)) return trimmed
+  // A typed host such as `example.com` is an HTTPS address, not an invalid
+  // protocol. Keep explicit non-http schemes rejected by allowedUrl().
+  if (!/^[a-z][a-z\d+.-]*:/i.test(trimmed)) return `https://${trimmed}`
+  return trimmed
+}
+
 function safeUrl(value: unknown): string {
   return typeof value === 'string' && allowedUrl(value) ? value : DEFAULT_URL
 }
@@ -174,7 +184,7 @@ function sidebarHtml(): string {
   </style><div id="app"><div id="full"><header><h1 id="title"></h1><button id="new" title=""></button></header><div id="tabs"></div><footer><button id="hide"></button></footer></div><div id="rail"><button id="open"></button><span id="rail-title"></span></div></div><script>
     const app = document.getElementById('app'), title = document.getElementById('title'), tabs = document.getElementById('tabs');
     const esc = (v) => String(v ?? '');
-    const command = (value) => { window.location.href = 'freecode://browser/' + value; };
+    const command = (value) => { window.open('freecode://browser/' + value, '_blank'); };
     document.getElementById('new').onclick = () => command('new');
     document.getElementById('hide').onclick = () => command('hide');
     document.getElementById('open').onclick = () => command('show');
@@ -205,7 +215,7 @@ function toolbarHtml(): string {
     #meta { min-width: 0; color: #9ca3b2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; }
   </style><div id="bar"><div id="controls"><button data-action="back" id="back"></button><button data-action="forward" id="forward"></button><button data-action="reload" id="reload"></button><span id="meta"></span></div><form id="address-row"><input id="address" type="text" autocomplete="off"><button id="go" type="submit"></button></form></div><script>
     const address = document.getElementById('address'), meta = document.getElementById('meta');
-    const command = (value) => { window.location.href = 'freecode://browser/' + value; };
+    const command = (value) => { window.open('freecode://browser/' + value, '_blank'); };
     for (const button of document.querySelectorAll('[data-action]')) button.onclick = () => command('action?name=' + button.dataset.action);
     document.getElementById('address-row').onsubmit = (event) => { event.preventDefault(); command('navigate?url=' + encodeURIComponent(address.value.trim())); };
     window.__freecodeRender = (state, copy) => {
@@ -270,19 +280,25 @@ export async function createEmbeddedBrowser(userDataDir: string, getMainWindow: 
     }
   }
 
-  const panelBounds = (): { sidebar: Rectangle; toolbar: Rectangle; page: Rectangle } => {
+  const panelBounds = (): { main: Rectangle; sidebar: Rectangle; toolbar: Rectangle; page: Rectangle } => {
     const size = mainWindow?.getContentSize()
     const width = size?.[0] ?? 1280
     const height = size?.[1] ?? 820
     if (!visible) {
       const rail = { x: Math.max(0, width - COLLAPSED_RAIL_WIDTH), y: 0, width: COLLAPSED_RAIL_WIDTH, height }
-      return { sidebar: rail, toolbar: { x: 0, y: 0, width: 0, height: 0 }, page: { x: 0, y: 0, width: 0, height: 0 } }
+      return {
+        main: { x: 0, y: 0, width: Math.max(1, width - COLLAPSED_RAIL_WIDTH), height },
+        sidebar: rail,
+        toolbar: { x: 0, y: 0, width: 0, height: 0 },
+        page: { x: 0, y: 0, width: 0, height: 0 },
+      }
     }
     const panelWidth = Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, Math.round(width * 0.58), SIDEBAR_WIDTH + 320))
     const panelX = Math.max(0, width - panelWidth)
     const contentX = panelX + SIDEBAR_WIDTH
     const contentWidth = Math.max(1, width - contentX)
     return {
+      main: { x: 0, y: 0, width: Math.max(1, panelX), height },
       sidebar: { x: panelX, y: 0, width: SIDEBAR_WIDTH, height },
       toolbar: { x: contentX, y: 0, width: contentWidth, height: TOOLBAR_HEIGHT },
       page: { x: contentX, y: TOOLBAR_HEIGHT, width: contentWidth, height: Math.max(1, height - TOOLBAR_HEIGHT) },
@@ -292,6 +308,16 @@ export async function createEmbeddedBrowser(userDataDir: string, getMainWindow: 
   const updateBounds = (): void => {
     if (!mainWindow || mainWindow.isDestroyed()) return
     const bounds = panelBounds()
+    // BrowserWindow's own page is a WebContentsView child. Resize that child
+    // instead of merely painting the browser over it, so the Harness layout
+    // gets a smaller viewport and wraps text rather than hiding its right edge.
+    const mainContentView = mainWindow.contentView.children.find((child) => {
+      const candidate = child as unknown as { webContents?: { id?: number } }
+      return candidate.webContents?.id === mainWindow?.webContents.id
+    })
+    if (mainContentView && 'setBounds' in mainContentView) {
+      (mainContentView as WebContentsView).setBounds(bounds.main)
+    }
     sidebarView?.setBounds(bounds.sidebar)
     toolbarView?.setBounds(bounds.toolbar)
     for (const tab of tabs.values()) tab.view.setBounds(tab.id === activeTabId ? bounds.page : { x: 0, y: 0, width: 0, height: 0 })
@@ -322,6 +348,10 @@ export async function createEmbeddedBrowser(userDataDir: string, getMainWindow: 
   }
 
   const attachChrome = (view: WebContentsView, html: string): void => {
+    view.webContents.setWindowOpenHandler(({ url }) => {
+      if (url.startsWith('freecode://browser/')) void handleChromeCommand(url)
+      return { action: 'deny' }
+    })
     view.webContents.on('will-navigate', (event, url) => {
       if (url.startsWith('freecode://browser/')) {
         event.preventDefault()
@@ -387,14 +417,15 @@ export async function createEmbeddedBrowser(userDataDir: string, getMainWindow: 
   }
 
   const navigate = async (tabId: string | null, url: string): Promise<unknown> => {
-    if (!allowedUrl(url)) throw new Error('only http(s) URLs are allowed')
+    const targetUrl = normalizeAddress(url)
+    if (!allowedUrl(targetUrl)) throw new Error('only http(s) URLs are allowed')
     const id = tabId ?? activeTabId
     const tab = id ? tabs.get(id) : undefined
     if (!tab) throw new Error('browser tab is not available')
     await show()
     tab.loading = true; updateChrome()
-    await tab.view.webContents.loadURL(url)
-    return { tabId: tab.id, url: tab.view.webContents.getURL() || url }
+    await tab.view.webContents.loadURL(targetUrl)
+    return { tabId: tab.id, url: tab.view.webContents.getURL() || targetUrl }
   }
 
   const selectTab = (tabId: string): unknown => {

@@ -10,7 +10,7 @@ import { refreshModels, ModelCatalog } from './model-refresher.js';
 import { registerIpc } from './ipc.js';
 import { nodeRuntimeEnv, resolveNodePath, resolveResourcesDir } from './resource-paths.js';
 import { createAppLogger, type AppLogger } from './logger.js';
-import { createUpdateService, type UpdateCheckResult, type UpdateService } from './updater.js';
+import { createUpdateService, isNewerVersion, type UpdateCheckResult, type UpdateService } from './updater.js';
 import { createHarnessUpdater } from './harness-updater.js';
 import { createEmbeddedBrowser, type EmbeddedBrowser } from './embedded-browser.js';
 import { initLocale, setLocale as setNativeLocale, t } from './i18n.js';
@@ -117,7 +117,9 @@ let torfleet: TorFleet | null = null;
 let embeddedBrowser: EmbeddedBrowser | null = null;
 let updateIndicatorView: WebContentsView | null = null;
 let latestUpdateResult: UpdateCheckResult | null = null;
-let updateCheckInFlight = false;
+let updateCheckInFlight: Promise<UpdateCheckResult | null> | null = null;
+let updateIndicatorPlacement = 0;
+const UPDATE_INDICATOR_SIZE = 32;
 let torfleetEnabled = false;
 let shuttingDown = false;
 const backendStates: Record<'catalog' | 'pool', BackendState> = { catalog: 'unknown', pool: 'unknown' };
@@ -204,6 +206,7 @@ function createMainWindow(harnessUrl: string): void {
   embeddedBrowser?.attachWindow(mainWindow);
   ensureUpdateIndicator();
   mainWindow.on('resize', updateUpdateIndicatorBounds);
+  mainWindow.webContents.on('did-finish-load', updateUpdateIndicatorBounds);
   mainWindow.on('closed', () => {
     updateIndicatorView = null;
     mainWindow = null;
@@ -213,7 +216,7 @@ function createMainWindow(harnessUrl: string): void {
 function updateIsAvailable(result: UpdateCheckResult | null): boolean {
   return Boolean(
     result?.harness?.available
-    || result?.info?.version
+    || isNewerVersion(app.getVersion(), result?.info?.version)
     || (isDev && result?.upstream?.available),
   );
 }
@@ -222,8 +225,8 @@ function renderUpdateIndicatorHtml(): string {
   const label = t('update.indicator');
   return `<!doctype html><html><head><meta charset="utf-8"><style>
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:transparent;overflow:hidden}
-a{width:34px;height:32px;display:flex;align-items:center;justify-content:center;text-decoration:none;
-  color:#c9ced8;background:#262a33;border:1px solid #3c424e;border-radius:8px;
+a{width:32px;height:32px;display:flex;align-items:center;justify-content:center;text-decoration:none;
+  color:#c9ced8;background:#262a33;border:1px solid #3c424e;border-radius:50%;
   font:600 20px/1 system-ui,-apple-system,sans-serif;cursor:pointer;box-shadow:0 2px 8px #0005}
 a:hover{color:#fff;background:#343a46;border-color:#6b7484}a:active{transform:translateY(1px)}
 </style></head><body><a href="freecode://updates/open" aria-label="${label}" title="${label}">&#8595;</a></body></html>`;
@@ -231,11 +234,32 @@ a:hover{color:#fff;background:#343a46;border-color:#6b7484}a:active{transform:tr
 
 function updateUpdateIndicatorBounds(): void {
   if (!mainWindow || mainWindow.isDestroyed() || !updateIndicatorView) return;
+  const placement = ++updateIndicatorPlacement;
   const height = mainWindow.getContentSize()[1] ?? 820;
   const visible = updateIsAvailable(latestUpdateResult);
-  updateIndicatorView.setBounds(visible
-    ? { x: 6, y: Math.max(0, height - 42), width: 34, height: 32 }
-    : { x: 0, y: 0, width: 0, height: 0 });
+  if (!visible) {
+    updateIndicatorView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+    return;
+  }
+
+  // The settings trigger owns the sidebar footer geometry. Use a right-side
+  // slot in its row rather than fixed x=6, which sits on top of the gear in
+  // the wide sidebar. The fallback is only used before the page has mounted.
+  const fallback = { x: 230, y: Math.max(0, height - 37), width: UPDATE_INDICATOR_SIZE, height: UPDATE_INDICATOR_SIZE };
+  updateIndicatorView.setBounds(fallback);
+  void mainWindow.webContents.executeJavaScript(`(() => {
+    const trigger = document.querySelector('button[aria-haspopup="dialog"]');
+    if (!(trigger instanceof HTMLElement)) return null;
+    const rect = trigger.getBoundingClientRect();
+    return { left: rect.left, right: rect.right, top: rect.top, width: rect.width, height: rect.height };
+  })()`, true).then((anchor: { left: number; right: number; top: number; width: number; height: number } | null) => {
+    if (placement !== updateIndicatorPlacement || !mainWindow || mainWindow.isDestroyed() || !updateIndicatorView) return;
+    if (!anchor) return;
+    const rail = anchor.width <= 60;
+    const x = rail ? Math.round(anchor.right + 6) : Math.round(anchor.right - (UPDATE_INDICATOR_SIZE + 6));
+    const y = Math.round(anchor.top + (anchor.height - UPDATE_INDICATOR_SIZE) / 2);
+    updateIndicatorView.setBounds({ x: Math.max(0, x), y: Math.max(0, y), width: UPDATE_INDICATOR_SIZE, height: UPDATE_INDICATOR_SIZE });
+  }).catch(() => undefined);
 }
 
 function refreshUpdateIndicator(): void {
@@ -264,23 +288,27 @@ function ensureUpdateIndicator(): void {
 }
 
 async function checkForUpdates(): Promise<UpdateCheckResult | null> {
-  if (!updateService || updateCheckInFlight) return latestUpdateResult;
-  updateCheckInFlight = true;
-  try {
-    latestUpdateResult = await updateService.check();
-    updateUpdateIndicatorBounds();
-    return latestUpdateResult;
-  } catch (error) {
-    latestUpdateResult = {
-      status: 'failed',
-      error: error instanceof Error ? error.message : String(error),
-    };
-    appLogger?.logger.warn({ err: error }, 'automatic update check failed');
-    updateUpdateIndicatorBounds();
-    return latestUpdateResult;
-  } finally {
-    updateCheckInFlight = false;
-  }
+  if (!updateService) return latestUpdateResult;
+  if (updateCheckInFlight) return updateCheckInFlight;
+  const run = (async (): Promise<UpdateCheckResult | null> => {
+    try {
+      latestUpdateResult = await updateService!.check();
+      updateUpdateIndicatorBounds();
+      return latestUpdateResult;
+    } catch (error) {
+      latestUpdateResult = {
+        status: 'failed',
+        error: error instanceof Error ? error.message : String(error),
+      };
+      appLogger?.logger.warn({ err: error }, 'automatic update check failed');
+      updateUpdateIndicatorBounds();
+      return latestUpdateResult;
+    }
+  })();
+  updateCheckInFlight = run;
+  return run.finally(() => {
+    if (updateCheckInFlight === run) updateCheckInFlight = null;
+  });
 }
 
 async function updateFromIndicator(): Promise<void> {

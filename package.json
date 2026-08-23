@@ -1,6 +1,6 @@
 {
   "name": "free-code-deepseek-harness",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "description": "Multiplatform desktop GUI shell for deepseek-harness powered by an opencode2api worker pool (DeepSeek-free first, zero-config)",
   "packageManager": "pnpm@11.22.0",
