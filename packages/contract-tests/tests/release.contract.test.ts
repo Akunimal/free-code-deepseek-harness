@@ -20,6 +20,9 @@ describe('release and runtime packaging contracts', () => {
     const template = readFileSync(join(ROOT, 'docs/RELEASE-NOTES-TEMPLATE.md'), 'utf8');
     const currentNotes = readFileSync(join(ROOT, 'docs/RELEASE-NOTES-v0.1.8.md'), 'utf8');
     expect(readme).toContain('[Leer en español](README.es.md)');
+    expect(readme).toMatch(/^## English$/m);
+    expect(readme).toMatch(/^## Español$/m);
+    expect(readme).toContain('Vibecoding en Windows con DeepSeek Free');
     expect(spanishReadme).toContain('[Read this in English](README.md)');
     for (const notes of [template, currentNotes]) {
       expect(notes).toMatch(/^## English$/m);

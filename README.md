@@ -6,6 +6,8 @@
 
 ![FreeCode with x-preview-f selected](docs/assets/capeng.jpg)
 
+## English
+
 ## What is FreeCode?
 
 FreeCode is a desktop app that bundles the complete DeepSeek Harness with an
@@ -76,3 +78,79 @@ The product branch is `main`; the upstream reference lives in
 `vendor/deepseek-harness`.
 
 MIT — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+
+## Español
+
+> Vibecoding en Windows con DeepSeek Free: abrí un proyecto, describí lo que querés construir y empezá.
+
+FreeCode es una aplicación de escritorio que incluye el DeepSeek Harness
+completo con un puente OpenCode ya configurado. Te da un espacio local para
+programar con chat, archivos, herramientas, sesiones y un navegador Chromium
+embebido con sesiones persistentes.
+
+No necesitás instalar Node, pnpm, Git, Python, OpenCode ni un servicio de
+workers separado para usar la release de Windows.
+
+### Empezá en tres pasos
+
+1. Descargá el instalador de Windows desde la [release v0.1.8](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.1.8).
+2. Instalá FreeCode, abrilo y elegí la carpeta de tu proyecto.
+3. Contale al modelo en lenguaje natural qué querés construir.
+
+La release también incluye un `.exe` portable si no querés instalar. Para uso
+diario conviene el instalador; el portable sirve para llevar la aplicación a
+otra carpeta o máquina.
+
+### Qué incluye
+
+- DeepSeek Free listo para usar, incluido `x-preview-f` cuando está disponible.
+- Navegador Chromium persistente para investigar y usar computer use desde el
+  navegador.
+- Tool calling headless para el trabajo normal; sólo el selector de proyecto
+  abre un selector visible cuando hace falta.
+- Sesiones, workspaces, herramientas de archivos, permisos, planes, preguntas
+  y toda la experiencia web upstream del Harness.
+- Inglés, español y chino en la aplicación, incluidos los menús nativos y la
+  bandeja.
+- Fondos CSS animados con soporte para reducir el movimiento.
+- Actualización integrada desde Ayuda → Buscar actualizaciones.
+
+### Algunos límites prácticos
+
+La ruta gratuita es compartida y puede tener límites upstream por IP/sesión.
+Una respuesta puede tardar o fallar temporalmente. FreeCode conserva la última
+selección válida, da más tiempo a las probes lentas de `x-preview-f` y reintenta
+fallos de red transitorios. Más workers mejoran la concurrencia, pero no crean
+más cuota.
+
+### Actualización
+
+Usá Ayuda → Buscar actualizaciones. Las releases se compilan y suben
+manualmente, sin workflow de release de GitHub Actions, para no consumir la
+cuota gratuita de CI. El checklist y las notas bilingües están en
+[docs/RELEASE-POLICY.md](docs/RELEASE-POLICY.md).
+
+### Para contribuir
+
+```bash
+pnpm install
+pnpm build:vendor
+pnpm build
+pnpm test
+pnpm test:contract
+pnpm build:desktop
+```
+
+Más detalle en [la guía de arquitectura](docs/ARCHITECTURE.md),
+[el inventario de funciones](docs/UPSTREAM-FEATURES.md),
+[la guía de releases](docs/RELEASE.es.md) y
+[las notas de UI](docs/UI.md).
+
+### Proyecto
+
+Este es el fork público [Akunimal/free-code-deepseek-harness](https://github.com/Akunimal/free-code-deepseek-harness)
+de [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness).
+La rama de producto es `main` y la referencia upstream está en
+`vendor/deepseek-harness`.
+
+MIT — ver [LICENSE](LICENSE) y [NOTICE](NOTICE).
