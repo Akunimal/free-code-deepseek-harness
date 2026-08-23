@@ -83,3 +83,17 @@ La rama de producto es `main` y la referencia upstream está en
 `vendor/deepseek-harness`.
 
 MIT — ver [LICENSE](LICENSE) y [NOTICE](NOTICE).
+
+## Proyectos relacionados
+
+FreeCode integra y se apoya en estos proyectos de código abierto:
+
+- [OpenCode2API](https://github.com/jasonxu114514/opencode2api) — puente local compatible con OpenCode y pool de workers usado por la ruta de modelos gratuitos.
+- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — harness upstream de agentes y runtime web basado en plugins.
+- [RTK (Rust Token Killer)](https://github.com/rtk-ai/rtk) — compresor opcional de salidas CLI que puede reducir lo que llega al contexto del modelo.
+
+FreeCode no incluye, descarga ni instala RTK. Cuando el toggle de RTK está
+habilitado y el ejecutable `rtk` ya está disponible, FreeCode envuelve sólo
+comandos CLI simples elegibles; deja sin cambios los pipes, redirecciones,
+sustituciones y demás sintaxis de shell. Si RTK no está instalado, se ejecuta
+el comando original.

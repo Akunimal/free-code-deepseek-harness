@@ -36,6 +36,14 @@ usuario no necesita Node, pnpm, Git, Go ni Python. Los demás targets de platafo
 quedan como configuración de código fuente hasta que una release futura los
 incluya y pruebe explícitamente.
 
+RTK sigue siendo una optimización opcional del entorno del usuario. El shell
+expone su configuración para Bash y Windows PowerShell, pero el paquete de
+escritorio no incluye, descarga ni instala el [ejecutable de RTK](https://github.com/rtk-ai/rtk).
+Cuando el toggle está habilitado y RTK ya está en `PATH`, sólo se envuelven
+comandos CLI simples elegibles para reducir la salida que recibe el modelo; la
+sintaxis de shell compuesta queda intacta y la ausencia del ejecutable no cambia
+el comportamiento original.
+
 FreeCode consulta automáticamente la release de GitHub del fork, el asset
 compatible del Harness y el commit upstream registrado en `runtime-manifest.json`.
 Cuando hay una actualización compatible, la flecha de descarga junto a

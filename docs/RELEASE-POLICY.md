@@ -16,3 +16,8 @@ Manual release checklist:
    `English` and `Español` sections, keeping facts aligned.
 5. Record the version, commit, assets, and verification result in the release
    notes.
+
+RTK documentation must keep the integration boundary explicit: it is an
+optional, user-installed output compressor, not a bundled release dependency.
+Before publishing, confirm that the package still runs when `rtk` is absent and
+that the release notes state this in both language sections.

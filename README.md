@@ -97,7 +97,7 @@ workers separado para usar la release de Windows.
 
 ### Empezá en tres pasos
 
-1. Descargá el instalador de Windows desde la [release v0.2.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.2.0).
+1. Descargá el instalador de Windows desde la [release v0.2.1](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.2.1).
 2. Instalá FreeCode, abrilo y elegí la carpeta de tu proyecto.
 3. Contale al modelo en lenguaje natural qué querés construir.
 
@@ -161,3 +161,13 @@ La rama de producto es `main` y la referencia upstream está en
 `vendor/deepseek-harness`.
 
 MIT — ver [LICENSE](LICENSE) y [NOTICE](NOTICE).
+
+## Related projects / Proyectos relacionados
+
+FreeCode integrates and builds on these open-source projects:
+
+- [OpenCode2API](https://github.com/jasonxu114514/opencode2api) — local OpenCode-compatible bridge and worker pool used by the free-model route. / Puente local compatible con OpenCode y pool de workers usado por la ruta de modelos gratuitos.
+- [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — upstream agent harness and plugin-based web runtime. / Harness de agentes upstream y runtime web basado en plugins.
+- [RTK (Rust Token Killer)](https://github.com/rtk-ai/rtk) — optional CLI output compressor that can reduce model-facing shell output. / Compresor opcional de salidas CLI que puede reducir lo que llega al contexto del modelo.
+
+RTK is not bundled, downloaded, or installed by FreeCode. When the RTK toggle is enabled and an `rtk` executable is already available, FreeCode wraps only eligible plain CLI commands; pipelines, redirects, substitutions, and other shell syntax are left unchanged. If RTK is missing, execution falls back to the original command.

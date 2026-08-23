@@ -27,9 +27,21 @@ describe('documentation feature inventory', () => {
   });
 
   it('the English primary README and Spanish companion link the exhaustive inventory', () => {
-    expect(readFileSync(join(ROOT, 'README.md'), 'utf8')).toContain('docs/UPSTREAM-FEATURES.md');
-    expect(readFileSync(join(ROOT, 'README.es.md'), 'utf8')).toContain('docs/UPSTREAM-FEATURES.md');
-    expect(readFileSync(join(ROOT, 'README.md'), 'utf8')).toContain('README.es.md');
-    expect(readFileSync(join(ROOT, 'README.es.md'), 'utf8')).toContain('README.md');
+    const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
+    const spanishReadme = readFileSync(join(ROOT, 'README.es.md'), 'utf8');
+    expect(readme).toContain('docs/UPSTREAM-FEATURES.md');
+    expect(spanishReadme).toContain('docs/UPSTREAM-FEATURES.md');
+    expect(readme).toContain('README.es.md');
+    expect(spanishReadme).toContain('README.md');
+    for (const url of [
+      'https://github.com/jasonxu114514/opencode2api',
+      'https://github.com/deepseek-ai/deepseek-harness',
+      'https://github.com/rtk-ai/rtk',
+    ]) {
+      expect(readme).toContain(url);
+      expect(spanishReadme).toContain(url);
+    }
+    expect(readme).toContain('RTK is not bundled, downloaded, or installed by FreeCode');
+    expect(spanishReadme).toContain('FreeCode no incluye, descarga ni instala RTK');
   });
 });

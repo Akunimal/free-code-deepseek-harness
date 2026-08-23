@@ -5,7 +5,7 @@
 ### Fixed
 
 - Prevented the misleading `Pool opencode2api unavailable` notification during an expected application shutdown. Genuine pool state transitions still report their status.
-- Made RTK an optional, live settings toggle for both Bash and PowerShell shell presets. When the `rtk` executable is absent, the setting safely becomes a no-op; FreeCode does not install or download it.
+- Made [RTK (Rust Token Killer)](https://github.com/rtk-ai/rtk) an optional, live settings toggle for both Bash and PowerShell shell presets. When the `rtk` executable is absent, the setting safely becomes a no-op; FreeCode does not install or download it.
 
 ### Build and operations
 
@@ -21,7 +21,7 @@ Source: changes after `v0.2.0` reviewed from the release diff on 2026-08-23.
 ### Corregido
 
 - Se eliminó el aviso engañoso `Pool opencode2api no disponible` durante el cierre esperado de la aplicación. Las transiciones reales del pool siguen informando su estado.
-- RTK ahora es un toggle opcional y efectivo en tiempo real para los presets de shell Bash y PowerShell. Si el ejecutable `rtk` no está instalado, la opción queda sin efecto sin romper la ejecución; FreeCode no lo instala ni lo descarga.
+- [RTK (Rust Token Killer)](https://github.com/rtk-ai/rtk) ahora es un toggle opcional y efectivo en tiempo real para los presets de shell Bash y PowerShell. Si el ejecutable `rtk` no está instalado, la opción queda sin efecto sin romper la ejecución; FreeCode no lo instala ni lo descarga.
 
 ### Build y operaciones
 

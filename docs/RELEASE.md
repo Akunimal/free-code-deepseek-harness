@@ -25,6 +25,13 @@ pnpm build:desktop
 
 The Windows target emits both `FreeCode-DeepSeek-Harness-<version>-win-x64-setup.exe` (NSIS) and `FreeCode-DeepSeek-Harness-<version>-win-x64-portable.exe`. The portable target has no installer step and stores its `data/` directory beside the executable. The packaged runtime is self-contained: a user does not need Node, pnpm, Git, Go, or Python after downloading an artifact. Other platform configurations remain source-level targets only until a future release explicitly includes and tests them.
 
+RTK remains an optional host-side optimization. The shell exposes its setting
+for Bash and Windows PowerShell, but the desktop package does not bundle,
+download, or install the [RTK executable](https://github.com/rtk-ai/rtk). When
+the setting is enabled and RTK is already on `PATH`, only eligible plain CLI
+commands are wrapped for shorter model-facing output; compound shell syntax is
+left unchanged, and a missing executable is a safe no-op.
+
 FreeCode automatically checks the fork's GitHub Release, the compatible Harness-only asset, and the upstream commit recorded in `runtime-manifest.json`. When a compatible update exists, the download arrow beside Settings opens the confirmation flow; the update downloads, validates, stops/restarts only `dsh` for a Harness-only update, and atomically replaces `resources/freecode/dsh`; the shell, opencode2api pool, Tor, and user data are not replaced. Full application updates remain available through `electron-updater` when a desktop release is published. A source checkout can additionally run `node scripts/update-upstream-local.mjs`, which pulls the upstream subtree and rebuilds only `package:runtime`; the packaged portable app never tries to compile without a toolchain.
 
 The local desktop package also writes a Harness-only release asset beside the installers:

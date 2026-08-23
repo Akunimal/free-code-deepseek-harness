@@ -35,6 +35,23 @@ flowchart LR
 - `packages/workspace-bridge`: import/continuation routing into an existing OpenCode workspace.
 - `vendor/deepseek-harness`: upstream runtime and web client, vendored as a subtree.
 
+## Model-facing output compression
+
+The shell can optionally use [RTK (Rust Token Killer)](https://github.com/rtk-ai/rtk)
+to reduce the amount of plain CLI output returned to the model context. The
+`rtk` setting is exposed by both the Bash and Windows PowerShell providers and
+defaults to enabled, but the feature is a no-op unless an `rtk` executable is
+already installed on `PATH`. FreeCode never bundles, downloads, or installs
+that executable.
+
+When enabled and available, the provider prefixes only allowlisted plain
+commands such as `git`, `gh`, `pnpm`, `rg`, and `vitest`. Commands containing
+pipes, redirects, substitutions, or other shell metacharacters are passed
+through unchanged so RTK cannot alter compound-command semantics. The setting
+is read live after changes in Settings; detection of the executable is cached
+per executor. RTK reduces tool-output tokens, not the model's response or the
+Harness's automatic compaction threshold.
+
 ## Resource layouts
 
 Development uses `apps/shell/resources/opencode2api/*` and the source tree under `vendor/deepseek-harness`. A packaged build uses:
