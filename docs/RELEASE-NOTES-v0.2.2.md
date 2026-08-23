@@ -17,6 +17,9 @@
 - Shell typecheck and shell tests pass locally.
 - Release publication remains manual and is performed manually after artifact review; the generated installer is run only as an explicit operator action.
 
+Source range: `v0.2.1..0ee19cecb4`
+Reviewed commands: `pnpm --filter @freecode/shell typecheck`, `pnpm --filter @freecode/shell test`, `pnpm test:contract`, `pnpm build:desktop`.
+
 ## Español
 
 ### Corregido
@@ -33,3 +36,6 @@
 - Se agregó cobertura de regresión para la estabilización inicial del backend y los checks de actualización concurrentes.
 - El typecheck y los tests del shell pasan localmente.
 - La publicación de releases sigue siendo manual y se realiza manualmente después de revisar los artefactos; el instalador generado solo se ejecuta como acción explícita del operador.
+
+Rango fuente: `v0.2.1..0ee19cecb4`
+Comandos revisados: `pnpm --filter @freecode/shell typecheck`, `pnpm --filter @freecode/shell test`, `pnpm test:contract`, `pnpm build:desktop`.

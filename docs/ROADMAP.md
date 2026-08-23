@@ -1,7 +1,7 @@
 # Roadmap / Hoja de ruta
 
 Última revisión / Last reviewed: 2026-08-23  
-Baseline: `v0.2.1`  
+Baseline: `v0.2.2`
 Estado / Status: objetivos sujetos a validación; no son fechas ni promesas de release.
 
 FreeCode mantiene los workflows de publicación manuales para no consumir cuota gratuita de GitHub. Cada versión se publica sólo después de pasar sus contratos, pruebas relevantes y una revisión del instalador.
@@ -21,13 +21,21 @@ RTK and Caveman must not be enabled together by default: they may complement eac
 
 ## Próximas versiones / Upcoming versions
 
-### `v0.2.2` — Reliability and maintenance / Confiabilidad y mantenimiento
+### `v0.2.2` — Released reliability and maintenance / Confiabilidad y mantenimiento publicado
 
-- Consolidar la resiliencia de streams, retries acotados y estados de error accionables.
-- Mantener todas las ventanas de herramientas headless salvo el selector de proyecto y agregar una prueba de regresión para esa frontera.
-- Mejorar el diagnóstico del Free Pool sin convertir una caída del proveedor o un límite de IP en un error de API key.
-- Mantener RTK opcional, sin descargarlo ni instalarlo desde FreeCode.
-- Revisar documentación y contratos sin cambiar el comportamiento estable de `v0.2.1`.
+- Se consolidaron retries acotados, resiliencia de streams y estados de error accionables.
+- Se reforzó la frontera headless de tool-calling; ConPTY evita ventanas de consola visibles y sólo el selector de proyecto conserva GUI intencional.
+- El diagnóstico del Free Pool conserva la última selección válida durante el calentamiento y no convierte límites externos en errores de API key.
+- RTK sigue siendo opcional, sin descarga ni instalación desde FreeCode.
+- El navegador Chromium persistente ahora despacha Enter/Ir, normaliza hosts HTTPS y deja que el texto del Harness se reacomode al abrir el panel.
+- Los contratos, tests y documentación bilingüe quedaron alineados con `v0.2.2`.
+
+- Bounded retries, stream resilience, and actionable error states were consolidated.
+- The headless tool-calling boundary was reinforced; ConPTY prevents visible console windows and only the project selector retains intentional GUI.
+- Free Pool diagnostics preserve the last known-good selection during warm-up and do not turn external limits into API-key errors.
+- RTK remains optional; FreeCode does not download or install it.
+- The persistent Chromium browser now dispatches Enter/Go, normalizes HTTPS hosts, and lets Harness text reflow when the panel opens.
+- Contracts, tests, and bilingual documentation are aligned with `v0.2.2`.
 
 ### `v0.3.0` — Caveman spike / Evaluación de Caveman
 

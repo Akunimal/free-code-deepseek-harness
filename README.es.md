@@ -19,7 +19,7 @@ workers separado para usar la release de Windows.
 
 ## Empezá en tres pasos
 
-1. Descargá el instalador de Windows desde la [release v0.2.1](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.2.1).
+1. Descargá el instalador de Windows desde la [release v0.2.2](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.2.2).
 2. Instalá FreeCode, abrilo y elegí la carpeta de tu proyecto.
 3. Contale al modelo en lenguaje natural qué querés construir.
 

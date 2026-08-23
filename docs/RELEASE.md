@@ -5,7 +5,7 @@ This repository is the public `Akunimal/free-code-deepseek-harness` fork of
 the vendored `vendor/deepseek-harness` subtree remains the upstream reference.
 A release tag is the intended versioning boundary for the desktop GUI and the
 complete upstream web harness. The source contains cross-platform packaging
-configuration, but the published `v0.2.1` artifact set is Windows x64 only;
+configuration, but the published `v0.2.2` artifact set is Windows x64 only;
 macOS and Linux are not included or claimed as tested in that release.
 
 Releases are performed manually. Branch pushes do not build or publish
@@ -46,8 +46,8 @@ Attach the platform-specific `.tar.gz` files and their SHA-256 digests to the fo
 On the current Windows checkout, the expected local test paths are:
 
 ```text
-I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\FreeCode-DeepSeek-Harness-0.2.1-win-x64-portable.exe
-I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\FreeCode-DeepSeek-Harness-0.2.1-win-x64-setup.exe
+I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\FreeCode-DeepSeek-Harness-0.2.2-win-x64-portable.exe
+I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\FreeCode-DeepSeek-Harness-0.2.2-win-x64-setup.exe
 I:\DeepSeek-Harness\free-code-deepseek-harness\apps\shell\release\win-unpacked\FreeCode DeepSeek Harness.exe
 ```
 
@@ -63,11 +63,11 @@ being hidden by a developer's ignored local artifacts.
 
 ## Versioning
 
-The current release is `v0.2.1`. Its Windows setup/portable artifacts,
+The current release is `v0.2.2`. Its Windows setup/portable artifacts,
 blockmap, `latest.yml`, Harness runtime tarball, and SHA-256 digest were built
-and uploaded manually after the local preflight. The README screenshot remains
-unchanged until the maintainer supplies the new capture. The release is tracked
-at [GitHub release v0.2.1](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.2.1).
+and uploaded manually after the local preflight. The README screenshot is part
+of the repository assets. The release is tracked at
+[GitHub release v0.2.2](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.2.2).
 Before a future release, verify the full local preflight: zero-config boot,
 model discovery, provider registration, message streaming, worker restart,
 tray/overlay actions, import/continuation, workspace lifecycle, update

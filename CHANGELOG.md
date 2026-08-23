@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.2.2 — 2026-08-23
+
+### Fixed / Corregido
+
+- Suppressed the misleading first-start degraded-catalog notification while Free workers and model probes warm up; the last known-good selection remains intact. / Se suprimió el aviso engañoso de catálogo degradado durante el calentamiento y se conserva la última selección válida.
+- Serialized update checks, added semantic version comparison, and fixed the release preflight so the circular download indicator only appears for a real newer release. / Se serializaron los checks, se agregó comparación semántica y se corrigió el preflight para que la flecha circular aparezca sólo ante una release realmente nueva.
+- Fixed the embedded Chromium toolbar: Enter and Go dispatch reliably, bare hosts become HTTPS, and the Harness viewport reflows instead of hiding text behind the browser panel. / Se corrigió la barra del Chromium embebido: Enter e Ir funcionan, los hosts simples pasan a HTTPS y el viewport se reacomoda sin tapar texto.
+- Forced Windows PTY tool terminals through ConPTY while keeping normal child processes headless. / Los terminales PTY de herramientas en Windows usan ConPTY y los procesos hijos normales siguen siendo headless.
+
+### Build and operations / Build y operaciones
+
+- Windows setup, portable, and Harness runtime artifacts were built locally and are published manually; no GitHub Actions release workflow is used. / Los artefactos Windows setup, portable y runtime del Harness se compilaron localmente y se publican manualmente; no se usa workflow de release de GitHub Actions.
+
+Source: `v0.2.1..0ee19cecb4`
+Reviewed commands: `pnpm --filter @freecode/shell typecheck`, `pnpm --filter @freecode/shell test`, `pnpm test:contract`, `pnpm build:desktop`.
+
 ## 0.2.1 — 2026-08-23
 
 ### Fixed
