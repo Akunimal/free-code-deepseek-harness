@@ -5,7 +5,7 @@ export type PluginsSettingsLocaleKey =
   | 'nav' | 'title' | 'intro' | 'tabs' | 'configurableTab' | 'empty'
   | 'overridden' | 'reset' | 'readOnly' | 'expand' | 'collapse'
   | 'save' | 'saving' | 'discard' | 'unsaved' | 'saveFailed' | 'invalidNumber'
-  | 'bashTitle' | 'bashDescription' | 'bashTimeoutMs' | 'bashTimeoutMsHint'
+  | 'bashTitle' | 'bashDescription' | 'bashTimeoutMs' | 'bashTimeoutMsHint' | 'bashRtk' | 'bashRtkHint'
   | 'bashMaxOutputBytes' | 'bashMaxOutputBytesHint'
   | 'agentLoopTitle' | 'agentLoopDescription' | 'agentLoopMaxParallel' | 'agentLoopMaxParallelHint'
   | 'webSearchTitle' | 'webSearchDescription'
@@ -37,6 +37,8 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
   bashTimeoutMsHint: 'How long one command may run before it is terminated.',
   bashMaxOutputBytes: 'Output cap per stream (bytes)',
   bashMaxOutputBytesHint: 'Output beyond this spills to a temporary file rather than being lost.',
+  bashRtk: 'Use RTK token compression',
+  bashRtkHint: 'Uses an already-installed RTK for eligible simple CLI commands. Missing RTK changes nothing.',
   agentLoopTitle: 'Agent loop',
   agentLoopDescription: 'How the agent dispatches tool calls.',
   agentLoopMaxParallel: 'Parallel tool calls',
@@ -78,6 +80,8 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
   bashTimeoutMsHint: '单条命令允许运行多久，超时即终止。',
   bashMaxOutputBytes: '单流输出上限（字节）',
   bashMaxOutputBytesHint: '超出部分会转存到临时文件，而不是被丢弃。',
+  bashRtk: '使用 RTK 压缩令牌',
+  bashRtkHint: '对符合条件的简单 CLI 命令使用已安装的 RTK。未安装 RTK 时不会改变任何行为。',
   agentLoopTitle: 'Agent 循环',
   agentLoopDescription: 'Agent 如何派发工具调用。',
   agentLoopMaxParallel: '并行工具调用数',
@@ -119,6 +123,8 @@ export const es: Record<PluginsSettingsLocaleKey, string> = {
   bashTimeoutMsHint: 'Cuánto puede ejecutarse un comando antes de terminarlo.',
   bashMaxOutputBytes: 'Límite de salida por flujo (bytes)',
   bashMaxOutputBytesHint: 'El excedente se guarda en un archivo temporal en lugar de perderse.',
+  bashRtk: 'Usar compresión de tokens RTK',
+  bashRtkHint: 'Usa un RTK ya instalado para comandos CLI simples compatibles. Si no existe RTK, no cambia nada.',
   agentLoopTitle: 'Bucle del agente',
   agentLoopDescription: 'Cómo distribuye el agente las llamadas a herramientas.',
   agentLoopMaxParallel: 'Llamadas paralelas a herramientas',

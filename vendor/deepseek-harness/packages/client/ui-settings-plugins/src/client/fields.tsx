@@ -87,6 +87,44 @@ export function ValueField(props: FieldProps & {
   )
 }
 
+/** A checkbox toggle for a boolean settings field. */
+export function ToggleField(props: FieldProps & {
+  /** Current boolean value represented by the staged draft. */
+  checked: boolean
+}) {
+  return (
+    <div className={css.field}>
+      <div className={css.head}>
+        <label className={css.label} htmlFor={props.id}>{props.label}</label>
+        {props.overridden
+          ? (
+            <span className={css.badges}>
+              <span className={css.badge}>{props.overriddenLabel}</span>
+              <button
+                type="button"
+                className={css.reset}
+                disabled={props.disabled}
+                onClick={props.onReset}
+              >
+                {props.resetLabel}
+              </button>
+            </span>
+          )
+          : null}
+        <input
+          id={props.id}
+          className={css.checkbox}
+          type="checkbox"
+          checked={props.checked}
+          disabled={props.disabled}
+          onChange={(event) => { props.onEdit(String(event.currentTarget.checked)) }}
+        />
+      </div>
+      <p className={css.hint}>{props.hint}</p>
+    </div>
+  )
+}
+
 /**
  * A write-only credential control. The value never rides a response, so the
  * control reports only whether one is configured and starts blank; a blank

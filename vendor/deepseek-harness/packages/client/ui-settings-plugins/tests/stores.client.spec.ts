@@ -5,7 +5,7 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import { stubSettingsScope, type StubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
-import { CardForm, numberField, textField } from '../src/client/card-form.ts'
+import { booleanField, CardForm, numberField, textField } from '../src/client/card-form.ts'
 import { AgentLoopCardController, type AgentLoopSettings } from '../src/client/agent-loop-card-controller.ts'
 import { BashCardController, type BashSettings } from '../src/client/bash-card-controller.ts'
 import {
@@ -161,6 +161,19 @@ describe('CardForm', () => {
     expect(host.unset.mock.calls).toEqual([['baseURL']])
   })
 
+  it('writes boolean toggle drafts as booleans', async () => {
+    const host = stubSettingsScope<Record<string, unknown>>()
+    acceptWrites(host)
+    const subject = new CardForm(host.scope, [booleanField('rtk')])
+    host.publish({ status: 'ready', writable: true, value: { rtk: true }, base: { rtk: true }, user: {} })
+
+    subject.actions().edit('rtk', 'false')
+    await subject.save()
+
+    expect(host.set.mock.calls).toEqual([['rtk', false]])
+    expect(subject.field('rtk')).toEqual({ text: 'false', overridden: true, invalid: false })
+  })
+
   it('writes the trimmed text of a text field', async () => {
     const { host, subject } = form()
     acceptWrites(host)
@@ -285,8 +298,8 @@ describe('BashCardController', () => {
     host.publish({
       status: 'ready',
       writable: true,
-      value: { timeoutMs: 5_000, maxOutputBytes: 64_000 },
-      base: { timeoutMs: 60_000, maxOutputBytes: 64_000 },
+      value: { timeoutMs: 5_000, maxOutputBytes: 64_000, rtk: true },
+      base: { timeoutMs: 60_000, maxOutputBytes: 64_000, rtk: true },
       user: { timeoutMs: 5_000 },
     })
     const face = controller.inject()
@@ -297,6 +310,7 @@ describe('BashCardController', () => {
       dirty: false,
       timeoutMs: { text: '5000', overridden: true },
       maxOutputBytes: { text: '64000', overridden: false },
+      rtk: { text: 'true', overridden: false },
     })
 
     face.edit('timeoutMs', '9000')

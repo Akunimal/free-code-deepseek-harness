@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canUseRtk, wrapWithRtk } from '../src/rtk.ts'
+import { canUseRtk, wrapWithRtk } from '@deepseek-ai/dsh-shell'
 
 describe('optional RTK command wrapper', () => {
   it('wraps supported plain commands only when RTK is available', () => {

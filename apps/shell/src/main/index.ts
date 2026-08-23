@@ -14,6 +14,7 @@ import { createUpdateService, type UpdateCheckResult, type UpdateService } from 
 import { createHarnessUpdater } from './harness-updater.js';
 import { createEmbeddedBrowser, type EmbeddedBrowser } from './embedded-browser.js';
 import { initLocale, setLocale as setNativeLocale, t } from './i18n.js';
+import { shouldNotifyBackendState, type BackendState } from './backend-state.js';
 import {
   TorFleet,
   loadTorFleetState,
@@ -118,14 +119,13 @@ let updateIndicatorView: WebContentsView | null = null;
 let latestUpdateResult: UpdateCheckResult | null = null;
 let updateCheckInFlight = false;
 let torfleetEnabled = false;
-type BackendState = 'unknown' | 'ready' | 'degraded' | 'down';
+let shuttingDown = false;
 const backendStates: Record<'catalog' | 'pool', BackendState> = { catalog: 'unknown', pool: 'unknown' };
 
 function reportBackendState(kind: 'catalog' | 'pool', state: Exclude<BackendState, 'unknown'>, detail?: string): void {
   const previous = backendStates[kind];
   backendStates[kind] = state;
-  const changed = previous !== state;
-  if (!changed || (state === 'ready' && previous === 'unknown')) return;
+  if (!shouldNotifyBackendState(previous, state, shuttingDown)) return;
 
   const key = state === 'down'
     ? `status.${kind}.down`
@@ -828,6 +828,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', async (e) => {
+  shuttingDown = true;
   if (!runtime) {
     if (torfleet) await torfleet.stop();
     await appLogger?.close();

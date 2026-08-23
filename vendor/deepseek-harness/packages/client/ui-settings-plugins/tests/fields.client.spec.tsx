@@ -6,7 +6,7 @@
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { SecretField, ValueField } from '../src/client/fields.tsx'
+import { SecretField, ToggleField, ValueField } from '../src/client/fields.tsx'
 
 afterEach(cleanup)
 
@@ -152,5 +152,23 @@ describe('SecretField', () => {
     )
 
     expect(screen.getByLabelText('API key')).toHaveProperty('disabled', true)
+  })
+})
+
+describe('ToggleField', () => {
+  it('stages the next boolean value without writing it', () => {
+    const onEdit = vi.fn()
+    render(<ToggleField {...frame} id="rtk" label="Use RTK" checked onEdit={onEdit} onReset={vi.fn()} text="true" />)
+
+    fireEvent.click(screen.getByLabelText('Use RTK'))
+
+    expect(onEdit).toHaveBeenCalledWith('false')
+  })
+
+  it('disables the checkbox and reset while the document is read-only', () => {
+    render(<ToggleField {...frame} id="rtk" label="Use RTK" checked overridden disabled onEdit={vi.fn()} onReset={vi.fn()} text="true" />)
+
+    expect(screen.getByLabelText('Use RTK')).toHaveProperty('disabled', true)
+    expect(screen.getByRole('button', { name: 'Reset to default' })).toHaveProperty('disabled', true)
   })
 })

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.1 — 2026-08-23
+
+### Fixed
+
+- Se eliminó el aviso falso de `Pool opencode2api no disponible` durante el cierre normal de FreeCode; las transiciones reales del pool siguen notificándose.
+- La configuración de RTK ahora es un toggle opcional y efectivo en tiempo real para Bash y PowerShell; si `rtk` no está instalado, la opción no rompe la ejecución.
+
+### Build and operations
+
+- Se reforzaron los contratos y tests del apagado, RTK y configuración del shell.
+- La release y sus artefactos se publican manualmente para no consumir cuota gratuita de GitHub Actions.
+
 ## 0.1.8 — 2026-08-23
 
 ### Fixed

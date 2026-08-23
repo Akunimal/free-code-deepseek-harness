@@ -20,7 +20,7 @@ worker service to use the Windows release.
 
 ## Start in three steps
 
-1. Download the Windows installer from [Release v0.2.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.2.0).
+1. Download the Windows installer from [Release v0.2.1](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.2.1).
 2. Install FreeCode, open it, and choose your project folder.
 3. Tell the model what you want to build in plain language.
 

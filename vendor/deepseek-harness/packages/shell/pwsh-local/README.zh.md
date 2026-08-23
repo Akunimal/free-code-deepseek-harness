@@ -20,6 +20,7 @@
     maxOutputBytes: 64000       # per-stream in-memory cap; overflow spills to disk
     maxSpillBytes: 67108864     # per-stream full-output spill cap
     graceMs: 3000               # kill escalation and post-exit pipe-drain grace
+    rtk: true                   # use an already-installed RTK for eligible plain CLI commands
     pwshPath: C:\Program Files\PowerShell\7\pwsh.exe  # explicit executable; else well-known locations, then PATH
 ```
 
@@ -34,6 +35,7 @@
 - **受管进程组之上的配置预算**——`resolve()` 从配置填充 `workdir`/`timeoutMs`/`stdoutMaxBytes`，每次 spawn 都向服务提供显式字节上限、spill 上限与 `graceMs`。该宽限期须为正有限值，且不得大于 [`MAX_TIMER_DELAY_MS`](../../util/timeout/README.zh.md)，这样 Node 就能用一个定时器表示它。进程树终止（Windows 用 taskkill，POSIX 用进程组信号）、退出后管道排空宽限、保尾截断与有界 spill 文件是 [`dsh-subprocess-local`](../../subprocess/subprocess-local/README.zh.md) 的机制。前台 `ShellExecRequest.stdoutMaxBytes` 可为单个受信调用方提高 stdout 捕获预算；stderr 与后台运行仍使用 `maxOutputBytes`。
 - **超时与取消分类**——`run()` 通过一个 deadline 融合按配置上限截取的超时与调用方信号；只有执行器自身超时报告 `timedOut`，上游取消报告 `aborted`，自我终止的命令两者都不报告（见 [timeout 库 Agent Note](../../../.agents/notes/implemented/architecture/2026-07-06-timeout-deadline-library.zh.md)）。Windows 将强制终止报告为退出码 1 且无信号，因此带信号标记的事实（`signal`、`killed` 状态）在那里仅限 POSIX；超时/取消分类与平台无关。
 - **面向模型的终端环境**——`NO_COLOR=1 PAGER=cat GIT_PAGER=cat`（没有 `TERM=dumb`：那是 POSIX 概念；现代 PowerShell 渲染器遵循 `NO_COLOR`），作为普通 env 在服务的凭据清理与 `DSH_*` 通道规则之下合并；显式调用方条目仍然优先。
+- **可选 RTK 压缩**——当 `rtk: true`（默认值）且 PATH 中已经有 `rtk` 可执行文件时，`git`、`gh`、`pnpm`、`rg` 与 `vitest` 等简单命令会通过 RTK 生成更短的模型输出。管道、重定向、替换和其他 shell 语法保持原样。缺少 RTK 时不做任何改变；本包不会安装它。
 - **后台进程**——`start()` 立即返回存活的 `ShellProcess` 句柄，不设超时；句柄的 `readOutput()` 把服务基于偏移的 stdout/stderr 读取合并为一条按分段标记、通过消费游标推进的增量。仍在运行的进程属于 subprocess 服务，因此它跨执行器重载存活，并随服务 dispose（被终止并 join）。一切任务相关职责（job id、所有权、轮询、通知）都在通用 [`ctx.jobs` 运行时](../../jobs/jobs/README.zh.md) 中，由工具层把句柄注册进去——本执行器从不接触会话或注册表。
 
 ## 模型体验

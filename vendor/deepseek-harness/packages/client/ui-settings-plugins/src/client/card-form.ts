@@ -145,6 +145,19 @@ export function textField(field: string): CardFieldSpec {
   }
 }
 
+/** A boolean field rendered by a checkbox/toggle control. */
+export function booleanField(field: string): CardFieldSpec {
+  return {
+    field,
+    format: value => typeof value === 'boolean' ? String(value) : '',
+    parse: (text) => {
+      if (text === 'true') return { kind: 'set', value: true }
+      if (text === 'false') return { kind: 'set', value: false }
+      return undefined
+    },
+  }
+}
+
 /**
  * Stages one card's edits over one settings namespace and writes them on save.
  *

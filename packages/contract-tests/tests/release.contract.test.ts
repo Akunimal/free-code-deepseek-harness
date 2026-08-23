@@ -18,7 +18,7 @@ describe('release and runtime packaging contracts', () => {
     const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
     const spanishReadme = readFileSync(join(ROOT, 'README.es.md'), 'utf8');
     const template = readFileSync(join(ROOT, 'docs/RELEASE-NOTES-TEMPLATE.md'), 'utf8');
-    const currentNotes = readFileSync(join(ROOT, 'docs/RELEASE-NOTES-v0.2.0.md'), 'utf8');
+    const currentNotes = readFileSync(join(ROOT, 'docs/RELEASE-NOTES-v0.2.1.md'), 'utf8');
     expect(readme).toContain('[Leer en español](README.es.md)');
     expect(readme).toMatch(/^## English$/m);
     expect(readme).toMatch(/^## Español$/m);
@@ -74,7 +74,7 @@ describe('release and runtime packaging contracts', () => {
     const browserTool = readFileSync(join(ROOT, 'vendor/deepseek-harness/packages/web/tool-web/src/browser.ts'), 'utf8');
     const sidebar = readFileSync(join(ROOT, 'vendor/deepseek-harness/packages/client/ui-sidebar/src/client/SidebarRoot.tsx'), 'utf8');
     const compaction = readFileSync(join(ROOT, 'vendor/deepseek-harness/packages/compaction/compaction-basic/src/config.ts'), 'utf8');
-    const rtk = readFileSync(join(ROOT, 'vendor/deepseek-harness/packages/shell/bash-local/src/rtk.ts'), 'utf8');
+    const rtk = readFileSync(join(ROOT, 'vendor/deepseek-harness/packages/shell/shell/src/rtk.ts'), 'utf8');
     expect(browser).toContain('new WebContentsView');
     expect(browser).toContain('session.fromPath');
     expect(browser).toContain('browser-state.json');

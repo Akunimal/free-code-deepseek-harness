@@ -11,12 +11,11 @@
 
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { SHELL_SETTINGS_NAMESPACE, ShellExecutor } from '@deepseek-ai/dsh-shell'
+import { resolveRtk, SHELL_SETTINGS_NAMESPACE, ShellExecutor, wrapWithRtk } from '@deepseek-ai/dsh-shell'
 import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellProcessRead, ShellRunResult, CollectedOutput } from '@deepseek-ai/dsh-shell'
 import type { SubprocessCollect, SubprocessHandle, SubprocessOutputReader, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { installSettingsSection } from '@deepseek-ai/dsh-settings'
 import { clampTimeout, deadline, MAX_TIMER_DELAY_MS, timeoutOf } from '@deepseek-ai/dsh-timeout'
-import { resolveRtk, wrapWithRtk } from './rtk.js'
 
 /**
  * Model-friendly environment overrides: disable colors, pagers, and
@@ -119,7 +118,7 @@ export class LocalBashExecutor extends ShellExecutor {
   private source: () => ResolvedConfig
 
   /** Cached because probing PATH for every command would add avoidable latency. */
-  private readonly rtkAvailable: boolean
+  private readonly rtkInstalled: boolean
 
   /** Validated config (schemastery applied the defaults before construction). */
   get config(): ResolvedConfig {
@@ -132,7 +131,7 @@ export class LocalBashExecutor extends ShellExecutor {
     const entry = config as ResolvedConfig
     assertServiceableBashConfig(entry)
     this.source = () => entry
-    this.rtkAvailable = entry.rtk === true && resolveRtk()
+    this.rtkInstalled = resolveRtk()
     installSettingsSection(ctx, SHELL_SETTINGS_NAMESPACE, LocalBashExecutor.Config, entry, {
       validate: assertServiceableBashConfig,
       setSource: (current) => {
@@ -161,7 +160,7 @@ export class LocalBashExecutor extends ShellExecutor {
     const stdoutMaxBytes = request.stdoutMaxBytes ?? this.config.maxOutputBytes
     assertPositiveFinite('request.stdoutMaxBytes', stdoutMaxBytes)
     return {
-      command: wrapWithRtk(request.command, this.rtkAvailable),
+      command: wrapWithRtk(request.command, this.config.rtk === true && this.rtkInstalled),
       workdir: request.workdir ?? this.config.cwd ?? process.cwd(),
       timeoutMs,
       stdoutMaxBytes,

@@ -83,6 +83,7 @@ function renderBash(state: Partial<BashCardState> = {}) {
     ...settled,
     timeoutMs: field('60000'),
     maxOutputBytes: field('64000'),
+    rtk: field('true'),
     ...state,
   })
   const actions = cardActions()
@@ -203,6 +204,16 @@ describe('BashCard', () => {
 
     expect(screen.getByLabelText(en.bashTimeoutMs)).toBeTruthy()
     expect(screen.getByLabelText(en.bashMaxOutputBytes)).toBeTruthy()
+    expect(screen.getByLabelText(en.bashRtk)).toBeTruthy()
+  })
+
+  it('stages the RTK toggle as a boolean draft', () => {
+    const actions = renderBash()
+    fireEvent.click(screen.getByText(en.bashTitle))
+
+    fireEvent.click(screen.getByLabelText(en.bashRtk))
+
+    expect(actions.edit).toHaveBeenCalledWith('rtk', 'false')
   })
 
   it('stages an edit instead of writing it', () => {

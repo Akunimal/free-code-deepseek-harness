@@ -98,6 +98,13 @@
   border-color: var(--dsw-alias-label-error);
 }
 
+.checkbox {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--dsw-alias-brand-primary);
+}
+
 .invalid {
   margin: 0;
   font-size: 12px;

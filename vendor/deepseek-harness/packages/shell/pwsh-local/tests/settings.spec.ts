@@ -46,10 +46,20 @@ describe('pwsh executor over the bash settings section', () => {
   it('resolves the user layer over the composition entry', async () => {
     const bench = await boot()
     expect(bench.pwsh.config.timeoutMs).toBe(60_000)
+    expect(bench.pwsh.config.rtk).toBe(true)
 
     await bench.ctx.settings.update(SHELL_SETTINGS_NAMESPACE, { timeoutMs: 5_000 })
 
     expect(bench.pwsh.config.timeoutMs).toBe(5_000)
+    await bench.ctx.fiber.dispose()
+  })
+
+  it('applies the RTK toggle from the live settings section', async () => {
+    const bench = await boot()
+    await bench.ctx.settings.update(SHELL_SETTINGS_NAMESPACE, { rtk: false })
+
+    expect(bench.pwsh.config.rtk).toBe(false)
+    expect(bench.pwsh.resolve({ command: 'git status' }).command).toBe('git status')
     await bench.ctx.fiber.dispose()
   })
 
