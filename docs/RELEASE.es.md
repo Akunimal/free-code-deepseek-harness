@@ -80,8 +80,8 @@ El owner/repo de GitHub es `Akunimal/free-code-deepseek-harness`.
 ## Versionado y estado de v0.2.0
 
 La release actual es `v0.2.0`. Sus artefactos Windows setup/portable, blockmap,
-`latest.yml`, tarball del runtime del Harness y digest SHA-256 se compilarán y
-subirán manualmente después del preflight local. La captura del README queda sin
+`latest.yml`, tarball del runtime del Harness y digest SHA-256 se compilaron y
+subieron manualmente después del preflight local. La captura del README queda sin
 cambios hasta que el maintainer entregue la nueva imagen. La release se seguirá
 en [GitHub v0.2.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.2.0).
 

@@ -57,7 +57,7 @@ being hidden by a developer's ignored local artifacts.
 ## Versioning
 
 The current release is `v0.2.0`. Its Windows setup/portable artifacts,
-blockmap, `latest.yml`, Harness runtime tarball, and SHA-256 digest are built
+blockmap, `latest.yml`, Harness runtime tarball, and SHA-256 digest were built
 and uploaded manually after the local preflight. The README screenshot remains
 unchanged until the maintainer supplies the new capture. The release is tracked
 at [GitHub release v0.2.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.2.0).
