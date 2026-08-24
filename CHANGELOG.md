@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.6 — 2026-08-24
+
+### Fixed / Corregido
+
+- Startup preflight no longer kills the app during the auto-update settling window. It ran a single synchronous layout check ~30-100ms after launch and exited on any incompleteness; during an auto-update, `electron-updater` relaunches the app in the window where the NSIS setup has only just finished extracting 600+ `node_modules` directories, and Windows disk buffering / indexing / antivirus can make a freshly written directory read as briefly empty — a false positive that killed the app 98ms after relaunch. The preflight now retries up to six times with a one-second delay; a genuinely broken install stays empty across every attempt and still fails with the same dialog, so retries cost seconds, not correctness. / El preflight de arranque ya no mata la app durante la ventana de asentamiento del auto-update. Corría un único chequeo síncrono ~30-100ms tras el arranque y salía ante cualquier incompletitud; durante un auto-update, `electron-updater` relanza la app en el instante donde el setup NSIS recién terminó de extraer 600+ directorios de `node_modules`, y el buffering de disco / indexado / antivirus de Windows pueden hacer que un directorio recién escrito se lea como vacío por un instante — un falso positivo que mataba la app 98ms tras el relanzamiento. El preflight ahora reintenta hasta seis veces con un segundo de delay; un install genuinamente roto queda vacío en todos los intentos y falla igual con el mismo diálogo, así los reintentos cuestan segundos, no correctness.
+
+### Build and operations / Build y operaciones
+
+- Windows setup, portable, Linux AppImage, and Harness runtime artifacts were built locally and are published manually. / Los artefactos Windows setup, portable, Linux AppImage y runtime del Harness se compilaron localmente y se publican manualmente.
+
+Source: `v0.2.5..HEAD`
+
 ## 0.2.5 — 2026-08-24
 
 ### Fixed / Corregido
