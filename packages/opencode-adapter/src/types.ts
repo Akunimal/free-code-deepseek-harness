@@ -46,8 +46,22 @@ export interface Pool {
   /** Change the worker-slot count live; values are clamped to 1..16. */
   resize(size: number): Promise<void>;
   workers(): WorkerHandle[];
-  /** Round-robin over healthy/ready workers. Returns null if none. */
-  pickHealthy(): WorkerHandle | null;
+  /**
+   * Round-robin over healthy/ready workers.
+   * @param skip Optional set of worker ids to exclude (retry fan-out). The LB
+   *   passes ids of workers already tried in the current request so a
+   *   retryable 429/5xx/connect error routes to a different exit rotation.
+   * @returns The next available worker not in `skip`, or null.
+   */
+  pickHealthy(skip?: ReadonlySet<string>): WorkerHandle | null;
+  /**
+   * Temporarily exclude a worker from `pickHealthy` for `ms` milliseconds.
+   * Used by the LB when a worker returns a 5xx or fails to connect — parking
+   * gives a self-healing worker a chance to recover before another request
+   * hits it. 429 responses should NOT park (they rotate exit; retry lands on
+   * a different worker naturally). No-op if the worker is unknown.
+   */
+  parkWorker(id: string, ms: number): void;
   onWorkerChange(cb: (w: WorkerHandle) => void): () => void;
   /** Force-restart a single worker by id (Settings overlay button). */
   restartWorker(id: string): Promise<void>;

@@ -27,6 +27,11 @@ interface ManagedWorker extends WorkerHandle {
   healthFails: number;
   lastRestartAt: number;
   stopped: boolean;
+  /** Wall-clock ms at which pickHealthy may consider this worker again.
+   *  Set by parkWorker after a 5xx/connect fail; the worker keeps status
+   *  'ready' (still handles direct restartWorker calls) but is skipped
+   *  from LB round-robin selection until this deadline passes. */
+  parkedUntil: number;
 }
 
 type PoolInitConfig = Omit<PoolConfig, 'size'> & { size?: number };
@@ -205,12 +210,28 @@ export class OpenCodePool implements Pool {
     return [...this.workerMap.values()].map(toPublic);
   }
 
-  pickHealthy(): WorkerHandle | null {
-    const ready = [...this.workerMap.values()].filter((w) => w.status === 'ready');
+  pickHealthy(skip?: ReadonlySet<string>): WorkerHandle | null {
+    const now = Date.now();
+    const ready = [...this.workerMap.values()].filter((w) => {
+      if (w.status !== 'ready') return false;
+      if (skip && skip.has(w.id)) return false;
+      if (w.parkedUntil > now) return false;
+      return true;
+    });
     if (ready.length === 0) return null;
+    // Rotate through the eligible subset. Keeping a single rrIndex across
+    // skip variants means we do not fixate on the first eligible worker
+    // when skip changes size between requests.
     const w = ready[this.rrIndex % ready.length];
     this.rrIndex++;
     return toPublic(w!);
+  }
+
+  parkWorker(id: string, ms: number): void {
+    const w = this.workerMap.get(id);
+    if (!w || ms <= 0) return;
+    const until = Date.now() + ms;
+    if (until > w.parkedUntil) w.parkedUntil = until;
   }
 
   onWorkerChange(cb: (w: WorkerHandle) => void): () => void {
@@ -257,6 +278,7 @@ export class OpenCodePool implements Pool {
       healthFails: 0,
       lastRestartAt: Date.now(),
       stopped: false,
+      parkedUntil: 0,
     };
     this.workerMap.set(id, handle);
     this.emitChange(handle);
