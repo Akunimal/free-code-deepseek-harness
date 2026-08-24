@@ -72,6 +72,49 @@ function verifyBridgeInvariant(resourcesDir: string): string | null {
   return null;
 }
 
+/** Retry policy for {@link awaitHarnessLayout}. */
+export interface PreflightRetryOptions extends PreflightOptions {
+  /** Total attempts including the first. Default 6. */
+  attempts?: number;
+  /** Delay between attempts, ms. Default 1000. */
+  delayMs?: number;
+  /** Injectable sleep for deterministic tests. Default real setTimeout. */
+  sleep?: (ms: number) => Promise<void>;
+  /** Called before each retry (e.g. to update a splash message). */
+  onRetry?: (attempt: number, result: PreflightResult) => void;
+}
+
+const defaultSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Verify the harness layout, retrying while it looks incomplete.
+ *
+ * An auto-update relaunches the app in the window where the NSIS setup has
+ * only just finished extracting 600+ node_modules dirs; Windows disk
+ * buffering, indexing, and antivirus scanning can leave `readdirSync` briefly
+ * reporting a freshly-written directory as empty. A single synchronous check
+ * at T+30ms then treats a *settling* install as a *broken* one and kills the
+ * app (the v0.2.5 auto-update false positive).
+ *
+ * A genuinely broken install (installer bug that deletes after extraction)
+ * stays empty across every attempt and still fails — the retries cost a few
+ * seconds, not correctness. Only a transient settling window is absorbed.
+ *
+ * @returns The first ok result, or the last failing result after all attempts.
+ */
+export async function awaitHarnessLayout(options: PreflightRetryOptions): Promise<PreflightResult> {
+  const attempts = Math.max(1, options.attempts ?? 6);
+  const delayMs = Math.max(0, options.delayMs ?? 1_000);
+  const sleep = options.sleep ?? defaultSleep;
+  let result = verifyHarnessLayout(options);
+  for (let attempt = 1; attempt < attempts && !result.ok; attempt++) {
+    options.onRetry?.(attempt, result);
+    await sleep(delayMs);
+    result = verifyHarnessLayout(options);
+  }
+  return result;
+}
+
 /**
  * Verify the harness runtime layout is complete and self-consistent.
  * @param options - Resource paths and platform.

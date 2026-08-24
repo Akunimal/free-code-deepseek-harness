@@ -8,7 +8,7 @@ import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { verifyHarnessLayout, formatPreflightFailure } from '../src/main/preflight.js';
+import { verifyHarnessLayout, awaitHarnessLayout, formatPreflightFailure } from '../src/main/preflight.js';
 
 let root: string;
 
@@ -77,6 +77,49 @@ describe('verifyHarnessLayout', () => {
     rmSync(join(root, 'opencode2api', 'opencode2api-win-x64.exe'));
     const result = verifyHarnessLayout({ resourcesDir: root, platform: 'linux' });
     expect(result.ok).toBe(true);
+  });
+
+  it('awaitHarnessLayout absorbs a settling window: empty now, filled after 2 attempts', async () => {
+    // Simulate the auto-update race: packages/ starts empty (NSIS still
+    // extracting) then becomes populated by the 3rd check. The retry must
+    // NOT kill the app on the first empty read.
+    makeFullLayout(root);
+    const emptyPackages = join(root, 'dsh', 'packages');
+    rmSync(emptyPackages, { recursive: true, force: true });
+    mkdirSync(emptyPackages); // empty dir = settling
+    let check = 0;
+    const sleep = async (): Promise<void> => {
+      check++;
+      if (check === 2) {
+        // Filesystem "settles" — extraction finishes on the 2nd retry.
+        writeFileSync(join(emptyPackages, 'core'), '');
+      }
+    };
+    const result = await awaitHarnessLayout({ resourcesDir: root, platform: 'win32', attempts: 6, delayMs: 0, sleep });
+    expect(result.ok).toBe(true);
+    // Should have retried, not passed on the first synchronous check.
+    expect(check).toBeGreaterThanOrEqual(2);
+  });
+
+  it('awaitHarnessLayout still fails a genuinely broken install after all attempts', async () => {
+    // A permanently missing apps/ never recovers — retries cost time, not
+    // correctness, and the app is still refused.
+    makeFullLayout(root);
+    rmSync(join(root, 'dsh', 'apps'), { recursive: true, force: true });
+    let sleeps = 0;
+    const sleep = async (): Promise<void> => { sleeps++; };
+    const result = await awaitHarnessLayout({ resourcesDir: root, platform: 'win32', attempts: 4, delayMs: 0, sleep });
+    expect(result.ok).toBe(false);
+    expect(result.missing.some(m => m.includes('bin.js'))).toBe(true);
+    expect(sleeps).toBe(3); // attempts-1 retries between 4 checks
+  });
+
+  it('awaitHarnessLayout returns immediately when the layout is already complete', async () => {
+    makeFullLayout(root);
+    let sleeps = 0;
+    const result = await awaitHarnessLayout({ resourcesDir: root, platform: 'win32', sleep: async () => { sleeps++; } });
+    expect(result.ok).toBe(true);
+    expect(sleeps).toBe(0); // no retry needed
   });
 
   it('formatPreflightFailure lists every missing path and appends hint', () => {

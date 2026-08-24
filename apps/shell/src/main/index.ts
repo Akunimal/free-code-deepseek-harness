@@ -14,7 +14,7 @@ import { createUpdateService, isNewerVersion, type UpdateCheckResult, type Updat
 import { createHarnessUpdater } from './harness-updater.js';
 import { createEmbeddedBrowser, type EmbeddedBrowser } from './embedded-browser.js';
 import { createDialogBridge, type DialogBridge } from './dialog-bridge.js';
-import { verifyHarnessLayout, formatPreflightFailure } from './preflight.js';
+import { awaitHarnessLayout, formatPreflightFailure } from './preflight.js';
 import { initLocale, setLocale as setNativeLocale, t } from './i18n.js';
 import { shouldNotifyBackendState, type BackendState } from './backend-state.js';
 import {
@@ -774,12 +774,28 @@ app.whenReady().then(async () => {
   // Preflight: fail loud with a specific message BEFORE creating the
   // supervisor. Otherwise a broken install surfaces as a mystery
   // "supervisor gave up" 30+ seconds later.
+  //
+  // Retry with grace: an auto-update relaunches the app in the window where
+  // the NSIS setup has only just finished extracting 600+ node_modules dirs;
+  // Windows disk buffering / indexing / AV scanning can make a freshly
+  // written directory read as briefly empty. Retrying a few times absorbs
+  // that settling window, while a genuinely broken install stays empty across
+  // every attempt and still fails (the v0.2.5 auto-update false positive that
+  // killed the app 98ms after relaunch).
   if (app.isPackaged) {
-    const preflight = verifyHarnessLayout({ resourcesDir: resources });
+    const preflight = await awaitHarnessLayout({
+      resourcesDir: resources,
+      attempts: 6,
+      delayMs: 1_000,
+      onRetry: (attempt, result) => {
+        appLogger?.logger.warn({ attempt, missing: result.missing, warnings: result.warnings },
+          'harness runtime preflight incomplete; retrying (install may be settling)');
+      },
+    });
     if (!preflight.ok) {
       const detail = formatPreflightFailure(preflight, t('preflight.reinstallHint'));
       appLogger.logger.error({ missing: preflight.missing, warnings: preflight.warnings },
-        'harness runtime preflight failed');
+        'harness runtime preflight failed after retries');
       closeSplash();
       dialog.showErrorBox(t('preflight.title'), detail);
       app.exit(1);
