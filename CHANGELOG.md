@@ -10,7 +10,8 @@
 
 ### Build and operations / Build y operaciones
 
-- Windows setup, portable, and Harness runtime artifacts were built locally and are published manually. / Los artefactos se compilaron localmente y se publican manualmente.
+- Windows setup, portable, Linux AppImage, and Harness runtime artifacts were built locally and are published manually. / Los artefactos Windows setup, portable, Linux AppImage y runtime del Harness se compilaron localmente y se publican manualmente.
+- Fixed `package-harness-update.mjs` tar failure on substituted drive letters (Windows tar interprets `X:` as a remote host). / Se corrigió el fallo de tar en `package-harness-update.mjs` con letras de unidad sustituidas (tar de Windows interpreta `X:` como host remoto).
 
 Source: `v0.2.2..HEAD`
 

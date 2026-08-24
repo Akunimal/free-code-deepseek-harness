@@ -20,13 +20,14 @@ worker service to use the Windows release.
 
 ## Start in three steps
 
-1. Download the Windows installer from [Release v0.2.2](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.2.2).
+1. Download the Windows installer or Linux AppImage from [Release v0.2.3](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.2.3).
 2. Install FreeCode, open it, and choose your project folder.
 3. Tell the model what you want to build in plain language.
 
-The release also includes a portable `.exe` if you do not want an installer.
-The installer is the better choice for everyday use; the portable build is
-useful when you want to carry the app with you.
+The release also includes a Windows portable `.exe` if you do not want an
+installer. The installer is the better choice for everyday use; the portable
+build is useful when you want to carry the app with you. On Linux, download
+the `.AppImage`, make it executable (`chmod +x`), and run it.
 
 ## What you get
 
@@ -97,13 +98,14 @@ workers separado para usar la release de Windows.
 
 ### Empezá en tres pasos
 
-1. Descargá el instalador de Windows desde la [release v0.2.2](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.2.2).
+1. Descargá el instalador de Windows o la AppImage de Linux desde la [release v0.2.3](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.2.3).
 2. Instalá FreeCode, abrilo y elegí la carpeta de tu proyecto.
 3. Contale al modelo en lenguaje natural qué querés construir.
 
 La release también incluye un `.exe` portable si no querés instalar. Para uso
 diario conviene el instalador; el portable sirve para llevar la aplicación a
-otra carpeta o máquina.
+otra carpeta o máquina. En Linux, descargá la `.AppImage`, dale permisos de
+ejecución (`chmod +x`) y ejecutala.
 
 ### Qué incluye
 

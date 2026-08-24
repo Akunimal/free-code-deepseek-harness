@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -21,7 +21,10 @@ mkdirSync(releaseDir, { recursive: true });
 rmSync(archivePath, { force: true });
 rmSync(digestPath, { force: true });
 
-const result = spawnSync('tar', ['-czf', archivePath, '-C', resourcesDir, 'dsh', 'runtime-manifest.json'], {
+const relArchive = relative(root, archivePath);
+const relResources = relative(root, resourcesDir);
+const result = spawnSync('tar', ['-czf', relArchive, '-C', relResources, 'dsh', 'runtime-manifest.json'], {
+  cwd: root,
   stdio: 'inherit',
   windowsHide: process.platform === 'win32',
 });

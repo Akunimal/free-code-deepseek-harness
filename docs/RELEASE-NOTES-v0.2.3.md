@@ -13,7 +13,8 @@
 ### Build and operations
 
 - Shell typecheck and shell tests pass locally.
-- Windows setup, portable, and Harness runtime artifacts were built locally and are published manually.
+- Windows setup, portable, Linux AppImage, and Harness runtime artifacts were built locally and are published manually.
+- Fixed `package-harness-update.mjs` tar failure on substituted drive letters (Windows tar interprets `X:` as a remote host); paths are now relative.
 
 Source range: `v0.2.2..HEAD`
 Reviewed commands: `pnpm --filter @freecode/shell typecheck`, `pnpm --filter @freecode/shell test`, `pnpm build:desktop`.
@@ -31,7 +32,8 @@ Reviewed commands: `pnpm --filter @freecode/shell typecheck`, `pnpm --filter @fr
 ### Build y operaciones
 
 - El typecheck y tests del shell pasan localmente.
-- Los artefactos Windows setup, portable y runtime del Harness se compilaron localmente y se publican manualmente.
+- Los artefactos Windows setup, portable, Linux AppImage y runtime del Harness se compilaron localmente y se publican manualmente.
+- Se corrigió el fallo de tar en `package-harness-update.mjs` con letras de unidad sustituidas (tar de Windows interpreta `X:` como host remoto); las rutas ahora son relativas.
 
 Rango fuente: `v0.2.2..HEAD`
 Comandos revisados: `pnpm --filter @freecode/shell typecheck`, `pnpm --filter @freecode/shell test`, `pnpm build:desktop`.
