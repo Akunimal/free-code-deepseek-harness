@@ -12,6 +12,8 @@ export interface DirectoryPickerInternals {
   run?: DirectoryPickerRunner
   /** Replaces the in-process Win32 dialog (`pickWin32Directory`) for deterministic tests. */
   pickWin32Dialog?: (signal: AbortSignal) => Promise<string | null>
+  /** Dialog bridge env snapshot; defaults to `process.env`. */
+  env?: Partial<Record<'FREECODE_DIALOG_BRIDGE_ENDPOINT' | 'FREECODE_DIALOG_BRIDGE_TOKEN', string>>
 }
 
 function outputPath(stdout: string): string | null {
@@ -37,6 +39,31 @@ function isMissingCommand(error: unknown): boolean {
 
 function rethrowIfAborted(signal: AbortSignal, error: unknown): void {
   if (signal.aborted) throw error
+}
+
+/**
+ * Pick a directory via the Electron shell's dialog bridge. The bridge is a
+ * loopback HTTP endpoint the Electron main process exposes when the Harness
+ * runs as its child; it delegates to `dialog.showOpenDialog` — the same
+ * native Win32 IFileOpenDialog the koffi worker would open, but routed
+ * through the Electron process whose binary CAN load the COM surface.
+ */
+async function pickViaBridge(
+  endpoint: string, token: string, signal: AbortSignal,
+): Promise<string | null> {
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'x-freecode-dialog-token': token, 'content-type': 'application/json' },
+    body: '{}',
+    signal,
+  })
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    throw new Error(`dialog bridge returned ${response.status}: ${text}`)
+  }
+  const data = await response.json() as { path?: string | null; error?: string }
+  if (data.error) throw new Error(`dialog bridge: ${data.error}`)
+  return data.path ?? null
 }
 
 /**
@@ -67,11 +94,12 @@ export async function pickNativeDirectory(
   }
 
   if (platform === 'win32') {
-    // The koffi-backed IFileOpenDialog child process — the modern picker with
-    // per-monitor-v2 DPI and abort support. koffi is a packaged dependency
-    // whose availability the install guarantees, so there is no fallback
-    // tier: any failure surfaces as-is (no PowerShell fallback tier; see
-    // .agents/notes/implemented/simplification/2026-08-04-drop-windows-powershell-picker-fallback.md).
+    const env = internals.env ?? process.env
+    const bridgeEndpoint = env.FREECODE_DIALOG_BRIDGE_ENDPOINT
+    const bridgeToken = env.FREECODE_DIALOG_BRIDGE_TOKEN
+    if (bridgeEndpoint && bridgeToken) {
+      return await pickViaBridge(bridgeEndpoint, bridgeToken, signal)
+    }
     const pickDialog = internals.pickWin32Dialog ?? pickWin32Directory
     return await pickDialog(signal)
   }

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.4 — 2026-08-24
+
+### Fixed / Corregido
+
+- The Win32 directory picker no longer crashes under packaged Electron. An Electron dialog bridge routes `dialog.showOpenDialog` through the shell's main process, bypassing the koffi NAPI incompatibility with `ELECTRON_RUN_AS_NODE`. The koffi worker remains the default for non-Electron hosts. / El directory picker Win32 ya no se cuelga en Electron empaquetado. Un bridge de diálogo Electron enruta `dialog.showOpenDialog` por el proceso principal del shell, evitando la incompatibilidad NAPI de koffi con `ELECTRON_RUN_AS_NODE`. El worker koffi sigue siendo el default para hosts sin Electron.
+
+### Build and operations / Build y operaciones
+
+- Windows setup, portable, Linux AppImage, and Harness runtime artifacts were built locally and are published manually. / Los artefactos Windows setup, portable, Linux AppImage y runtime del Harness se compilaron localmente y se publican manualmente.
+
+Source: `v0.2.3..HEAD`
+
 ## 0.2.3 — 2026-08-23
 
 ### Fixed / Corregido

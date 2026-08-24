@@ -172,6 +172,9 @@ const strings = {
     en: 'A newer installed version ($1) exists. This portable ($2) may have bugs already fixed. Update or remove this portable.',
   },
 
+  // Dialog bridge
+  'dialog.selectWorkspace': { es: 'Seleccionar carpeta de trabajo', en: 'Select Workspace Directory' },
+
   // Version label
   'version.new': { es: 'nueva', en: 'new' },
   'version.unknown': { es: 'desconocido', en: 'unknown' },
@@ -265,6 +268,7 @@ const zhStrings = {
   'splash.pool': '正在准备 worker 池…',
   'portable.stale.title': 'Portable 已过时',
   'portable.stale.message': '检测到更新的安装版本 ($1)。此 Portable ($2) 可能存在已修复的问题。请更新或移除此 Portable。',
+  'dialog.selectWorkspace': '选择工作目录',
   'version.new': '新版本',
   'version.unknown': '未知',
 } as const satisfies Record<I18nKey, string>;

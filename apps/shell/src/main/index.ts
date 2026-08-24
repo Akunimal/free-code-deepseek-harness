@@ -13,6 +13,7 @@ import { createAppLogger, type AppLogger } from './logger.js';
 import { createUpdateService, isNewerVersion, type UpdateCheckResult, type UpdateService } from './updater.js';
 import { createHarnessUpdater } from './harness-updater.js';
 import { createEmbeddedBrowser, type EmbeddedBrowser } from './embedded-browser.js';
+import { createDialogBridge, type DialogBridge } from './dialog-bridge.js';
 import { initLocale, setLocale as setNativeLocale, t } from './i18n.js';
 import { shouldNotifyBackendState, type BackendState } from './backend-state.js';
 import {
@@ -127,7 +128,13 @@ async function bootstrap(): Promise<ShellRuntime> {
     secrets,
     secretEnvNames: ['FREECODE_PUBLIC_KEY'],
     nodeEnv: nodeRuntimeEnv(app.isPackaged),
-    extraEnv: { DSH_CLIENT_TITLE: 'FreeCode' },
+    extraEnv: {
+      DSH_CLIENT_TITLE: 'FreeCode',
+      ...(dialogBridge ? {
+        FREECODE_DIALOG_BRIDGE_ENDPOINT: dialogBridge.endpoint,
+        FREECODE_DIALOG_BRIDGE_TOKEN: dialogBridge.token,
+      } : {}),
+    },
     browserBridge: embeddedBrowser ? { endpoint: embeddedBrowser.endpoint, token: embeddedBrowser.token } : undefined,
     log: (level, msg, meta) => {
       const fn = level === 'error' || level === 'warn' ? level : 'info';
@@ -149,6 +156,7 @@ let overlayOpen = false;
 let localUpdateRunning = false;
 let torfleet: TorFleet | null = null;
 let embeddedBrowser: EmbeddedBrowser | null = null;
+let dialogBridge: DialogBridge | null = null;
 let updateIndicatorView: WebContentsView | null = null;
 let latestUpdateResult: UpdateCheckResult | null = null;
 let updateCheckInFlight: Promise<UpdateCheckResult | null> | null = null;
@@ -720,6 +728,13 @@ app.whenReady().then(async () => {
   } catch (error) {
     appLogger?.logger.warn({ err: error }, 'embedded browser unavailable; computer_use will report capability absence');
   }
+  if (process.platform === 'win32') {
+    try {
+      dialogBridge = await createDialogBridge();
+    } catch (error) {
+      appLogger?.logger.warn({ err: error }, 'dialog bridge unavailable; directory picker falls back to koffi worker');
+    }
+  }
   runtime = await bootstrap();
   await runtime.start();
 
@@ -903,6 +918,8 @@ app.on('before-quit', async (e) => {
   if (torfleet) await torfleet.stop();
   await embeddedBrowser?.close();
   embeddedBrowser = null;
+  await dialogBridge?.close();
+  dialogBridge = null;
   await runtime.stop();
   await appLogger?.close();
   app.exit(0);

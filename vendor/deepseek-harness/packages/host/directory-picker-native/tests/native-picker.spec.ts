@@ -90,6 +90,41 @@ describe('native directory picker', () => {
     expect(run).not.toHaveBeenCalled()
   })
 
+  it('uses the dialog bridge on win32 when both env vars are present', async () => {
+    const env = { FREECODE_DIALOG_BRIDGE_ENDPOINT: 'http://127.0.0.1:9999/pick-directory', FREECODE_DIALOG_BRIDGE_TOKEN: 'test-token' }
+    const run = vi.fn<DirectoryPickerRunner>()
+    const pickWin32Dialog = vi.fn(noDialog)
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ path: 'C:\\bridged\\dir' }),
+    })))
+    await expect(pickNativeDirectory(signal(), { platform: 'win32', run, pickWin32Dialog, env }))
+      .resolves.toBe('C:\\bridged\\dir')
+    expect(pickWin32Dialog).not.toHaveBeenCalled()
+    expect(run).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
+  })
+
+  it('skips the dialog bridge when the token is missing', async () => {
+    const env = { FREECODE_DIALOG_BRIDGE_ENDPOINT: 'http://127.0.0.1:9999/pick-directory' }
+    const pickWin32Dialog = vi.fn(async (): Promise<string | null> => 'C:\\koffi\\path')
+    await expect(pickNativeDirectory(signal(), { platform: 'win32', pickWin32Dialog, env }))
+      .resolves.toBe('C:\\koffi\\path')
+    expect(pickWin32Dialog).toHaveBeenCalled()
+  })
+
+  it('surfaces bridge errors without falling back to koffi', async () => {
+    const env = { FREECODE_DIALOG_BRIDGE_ENDPOINT: 'http://127.0.0.1:9999/pick-directory', FREECODE_DIALOG_BRIDGE_TOKEN: 'tok' }
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: false,
+      status: 500,
+      text: async () => 'server error',
+    })))
+    await expect(pickNativeDirectory(signal(), { platform: 'win32', env }))
+      .rejects.toThrow('dialog bridge returned 500')
+    vi.unstubAllGlobals()
+  })
+
   it('runs the default command adapter without a shell and preserves command failures', async () => {
     execFileMock.mockImplementationOnce((_command, _args, _options, callback) => {
       callback(null, '/home/test/project\n', '')
