@@ -20,9 +20,11 @@
  */
 
 import { readFileSync, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const INSTALLER_NSH = resolve(process.cwd(), 'apps/shell/build/installer.nsh');
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const INSTALLER_NSH = resolve(REPO_ROOT, 'apps/shell/build/installer.nsh');
 
 if (!existsSync(INSTALLER_NSH)) {
   console.error(`verify-nsis-hooks: installer.nsh not found at ${INSTALLER_NSH}`);

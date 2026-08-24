@@ -21,15 +21,17 @@
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync, readdirSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, resolve, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 
 if (process.platform !== 'win32') {
   console.log('verify-nsis-install-layout: skipped (non-Windows host).');
   process.exit(0);
 }
 
-const RELEASE_DIR = resolve(process.cwd(), 'apps/shell/release');
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const RELEASE_DIR = resolve(REPO_ROOT, 'apps/shell/release');
 if (!existsSync(RELEASE_DIR)) {
   console.error(`verify-nsis-install-layout: release dir missing: ${RELEASE_DIR}`);
   process.exit(2);

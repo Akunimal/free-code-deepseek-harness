@@ -29,8 +29,9 @@
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, mkdirSync } from 'node:fs';
 import { resolve, join, relative, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 
-const REPO = process.cwd();
+const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 /**
  * Packages shipped in the packaged Electron app whose bundle must match
