@@ -41,6 +41,10 @@ export interface HarnessInstance {
   pid: number;
   startedAt: number;
   restarts: number;
+  /** When set (stuck event), the last output tail captured before giving up.
+   *  UI code should surface this so the user sees WHY dsh failed, instead
+   *  of the opaque "supervisor gave up after 5 restarts". */
+  lastOutputTail?: string;
 }
 
 export type HarnessStatus = 'stopped' | 'starting' | 'ready' | 'unhealthy';
@@ -252,9 +256,11 @@ export class HarnessSupervisor {
     }
     this.lastRestartAt = now;
     if (this.restarts >= (this.cfg.restartBudget ?? 5)) {
+      const tail = this.outBuffer.slice(-4000);
       console.error('[supervisor] restart budget exceeded, giving up');
+      this.cfg.log?.('error', 'harness supervisor gave up', { restarts: this.restarts, tail });
       for (const cb of this.stuckListeners) {
-        cb({ url: this.url ?? '', pid: -1, startedAt: this.startedAt, restarts: this.restarts });
+        cb({ url: this.url ?? '', pid: -1, startedAt: this.startedAt, restarts: this.restarts, lastOutputTail: tail });
       }
       return;
     }

@@ -11,7 +11,9 @@
     "test": "vitest run --config vitest.config.ts",
     "dev": "pnpm build && electron .",
     "package:runtime": "node ../../scripts/run-package-runtime.mjs",
-    "package": "pnpm build && electron-builder --config electron-builder.yml --publish never && node ../../scripts/package-harness-update.mjs"
+    "prepackage:verify": "node ../../scripts/verify-nsis-hooks.mjs && node ../../scripts/verify-vendor-bundles-fresh.mjs",
+    "smoke:nsis": "node ../../scripts/verify-nsis-install-layout.mjs",
+    "package": "pnpm prepackage:verify && pnpm build && electron-builder --config electron-builder.yml --publish never && node ../../scripts/package-harness-update.mjs"
   },
   "dependencies": {
     "@freecode/opencode-adapter": "workspace:*",

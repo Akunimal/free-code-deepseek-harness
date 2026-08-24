@@ -14,6 +14,7 @@ import { createUpdateService, isNewerVersion, type UpdateCheckResult, type Updat
 import { createHarnessUpdater } from './harness-updater.js';
 import { createEmbeddedBrowser, type EmbeddedBrowser } from './embedded-browser.js';
 import { createDialogBridge, type DialogBridge } from './dialog-bridge.js';
+import { verifyHarnessLayout, formatPreflightFailure } from './preflight.js';
 import { initLocale, setLocale as setNativeLocale, t } from './i18n.js';
 import { shouldNotifyBackendState, type BackendState } from './backend-state.js';
 import {
@@ -698,6 +699,21 @@ app.whenReady().then(async () => {
   appLogger = createAppLogger(join(userDataDir, 'logs'));
   appLogger.logger.info({ packaged: app.isPackaged, platform: process.platform }, 'shell starting');
   const resources = resourcesDir();
+  // Preflight: fail loud with a specific message BEFORE creating the
+  // supervisor. Otherwise a broken install surfaces as a mystery
+  // "supervisor gave up" 30+ seconds later.
+  if (app.isPackaged) {
+    const preflight = verifyHarnessLayout({ resourcesDir: resources });
+    if (!preflight.ok) {
+      const detail = formatPreflightFailure(preflight, t('preflight.reinstallHint'));
+      appLogger.logger.error({ missing: preflight.missing, warnings: preflight.warnings },
+        'harness runtime preflight failed');
+      closeSplash();
+      dialog.showErrorBox(t('preflight.title'), detail);
+      app.exit(1);
+      return;
+    }
+  }
   const harnessUpdater = createHarnessUpdater({
     resourcesDir: resources,
     currentVersion: bundledHarnessVersion(resources),
@@ -871,12 +887,19 @@ app.whenReady().then(async () => {
 
   runtime.supervisor.onStuck((inst) => {
     const logPath = join(userDataDir, 'logs', 'app.log');
-    appLogger?.logger.error({ restarts: inst.restarts }, 'harness supervisor gave up');
+    appLogger?.logger.error({ restarts: inst.restarts, tail: inst.lastOutputTail }, 'harness supervisor gave up');
+    // The tail is the last stderr/stdout captured before the process died;
+    // for boot-time crashes it usually names the missing file or the koffi
+    // abort that caused SIGABRT. Surface at most the last 800 chars so the
+    // dialog stays readable.
+    const tailPreview = inst.lastOutputTail && inst.lastOutputTail.trim().length > 0
+      ? '\n\n' + inst.lastOutputTail.trim().split(/\r?\n/).slice(-12).join('\n').slice(-800)
+      : '';
     void dialog.showMessageBox({
       type: 'error',
       title: t('stuck.title'),
       message: t('stuck.message', inst.restarts),
-      detail: t('stuck.detail', logPath),
+      detail: t('stuck.detail', logPath) + tailPreview,
       buttons: [t('stuck.retry'), t('stuck.close')],
       defaultId: 0,
       cancelId: 1,

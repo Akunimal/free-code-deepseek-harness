@@ -175,6 +175,13 @@ const strings = {
   // Dialog bridge
   'dialog.selectWorkspace': { es: 'Seleccionar carpeta de trabajo', en: 'Select Workspace Directory' },
 
+  // Startup preflight failure — installer bug or corrupted install
+  'preflight.title': { es: 'Instalación incompleta', en: 'Install incomplete' },
+  'preflight.reinstallHint': {
+    es: 'Reinstalá FreeCode desde el instalador oficial (v0.2.4 o posterior).',
+    en: 'Reinstall FreeCode from the official installer (v0.2.4 or later).',
+  },
+
   // Version label
   'version.new': { es: 'nueva', en: 'new' },
   'version.unknown': { es: 'desconocido', en: 'unknown' },
@@ -269,6 +276,8 @@ const zhStrings = {
   'portable.stale.title': 'Portable 已过时',
   'portable.stale.message': '检测到更新的安装版本 ($1)。此 Portable ($2) 可能存在已修复的问题。请更新或移除此 Portable。',
   'dialog.selectWorkspace': '选择工作目录',
+  'preflight.title': '安装不完整',
+  'preflight.reinstallHint': '请从官方安装程序重新安装 FreeCode（v0.2.4 或更高版本）。',
   'version.new': '新版本',
   'version.unknown': '未知',
 } as const satisfies Record<I18nKey, string>;
