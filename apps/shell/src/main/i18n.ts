@@ -165,6 +165,13 @@ const strings = {
   'splash.loading': { es: 'Iniciando harness…', en: 'Starting harness…' },
   'splash.pool': { es: 'Preparando pool de workers…', en: 'Preparing worker pool…' },
 
+  // Portable stale warning
+  'portable.stale.title': { es: 'Portable desactualizado', en: 'Outdated portable' },
+  'portable.stale.message': {
+    es: 'Hay una versión instalada más reciente ($1). Este portable ($2) puede tener errores ya corregidos. Actualizá el portable o eliminalo.',
+    en: 'A newer installed version ($1) exists. This portable ($2) may have bugs already fixed. Update or remove this portable.',
+  },
+
   // Version label
   'version.new': { es: 'nueva', en: 'new' },
   'version.unknown': { es: 'desconocido', en: 'unknown' },
@@ -256,6 +263,8 @@ const zhStrings = {
   'overlay.refresh': '刷新',
   'splash.loading': '正在启动 Harness…',
   'splash.pool': '正在准备 worker 池…',
+  'portable.stale.title': 'Portable 已过时',
+  'portable.stale.message': '检测到更新的安装版本 ($1)。此 Portable ($2) 可能存在已修复的问题。请更新或移除此 Portable。',
   'version.new': '新版本',
   'version.unknown': '未知',
 } as const satisfies Record<I18nKey, string>;

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.3 — 2026-08-23
+
+### Fixed / Corregido
+
+- The Win32 directory picker worker now sets `ELECTRON_RUN_AS_NODE=1` explicitly, preventing the child process from dying silently when the env variable is not inherited. The exit handler includes the exit code for diagnostics. / El worker del directory picker Win32 ahora fija `ELECTRON_RUN_AS_NODE=1` explícitamente, evitando que el proceso hijo muera silenciosamente. El handler de salida incluye el código de salida para diagnóstico.
+- The NSIS installer now removes stale runtime files (`node_modules`, `packages`, `apps`) from the previous installation directory before extracting the new payload. User data in `%APPDATA%` is never touched. / El instalador NSIS ahora elimina archivos de runtime obsoletos de la instalación anterior antes de extraer la nueva. Los datos del usuario en `%APPDATA%` no se tocan.
+- Installed (non-portable) builds write a version marker to `%APPDATA%`. Portable builds check this marker at startup and warn if a newer installed version exists. / Las builds instaladas escriben un marker de versión en `%APPDATA%`. Las builds portables verifican este marker al arrancar y avisan si hay una versión instalada más reciente.
+
+### Build and operations / Build y operaciones
+
+- Windows setup, portable, and Harness runtime artifacts were built locally and are published manually. / Los artefactos se compilaron localmente y se publican manualmente.
+
+Source: `v0.2.2..HEAD`
+
 ## 0.2.2 — 2026-08-23
 
 ### Fixed / Corregido

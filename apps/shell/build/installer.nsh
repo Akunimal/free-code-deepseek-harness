@@ -12,6 +12,18 @@
   Sleep 1000
 !macroend
 
+; Clean stale runtime files from a previous installation so renamed or removed
+; packages (e.g. koffi native binaries) cannot linger and cause load failures.
+; User data in %APPDATA% is never touched.
+!macro customInstall
+  IfFileExists "$INSTDIR\resources\freecode\dsh\node_modules\*.*" 0 +2
+    RMDir /r "$INSTDIR\resources\freecode\dsh\node_modules"
+  IfFileExists "$INSTDIR\resources\freecode\dsh\packages\*.*" 0 +2
+    RMDir /r "$INSTDIR\resources\freecode\dsh\packages"
+  IfFileExists "$INSTDIR\resources\freecode\dsh\apps\*.*" 0 +2
+    RMDir /r "$INSTDIR\resources\freecode\dsh\apps"
+!macroend
+
 ; The previous uninstaller can return a non-zero code after it has already
 ; removed the old files. Treat that result as non-fatal so the new payload and
 ; shortcuts are still installed.

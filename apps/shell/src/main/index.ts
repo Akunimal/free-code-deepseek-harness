@@ -1,6 +1,6 @@
 import { app, BrowserWindow, Menu, Tray, WebContentsView, nativeImage, Notification, dialog } from 'electron';
 import { join, resolve } from 'node:path';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { spawn, spawnSync } from 'node:child_process';
 import { createShellRuntime, ShellRuntime } from './runtime.js';
 import { DEFAULT_POOL_SIZE } from '@freecode/opencode-adapter';
@@ -61,6 +61,40 @@ function configurePortableDataDir(): void {
     // Keeping data beside the executable makes the portable artifact movable as
     // one folder and avoids requiring a machine-wide install or profile setup.
     app.setPath('userData', resolve(portableDir, 'data'));
+  }
+}
+
+function isPortable(): boolean {
+  return Boolean(process.env.PORTABLE_EXECUTABLE_DIR ?? process.env.FREECODE_PORTABLE_DIR);
+}
+
+function writeInstallMarker(userDataDir: string): void {
+  try {
+    writeFileSync(join(userDataDir, 'install-version.txt'), app.getVersion(), 'utf8');
+  } catch {
+    // Best effort; the marker is advisory.
+  }
+}
+
+function checkStalePortable(): void {
+  if (!app.isPackaged || !isPortable()) return;
+  const currentVersion = app.getVersion();
+  // The NSIS installer writes to the default userData (%APPDATA%), not the
+  // portable data dir. If a newer installed version exists, warn.
+  const systemDataDir = join(process.env.APPDATA ?? '', 'FreeCode DeepSeek Harness');
+  const markerPath = join(systemDataDir, 'install-version.txt');
+  try {
+    if (!existsSync(markerPath)) return;
+    const installedVersion = readFileSync(markerPath, 'utf8').trim();
+    if (isNewerVersion(currentVersion, installedVersion)) {
+      void dialog.showMessageBox({
+        type: 'warning',
+        title: t('portable.stale.title'),
+        message: t('portable.stale.message', installedVersion, currentVersion),
+      });
+    }
+  } catch {
+    // Marker unreadable; skip.
   }
 }
 
@@ -651,6 +685,8 @@ app.whenReady().then(async () => {
   initLocale(app.getLocale());
   createSplashWindow();
   const userDataDir = app.getPath('userData');
+  if (app.isPackaged && !isPortable()) writeInstallMarker(userDataDir);
+  checkStalePortable();
   appLogger = createAppLogger(join(userDataDir, 'logs'));
   appLogger.logger.info({ packaged: app.isPackaged, platform: process.platform }, 'shell starting');
   const resources = resourcesDir();
