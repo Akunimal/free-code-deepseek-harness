@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow, shell } from 'electron';
+import { ipcMain, BrowserWindow, shell, type WebContents } from 'electron';
 import {
   IpcChannels,
   IpcPayloads,
@@ -32,19 +32,29 @@ export interface IpcDeps {
   };
   reportModelRefreshFailure?: (error: unknown) => void;
   setLocale: (locale: 'zh' | 'en' | 'es') => void;
+  /** Optional override for renderer broadcast targets. Defaults to every
+   *  BrowserWindow's built-in webContents. When the harness runs inside a
+   *  nested WebContentsView, the shell provides this so pushes reach the
+   *  actual harness page, not the (blank) window container webContents. */
+  getRendererTargets?: () => WebContents[];
+}
+
+function defaultRendererTargets(): WebContents[] {
+  return BrowserWindow.getAllWindows().map((win) => win.webContents);
 }
 
 export function registerIpc(deps: IpcDeps): () => void {
   const { runtime, userDataDir, homeDir, lbBaseUrl } = deps;
+
+  const rendererTargets = (): WebContents[] => (deps.getRendererTargets?.() ?? defaultRendererTargets())
+    .filter((wc) => !wc.isDestroyed());
 
   // pool:status (push on change)
   const emitStatus = (): void => {
     const payload: IpcPayloads[typeof IpcChannels.poolStatus] = {
       workers: runtime.workers().map((w) => WorkerHandleSchema.parse(w)),
     };
-    for (const win of BrowserWindow.getAllWindows()) {
-      win.webContents.send(IpcChannels.poolStatus, payload);
-    }
+    for (const wc of rendererTargets()) wc.send(IpcChannels.poolStatus, payload);
   };
   const offChange = runtime.pool.onWorkerChange(() => emitStatus());
 
@@ -58,9 +68,7 @@ export function registerIpc(deps: IpcDeps): () => void {
         authHeader: 'Bearer public',
       });
       const parsed = ModelCatalogSchema.parse(catalog);
-      for (const win of BrowserWindow.getAllWindows()) {
-        win.webContents.send(IpcChannels.modelsCatalog, parsed);
-      }
+      for (const wc of rendererTargets()) wc.send(IpcChannels.modelsCatalog, parsed);
       return parsed;
     } catch (error) {
       deps.reportModelRefreshFailure?.(error);
@@ -108,9 +116,7 @@ export function registerIpc(deps: IpcDeps): () => void {
       enabled: tf.isEnabled(),
       instances: tf.instance?.status() ?? [],
     };
-    for (const win of BrowserWindow.getAllWindows()) {
-      win.webContents.send(IpcChannels.torfleetStatus, payload);
-    }
+    for (const wc of rendererTargets()) wc.send(IpcChannels.torfleetStatus, payload);
   };
 
   let offTorfleetChange: (() => void) | null = null;

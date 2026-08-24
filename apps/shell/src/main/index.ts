@@ -147,6 +147,7 @@ async function bootstrap(): Promise<ShellRuntime> {
 
 let splashWindow: BrowserWindow | null = null;
 let mainWindow: BrowserWindow | null = null;
+let harnessView: WebContentsView | null = null;
 let overlayWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let runtime: ShellRuntime | null = null;
@@ -238,6 +239,18 @@ function createMainWindow(harnessUrl: string): void {
     width: 1280,
     height: 820,
     title: 'FreeCode DeepSeek Harness',
+    // No `webPreferences` here: the harness page renders in a nested
+    // WebContentsView so we can shrink it when the embedded browser opens.
+    // The mainWindow's built-in webContents stays unused (blank).
+  });
+  // The harness renders in a WebContentsView child of contentView so its
+  // bounds can be resized independently. Loading the harness into
+  // mainWindow.webContents (classic BrowserWindow.loadURL) would fill the
+  // entire content area with no way to shrink it — the embedded browser
+  // panel would then draw ON TOP of the harness, covering conversation
+  // text (F1 postmortem: v0.2.2 "reflow" fix silently no-op'd because
+  // BrowserWindow.webContents does not appear in contentView.children).
+  harnessView = new WebContentsView({
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -245,15 +258,60 @@ function createMainWindow(harnessUrl: string): void {
       preload: resolve(import.meta.dirname, '../preload/index.js'),
     },
   });
-  mainWindow.loadURL(harnessUrl);
-  embeddedBrowser?.attachWindow(mainWindow);
+  mainWindow.contentView.addChildView(harnessView);
+  const size = mainWindow.getContentSize();
+  harnessView.setBounds({ x: 0, y: 0, width: size[0] ?? 1280, height: size[1] ?? 820 });
+  void harnessView.webContents.loadURL(harnessUrl);
+  embeddedBrowser?.attachWindow(mainWindow, harnessView);
   ensureUpdateIndicator();
   mainWindow.on('resize', updateUpdateIndicatorBounds);
-  mainWindow.webContents.on('did-finish-load', updateUpdateIndicatorBounds);
+  // Intercept X-click: hide to tray instead of destroying. Keeps the harness
+  // webContents alive so tray "Show" / double-click restores in one gesture
+  // (F2 postmortem: X destroyed the window and tray show() was a no-op on
+  // the null reference). shuttingDown lets a real quit through.
+  mainWindow.on('close', (event) => {
+    if (!shuttingDown && mainWindow && !mainWindow.isDestroyed()) {
+      event.preventDefault();
+      mainWindow.hide();
+    }
+  });
+  // Keep harnessView filling the mainWindow content area when the browser
+  // is hidden. When the browser is visible, embedded-browser owns bounds.
+  mainWindow.on('resize', () => {
+    if (!mainWindow || mainWindow.isDestroyed() || !harnessView) return;
+    // embedded-browser reacts to the same resize event separately; only
+    // touch bounds here when the browser is not managing them.
+    if (!embeddedBrowserVisible()) {
+      const s = mainWindow.getContentSize();
+      harnessView.setBounds({ x: 0, y: 0, width: s[0] ?? 1280, height: s[1] ?? 820 });
+    }
+  });
+  harnessView.webContents.on('did-finish-load', updateUpdateIndicatorBounds);
   mainWindow.on('closed', () => {
     updateIndicatorView = null;
+    harnessView = null;
     mainWindow = null;
   });
+}
+
+/** Best-effort peek at the embedded browser panel's visibility for bounds
+ *  arbitration. The browser owns its own resize handler; the shell only needs
+ *  to know whether to defer or fill on its own resize event. */
+function embeddedBrowserVisible(): boolean {
+  return embeddedBrowser?.publicState().visible === true;
+}
+
+/** Show the main window from the tray, or recreate it if the user
+ *  destroyed it (Task Manager, hard quit, etc.). Also focuses. */
+function showMainWindowFromTray(): void {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    if (!mainWindow.isVisible()) mainWindow.show();
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+    return;
+  }
+  const url = runtime?.supervisor.currentUrl;
+  if (url) createMainWindow(url);
 }
 
 function updateIsAvailable(result: UpdateCheckResult | null): boolean {
@@ -290,7 +348,11 @@ function updateUpdateIndicatorBounds(): void {
   // the wide sidebar. The fallback is only used before the page has mounted.
   const fallback = { x: 230, y: Math.max(0, height - 37), width: UPDATE_INDICATOR_SIZE, height: UPDATE_INDICATOR_SIZE };
   updateIndicatorView.setBounds(fallback);
-  void mainWindow.webContents.executeJavaScript(`(() => {
+  // Query the DOM in the harness WebContentsView (not mainWindow.webContents,
+  // which is now blank since the harness renders in a nested view).
+  const harnessContents = harnessView?.webContents;
+  if (!harnessContents || harnessContents.isDestroyed()) return;
+  void harnessContents.executeJavaScript(`(() => {
     const trigger = document.querySelector('button[aria-haspopup="dialog"]');
     if (!(trigger instanceof HTMLElement)) return null;
     const rect = trigger.getBoundingClientRect();
@@ -298,9 +360,15 @@ function updateUpdateIndicatorBounds(): void {
   })()`, true).then((anchor: { left: number; right: number; top: number; width: number; height: number } | null) => {
     if (placement !== updateIndicatorPlacement || !mainWindow || mainWindow.isDestroyed() || !updateIndicatorView) return;
     if (!anchor) return;
+    // harnessView bounds are 0,0 when the browser is hidden, but shift when
+    // the browser opens. Anchor the indicator relative to harnessView's
+    // origin, not the whole window contentView, so it tracks the sidebar.
+    const harnessBounds = harnessView?.getBounds() ?? { x: 0, y: 0 };
     const rail = anchor.width <= 60;
-    const x = rail ? Math.round(anchor.right + 6) : Math.round(anchor.right - (UPDATE_INDICATOR_SIZE + 6));
-    const y = Math.round(anchor.top + (anchor.height - UPDATE_INDICATOR_SIZE) / 2);
+    const x = rail
+      ? Math.round(harnessBounds.x + anchor.right + 6)
+      : Math.round(harnessBounds.x + anchor.right - (UPDATE_INDICATOR_SIZE + 6));
+    const y = Math.round(harnessBounds.y + anchor.top + (anchor.height - UPDATE_INDICATOR_SIZE) / 2);
     updateIndicatorView.setBounds({ x: Math.max(0, x), y: Math.max(0, y), width: UPDATE_INDICATOR_SIZE, height: UPDATE_INDICATOR_SIZE });
   }).catch(() => undefined);
 }
@@ -656,7 +724,7 @@ function updateTrayMenu(): void {
   tray?.setToolTip(t('tray.tooltip'));
   tray?.setContextMenu(
     Menu.buildFromTemplate([
-      { label: t('tray.show'), click: () => mainWindow?.show() },
+      { label: t('tray.show'), click: () => showMainWindowFromTray() },
       { label: t('menu.poolStatus'), click: () => openOverlay() },
       {
         label: t('menu.restartHarness'),
@@ -675,7 +743,11 @@ function createTray(): void {
     : nativeImage.createEmpty();
   tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
   updateTrayMenu();
-  tray.on('click', () => mainWindow?.show());
+  // Windows fires 'click' for single-click and 'double-click' for double;
+  // both should restore. macOS uses tray-click on the menu bar icon. All
+  // routes through showMainWindowFromTray so a destroyed window recreates.
+  tray.on('click', () => showMainWindowFromTray());
+  tray.on('double-click', () => showMainWindowFromTray());
 }
 
 /** Apply the web selector to all native surfaces without restarting FreeCode. */
@@ -870,6 +942,13 @@ app.whenReady().then(async () => {
     },
     reportModelRefreshFailure,
     setLocale: applyNativeLocale,
+    // The harness page renders in a nested WebContentsView, so
+    // mainWindow.webContents (the default target) is blank. Route pushes
+    // to harnessView.webContents instead so IPC.send actually reaches the
+    // renderer preload.
+    getRendererTargets: () => harnessView && !harnessView.webContents.isDestroyed()
+      ? [harnessView.webContents]
+      : [],
   });
 
   // Wait for harness readiness, then open the window on its URL.

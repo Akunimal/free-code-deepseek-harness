@@ -87,12 +87,20 @@ interface ChromeCopy {
 export interface EmbeddedBrowser {
   endpoint: string
   token: string
-  /** Attach the browser surfaces to the already-created FreeCode window. */
-  attachWindow(window: BrowserWindow): void
+  /** Attach the browser surfaces to the already-created FreeCode window.
+   *  When `harnessView` is provided, the browser panel will resize it on
+   *  show/hide/window-resize so harness text reflows into the free area
+   *  instead of being covered by the browser panel (F1 postmortem).
+   *  Callers that still use the classic BrowserWindow.loadURL pattern can
+   *  omit `harnessView`; the browser then just overlays. */
+  attachWindow(window: BrowserWindow, harnessView?: WebContentsView | null): void
   show(): Promise<void>
   hide(): void
   toggle(): Promise<void>
   refreshLocale(): void
+  /** Snapshot of visibility + tab state, useful for external bounds
+   *  arbitration (the shell's own resize handler defers when we own bounds). */
+  publicState(): BrowserPublicState
   close(): Promise<void>
 }
 
@@ -243,6 +251,7 @@ export async function createEmbeddedBrowser(userDataDir: string, getMainWindow: 
   }
 
   let mainWindow: BrowserWindow | null = null
+  let harnessView: WebContentsView | null = null
   let sidebarView: WebContentsView | null = null
   let toolbarView: WebContentsView | null = null
   let visible = false
@@ -308,15 +317,24 @@ export async function createEmbeddedBrowser(userDataDir: string, getMainWindow: 
   const updateBounds = (): void => {
     if (!mainWindow || mainWindow.isDestroyed()) return
     const bounds = panelBounds()
-    // BrowserWindow's own page is a WebContentsView child. Resize that child
-    // instead of merely painting the browser over it, so the Harness layout
-    // gets a smaller viewport and wraps text rather than hiding its right edge.
-    const mainContentView = mainWindow.contentView.children.find((child) => {
-      const candidate = child as unknown as { webContents?: { id?: number } }
-      return candidate.webContents?.id === mainWindow?.webContents.id
-    })
-    if (mainContentView && 'setBounds' in mainContentView) {
-      (mainContentView as WebContentsView).setBounds(bounds.main)
+    // Two composition patterns are supported:
+    // 1) harnessView passed in via attachWindow — the modern pattern; the
+    //    harness renders in a WebContentsView we can shrink directly. This
+    //    is what makes conversation text reflow into the free area when
+    //    the browser opens (F1 postmortem).
+    // 2) legacy BrowserWindow.loadURL — no shrinking possible. The browser
+    //    panel still paints over the harness; kept for backward compat and
+    //    tests that construct a plain BrowserWindow.
+    if (harnessView && !harnessView.webContents.isDestroyed()) {
+      harnessView.setBounds(bounds.main)
+    } else {
+      const mainContentView = mainWindow.contentView.children.find((child) => {
+        const candidate = child as unknown as { webContents?: { id?: number } }
+        return candidate.webContents?.id === mainWindow?.webContents.id
+      })
+      if (mainContentView && 'setBounds' in mainContentView) {
+        (mainContentView as WebContentsView).setBounds(bounds.main)
+      }
     }
     sidebarView?.setBounds(bounds.sidebar)
     toolbarView?.setBounds(bounds.toolbar)
@@ -531,14 +549,18 @@ export async function createEmbeddedBrowser(userDataDir: string, getMainWindow: 
   if (!address || typeof address === 'string') throw new Error('embedded browser bridge did not bind')
   const endpoint = 'http://127.0.0.1:' + String(address.port) + '/rpc'
 
-  const attachWindow = (window: BrowserWindow): void => {
-    if (mainWindow === window && !window.isDestroyed()) return
+  const attachWindow = (window: BrowserWindow, harness?: WebContentsView | null): void => {
+    if (mainWindow === window && !window.isDestroyed()) {
+      if (harness !== undefined) harnessView = harness ?? null
+      return
+    }
     mainWindow = window
+    if (harness !== undefined) harnessView = harness ?? null
     ensureTabs()
     for (const tab of tabs.values()) if (![...window.contentView.children].includes(tab.view)) window.contentView.addChildView(tab.view)
     ensureChrome()
     resizeHandler = () => updateBounds()
-    closedHandler = () => { mainWindow = null; visible = false }
+    closedHandler = () => { mainWindow = null; harnessView = null; visible = false }
     window.on('resize', resizeHandler)
     window.on('closed', closedHandler)
     updateBounds()
@@ -555,13 +577,14 @@ export async function createEmbeddedBrowser(userDataDir: string, getMainWindow: 
     endpoint, token, attachWindow, show, hide,
     async toggle() { if (visible) hide(); else await show() },
     refreshLocale() { updateChrome() },
+    publicState,
     async close() {
       persist()
       if (mainWindow && resizeHandler) mainWindow.removeListener('resize', resizeHandler)
       if (mainWindow && closedHandler) mainWindow.removeListener('closed', closedHandler)
       for (const tab of tabs.values()) if (!tab.view.webContents.isDestroyed()) tab.view.webContents.close()
       for (const view of [toolbarView, sidebarView]) if (view && !view.webContents.isDestroyed()) view.webContents.close()
-      tabs = new Map(); toolbarView = null; sidebarView = null; mainWindow = null
+      tabs = new Map(); toolbarView = null; sidebarView = null; mainWindow = null; harnessView = null
       await new Promise<void>(resolve => server.close(() => resolve()))
     },
   }
