@@ -54,7 +54,20 @@ export interface LoadBalancerOptions {
   /** Optional outbound auth header forwarded to workers (e.g. 'Bearer public'). */
   authHeader?: string;
   logError?: (msg: string, err?: unknown) => void;
+  /**
+   * Fired once when EVERY ready worker has returned 429 within the detection
+   * window with no successful (2xx) response in between — i.e. the whole pool
+   * is rate-limited and per-request retry can no longer route around it. The
+   * shell uses this to offer/auto-enable Tor Fleet exit rotation. Fires again
+   * only after the pool recovers (some worker serves a 2xx) and degrades anew.
+   */
+  onAllWorkersRateLimited?: () => void;
 }
+
+/** How long a worker's 429 marker stays "fresh" for the all-rate-limited
+ *  check. A worker whose last 429 is older than this is treated as unknown,
+ *  not rate-limited, so a brief historical 429 does not latch the alarm. */
+const RATE_LIMIT_WINDOW_MS = 30_000;
 
 export function createLoadBalancer(opts: LoadBalancerOptions): LoadBalancer {
   const { pool, authHeader } = opts;
@@ -62,6 +75,41 @@ export function createLoadBalancer(opts: LoadBalancerOptions): LoadBalancer {
   const logError =
     opts.logError ?? ((msg: string, err?: unknown) => console.error(`[lb] ${msg}`, err ?? ''));
   let lbPort = 0;
+
+  // ---- pool-wide rate-limit detection ----
+  // Per-worker timestamp of the last 429. A 2xx clears the entry. When every
+  // ready worker has a fresh 429 and none is cleared, the whole pool is
+  // rate-limited and onAllWorkersRateLimited fires once (latched until the
+  // pool recovers).
+  const lastRateLimitAt = new Map<string, number>();
+  let allRateLimitedLatched = false;
+
+  function noteWorkerOutcome(workerId: string, rateLimited: boolean): void {
+    if (rateLimited) {
+      lastRateLimitAt.set(workerId, Date.now());
+    } else {
+      // Any non-429 terminal outcome clears the worker and re-arms the alarm.
+      lastRateLimitAt.delete(workerId);
+      allRateLimitedLatched = false;
+    }
+    evaluatePoolRateLimit();
+  }
+
+  function evaluatePoolRateLimit(): void {
+    if (allRateLimitedLatched || !opts.onAllWorkersRateLimited) return;
+    const ready = pool.workers().filter((w) => w.status === 'ready');
+    if (ready.length === 0) return; // no pool to judge
+    const now = Date.now();
+    const allFreshlyRated = ready.every((w) => {
+      const at = lastRateLimitAt.get(w.id);
+      return at !== undefined && now - at <= RATE_LIMIT_WINDOW_MS;
+    });
+    if (allFreshlyRated) {
+      allRateLimitedLatched = true;
+      try { opts.onAllWorkersRateLimited(); }
+      catch (err) { logError('onAllWorkersRateLimited handler threw', err); }
+    }
+  }
 
   function stickyId(req: IncomingMessage): string | undefined {
     const sid = req.headers[STICKY_HEADER];
@@ -219,6 +267,10 @@ export function createLoadBalancer(opts: LoadBalancerOptions): LoadBalancer {
 
       const { upstream, upRes } = result;
       const status = upRes.statusCode ?? 502;
+      // Record the pool-wide rate-limit signal on every terminal upstream
+      // status, retry or commit. 429 marks the worker rate-limited; anything
+      // else clears it. This drives onAllWorkersRateLimited.
+      noteWorkerOutcome(worker.id, status === 429);
       const retryable = RETRYABLE_STATUSES.has(status) && !res.headersSent && attempt < MAX_ATTEMPTS - 1 && canRetry;
 
       if (retryable) {

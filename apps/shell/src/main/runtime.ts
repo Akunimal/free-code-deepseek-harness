@@ -40,6 +40,10 @@ export interface ShellRuntimeConfig {
   extraEnv?: Record<string, string>;
   /** Authenticated loopback bridge for the visible persistent browser. */
   browserBridge?: { endpoint: string; token: string };
+  /** Fired once when every ready worker is rate-limited (429) within the LB
+   *  detection window. The shell uses it to auto-enable Tor Fleet exit
+   *  rotation and warn the user about added latency. */
+  onAllWorkersRateLimited?: () => void;
 }
 
 export interface ShellRuntime {
@@ -65,6 +69,7 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
     pool,
     authHeader: cfg.lbAuthHeader,
     logError: (msg, err) => console.error(`[lb] ${msg}`, err ?? ''),
+    onAllWorkersRateLimited: cfg.onAllWorkersRateLimited,
   });
   await lb.listen();
 

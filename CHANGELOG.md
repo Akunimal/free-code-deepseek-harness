@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.2.7 — 2026-08-24
+
+### Added / Agregado
+
+- Tor Fleet auto-activates when every worker in the pool is rate-limited. The LB tracks each worker's last outcome and fires once when all ready workers have a fresh 429 with no 2xx in between; the shell then enables Tor Fleet automatically and shows a native dialog warning that traffic now routes through Tor circuits with higher latency, with buttons to keep it enabled or disable. The alarm re-arms only after the pool recovers (some worker returns 2xx), and dismissed auto-prompts are suppressed for 10 min so a sustained storm does not nag on every request. Manual toggle in the Pool overlay stays as-is. / Tor Fleet se auto-activa cuando todos los workers del pool están rate-limited. El LB rastrea el último resultado de cada worker y dispara una vez cuando todos los workers ready tienen un 429 fresco sin ningún 2xx en el medio; el shell entonces habilita Tor Fleet automáticamente y muestra un diálogo nativo avisando que el tráfico ahora pasa por circuitos Tor con más latencia, con botones para mantenerlo activo o desactivar. La alarma se re-arma solo cuando el pool se recupera (algún worker devuelve 2xx), y los auto-prompts dismisseados quedan suprimidos por 10 min para que una tormenta sostenida no moleste en cada request. El toggle manual en el overlay del Pool queda igual.
+
+### Fixed / Corregido
+
+- Tor Fleet port allocation now scans upward from the preferred base instead of silently skipping busy ports. When DeepSeek Harness, Hermes, or a stale Tor instance held one of the canonical bases (9150/9251), a fleet instance was dropped with no visible warning; the fleet now lands on the next free port. Mirrors Hermes' `alloc_ports.py::_alloc`. / La asignación de puertos de Tor Fleet ahora escanea hacia arriba desde la base preferida en vez de saltear en silencio los puertos ocupados. Cuando DeepSeek Harness, Hermes o una instancia Tor obsoleta ocupaban una de las bases canónicas (9150/9251), una instancia del fleet se descartaba sin aviso visible; ahora aterriza en el siguiente puerto libre. Espeja `alloc_ports.py::_alloc` de Hermes.
+
+### Also includes v0.2.6 fix / Incluye también el fix de v0.2.6
+
+- Startup preflight retries up to six times with a one-second delay before failing, so the auto-update settling window (NSIS extraction not yet visible to `readdirSync`) is no longer treated as a broken install. / El preflight de arranque reintenta hasta seis veces con un segundo de delay antes de fallar, así la ventana de asentamiento del auto-update (extracción NSIS aún no visible para `readdirSync`) ya no se trata como install roto.
+
+### Build and operations / Build y operaciones
+
+- Windows setup, portable, Linux AppImage, and Harness runtime artifacts were built locally and are published manually. / Los artefactos Windows setup, portable, Linux AppImage y runtime del Harness se compilaron localmente y se publican manualmente.
+
+Source: `v0.2.6..HEAD`
+
 ## 0.2.6 — 2026-08-24
 
 ### Fixed / Corregido

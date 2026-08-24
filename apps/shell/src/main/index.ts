@@ -137,6 +137,10 @@ async function bootstrap(): Promise<ShellRuntime> {
       } : {}),
     },
     browserBridge: embeddedBrowser ? { endpoint: embeddedBrowser.endpoint, token: embeddedBrowser.token } : undefined,
+    // The LB fires this once when every ready worker is rate-limited. The
+    // concrete handler is assigned after enableTorfleet is defined; a 429
+    // storm cannot arrive before the harness is running, well after that.
+    onAllWorkersRateLimited: () => autoEnableTorHandler?.(),
     log: (level, msg, meta) => {
       const fn = level === 'error' || level === 'warn' ? level : 'info';
       appLogger?.logger[fn]?.(meta ?? {}, msg);
@@ -165,6 +169,13 @@ let updateCheckInFlight: Promise<UpdateCheckResult | null> | null = null;
 let updateIndicatorPlacement = 0;
 const UPDATE_INDICATOR_SIZE = 32;
 let torfleetEnabled = false;
+/** Assigned once enableTorfleet exists; the LB's rate-limit callback delegates
+ *  here to auto-enable Tor Fleet with a user warning. */
+let autoEnableTorHandler: (() => void) | null = null;
+/** After the user dismisses/declines an auto-Tor prompt, suppress re-prompting
+ *  for this long so a sustained 429 storm does not nag on every request. */
+const TOR_AUTOPROMPT_COOLDOWN_MS = 10 * 60 * 1_000;
+let torAutoPromptSuppressedUntil = 0;
 let shuttingDown = false;
 const backendStates: Record<'catalog' | 'pool', BackendState> = { catalog: 'unknown', pool: 'unknown' };
 
@@ -943,6 +954,33 @@ app.whenReady().then(async () => {
   if (torfleetEnabled) {
     void enableTorfleet(true);
   }
+
+  // Auto-enable Tor Fleet when the whole pool is rate-limited. The LB detects
+  // the condition (every ready worker returned 429 with no 2xx in between)
+  // and fires onAllWorkersRateLimited, which delegates here. We enable Tor
+  // immediately (rotating exits is the mitigation) and inform the user, who
+  // can turn it back off. A cooldown prevents nagging on a sustained storm.
+  autoEnableTorHandler = (): void => {
+    if (torfleetEnabled) return; // already rotating
+    if (Date.now() < torAutoPromptSuppressedUntil) return; // recently dismissed
+    appLogger?.logger.warn({}, 'all workers rate-limited; auto-enabling Tor Fleet');
+    void (async () => {
+      await enableTorfleet(true);
+      const choice = await dialog.showMessageBox({
+        type: 'info',
+        title: t('tor.auto.title'),
+        message: t('tor.auto.message'),
+        detail: t('tor.auto.detail'),
+        buttons: [t('tor.auto.keep'), t('tor.auto.disable')],
+        defaultId: 0,
+        cancelId: 0,
+      });
+      if (choice.response === 1) {
+        await enableTorfleet(false);
+        torAutoPromptSuppressedUntil = Date.now() + TOR_AUTOPROMPT_COOLDOWN_MS;
+      }
+    })().catch((err) => appLogger?.logger.error({ err }, 'auto-enable Tor Fleet failed'));
+  };
 
   // FASE 10: IPC contract.
   registerIpc({

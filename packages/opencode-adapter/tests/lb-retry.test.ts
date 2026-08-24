@@ -293,6 +293,84 @@ describe('LB retry fan-out', () => {
     }
   });
 
+  it('fires onAllWorkersRateLimited once when every ready worker returns 429', async () => {
+    const w0 = makeFakeWorker([{ kind: 'status', status: 429, body: 'r' }, { kind: 'status', status: 429, body: 'r' }]);
+    const w1 = makeFakeWorker([{ kind: 'status', status: 429, body: 'r' }, { kind: 'status', status: 429, body: 'r' }]);
+    const p0 = await w0.portPromise;
+    const p1 = await w1.portPromise;
+    const pool = makeStubPool([
+      { id: 'w0', pid: 1, port: p0, status: 'ready', startedAt: 0, restarts: 0 },
+      { id: 'w1', pid: 2, port: p1, status: 'ready', startedAt: 0, restarts: 0 },
+    ]);
+    let fired = 0;
+    const lb = createLoadBalancer({ pool, logError: () => undefined, onAllWorkersRateLimited: () => { fired++; } });
+    await lb.listen();
+    try {
+      // One request fans out across both workers, both 429 → all rate-limited.
+      const r1 = await fetchLb(lb.port(), '/v1/chat/completions');
+      expect(r1.status).toBe(429);
+      expect(fired).toBe(1);
+      // A second all-429 request must NOT fire again (latched).
+      const r2 = await fetchLb(lb.port(), '/v1/chat/completions');
+      expect(r2.status).toBe(429);
+      expect(fired).toBe(1);
+    } finally {
+      await lb.close();
+      await closeServer(w0.server);
+      await closeServer(w1.server);
+    }
+  });
+
+  it('does not fire onAllWorkersRateLimited when one worker still serves 2xx', async () => {
+    const w0 = makeFakeWorker([{ kind: 'status', status: 429, body: 'r' }]);
+    const w1 = makeFakeWorker([{ kind: 'status', status: 200, body: 'ok' }]);
+    const p0 = await w0.portPromise;
+    const p1 = await w1.portPromise;
+    const pool = makeStubPool([
+      { id: 'w0', pid: 1, port: p0, status: 'ready', startedAt: 0, restarts: 0 },
+      { id: 'w1', pid: 2, port: p1, status: 'ready', startedAt: 0, restarts: 0 },
+    ]);
+    let fired = 0;
+    const lb = createLoadBalancer({ pool, logError: () => undefined, onAllWorkersRateLimited: () => { fired++; } });
+    await lb.listen();
+    try {
+      const r = await fetchLb(lb.port(), '/v1/chat/completions');
+      expect(r.status).toBe(200); // w0 429 → retry → w1 200
+      expect(fired).toBe(0); // w1 cleared, not all rate-limited
+    } finally {
+      await lb.close();
+      await closeServer(w0.server);
+      await closeServer(w1.server);
+    }
+  });
+
+  it('re-arms onAllWorkersRateLimited after the pool recovers', async () => {
+    // w0: 429 then 200 (recovers). w1: 429 then 200 (recovers).
+    const w0 = makeFakeWorker([{ kind: 'status', status: 429, body: 'r' }, { kind: 'status', status: 200, body: 'ok' }, { kind: 'status', status: 429, body: 'r' }]);
+    const w1 = makeFakeWorker([{ kind: 'status', status: 429, body: 'r' }, { kind: 'status', status: 429, body: 'r' }, { kind: 'status', status: 429, body: 'r' }]);
+    const p0 = await w0.portPromise;
+    const p1 = await w1.portPromise;
+    const pool = makeStubPool([
+      { id: 'w0', pid: 1, port: p0, status: 'ready', startedAt: 0, restarts: 0 },
+      { id: 'w1', pid: 2, port: p1, status: 'ready', startedAt: 0, restarts: 0 },
+    ]);
+    let fired = 0;
+    const lb = createLoadBalancer({ pool, logError: () => undefined, onAllWorkersRateLimited: () => { fired++; } });
+    await lb.listen();
+    try {
+      await fetchLb(lb.port(), '/v1/chat/completions'); // both 429 → fire #1
+      expect(fired).toBe(1);
+      await fetchLb(lb.port(), '/v1/chat/completions'); // w0 200 clears latch
+      // Third request: w0 429 again, w1 429 → all rate-limited again → fire #2
+      await fetchLb(lb.port(), '/v1/chat/completions');
+      expect(fired).toBe(2);
+    } finally {
+      await lb.close();
+      await closeServer(w0.server);
+      await closeServer(w1.server);
+    }
+  });
+
   it('sticky worker with retryable error fans out but does not evict the sticky map', async () => {
     const w0 = makeFakeWorker([{ kind: 'status', status: 502, body: '' }]);
     const w1 = makeFakeWorker([{ kind: 'status', status: 200, body: 'ok' }]);

@@ -47,6 +47,26 @@ function isPortFree(port: number): Promise<boolean> {
   });
 }
 
+/**
+ * Find a free loopback port at or above `preferred`, skipping any already
+ * reserved in `used` this run. Mirrors Hermes' `alloc_ports.py::_alloc`:
+ * scanning upward means a base port occupied by DeepSeek Harness, Hermes, or
+ * a previous fleet instance no longer silently drops a Tor instance — the
+ * fleet simply lands on the next free port. `used` prevents two instances in
+ * the same allocation pass from claiming the same number before either binds.
+ */
+export async function findFreePort(preferred: number, used: Set<number>): Promise<number> {
+  let port = preferred;
+  while (port <= 65000) {
+    if (!used.has(port) && await isPortFree(port)) {
+      used.add(port);
+      return port;
+    }
+    port += 1;
+  }
+  throw new Error(`no free port from ${preferred}`);
+}
+
 export class TorFleet {
   private cfg: TorFleetConfig;
   private instances = new Map<number, ManagedTor>();
@@ -64,10 +84,19 @@ export class TorFleet {
     const count = this.cfg.instanceCount ?? DEFAULT_INSTANCE_COUNT;
     mkdirSync(this.cfg.dataDir, { recursive: true });
 
-    const spawns: Promise<void>[] = [];
+    // Allocate every SOCKS + control port up front, scanning upward from the
+    // base so a busy base port (DeepSeek Harness, Hermes, a stale Tor) never
+    // drops an instance. socksProxies() reports each instance's actual port,
+    // and the pool is fed from that, so no other file needs the chosen ports.
+    const used = new Set<number>();
+    const ports: Array<{ socks: number; control: number }> = [];
     for (let i = 0; i < count; i++) {
-      spawns.push(this.spawnInstance(i));
+      const socks = await findFreePort(SOCKS_BASE_PORT + i, used);
+      const control = await findFreePort(CONTROL_BASE_PORT + i, used);
+      ports.push({ socks, control });
     }
+
+    const spawns = ports.map((p, i) => this.spawnInstance(i, p.socks, p.control));
     await Promise.allSettled(spawns);
   }
 
@@ -114,18 +143,10 @@ export class TorFleet {
     return () => this.changeListeners.delete(cb);
   }
 
-  private async spawnInstance(index: number): Promise<void> {
+  private async spawnInstance(index: number, socksPort: number, controlPort: number): Promise<void> {
     if (!this.running) return;
 
-    const socksPort = SOCKS_BASE_PORT + index;
-    const controlPort = CONTROL_BASE_PORT + index;
-
-    const portsFree = await isPortFree(socksPort) && await isPortFree(controlPort);
-    if (!portsFree) {
-      console.warn(`[torfleet] ports ${socksPort}/${controlPort} busy, skipping tor-${index}`);
-      return;
-    }
-
+    // Ports were reserved free by findFreePort in start(); no busy-check here.
     const instanceDir = join(this.cfg.dataDir, `tor-${index}`);
     mkdirSync(instanceDir, { recursive: true });
 

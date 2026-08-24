@@ -175,6 +175,19 @@ const strings = {
   // Dialog bridge
   'dialog.selectWorkspace': { es: 'Seleccionar carpeta de trabajo', en: 'Select Workspace Directory' },
 
+  // Auto-enable Tor Fleet when the whole pool is rate-limited
+  'tor.auto.title': { es: 'Tor Fleet activado', en: 'Tor Fleet enabled' },
+  'tor.auto.message': {
+    es: 'Todos los workers recibieron rate limit (429). Se activó Tor Fleet para rotar las IPs de salida y sortear el límite.',
+    en: 'Every worker was rate-limited (429). Tor Fleet was enabled to rotate exit IPs and route around the limit.',
+  },
+  'tor.auto.detail': {
+    es: 'Esperá más latencia: el tráfico ahora pasa por circuitos Tor. Podés desactivarlo cuando el límite se libere.',
+    en: 'Expect higher latency: traffic now routes through Tor circuits. You can turn it off once the limit clears.',
+  },
+  'tor.auto.keep': { es: 'Mantener activado', en: 'Keep enabled' },
+  'tor.auto.disable': { es: 'Desactivar', en: 'Disable' },
+
   // Startup preflight failure — installer bug or corrupted install
   'preflight.title': { es: 'Instalación incompleta', en: 'Install incomplete' },
   'preflight.reinstallHint': {
@@ -276,6 +289,11 @@ const zhStrings = {
   'portable.stale.title': 'Portable 已过时',
   'portable.stale.message': '检测到更新的安装版本 ($1)。此 Portable ($2) 可能存在已修复的问题。请更新或移除此 Portable。',
   'dialog.selectWorkspace': '选择工作目录',
+  'tor.auto.title': 'Tor Fleet 已启用',
+  'tor.auto.message': '所有 worker 都被限流（429）。已启用 Tor Fleet 以轮换出口 IP 绕过限制。',
+  'tor.auto.detail': '延迟会更高：流量现在通过 Tor 线路。限制解除后可以关闭。',
+  'tor.auto.keep': '保持启用',
+  'tor.auto.disable': '禁用',
   'preflight.title': '安装不完整',
   'preflight.reinstallHint': '请从官方安装程序重新安装 FreeCode（v0.2.4 或更高版本）。',
   'version.new': '新版本',
