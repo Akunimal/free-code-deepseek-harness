@@ -14,8 +14,11 @@
 
 ; Clean stale runtime files from a previous installation so renamed or removed
 ; packages (e.g. koffi native binaries) cannot linger and cause load failures.
+; MUST run before installApplicationFiles extracts the new payload; customInit
+; fires from .onInit for exactly this purpose. customInstall runs AFTER
+; extraction and would delete the payload just written.
 ; User data in %APPDATA% is never touched.
-!macro customInstall
+!macro customInit
   IfFileExists "$INSTDIR\resources\freecode\dsh\node_modules\*.*" 0 +2
     RMDir /r "$INSTDIR\resources\freecode\dsh\node_modules"
   IfFileExists "$INSTDIR\resources\freecode\dsh\packages\*.*" 0 +2
