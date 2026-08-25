@@ -23,7 +23,7 @@ describe('release and runtime packaging contracts', () => {
     expect(policy).toContain('performed manually');
     expect(policy).toContain('free GitHub Actions quota');
     expect(shellPackage).toContain('electron-builder --config electron-builder.yml --publish never');
-    expect(rootPackage.version).toBe('0.2.8');
+    expect(rootPackage.version).toBe('0.2.9');
     expect(shellPackageJson.version).toBe(rootPackage.version);
   });
 
@@ -123,6 +123,7 @@ describe('release and runtime packaging contracts', () => {
     const smoke = readFileSync(join(ROOT, 'scripts/verify-nsis-install-layout.mjs'), 'utf8');
     const upgradeSmoke = readFileSync(join(ROOT, 'scripts/verify-nsis-upgrade.mjs'), 'utf8');
     const hookGate = readFileSync(join(ROOT, 'scripts/verify-nsis-hooks.mjs'), 'utf8');
+    const preflight = readFileSync(join(ROOT, 'apps/shell/src/main/preflight.ts'), 'utf8');
 
     // customInit was mistakenly treated as a pre-extraction hook, while
     // customInstall is post-extraction. Either one can silently leave the
@@ -137,9 +138,14 @@ describe('release and runtime packaging contracts', () => {
     expect(smoke).toContain('packages');
     expect(smoke).toContain('node_modules');
     expect(upgradeSmoke).toContain('0.2.4');
-    expect(upgradeSmoke).toContain('0.2.8');
+    expect(upgradeSmoke).toContain('0.2.9');
     expect(upgradeSmoke).toContain('stale 0.2.4 payload marker survived upgrade');
     expect(upgradeSmoke).toContain('user-data marker was deleted by upgrade');
     expect(patcher).toContain('dead uninstall helpers');
+
+    // Preflight is bundled as ESM. A CommonJS require here throws at runtime,
+    // and the catch converts the failure into a false "empty" directory.
+    expect(preflight).toContain("import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';");
+    expect(preflight).not.toContain("require('node:fs')");
   });
 });

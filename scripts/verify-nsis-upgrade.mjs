@@ -2,7 +2,7 @@
 /**
  * Zero-trust upgrade smoke: install the known-good 0.2.4 setup, place a
  * stale payload marker and a user-data marker, then update that same install
- * with the newest 0.2.8 setup. The stale marker must disappear while the
+ * with the newest 0.2.9 setup. The stale marker must disappear while the
  * user-data marker must survive.
  */
 
@@ -19,7 +19,7 @@ if (process.platform !== 'win32') {
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const RELEASE_DIR = resolve(REPO_ROOT, 'apps/shell/release');
-const NEW_SETUP = join(RELEASE_DIR, 'FreeCode-DeepSeek-Harness-0.2.8-win-x64-setup.exe');
+const NEW_SETUP = join(RELEASE_DIR, 'FreeCode-DeepSeek-Harness-0.2.9-win-x64-setup.exe');
 const OLD_NAME = 'FreeCode-DeepSeek-Harness-0.2.4-win-x64-setup.exe';
 const oldCandidates = [
   join(RELEASE_DIR, OLD_NAME),
@@ -29,7 +29,7 @@ const oldCandidates = [
 const OLD_SETUP = oldCandidates.find((candidate) => existsSync(candidate));
 
 if (!OLD_SETUP || !existsSync(NEW_SETUP)) {
-  console.error('verify-nsis-upgrade: both 0.2.4 and 0.2.8 setup files are required.');
+  console.error('verify-nsis-upgrade: both 0.2.4 and 0.2.9 setup files are required.');
   process.exit(2);
 }
 
@@ -108,12 +108,12 @@ try {
   mkdirSync(join(installDir, 'user-data'), { recursive: true });
   writeFileSync(userDataMarker, 'user data\n', 'utf8');
 
-  await runSetup(NEW_SETUP, '0.2.8', () => layoutIsPopulated() && !existsSync(staleMarker));
-  assertPopulated('0.2.8');
+  await runSetup(NEW_SETUP, '0.2.9', () => layoutIsPopulated() && !existsSync(staleMarker));
+  assertPopulated('0.2.9');
 
   if (existsSync(staleMarker)) throw new Error('stale 0.2.4 payload marker survived upgrade');
   if (!existsSync(userDataMarker)) throw new Error('user-data marker was deleted by upgrade');
-  console.log('verify-nsis-upgrade: 0.2.4 -> 0.2.8 passed; payload replaced and user data preserved.');
+  console.log('verify-nsis-upgrade: 0.2.4 -> 0.2.9 passed; payload replaced and user data preserved.');
 } catch (error) {
   console.error(`verify-nsis-upgrade: ${error.message}`);
   process.exitCode = 1;

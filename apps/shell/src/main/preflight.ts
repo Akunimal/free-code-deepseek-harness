@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -150,7 +150,7 @@ export function verifyHarnessLayout(options: PreflightOptions): PreflightResult 
 
 function readEntries(dir: string): number {
   try {
-    return require('node:fs').readdirSync(dir).length;
+    return readdirSync(dir).length;
   } catch {
     return 0;
   }
