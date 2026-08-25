@@ -715,7 +715,7 @@ function buildMenu(): void {
     {
       label: t('menu.help'),
       submenu: [
-        { label: t('menu.about'), click: () => void import('electron').then(({ dialog }) => dialog.showMessageBox({ message: t('menu.aboutMessage') })) },
+        { label: t('menu.about'), click: () => void import('electron').then(({ dialog }) => dialog.showMessageBox({ message: t('menu.aboutMessage', app.getVersion()) })) },
       ],
     },
   );

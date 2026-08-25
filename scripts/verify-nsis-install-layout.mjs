@@ -24,6 +24,7 @@ import { existsSync, mkdtempSync, rmSync, readdirSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { verifyInstalledRuntime } from './verify-installed-runtime.mjs';
 
 if (process.platform !== 'win32') {
   console.log('verify-nsis-install-layout: skipped (non-Windows host).');
@@ -52,6 +53,22 @@ const installDir = mkdtempSync(join(tmpdir(), 'freecode-nsis-smoke-'));
 console.log(`verify-nsis-install-layout: install target ${installDir}`);
 
 let exitCode = 0;
+const runUninstaller = (uninstallPath) => {
+  const direct = spawnSync(uninstallPath, ['/S'], {
+    windowsHide: true,
+    stdio: 'ignore',
+    timeout: 120_000,
+  });
+  if (!direct.error && direct.status === 0) return direct;
+  if (direct.error?.code !== 'EFTYPE') return direct;
+  const command = `"${uninstallPath.replaceAll('"', '\\"')}" /S`;
+  return spawnSync(process.env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', command], {
+    windowsHide: true,
+    stdio: 'ignore',
+    timeout: 120_000,
+  });
+};
+
 try {
   // NSIS one-click silent install with explicit target directory.
   // /S = silent, /D=<path> = install dir (must be last arg, no quotes).
@@ -91,16 +108,34 @@ try {
       exitCode = 1;
     } else {
       console.log(`verify-nsis-install-layout: ${REQUIRED_FILES.length} files and ${REQUIRED_DIRS.length} populated directories present.`);
+      try {
+        await verifyInstalledRuntime({ installDir, label: 'fresh install' });
+        console.log('verify-nsis-install-layout: installed runtime boot/headless smoke passed.');
+      } catch (error) {
+        console.error(`verify-nsis-install-layout: installed runtime smoke failed: ${error.message}`);
+        exitCode = 1;
+      }
     }
   }
 
-  // Silent uninstall (best effort — do not fail the gate if uninstaller misbehaves).
+  // Silent uninstall is part of the gate: a release must not leave its test
+  // installation behind or hide an uninstaller failure.
   const uninstallers = readdirSync(installDir).filter((name) => /^Uninstall/i.test(name));
   if (uninstallers.length > 0) {
-    spawnSync(join(installDir, uninstallers[0]), ['/S'], { windowsHide: true, timeout: 60_000 });
+    const uninstall = runUninstaller(join(installDir, uninstallers[0]));
+    if (uninstall.error || uninstall.status !== 0) {
+      console.error(`verify-nsis-install-layout: uninstaller failed with ${uninstall.error?.message ?? uninstall.status}`);
+      exitCode = 1;
+    }
+  } else if (exitCode === 0) {
+    console.error('verify-nsis-install-layout: uninstaller missing.');
+    exitCode = 1;
   }
 } finally {
-  try { rmSync(installDir, { recursive: true, force: true }); } catch { /* best effort */ }
+  try { rmSync(installDir, { recursive: true, force: true }); } catch (error) {
+    console.error(`verify-nsis-install-layout: failed to remove test install: ${error.message}`);
+    exitCode = 1;
+  }
 }
 
 process.exit(exitCode);

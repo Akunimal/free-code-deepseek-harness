@@ -66,6 +66,18 @@ if (!source.includes('!macro freecodePrepareInstall') || !source.includes('RMDir
   process.exit(1);
 }
 
+const shortcutContract = [
+  /!macro\s+customInstall\b/i,
+  /CreateShortCut\s+"\$newStartMenuLink"/i,
+  /CreateShortCut\s+"\$newDesktopLink"/i,
+  /WinShell::SetLnkAUMI\s+"\$newStartMenuLink"/i,
+  /WinShell::SetLnkAUMI\s+"\$newDesktopLink"/i,
+];
+if (shortcutContract.some((pattern) => !pattern.test(source))) {
+  console.error('verify-nsis-hooks: missing fail-closed Start Menu/Desktop shortcut repair contract.');
+  process.exit(1);
+}
+
 const POST_EXTRACTION_HOOKS = new Set(['customInstall']);
 const MUTATION_COMMANDS = /(?:^|\s)(RMDir|Delete|Rename|CopyFiles|WriteRegStr|WriteRegDWORD|DeleteRegKey|DeleteRegValue)\b/i;
 

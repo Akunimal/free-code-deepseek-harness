@@ -130,6 +130,7 @@ export function runPlugin(profile: string, args: readonly string[]): number {
     cwd: dir,
     stdio: 'inherit',
     shell: process.platform === 'win32',
+    windowsHide: process.platform === 'win32',
   })
   if (result.error !== undefined) {
     const code = (result.error as NodeJS.ErrnoException).code

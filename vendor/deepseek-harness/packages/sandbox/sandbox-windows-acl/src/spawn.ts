@@ -2,10 +2,11 @@
  * Restricted-process spawning: anonymous pipes for stdio, STARTUPINFOW with
  * STARTF_USESTDHANDLES, CreateProcessAsUserW under the restricted token, then
  * asynchronous pipe draining and exit waiting. Console isolation
- * (CREATE_NO_WINDOW / CREATE_NEW_CONSOLE) is intentionally absent: under this
- * restriction scheme hidden-console children die with STATUS_DLL_INIT_FAILED
- * (0xC0000142) — verified empirically, see win32-abi.ts. Stdio redirection is
- * pipe-based and unaffected; the child shares the host console.
+ * (CREATE_NO_WINDOW / CREATE_NEW_CONSOLE) remains absent: under this
+ * restriction scheme those flags can kill children with STATUS_DLL_INIT_FAILED
+ * (0xC0000142). STARTF_USESHOWWINDOW/SW_HIDE is used instead; it preserves the
+ * restricted-token behavior while preventing a console subsystem child from
+ * flashing a visible window. Stdio redirection remains pipe-based.
  * @module @deepseek-ai/dsh-sandbox-windows-acl/spawn
  */
 
@@ -113,7 +114,8 @@ export function spawnSandboxed(
   const startupInfo = allocStartupInfo()
   encodeStartupInfo(startupInfo, {
     cb: abi.STARTUPINFOW_SIZE,
-    dwFlags: abi.STARTF_USESTDHANDLES,
+    dwFlags: abi.STARTF_USESTDHANDLES | abi.STARTF_USESHOWWINDOW,
+    wShowWindow: abi.SW_HIDE,
     hStdInput: stdIn.read,
     hStdOutput: stdOut.write,
     hStdError: stdErr.write,
@@ -125,7 +127,7 @@ export function spawnSandboxed(
     token, null, commandLine,
     null, null,
     1, // bInheritHandles: required for redirection
-    0, // no creation flags: suspended/no-window variants are unusable under the restriction
+    0, // CREATE_NO_WINDOW is incompatible with the restricted token; STARTF_USESHOWWINDOW hides the console
     null, options.cwd,
     startupInfo, processInfo,
   )
@@ -297,7 +299,8 @@ export function spawnSandboxedInherited(
   const startupInfo = allocStartupInfo()
   encodeStartupInfo(startupInfo, {
     cb: abi.STARTUPINFOW_SIZE,
-    dwFlags: abi.STARTF_USESTDHANDLES,
+    dwFlags: abi.STARTF_USESTDHANDLES | abi.STARTF_USESHOWWINDOW,
+    wShowWindow: abi.SW_HIDE,
     hStdInput: stdIn,
     hStdOutput: stdOut,
     hStdError: stdErr,

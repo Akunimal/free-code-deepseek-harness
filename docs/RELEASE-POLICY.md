@@ -8,8 +8,11 @@ consume the repository's free GitHub Actions quota.
 
 Manual release checklist:
 
-1. Run the local verification and packaging commands documented in the project
-   scripts.
+1. On Windows, run `pnpm release:gate` and require exit code 0. This gate runs
+   the contract/unit checks, rebuilds the desktop artifact, verifies vendored
+   bundle freshness, and exercises isolated fresh-install and 0.2.4 upgrade
+   smokes. A skipped, observational, or manually bypassed check is not a
+   release result.
 2. Review the generated installers and update metadata locally.
 3. Create or update the GitHub release and upload the artifacts manually.
 4. Write the description from `docs/RELEASE-NOTES-TEMPLATE.md` with both the

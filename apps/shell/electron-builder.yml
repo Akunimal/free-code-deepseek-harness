@@ -38,6 +38,9 @@ linux:
 nsis:
   artifactName: FreeCode-DeepSeek-Harness-${version}-${os}-${arch}-setup.${ext}
   oneClick: true
+  shortcutName: FreeCode DeepSeek Harness
+  createStartMenuShortcut: true
+  createDesktopShortcut: always
   include: installer.nsh
 portable:
   artifactName: FreeCode-DeepSeek-Harness-${version}-${os}-${arch}-portable.${ext}

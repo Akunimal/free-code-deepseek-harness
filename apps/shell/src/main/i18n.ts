@@ -11,7 +11,7 @@ const strings = {
   'menu.window': { es: 'Ventana', en: 'Window' },
   'menu.help': { es: 'Ayuda', en: 'Help' },
   'menu.about': { es: 'Acerca de', en: 'About' },
-  'menu.aboutMessage': { es: 'FreeCode DeepSeek Harness', en: 'FreeCode DeepSeek Harness' },
+  'menu.aboutMessage': { es: 'FreeCode DeepSeek Harness\nVersión $1', en: 'FreeCode DeepSeek Harness\nVersion $1' },
   'menu.embeddedBrowser': { es: 'Navegador embebido', en: 'Embedded browser' },
 
   // Embedded browser chrome
@@ -213,7 +213,7 @@ const zhStrings = {
   'menu.window': '窗口',
   'menu.help': '帮助',
   'menu.about': '关于',
-  'menu.aboutMessage': 'FreeCode DeepSeek Harness',
+  'menu.aboutMessage': 'FreeCode DeepSeek Harness\n版本 $1',
   'menu.embeddedBrowser': '内嵌浏览器',
   'browser.title': '浏览器',
   'browser.browser': '浏览器',

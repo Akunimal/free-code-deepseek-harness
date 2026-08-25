@@ -40,6 +40,9 @@ pnpm --dir "$VENDOR" exec tsc -b tsconfig.client.json --noCheck
 pnpm --dir "$VENDOR" exec tsdown --env.DSH_BUILD_FACE client
 pnpm --dir "$VENDOR" run build:web
 
+echo "package-runtime: recording vendored source/build provenance"
+node "$ROOT/scripts/verify-vendor-bundles-fresh.mjs" --write
+
 mkdir -p "$STAGE"
 echo "package-runtime: copying source and built artifacts"
 tar -C "$VENDOR" \

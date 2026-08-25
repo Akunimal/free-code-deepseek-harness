@@ -2,15 +2,16 @@
 /**
  * Zero-trust upgrade smoke: install the known-good 0.2.4 setup, place a
  * stale payload marker and a user-data marker, then update that same install
- * with the newest 0.2.9 setup. The stale marker must disappear while the
+ * with the current candidate setup. The stale marker must disappear while the
  * user-data marker must survive.
  */
 
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { stopInstalledProcesses, verifyInstalledRuntime } from './verify-installed-runtime.mjs';
 
 if (process.platform !== 'win32') {
   console.log('verify-nsis-upgrade: skipped (non-Windows host).');
@@ -19,7 +20,9 @@ if (process.platform !== 'win32') {
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const RELEASE_DIR = resolve(REPO_ROOT, 'apps/shell/release');
-const NEW_SETUP = join(RELEASE_DIR, 'FreeCode-DeepSeek-Harness-0.2.9-win-x64-setup.exe');
+const rootPackage = JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8'));
+const NEW_VERSION = rootPackage.version;
+const NEW_SETUP = join(RELEASE_DIR, `FreeCode-DeepSeek-Harness-${NEW_VERSION}-win-x64-setup.exe`);
 const OLD_NAME = 'FreeCode-DeepSeek-Harness-0.2.4-win-x64-setup.exe';
 const oldCandidates = [
   join(RELEASE_DIR, OLD_NAME),
@@ -29,7 +32,7 @@ const oldCandidates = [
 const OLD_SETUP = oldCandidates.find((candidate) => existsSync(candidate));
 
 if (!OLD_SETUP || !existsSync(NEW_SETUP)) {
-  console.error('verify-nsis-upgrade: both 0.2.4 and 0.2.9 setup files are required.');
+  console.error(`verify-nsis-upgrade: 0.2.4 and ${NEW_VERSION} setup files are required.`);
   process.exit(2);
 }
 
@@ -50,6 +53,27 @@ const stopProcessTree = (pid) => {
   spawnSync('taskkill.exe', ['/PID', String(pid), '/T', '/F'], {
     windowsHide: true,
     stdio: 'ignore',
+  });
+};
+
+const runUninstaller = (uninstallPath) => {
+  const direct = spawnSync(uninstallPath, ['/S'], {
+    windowsHide: true,
+    stdio: 'ignore',
+    timeout: 120_000,
+  });
+  if (!direct.error && direct.status === 0) return direct;
+
+  // Some legacy NSIS uninstallers reject Node's direct Windows spawn with
+  // EFTYPE even though cmd.exe can execute the same PE successfully. Keep
+  // this as a narrow compatibility fallback, and preserve the failure if
+  // the shell cannot execute it either.
+  if (direct.error?.code !== 'EFTYPE') return direct;
+  const command = `"${uninstallPath.replaceAll('"', '\\"')}" /S`;
+  return spawnSync(process.env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', command], {
+    windowsHide: true,
+    stdio: 'ignore',
+    timeout: 120_000,
   });
 };
 
@@ -75,6 +99,7 @@ const runSetup = async (setup, label, isComplete = layoutIsPopulated) => {
     if (isComplete()) {
       console.log(`verify-nsis-upgrade: ${label} payload extraction complete; closing installer process tree.`);
       stopProcessTree(child.pid);
+      try { stopInstalledProcesses(installDir); } catch { /* the next phase will report a live process */ }
       return;
     }
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 1000));
@@ -108,12 +133,14 @@ try {
   mkdirSync(join(installDir, 'user-data'), { recursive: true });
   writeFileSync(userDataMarker, 'user data\n', 'utf8');
 
-  await runSetup(NEW_SETUP, '0.2.9', () => layoutIsPopulated() && !existsSync(staleMarker));
-  assertPopulated('0.2.9');
+  await runSetup(NEW_SETUP, NEW_VERSION, () => layoutIsPopulated() && !existsSync(staleMarker));
+  assertPopulated(NEW_VERSION);
+
+  await verifyInstalledRuntime({ installDir, label: `${NEW_VERSION} upgrade` });
 
   if (existsSync(staleMarker)) throw new Error('stale 0.2.4 payload marker survived upgrade');
   if (!existsSync(userDataMarker)) throw new Error('user-data marker was deleted by upgrade');
-  console.log('verify-nsis-upgrade: 0.2.4 -> 0.2.9 passed; payload replaced and user data preserved.');
+  console.log(`verify-nsis-upgrade: 0.2.4 -> ${NEW_VERSION} passed; payload replaced, runtime booted, and user data preserved.`);
 } catch (error) {
   console.error(`verify-nsis-upgrade: ${error.message}`);
   process.exitCode = 1;
@@ -121,11 +148,14 @@ try {
   const uninstallers = readdirSync(installDir, { withFileTypes: true })
     .filter((entry) => entry.isFile() && /^Uninstall/i.test(entry.name));
   if (uninstallers.length) {
-    spawnSync(join(installDir, uninstallers[0].name), ['/S'], {
-      windowsHide: true,
-      stdio: 'ignore',
-      timeout: 120_000,
-    });
+    const uninstall = runUninstaller(join(installDir, uninstallers[0].name));
+    if (uninstall.error || uninstall.status !== 0) {
+      console.error(`verify-nsis-upgrade: uninstaller failed with ${uninstall.error?.message ?? uninstall.status}`);
+      process.exitCode = 1;
+    }
   }
-  try { rmSync(installDir, { recursive: true, force: true }); } catch { /* best effort */ }
+  try { rmSync(installDir, { recursive: true, force: true }); } catch (error) {
+    console.error(`verify-nsis-upgrade: failed to remove test install: ${error.message}`);
+    process.exitCode = 1;
+  }
 }

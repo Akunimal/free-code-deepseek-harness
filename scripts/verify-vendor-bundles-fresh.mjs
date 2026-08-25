@@ -23,7 +23,7 @@
  * Exit codes:
  *   0 — all shipped bundles match their source hash.
  *   1 — one or more bundles are stale.
- *   2 — a tracked package's lib/index.js is missing.
+ *   2 — a tracked package has no compiled JavaScript in lib/.
  */
 
 import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, mkdirSync } from 'node:fs';
@@ -34,13 +34,34 @@ import { fileURLToPath } from 'node:url';
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 /**
- * Packages shipped in the packaged Electron app whose bundle must match
- * source. Add here whenever we start shipping a new vendor package that
- * has both a `src/` and a `lib/index.js`.
+ * Every vendored app/package with source and a compiled `lib/` is shipped in
+ * the runtime stage. Discovering this set prevents a new package from being
+ * silently omitted from the freshness contract.
  */
-const GUARDED_PACKAGES = [
-  'vendor/deepseek-harness/packages/host/directory-picker-native',
-];
+function discoverGuardedPackages() {
+  const roots = ['vendor/deepseek-harness/apps', 'vendor/deepseek-harness/packages'];
+  const discovered = [];
+  const visit = (directory) => {
+    if (!existsSync(directory)) return;
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (entry.name === 'node_modules' || entry.name === '.git' || entry.name === 'lib') continue;
+      const child = join(directory, entry.name);
+      if (!entry.isDirectory()) continue;
+      if (existsSync(join(child, 'src')) && hasCompiledJavaScript(child)) {
+        discovered.push(relative(REPO, child).replaceAll('\\', '/'));
+      }
+      visit(child);
+    }
+  };
+  for (const root of roots) visit(resolve(REPO, root));
+  return discovered.sort();
+}
+
+const GUARDED_PACKAGES = discoverGuardedPackages();
+if (GUARDED_PACKAGES.length === 0) {
+  console.error('verify-vendor-bundles-fresh: no source/lib packages discovered');
+  process.exit(2);
+}
 
 /** Where the hash lockfile lives. Kept OUTSIDE the vendored subtree because
  * the vendor's own `.gitignore` excludes `lib/`; a lockfile inside `lib/`
@@ -75,6 +96,16 @@ function collectTs(dir) {
   return out;
 }
 
+function hasCompiledJavaScript(dir) {
+  const lib = join(dir, 'lib');
+  if (!existsSync(lib)) return false;
+  const visit = (directory) => readdirSync(directory, { withFileTypes: true }).some((entry) => {
+    const child = join(directory, entry.name);
+    return entry.isDirectory() ? visit(child) : entry.name.endsWith('.js');
+  });
+  return visit(lib);
+}
+
 let stale = 0;
 let missing = 0;
 let ok = 0;
@@ -82,13 +113,12 @@ let ok = 0;
 const lockData = existsSync(LOCK_FILE)
   ? JSON.parse(readFileSync(LOCK_FILE, 'utf8'))
   : {};
-const nextLock = { ...lockData };
+const nextLock = {};
 
 for (const rel of GUARDED_PACKAGES) {
   const pkgDir = resolve(REPO, rel);
-  const bundle = join(pkgDir, 'lib', 'index.js');
-  if (!existsSync(bundle)) {
-    console.error(`verify-vendor-bundles-fresh: MISSING ${rel}/lib/index.js`);
+  if (!hasCompiledJavaScript(pkgDir)) {
+    console.error(`verify-vendor-bundles-fresh: MISSING compiled JavaScript in ${rel}/lib`);
     missing++;
     continue;
   }

@@ -34,3 +34,26 @@
   StrCpy $R0 0
   ClearErrors
 !macroend
+
+; electron-builder intentionally preserves shortcuts during upgrades when the
+; registry says KeepShortcuts=true. That state is not proof that either .lnk
+; still exists: users, cleanup tools, or a prior broken installer may have
+; removed it. Recreate only missing links after extraction so an upgrade cannot
+; leave a registered, working install invisible from Start/Desktop.
+!macro customInstall
+  !ifdef MENU_FILENAME
+    CreateDirectory "$SMPROGRAMS\${MENU_FILENAME}"
+  !endif
+
+  ${ifNot} ${FileExists} "$newStartMenuLink"
+    CreateShortCut "$newStartMenuLink" "$appExe" "" "$appExe" 0 "" "" "${APP_DESCRIPTION}"
+    ClearErrors
+    WinShell::SetLnkAUMI "$newStartMenuLink" "${APP_ID}"
+  ${endIf}
+
+  ${ifNot} ${FileExists} "$newDesktopLink"
+    CreateShortCut "$newDesktopLink" "$appExe" "" "$appExe" 0 "" "" "${APP_DESCRIPTION}"
+    ClearErrors
+    WinShell::SetLnkAUMI "$newDesktopLink" "${APP_ID}"
+  ${endIf}
+!macroend

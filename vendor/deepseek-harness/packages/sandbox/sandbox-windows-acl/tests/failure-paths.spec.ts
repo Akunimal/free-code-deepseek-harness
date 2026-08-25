@@ -8,7 +8,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import koffi from 'koffi'
 
-import { PROCESS_INFORMATION, getTempPath } from '../src/ffi.ts'
+import { PROCESS_INFORMATION, STARTUPINFOW, getTempPath } from '../src/ffi.ts'
 import type { NativePtr, Win32Bindings } from '../src/ffi.ts'
 import { Win32Error } from '../src/errors.ts'
 import { drainPipe, spawnSandboxed, spawnSandboxedInherited, waitForExit } from '../src/spawn.ts'
@@ -234,9 +234,11 @@ describe('spawnSandboxedInherited failure paths', () => {
     api: Win32Bindings
     closed: bigint[]
     closeHandle: ReturnType<typeof vi.fn>
+    startupInfo: { dwFlags: number; wShowWindow: number }
   } {
     const closed: bigint[] = []
     let std = 50n
+    const startupInfo = {} as { dwFlags: number; wShowWindow: number }
     const closeHandle = vi.fn((handle: NativePtr) => {
       closed.push(handle)
       return 1
@@ -248,8 +250,9 @@ describe('spawnSandboxedInherited failure paths', () => {
       setHandleInformation: vi.fn(() => 1),
       createProcessAsUserW: vi.fn((
         _token: unknown, _app: unknown, _cmd: unknown, _pa: unknown, _ta: unknown,
-        _inherit: unknown, _flags: unknown, _env: unknown, _cwd: unknown, _si: unknown, processInfo: NativePtr,
+        _inherit: unknown, _flags: unknown, _env: unknown, _cwd: unknown, si: NativePtr, processInfo: NativePtr,
       ) => {
+        Object.assign(startupInfo, koffi.decode(si, STARTUPINFOW) as { dwFlags: number; wShowWindow: number })
         koffi.encode(processInfo, PROCESS_INFORMATION, { hProcess: 200n, hThread: 201n, dwProcessId: 1234, dwThreadId: 5678 })
         return 1
       }),
@@ -260,7 +263,7 @@ describe('spawnSandboxedInherited failure paths', () => {
       formatMessageW: vi.fn(() => 0),
       ...overrides,
     } as unknown as Win32Bindings
-    return { api, closed, closeHandle }
+    return { api, closed, closeHandle, startupInfo }
   }
 
   it('closes the job and reports when GetStdHandle yields a NULL handle', () => {
@@ -342,7 +345,7 @@ describe('spawnSandboxedInherited failure paths', () => {
   })
 
   it('returns the pid, process handle, and kill-on-close job when every call succeeds', () => {
-    const { api, closeHandle } = inheritedApi()
+    const { api, closeHandle, startupInfo } = inheritedApi()
     const spawned = spawnSandboxedInherited(api, token, { command: 'probe.exe', args: [], cwd: 'C:\\' })
     expect(spawned.pid).toBe(1234)
     expect(spawned.process).toBe(200n)
@@ -351,6 +354,13 @@ describe('spawnSandboxedInherited failure paths', () => {
     expect(closeHandle).toHaveBeenCalledWith(201n)
     expect(closeHandle).not.toHaveBeenCalledWith(200n)
     expect(closeHandle).not.toHaveBeenCalledWith(100n)
+  })
+
+  it('requests hidden startup windows for inherited restricted children', () => {
+    const { api, startupInfo } = inheritedApi()
+    spawnSandboxedInherited(api, token, { command: 'probe.exe', args: [], cwd: 'C:\\' })
+    expect(startupInfo.dwFlags).toBe(abi.STARTF_USESTDHANDLES | abi.STARTF_USESHOWWINDOW)
+    expect(startupInfo.wShowWindow).toBe(abi.SW_HIDE)
   })
 })
 
