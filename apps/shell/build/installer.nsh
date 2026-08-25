@@ -12,19 +12,14 @@
   Sleep 1000
 !macroend
 
-; Clean stale runtime files from a previous installation so renamed or removed
-; packages (e.g. koffi native binaries) cannot linger and cause load failures.
-; MUST run before installApplicationFiles extracts the new payload; customInit
-; fires from .onInit for exactly this purpose. customInstall runs AFTER
-; extraction and would delete the payload just written.
+; electron-builder 25.1.8 does not invoke a customInit macro. The supported
+; customInstall hook runs AFTER installApplicationFiles and must never delete
+; runtime directories there. The beforePack hook replaces the old-version
+; uninstaller calls with this macro, so upgrades cannot run a stale NSIS
+; uninstaller asynchronously against the new payload.
 ; User data in %APPDATA% is never touched.
-!macro customInit
-  IfFileExists "$INSTDIR\resources\freecode\dsh\node_modules\*.*" 0 +2
-    RMDir /r "$INSTDIR\resources\freecode\dsh\node_modules"
-  IfFileExists "$INSTDIR\resources\freecode\dsh\packages\*.*" 0 +2
-    RMDir /r "$INSTDIR\resources\freecode\dsh\packages"
-  IfFileExists "$INSTDIR\resources\freecode\dsh\apps\*.*" 0 +2
-    RMDir /r "$INSTDIR\resources\freecode\dsh\apps"
+!macro freecodePrepareInstall
+  RMDir /r "$INSTDIR\resources\freecode"
 !macroend
 
 ; The previous uninstaller can return a non-zero code after it has already

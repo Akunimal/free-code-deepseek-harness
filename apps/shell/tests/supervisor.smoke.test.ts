@@ -51,7 +51,9 @@ describe('HarnessSupervisor (C5)', { skip: !built() }, () => {
 
     await sup.start();
     try {
-      const deadline = Date.now() + 40_000;
+      // The first Windows boot may materialize the profile's workspace
+      // modules. This must exceed the supervisor's cold-start budget.
+      const deadline = Date.now() + 120_000;
       while (!ready && Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 250));
       }

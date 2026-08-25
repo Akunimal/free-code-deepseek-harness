@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * NSIS hook lint — refuses `RMDir` or `Delete` inside `customInstall`.
+ * NSIS hook lint — refuses destructive runtime cleanup in unsupported or
+ * post-extraction hooks and verifies that the build hook owns upgrade cleanup.
  *
  * The v0.2.4 install crash traced back to a `customInstall` macro that ran
  * `RMDir /r` on `apps/`, `packages/`, and `node_modules/`. The author
@@ -9,9 +10,10 @@
  * `installApplicationFiles`, so the RMDir deleted the payload that had
  * just been extracted, leaving the shipped dsh runtime incomplete.
  *
- * Pre-extraction cleanup MUST use `customInit` (fires in `.onInit`) or
- * `customRemoveFiles` (fires during `uninstallOldVersion`). This gate
- * refuses to merge changes that reintroduce the same bug.
+ * electron-builder 25.1.8 has no `customInit` hook. The beforePack hook
+ * patches installSection.nsh to call `freecodePrepareInstall` before payload
+ * extraction; this gate refuses configurations that silently rely on an
+ * unsupported hook or delete the fresh payload from `customInstall`.
  *
  * Exit codes:
  *   0 — installer.nsh is clean.
@@ -32,6 +34,37 @@ if (!existsSync(INSTALLER_NSH)) {
 }
 
 const source = readFileSync(INSTALLER_NSH, 'utf8');
+
+// Keep the file syntactically balanced before electron-builder invokes makensis.
+// A stray !macroend otherwise survives the hook scan and fails only at the
+// final packaging step, after the expensive runtime build has completed.
+const macroStack = [];
+for (const [index, rawLine] of source.split(/\r?\n/).entries()) {
+  const line = rawLine.replace(/;.*$/, '').trim();
+  if (/^!macro\s+\w+/i.test(line)) {
+    macroStack.push(index + 1);
+  } else if (/^!macroend\b/i.test(line)) {
+    if (macroStack.length === 0) {
+      console.error(`verify-nsis-hooks: unmatched !macroend at line ${index + 1}.`);
+      process.exit(1);
+    }
+    macroStack.pop();
+  }
+}
+if (macroStack.length > 0) {
+  console.error(`verify-nsis-hooks: ${macroStack.length} NSIS macro(s) are not closed.`);
+  process.exit(1);
+}
+
+if (/!macro\s+customInit\b/i.test(source)) {
+  console.error('verify-nsis-hooks: customInit is not a supported electron-builder 25.1.8 hook.');
+  process.exit(1);
+}
+
+if (!source.includes('!macro freecodePrepareInstall') || !source.includes('RMDir /r "$INSTDIR\\resources\\freecode"')) {
+  console.error('verify-nsis-hooks: deterministic pre-extraction FreeCode cleanup is missing.');
+  process.exit(1);
+}
 
 const POST_EXTRACTION_HOOKS = new Set(['customInstall']);
 const MUTATION_COMMANDS = /(?:^|\s)(RMDir|Delete|Rename|CopyFiles|WriteRegStr|WriteRegDWORD|DeleteRegKey|DeleteRegValue)\b/i;
@@ -64,8 +97,7 @@ if (problems.length > 0) {
   console.error('verify-nsis-hooks: filesystem mutations found in POST-EXTRACTION hooks.');
   console.error('These hooks run AFTER installApplicationFiles extracts the payload;');
   console.error('a RMDir / Delete here will silently wipe the fresh install.');
-  console.error('Move cleanup logic into `customInit` (fires in .onInit before extraction)');
-  console.error('or `customRemoveFiles` (fires during uninstallOldVersion).');
+  console.error('Move cleanup logic into the patched pre-extraction install section.');
   console.error('');
   for (const p of problems) {
     console.error(`  !macro ${p.macro} — line ${p.line}: ${p.command}`);

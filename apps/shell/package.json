@@ -1,6 +1,6 @@
 {
   "name": "@freecode/shell",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "private": true,
   "description": "Electron main + preload for the free-code-deepseek-harness desktop shell",
   "type": "module",
@@ -13,6 +13,7 @@
     "package:runtime": "node ../../scripts/run-package-runtime.mjs",
     "prepackage:verify": "node ../../scripts/verify-nsis-hooks.mjs && node ../../scripts/verify-vendor-bundles-fresh.mjs",
     "smoke:nsis": "node ../../scripts/verify-nsis-install-layout.mjs",
+    "smoke:nsis:upgrade": "node ../../scripts/verify-nsis-upgrade.mjs",
     "package": "pnpm prepackage:verify && pnpm build && electron-builder --config electron-builder.yml --publish never && node ../../scripts/package-harness-update.mjs"
   },
   "dependencies": {

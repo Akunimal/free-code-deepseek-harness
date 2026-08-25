@@ -1,24 +1,36 @@
 import { describe, expect, it } from 'vitest';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROOT = join(import.meta.dirname, '../../..');
 
+/** Every shipped release-notes file, newest last. Kept version-agnostic so a
+ *  new release does not require editing this contract (the old test pinned
+ *  v0.2.2 and silently stopped covering later releases). */
+function releaseNotesFiles(): string[] {
+  return readdirSync(join(ROOT, 'docs'))
+    .filter((name) => /^RELEASE-NOTES-v\d+\.\d+\.\d+\.md$/.test(name))
+    .sort();
+}
+
 describe('release and runtime packaging contracts', () => {
   it('keeps releases manual and multiplatform packaging available', () => {
+    const rootPackage = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as { version?: string };
+    const shellPackageJson = JSON.parse(readFileSync(join(ROOT, 'apps/shell/package.json'), 'utf8')) as { version?: string };
     const shellPackage = readFileSync(join(ROOT, 'apps/shell/package.json'), 'utf8');
     const policy = readFileSync(join(ROOT, 'docs/RELEASE-POLICY.md'), 'utf8');
     expect(existsSync(join(ROOT, '.github/workflows/release.yml'))).toBe(false);
     expect(policy).toContain('performed manually');
     expect(policy).toContain('free GitHub Actions quota');
     expect(shellPackage).toContain('electron-builder --config electron-builder.yml --publish never');
+    expect(rootPackage.version).toBe('0.2.8');
+    expect(shellPackageJson.version).toBe(rootPackage.version);
   });
 
   it('keeps README and release descriptions bilingual', () => {
     const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
     const spanishReadme = readFileSync(join(ROOT, 'README.es.md'), 'utf8');
     const template = readFileSync(join(ROOT, 'docs/RELEASE-NOTES-TEMPLATE.md'), 'utf8');
-    const currentNotes = readFileSync(join(ROOT, 'docs/RELEASE-NOTES-v0.2.2.md'), 'utf8');
     expect(readme).toContain('[Leer en español](README.es.md)');
     expect(readme).toMatch(/^## English$/m);
     expect(readme).toMatch(/^## Español$/m);
@@ -28,11 +40,13 @@ describe('release and runtime packaging contracts', () => {
     expect(spanishReadme).toContain('modelos OpenCode Free');
     expect(spanishReadme).not.toContain('DeepSeek Free');
     expect(spanishReadme).toContain('[Read this in English](README.md)');
-    for (const notes of [template, currentNotes]) {
-      expect(notes).toMatch(/^## English$/m);
-      expect(notes).toMatch(/^## Español$/m);
-      expect(notes).toContain('manually');
-      expect(notes).toContain('manualmente');
+    // The template plus every shipped release-notes file must be bilingual.
+    const notesFiles = releaseNotesFiles();
+    expect(notesFiles.length).toBeGreaterThan(0);
+    for (const file of ['RELEASE-NOTES-TEMPLATE.md', ...notesFiles]) {
+      const notes = file === 'RELEASE-NOTES-TEMPLATE.md' ? template : readFileSync(join(ROOT, 'docs', file), 'utf8');
+      expect(notes, file).toMatch(/^## English$/m);
+      expect(notes, file).toMatch(/^## Español$/m);
     }
   });
 
@@ -101,5 +115,31 @@ describe('release and runtime packaging contracts', () => {
     expect(compaction).toContain('DEFAULT_THRESHOLD_RATIO = 0.75');
     expect(rtk).toContain('spawnSync');
     expect(rtk).toContain('return false');
+  });
+
+  it('guards the NSIS runtime truncation regression', () => {
+    const installer = readFileSync(join(ROOT, 'apps/shell/build/installer.nsh'), 'utf8');
+    const patcher = readFileSync(join(ROOT, 'apps/shell/build/patch-nsis.cjs'), 'utf8');
+    const smoke = readFileSync(join(ROOT, 'scripts/verify-nsis-install-layout.mjs'), 'utf8');
+    const upgradeSmoke = readFileSync(join(ROOT, 'scripts/verify-nsis-upgrade.mjs'), 'utf8');
+    const hookGate = readFileSync(join(ROOT, 'scripts/verify-nsis-hooks.mjs'), 'utf8');
+
+    // customInit was mistakenly treated as a pre-extraction hook, while
+    // customInstall is post-extraction. Either one can silently leave the
+    // shipped dsh workspace empty when used for cleanup.
+    expect(installer).not.toMatch(/!macro\s+customInit\b/i);
+    expect(installer).not.toMatch(/!macro\s+customInstall\b[\s\S]*?RMDir\s+\/r/i);
+    expect(installer).toContain('!macro freecodePrepareInstall');
+    expect(patcher).toContain('patchInstallSection');
+    expect(patcher).toContain('!insertmacro freecodePrepareInstall');
+    expect(hookGate).toContain('customInit is not a supported');
+    expect(smoke).toContain('readdirSync(target).length === 0');
+    expect(smoke).toContain('packages');
+    expect(smoke).toContain('node_modules');
+    expect(upgradeSmoke).toContain('0.2.4');
+    expect(upgradeSmoke).toContain('0.2.8');
+    expect(upgradeSmoke).toContain('stale 0.2.4 payload marker survived upgrade');
+    expect(upgradeSmoke).toContain('user-data marker was deleted by upgrade');
+    expect(patcher).toContain('dead uninstall helpers');
   });
 });

@@ -14,6 +14,7 @@ apps/shell/resources/dsh-web/
 apps/shell/resources/freecode/
 !apps/shell/resources/freecode/.gitkeep
 apps/shell/release/
+apps/shell/release-*/
 *.exe
 !native/**/build/
 

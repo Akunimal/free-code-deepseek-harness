@@ -57,27 +57,40 @@ try {
   // /S = silent, /D=<path> = install dir (must be last arg, no quotes).
   const install = spawnSync(setup, ['/S', `/D=${installDir}`], {
     windowsHide: true,
-    timeout: 300_000,
+    // The 1.7 GB unpacked runtime can take several minutes on a cold Windows
+    // profile or slower temp volume. A short timeout misclassifies a healthy
+    // extraction as an installer failure and skips the layout assertion.
+    timeout: 900_000,
   });
-  if (install.status !== 0) {
+  if (install.error) {
+    console.error(`verify-nsis-install-layout: installer error ${install.error.message}`);
+    exitCode = 2;
+  } else if (install.status !== 0) {
     console.error(`verify-nsis-install-layout: installer exited ${install.status}`);
     exitCode = 2;
   } else {
-    const CRITICAL = [
+    const REQUIRED_FILES = [
       'resources/freecode/dsh/apps/cli/lib/bin.js',
-      'resources/freecode/dsh/packages',
-      'resources/freecode/dsh/node_modules',
       'resources/freecode/dsh/node_modules/@deepseek-ai/dsh-host-directory-picker-native/lib/index.js',
       'resources/freecode/runtime-manifest.json',
       'resources/freecode/opencode2api/opencode2api-win-x64.exe',
     ];
-    const missing = CRITICAL.filter((rel) => !existsSync(join(installDir, rel)));
-    if (missing.length > 0) {
+    const REQUIRED_DIRS = [
+      'resources/freecode/dsh/packages',
+      'resources/freecode/dsh/node_modules',
+    ];
+    const missing = REQUIRED_FILES.filter((rel) => !existsSync(join(installDir, rel)));
+    const empty = REQUIRED_DIRS.filter((rel) => {
+      const target = join(installDir, rel);
+      try { return !existsSync(target) || readdirSync(target).length === 0; } catch { return true; }
+    });
+    if (missing.length > 0 || empty.length > 0) {
       console.error('verify-nsis-install-layout: MISSING after install:');
       for (const m of missing) console.error(`  - ${m}`);
+      for (const m of empty) console.error(`  - ${m} (empty or missing)`);
       exitCode = 1;
     } else {
-      console.log(`verify-nsis-install-layout: ${CRITICAL.length} critical paths present.`);
+      console.log(`verify-nsis-install-layout: ${REQUIRED_FILES.length} files and ${REQUIRED_DIRS.length} populated directories present.`);
     }
   }
 

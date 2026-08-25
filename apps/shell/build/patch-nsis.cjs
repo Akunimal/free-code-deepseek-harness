@@ -114,65 +114,82 @@ function patchAppRunningCheck() {
   }
 }
 
-function patchUninstallOldVersion() {
+function removeUnusedUninstallResultHelper() {
   const nshPath = findNsisTemplate('installUtil.nsh');
   if (!nshPath) {
-    console.warn('[patch-nsis] installUtil.nsh not found');
-    return;
+    throw new Error('[patch-nsis] installUtil.nsh not found — refusing to build an unsafe installer');
   }
 
   let content = fs.readFileSync(nshPath, 'utf8');
 
-  if (content.includes('PATCHED: guard missing old uninstaller')) {
-    console.log('[patch-nsis] installUtil.nsh already patched');
+  const resultHelperPatched = content.includes('PATCHED: FreeCode skips stale uninstall result helper');
+  const oldFunctionPatched = content.includes('PATCHED: FreeCode skips stale uninstall function');
+  const deadHelpersPatched = content.includes('PATCHED: FreeCode skips dead uninstall helpers');
+  if (resultHelperPatched && oldFunctionPatched && deadHelpersPatched) {
+    console.log('[patch-nsis] installUtil.nsh already removes unused stale uninstall helpers');
     return;
   }
 
-  // The old uninstaller (from a previous install) may have buggy process
-  // detection that false-positives on Win11 25H2, causing it to exit non-zero.
-  // uninstallOldVersion retries 5 times then shows "appCannotBeClosed" dialog.
-  // Fix: kill the app before running the old uninstaller, run it once,
-  // and treat any exit code as success (files get overwritten anyway).
-  // Replace the retry loop while preserving the two execution fallbacks and
-  // the DoesNotExist error path. Removing only the loop body leaves the
-  // template's LogicLib labels balanced and avoids the prior broken NSIS build.
-  const oldLoop = /  StrCpy \$uninstallerFileNameTemp "\$PLUGINSDIR\\old-uninstaller\.exe"\r?\n  !insertmacro copyFile "\$uninstallerFileName" "\$uninstallerFileNameTemp"\r?\n\r?\n  # Retry counter\r?\n[\s\S]*?  DoesNotExist:\r?\n    SetErrors\r?\n/;
-
-  if (oldLoop.test(content)) {
-    content = content.replace(oldLoop,
-`  # PATCHED: guard missing old uninstaller and skip retry loop (old uninstaller false-positives on Win11 25H2)
-    IfFileExists "$uninstallerFileName" 0 OldUninstallerMissing
-    StrCpy $uninstallerFileNameTemp "$PLUGINSDIR\\old-uninstaller.exe"
-    !insertmacro copyFile "$uninstallerFileName" "$uninstallerFileNameTemp"
-    IfFileExists "$uninstallerFileNameTemp" 0 OldUninstallerMissing
-
-    nsExec::ExecToLog 'taskkill /F /IM "\${APP_EXECUTABLE_FILENAME}"'
-    Sleep 500
-
-    ExecWait '"$uninstallerFileNameTemp" /S /KEEP_APP_DATA $0 _?=$installationDir' $R0
-    ifErrors TryInPlace CheckResult
-
-  TryInPlace:
-      ExecWait '"$uninstallerFileName" /S /KEEP_APP_DATA $0 _?=$installationDir' $R0
-      ifErrors DoesNotExist
-
-  CheckResult:
-    StrCpy $R0 0    ; PATCHED: ignore exit code from old uninstaller (false-positives on Win11 25H2)
-    ClearErrors
-    Return
-
-  DoesNotExist:
-    SetErrors
-  OldUninstallerMissing:
-    ; A stale registry entry can point at a removed installer directory.
-    ClearErrors
-    Return
-`);
-    fs.writeFileSync(nshPath, content, 'utf8');
-    console.log('[patch-nsis] installUtil.nsh patched — skip uninstall retry loop');
-  } else {
-    console.warn('[patch-nsis] uninstallOldVersion regex did not match — check installUtil.nsh');
+  // installSection.nsh no longer invokes uninstallOldVersion, so its result
+  // helper becomes an unreferenced NSIS function. NSIS treats warning 6010 as
+  // fatal in electron-builder; remove only this dead helper, never the actual
+  // installer payload or user-data paths.
+  if (!resultHelperPatched) {
+    const helper = /Function handleUninstallResult\r?\n[\s\S]*?FunctionEnd\r?\n\r?\n!macro handleUninstallResult ROOT_KEY\r?\n[\s\S]*?!macroend\r?\n/;
+    if (!helper.test(content)) {
+      throw new Error('[patch-nsis] installUtil.nsh changed; unused uninstall result helper was not found');
+    }
+    content = content.replace(helper, '; PATCHED: FreeCode skips stale uninstall result helper\n');
   }
+
+  if (!oldFunctionPatched) {
+    const oldFunction = /# http:\/\/stackoverflow\.com\/questions\/24595887\/[\s\S]*?Function uninstallOldVersion[\s\S]*?!macro uninstallOldVersion ROOT_KEY\r?\n[\s\S]*?!macroend\r?\n/;
+    if (!oldFunction.test(content)) {
+      throw new Error('[patch-nsis] installUtil.nsh changed; stale uninstall function was not found');
+    }
+    content = content.replace(oldFunction, '; PATCHED: FreeCode skips stale uninstall function\n');
+  }
+
+  if (!deadHelpersPatched) {
+    // GetInQuotes and GetFileParent are only used by uninstallOldVersion.
+    // Leaving them behind makes makensis fail on warning 6010 after the
+    // upgrade path is intentionally removed.
+    const deadHelpers = /Function GetInQuotes\r?\n[\s\S]*?!macroend\r?\n\r?\nFunction GetFileParent\r?\n[\s\S]*?FunctionEnd\r?\n/;
+    if (!deadHelpers.test(content)) {
+      throw new Error('[patch-nsis] installUtil.nsh changed; dead uninstall helpers were not found');
+    }
+    content = content.replace(deadHelpers, '; PATCHED: FreeCode skips dead uninstall helpers\n\n');
+  }
+
+  fs.writeFileSync(nshPath, content, 'utf8');
+  console.log('[patch-nsis] installUtil.nsh patched — removed unused stale uninstall helpers');
+}
+
+function patchInstallSection() {
+  const installSectionPath = findNsisTemplate('installSection.nsh');
+  if (!installSectionPath) {
+    throw new Error('[patch-nsis] installSection.nsh not found — refusing to build an unsafe installer');
+  }
+
+  let content = fs.readFileSync(installSectionPath, 'utf8');
+  if (content.includes('!insertmacro freecodePrepareInstall')) {
+    console.log('[patch-nsis] installSection.nsh already uses deterministic FreeCode upgrade cleanup');
+    return;
+  }
+
+  // electron-builder calls the previous uninstaller before extracting the new
+  // payload. That path can hang or continue deleting the shared install dir
+  // on Win11, leaving empty dsh/packages and dsh/node_modules directories.
+  // The app has no user data under $INSTDIR, so remove only the shipped
+  // resources/freecode tree and let the current installer extract it fresh.
+  const oldCalls = /!insertmacro uninstallOldVersion SHELL_CONTEXT\r?\n!insertmacro handleUninstallResult SHELL_CONTEXT\r?\n\r?\n\$\{if\} \$installMode == "all"\r?\n  !insertmacro uninstallOldVersion HKEY_CURRENT_USER\r?\n  !insertmacro handleUninstallResult HKEY_CURRENT_USER\r?\n\$\{endIf\}/;
+  if (!oldCalls.test(content)) {
+    throw new Error('[patch-nsis] installSection.nsh changed; old-version uninstall calls were not found');
+  }
+
+  content = content.replace(oldCalls, '!insertmacro freecodePrepareInstall');
+  fs.writeFileSync(installSectionPath, content, 'utf8');
+  console.log('[patch-nsis] installSection.nsh patched — skip stale old uninstaller and clean payload before extraction');
 }
 
 function patchExtractAppPackage() {
@@ -187,6 +204,7 @@ module.exports.default = async function (context) {
 
   patchMultiUser();
   patchAppRunningCheck();
-  patchUninstallOldVersion();
+  patchInstallSection();
+  removeUnusedUninstallResultHelper();
   patchExtractAppPackage();
 };

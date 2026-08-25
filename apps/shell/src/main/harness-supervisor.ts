@@ -50,7 +50,11 @@ export interface HarnessInstance {
 export type HarnessStatus = 'stopped' | 'starting' | 'ready' | 'unhealthy';
 
 const READY_RE = /(?:dsh web: )?(?:ready on )?(http:\/\/127\.0\.0\.1:\d+)/;
-const READY_TIMEOUT_MS = 30_000;
+// A cold Windows profile boot can materialize hundreds of workspace modules
+// before the web server prints its URL. Thirty seconds caused the supervisor
+// to kill a healthy first boot, then hide the real startup latency behind
+// repeated respawns. Keep the timeout bounded, but allow one cold boot.
+const READY_TIMEOUT_MS = 90_000;
 const RESTART_WINDOW_MS = 60_000;
 const STOP_GRACE_MS = 5_000;
 const BACKOFF_MAX_MS = 30_000;
