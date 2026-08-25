@@ -22,4 +22,4 @@
 ### Verificación
 
 - Se reprodujo el fallo contra el ejecutable instalado `0.2.8` con 49 paquetes y 634 directorios de módulos presentes.
-- Se reconstruye y vuelve a iniciar el ejecutable empaquetado después del fix; el preflight debe pasar antes de publicar.
+- Se reconstruyó y volvió a iniciar el ejecutable empaquetado después del fix; el preflight pasó antes de publicar.
