@@ -1,6 +1,6 @@
 import { WebContentsView, session, type BrowserWindow, type Rectangle } from 'electron'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { randomBytes } from 'node:crypto'
 import { t } from './i18n.js'
@@ -51,6 +51,7 @@ interface BrowserTab {
   title: string
   view: WebContentsView
   loading: boolean
+  error?: string
 }
 
 interface PublicTab {
@@ -128,7 +129,8 @@ function safeUrl(value: unknown): string {
   return typeof value === 'string' && allowedUrl(value) ? value : DEFAULT_URL
 }
 
-function displayTitle(tab: Pick<BrowserTab, 'title' | 'url'>): string {
+function displayTitle(tab: Pick<BrowserTab, 'title' | 'url' | 'error'>): string {
+  if (tab.error) return `Browser error: ${tab.error}`
   if (tab.title.trim()) return tab.title.trim().slice(0, 80)
   if (tab.url === DEFAULT_URL) return 'New tab'
   try { return new URL(tab.url).hostname || tab.url.slice(0, 80) } catch { return tab.url.slice(0, 80) }
@@ -242,7 +244,9 @@ function toolbarHtml(): string {
 export async function createEmbeddedBrowser(userDataDir: string, getMainWindow: () => BrowserWindow | null = () => null): Promise<EmbeddedBrowser> {
   const dataDir = join(userDataDir, 'browser-data')
   const stateFile = join(userDataDir, 'browser-state.json')
+  const debugFile = join(userDataDir, 'logs', 'browser.log')
   mkdirSync(dataDir, { recursive: true })
+  mkdirSync(join(userDataDir, 'logs'), { recursive: true })
   const browserSession = session.fromPath(dataDir)
   const token = randomBytes(32).toString('hex')
   let stored: StoredState = {}
@@ -259,6 +263,12 @@ export async function createEmbeddedBrowser(userDataDir: string, getMainWindow: 
   let tabs = new Map<string, BrowserTab>()
   let resizeHandler: (() => void) | null = null
   let closedHandler: (() => void) | null = null
+
+  const debug = (message: string, details?: Record<string, unknown>): void => {
+    try {
+      appendFileSync(debugFile, JSON.stringify({ time: new Date().toISOString(), message, ...details }) + '\n')
+    } catch { /* diagnostics must never break browsing */ }
+  }
 
   const savedTabs = Array.isArray(stored.tabs) && stored.tabs.length > 0
     ? stored.tabs.slice(0, MAX_TABS).map((tab, index) => ({ id: tab.id || `tab-${index + 1}`, url: safeUrl(tab.url), title: tab.title ?? '' }))
@@ -399,15 +409,24 @@ export async function createEmbeddedBrowser(userDataDir: string, getMainWindow: 
     const contents = tab.view.webContents
     contents.on('will-navigate', (event, url) => { if (!allowedUrl(url)) event.preventDefault() })
     contents.on('did-start-loading', () => { tab.loading = true; updateChrome() })
-    const updateLocation = (_event: Electron.Event, url: string): void => { tab.url = safeUrl(url); tab.loading = false; persist(); updateChrome() }
+    const updateLocation = (_event: Electron.Event, url: string): void => { tab.url = safeUrl(url); tab.loading = false; tab.error = undefined; persist(); updateChrome(); debug('navigation', { tabId: tab.id, url }) }
     contents.on('did-navigate', updateLocation)
     contents.on('did-navigate-in-page', updateLocation)
-    contents.on('did-finish-load', () => { tab.loading = false; tab.title = contents.getTitle() || tab.title; persist(); updateChrome() })
+    contents.on('did-finish-load', () => { tab.loading = false; tab.error = undefined; tab.title = contents.getTitle() || tab.title; persist(); updateChrome(); debug('load-finished', { tabId: tab.id, url: contents.getURL() }) })
     contents.on('page-title-updated', (_event, title) => { tab.title = title; persist(); updateChrome() })
     contents.on('did-stop-loading', () => { tab.loading = false; updateChrome() })
-    contents.on('did-fail-load', (_event, errorCode, _errorDescription, validatedURL, isMainFrame) => {
-      if (isMainFrame && errorCode !== -3) { tab.loading = false; tab.url = safeUrl(validatedURL); updateChrome() }
+    contents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      if (isMainFrame && errorCode !== -3) {
+        tab.loading = false; tab.url = safeUrl(validatedURL); tab.error = `${errorDescription} (${errorCode})`; updateChrome()
+        debug('load-failed', { tabId: tab.id, errorCode, errorDescription, validatedURL })
+      }
     })
+    contents.on('render-process-gone', (_event, details) => {
+      tab.loading = false; tab.error = `renderer exited: ${details.reason}`; updateChrome()
+      debug('renderer-gone', { tabId: tab.id, reason: details.reason, exitCode: details.exitCode })
+    })
+    contents.on('unresponsive', () => debug('renderer-unresponsive', { tabId: tab.id, url: contents.getURL() }))
+    contents.on('responsive', () => debug('renderer-responsive', { tabId: tab.id, url: contents.getURL() }))
     contents.setWindowOpenHandler(({ url }) => {
       if (allowedUrl(url)) void navigate(tab.id, url)
       return { action: 'deny' }
@@ -430,7 +449,10 @@ export async function createEmbeddedBrowser(userDataDir: string, getMainWindow: 
     for (const saved of savedTabs) addTab(saved.id, saved.url, saved.title)
     const active = tabs.get(activeTabId ?? '') ?? tabs.values().next().value as BrowserTab | undefined
     activeTabId = active?.id ?? null
-    for (const tab of tabs.values()) void tab.view.webContents.loadURL(tab.url).catch(() => undefined)
+    for (const tab of tabs.values()) void tab.view.webContents.loadURL(tab.url).catch((error: unknown) => {
+      tab.loading = false; tab.error = error instanceof Error ? error.message : String(error); updateChrome()
+      debug('load-rejected', { tabId: tab.id, url: tab.url, error: tab.error })
+    })
     persist()
   }
 

@@ -88,7 +88,10 @@ while ([DateTime]::UtcNow -lt $deadline) {
   foreach ($id in $ids) {
     if ($id -eq $root) { continue }
     $process = Get-Process -Id $id -ErrorAction SilentlyContinue
-    if ($null -eq $process -or $process.MainWindowHandle -eq 0) { continue }
+    # Electron child processes often expose a null MainWindowHandle while
+    # booting. Do not let PowerShell coerce null into IntPtr and fail the
+    # release smoke; only probe a concrete handle.
+    if ($null -eq $process -or $null -eq $process.MainWindowHandle -or [IntPtr]::Zero.Equals($process.MainWindowHandle)) { continue }
     if ([FreeCodeWindowProbe]::IsWindowVisible($process.MainWindowHandle)) {
       Write-Output ("VISIBLE|{0}|{1}|{2}" -f $process.Id,$process.ProcessName,$process.MainWindowTitle)
       exit 42

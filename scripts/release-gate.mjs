@@ -55,6 +55,9 @@ run('Windows ACL regression tests', [
 ]);
 run('desktop build and runtime packaging', ['build:desktop']);
 run('all vendored bundle freshness', ['exec', 'node', 'scripts/verify-vendor-bundles-fresh.mjs']);
+run('compiled conversation motion bundle', ['exec', 'node', 'scripts/verify-conversation-bundle.mjs', 'vendor/deepseek-harness']);
+run('runtime closure unit tests', ['exec', 'node', '--test', 'scripts/runtime-closure.test.mjs']);
+run('core runtime closure (no optional Claude/Codex payloads)', ['exec', 'node', 'scripts/verify-runtime-closure.mjs', 'apps/shell/resources/freecode/dsh']);
 run('fresh NSIS install and installed-runtime smoke', ['--filter', '@freecode/shell', 'smoke:nsis']);
 run('0.2.4 to candidate upgrade and installed-runtime smoke', ['--filter', '@freecode/shell', 'smoke:nsis:upgrade']);
 

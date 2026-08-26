@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.3.0 — 2026-08-25
+
+### Fixed / Corregido
+
+- Embedded Chromium failures are now visible in the browser tab and recorded in the per-user `logs/browser.log`; renderer exits, unresponsive states, rejected loads, and failed main-frame navigations no longer disappear silently. / Los fallos de Chromium embebido ahora son visibles en la pestaña del navegador y se registran en el `logs/browser.log` del usuario; las salidas del renderer, estados sin respuesta, cargas rechazadas y navegaciones principales fallidas ya no desaparecen silenciosamente.
+- Conversation backgrounds keep a static gradient fallback when animation/compositing is unavailable, while preserving reduced-motion behavior. / Los fondos de conversación conservan un degradado estático cuando la animación/composición no está disponible y mantienen el comportamiento de movimiento reducido.
+
+### Improvements / Mejoras
+
+- The packaged Harness runtime now ships a core allowlist and keeps optional Claude/Codex providers external-only, reducing the Windows package payload while retaining required native modules (`sharp`, `koffi`, and `ripgrep`). / El runtime empaquetado del Harness ahora usa una allowlist del core y deja los providers opcionales Claude/Codex sólo como externos, reduciendo el payload de Windows y conservando los módulos nativos requeridos (`sharp`, `koffi` y `ripgrep`).
+- Added an opt-in `caveman` spike without enabling it by default or introducing downloads/network behavior. / Se agregó un spike `caveman` opt-in sin activarlo por defecto ni introducir descargas o comportamiento de red.
+
+### Build and operations / Build y operaciones
+
+- Release gates now verify runtime closure, compiled conversation bundles, populated NSIS layouts, installed-runtime headless behavior, and the 0.2.4 → candidate upgrade path. / Los gates de release ahora verifican el cierre del runtime, los bundles compilados de conversación, los layouts NSIS poblados, el comportamiento headless del runtime instalado y el camino de actualización 0.2.4 → candidate.
+- Installer extraction receives a longer cold-machine budget so slow but healthy extraction is not reported as a false failure. / La extracción del instalador recibe un presupuesto mayor en máquinas frías para no reportar como fallo falso una extracción lenta pero sana.
+
+### Verification / Verificación
+
+- Shell tests: 77 passed; contract tests: 22 passed and 12 skipped; conversation motion tests: 2 passed; runtime-closure tests: 3 passed; NSIS install/layout smoke and installed-runtime smoke: passed. / Tests del shell: 77 pasaron; contratos: 22 pasaron y 12 fueron omitidos; motion de conversación: 2 pasaron; runtime-closure: 3 pasaron; smoke NSIS de instalación/layout y smoke del runtime instalado: pasaron.
+
+Source: `v0.2.9..HEAD`
+Reviewed commands: `pnpm --filter @freecode/shell test`, `pnpm --filter @freecode/shell typecheck`, `pnpm test:contract`, `node --test scripts/runtime-closure.test.mjs`, `pnpm release:gate`
+Omitted internal-only details: generated build output and test-only implementation details.
+
 ## 0.2.8 — 2026-08-24
 
 ### Fixed / Corregido

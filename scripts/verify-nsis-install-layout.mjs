@@ -74,10 +74,10 @@ try {
   // /S = silent, /D=<path> = install dir (must be last arg, no quotes).
   const install = spawnSync(setup, ['/S', `/D=${installDir}`], {
     windowsHide: true,
-    // The 1.7 GB unpacked runtime can take several minutes on a cold Windows
-    // profile or slower temp volume. A short timeout misclassifies a healthy
-    // extraction as an installer failure and skips the layout assertion.
-    timeout: 900_000,
+    // The 1+ GB unpacked runtime can take many minutes on a cold Windows
+    // profile or slower temp volume. Keep this generous: a timeout here must
+    // not misclassify a healthy extraction as an installer failure.
+    timeout: 1_800_000,
   });
   if (install.error) {
     console.error(`verify-nsis-install-layout: installer error ${install.error.message}`);

@@ -37,6 +37,12 @@
   inset: 0;
   overflow: hidden;
   pointer-events: none;
+  /* Non-composited fallback: the atmosphere must remain visible when the
+     renderer has reduced motion, no GPU compositor, or an older CSS engine.
+     The animated pseudo-layers below add movement in the active phase. */
+  background:
+    radial-gradient(ellipse at 18% 8%, rgba(74, 144, 226, 0.07), transparent 62%),
+    radial-gradient(ellipse at 82% 92%, rgba(34, 104, 190, 0.055), transparent 64%);
 }
 
 .motionBackground::before,
@@ -73,8 +79,8 @@
   animation: dsh-conversation-motion-b 18s ease-in-out infinite alternate;
 }
 
-.root[data-phase='active'] .motionBackground::before,
-.root[data-phase='active'] .motionBackground::after {
+.root:not([data-phase='settling']) .motionBackground::before,
+.root:not([data-phase='settling']) .motionBackground::after {
   opacity: 1;
 }
 

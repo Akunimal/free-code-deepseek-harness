@@ -42,6 +42,7 @@ pnpm --dir "$VENDOR" run build:web
 
 echo "package-runtime: recording vendored source/build provenance"
 node "$ROOT/scripts/verify-vendor-bundles-fresh.mjs" --write
+node "$ROOT/scripts/verify-conversation-bundle.mjs" "$VENDOR"
 
 mkdir -p "$STAGE"
 echo "package-runtime: copying source and built artifacts"
@@ -86,6 +87,10 @@ fi
 
 echo "package-runtime: materializing workspace packages for cross-platform Node resolution"
 node "$ROOT/scripts/materialize-runtime.mjs" "$STAGE"
+
+echo "package-runtime: removing optional Claude/Codex providers from core closure"
+node "$ROOT/scripts/prune-runtime-optional-providers.mjs" "$STAGE"
+node "$ROOT/scripts/verify-runtime-closure.mjs" "$STAGE"
 
 # Verify that platform-specific native packages survived the install + materialize.
 # Without these the harness CLI dies at boot ("Could not load sharp / koffi").
@@ -134,7 +139,8 @@ fi
 if [[ -z "$UPSTREAM_COMMIT" ]]; then
   UPSTREAM_COMMIT="$(git log --all --format='%b' --grep='git-subtree-dir: vendor/deepseek-harness' | sed -n 's/^git-subtree-split: //p' | head -n 1)"
 fi
-node -e "const fs=require('node:fs'); const p=process.argv[1]; const j={version:require(process.argv[2]).version, source:'deepseek-ai/deepseek-harness', upstreamCommit:process.argv[3]||null, cli:'dsh/apps/cli/lib/bin.js', install:'complete-workspace'}; fs.writeFileSync(p, JSON.stringify(j,null,2)+'\n')" "$OUT/runtime-manifest.json" "$VENDOR/package.json" "$UPSTREAM_COMMIT"
+node -e "const fs=require('node:fs'); const p=process.argv[1]; const j={version:require(process.argv[2]).version, source:'deepseek-ai/deepseek-harness', upstreamCommit:process.argv[3]||null, cli:'dsh/apps/cli/lib/bin.js', install:'core-allowlist', optionalProviders:'external-only'}; fs.writeFileSync(p, JSON.stringify(j,null,2)+'\n')" "$OUT/runtime-manifest.json" "$VENDOR/package.json" "$UPSTREAM_COMMIT"
+node "$ROOT/scripts/verify-runtime-closure.mjs" "$OUT/dsh"
 
 echo "package-runtime: ready at $OUT"
 du -sh "$OUT"

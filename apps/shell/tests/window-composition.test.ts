@@ -174,6 +174,16 @@ describe('composition contract on production source', () => {
     expect(idx).toMatch(/getRendererTargets/);
     expect(ipc).toMatch(/getRendererTargets/);
   });
+
+  it('embedded browser surfaces navigation failures instead of swallowing them', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('../src/main/embedded-browser.ts', import.meta.url), 'utf8');
+    expect(src).toMatch(/did-fail-load/);
+    expect(src).toMatch(/load-rejected/);
+    expect(src).toMatch(/render-process-gone/);
+    expect(src).toMatch(/browser\.log/);
+    expect(src).not.toMatch(/loadURL\(tab\.url\)\.catch\(\(\) => undefined\)/);
+  });
 });
 
 // keep vi imported for parity with adjacent tests that mock things
