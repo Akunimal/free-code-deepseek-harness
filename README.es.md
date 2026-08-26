@@ -52,6 +52,12 @@ la última selección válida, da más tiempo a las probes lentas de `x-preview-
 reintenta fallos de red transitorios. Más workers mejoran la concurrencia, pero
 no crean más cuota.
 
+El endpoint del proveedor upstream también puede quedar temporalmente fuera de
+servicio y devolver `503`, incluso cuando la API key es válida. Un desajuste
+posterior entre proveedor y modelo puede mostrarse como `API key is invalid`;
+cambiar a un proveedor con un modelo compatible y saludable puede recuperar la
+solicitud, pero cambiar de proveedor por sí solo no lo garantiza.
+
 ## Actualización
 
 FreeCode busca actualizaciones automáticamente. Cuando encuentra una, usá la

@@ -35,6 +35,16 @@ Caveman is a roadmap candidate, not a current FreeCode feature. Do not assume th
 
 Caveman es un candidato del roadmap, no una función actual de FreeCode. Instalar su CLI no cambia el comportamiento de FreeCode. Una futura integración debe superar primero los gates de recuperación, fidelidad, empaquetado Windows, almacenamiento, protocolo y licencia de [`ROADMAP.md`](ROADMAP.md).
 
+### KI-005 — Provider/model desynchronization can look like an invalid API key / El desajuste proveedor-modelo puede parecer una API key inválida
+
+On 2026-08-26, a long session first received a `503 Endpoint is unavailable` from the upstream and, on subsequent retries, `401 Model x-preview-f(-free) is not supported`. The UI rendered the latter as `API key is invalid` because it maps the generic `AUTH` code to that message. Context pruning/compaction was present, but there was no evidence of a hard token or context ceiling.
+
+Changing provider may recover the request only when the selected model is supported and healthy on that provider; changing the provider alone is not sufficient. The next version should refresh the catalog and automatically select a healthy compatible model, then try the next configured provider/model when available, while preserving the actual upstream diagnostic in the UI.
+
+El 2026-08-26, una sesión extensa recibió primero `503 Endpoint is unavailable` del upstream y, en los reintentos posteriores, `401 Model x-preview-f(-free) is not supported`. La interfaz mostró `API key is invalid` porque traduce el código genérico `AUTH` a ese mensaje. Hubo pruning/compaction por el tamaño de la conversación, pero no evidencia de haber alcanzado un techo duro de tokens o contexto.
+
+Cambiar de proveedor puede recuperar la solicitud sólo si el modelo seleccionado es compatible y está saludable en ese proveedor; cambiar el proveedor por sí solo no alcanza. La próxima versión debería refrescar el catálogo y seleccionar automáticamente un modelo compatible saludable, y luego probar el siguiente proveedor/modelo configurado si existe, conservando en la interfaz el diagnóstico real del upstream.
+
 ## Issues resueltos / Resolved historical issues
 
 These entries are kept here so an old report is easy to classify:

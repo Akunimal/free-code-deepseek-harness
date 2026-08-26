@@ -1,5 +1,19 @@
 # Estado de traspaso — FreeCode DeepSeek Harness
 
+# Incidente reciente de proveedor/modelo — 2026-08-26
+
+La última sesión no falló por alcanzar el techo de tokens. Hubo pruning/compaction porque la conversación era extensa, pero no apareció un evento de `max_tokens` ni de límite de contexto alcanzado.
+
+La secuencia registrada fue:
+
+- Primero, `503 SERVER`: `Endpoint is unavailable`, con los reintentos agotados.
+- Luego, `401 AUTH`: el upstream respondió `Model x-preview-f(-free) is not supported`.
+- La interfaz mostró `API key is invalid` porque actualmente traduce cualquier error con código `AUTH` a ese texto; ese mensaje fue engañoso en este caso.
+
+Cambiar de proveedor podría resolver el incidente si el proveedor alternativo tiene disponible y configurado un modelo compatible. Cambiar sólo el proveedor manteniendo el alias no garantiza la recuperación: el modelo debe validarse contra el catálogo real del proveedor. El `503` además puede persistir si el problema es una caída o indisponibilidad externa del endpoint.
+
+Recomendación para la próxima versión: ante un modelo rechazado o un catálogo desincronizado, refrescar el catálogo y seleccionar automáticamente el primer modelo saludable del proveedor; si no hay ninguno, probar el siguiente proveedor/modelo configurado. La UI debe conservar el diagnóstico real (`endpoint unavailable` o `model unsupported`) y no resumirlo como `API key is invalid`.
+
 ## Hotfix final de Electron/Windows — 2026-08-22
 
 La captura `write EOF` provenía del proceso principal de Electron: en una GUI empaquetada, `stdout/stderr` puede cerrarse mientras el supervisor volcaba la salida del hijo DSH. El supervisor ahora trata esos diagnósticos como best-effort y el proceso principal absorbe cualquier error de sus pipes de consola; los logs estructurados siguen siendo la fuente diagnóstica. El runtime web hijo recibe `--no-open`, por lo que la app no debe abrir Mozilla/Firefox además de su ventana Electron.

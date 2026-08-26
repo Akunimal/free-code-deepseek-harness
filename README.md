@@ -51,6 +51,12 @@ FreeCode keeps the last known-good model selection, gives slow `x-preview-f`
 probes extra time, and retries transient network failures. More workers improve
 concurrency; they do not create more quota.
 
+The upstream provider endpoint can also become temporarily unavailable and
+return `503`, even when the API key is valid. A subsequent model/provider
+mismatch may be displayed as `API key is invalid`; switching to a provider with
+a supported, healthy model can recover the request, but changing provider alone
+is not a guarantee.
+
 ## Updating
 
 FreeCode checks automatically. When an update is found, click the download arrow
@@ -130,6 +136,12 @@ IP/sesión. Una respuesta puede tardar o fallar temporalmente. FreeCode conserva
 la última selección válida, da más tiempo a las probes lentas de `x-preview-f` y
 reintenta fallos de red transitorios. Más workers mejoran la concurrencia, pero
 no crean más cuota.
+
+El endpoint del proveedor upstream también puede quedar temporalmente fuera de
+servicio y devolver `503`, incluso cuando la API key es válida. Un desajuste
+posterior entre proveedor y modelo puede mostrarse como `API key is invalid`;
+cambiar a un proveedor con un modelo compatible y saludable puede recuperar la
+solicitud, pero cambiar de proveedor por sí solo no lo garantiza.
 
 ### Actualización
 
