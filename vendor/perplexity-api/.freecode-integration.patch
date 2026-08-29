@@ -1,5 +1,0 @@
-Upstream commit: d952db1674c79f2b3b918e3888c1c4d8cecace5b
-
-FreeCode integration change:
-- bind to 127.0.0.1 by default through HOST, while retaining HOST as an
-  explicit opt-in for deployments that need LAN exposure.

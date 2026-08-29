@@ -29,16 +29,6 @@ export function resolveGeminiWeb2ApiDir(resourcesDir: string): string {
     ?? candidates[0]!;
 }
 
-/** Resolve the optional vendored Perplexity bridge source in both layouts. */
-export function resolvePerplexityApiDir(resourcesDir: string): string {
-  const candidates = [
-    resolve(resourcesDir, 'perplexity-api'),
-    resolve(resourcesDir, '..', '..', '..', 'vendor', 'perplexity-api'),
-  ];
-  return candidates.find((candidate) => existsSync(resolve(candidate, 'Cargo.toml')))
-    ?? candidates[0]!;
-}
-
 /** Find the platform worker binary in both the legacy dev layout and the
  * packaged layout. Keeping this compatibility layer makes old checkouts and
  * fresh package-runtime stages runnable during the transition. */

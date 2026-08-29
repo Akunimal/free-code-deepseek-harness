@@ -60,6 +60,10 @@ describe('gemini-web2api integration', () => {
     expect(result.available).toBe(true);
     expect(result.baseUrl).toBe(`http://127.0.0.1:${port}`);
     expect(readFileSync(join(dataDir, 'gemini-web2api', 'config.json'), 'utf8')).toContain('127.0.0.1');
+    const models = await fetch(`${result.baseUrl}/v1/models`);
+    expect(models.status).toBe(200);
+    const modelList = (await models.json()) as { data?: unknown[] };
+    expect(modelList.data?.length).toBeGreaterThan(0);
     await supervisor.stop();
   }, 20_000);
 });

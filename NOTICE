@@ -18,13 +18,7 @@ All upstream code lives under vendor/ (git subtrees, read-only unless synced).
    Pinned Python OpenAI-compatible Gemini Web bridge, consumed from
    vendor/gemini-web2api and copied into optional packaged resources.
 
-4. AndresDevvv/Perplexity-AI-API — MIT
-   https://github.com/AndresDevvv/Perplexity-AI-API
-   Pinned Rust OpenAI-compatible Perplexity bridge, consumed from
-   vendor/perplexity-api and copied into optional packaged resources. FreeCode
-   applies a small loopback-default integration patch documented in the vendor.
-
-5. salathleizhang/deepseek-harness-desktop — MIT
+4. salathleizhang/deepseek-harness-desktop — MIT
    https://github.com/salathleizhang/deepseek-harness-desktop
    Reference implementation only. Its desktop-shell architecture (supervisor /
    readiness / spawn patterns in apps/desktop/src/main/) was studied as a design

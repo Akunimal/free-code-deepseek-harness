@@ -1,8 +1,0 @@
-target/
-.env
-.DS_Store
-Thumbs.db
-.vscode/
-.idea/
-*.swp
-*.swo

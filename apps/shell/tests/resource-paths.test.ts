@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { mkdirSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { nodeRuntimeEnv, resolveNodePath, resolveOpencodeBinary, resolveResourcesDir } from '../src/main/resource-paths.js';
+import {
+  nodeRuntimeEnv,
+  resolveNodePath,
+  resolveOpencodeBinary,
+  resolveResourcesDir,
+} from '../src/main/resource-paths.js';
 
 describe('resource-paths', () => {
   it('uses the packaged freecode directory when present', () => {
@@ -44,4 +49,5 @@ describe('resource-paths', () => {
       rmSync(base, { recursive: true, force: true });
     }
   });
+
 });

@@ -15,8 +15,6 @@ flowchart LR
   SHELL --> DATA[userData logs / dsh-home]
   SHELL --> GEMINI[gemini-web2api optional Python service]
   GEMINI --> GOOGLE[Gemini Web]
-  SHELL --> PERPLEXITY[Perplexity-AI-API optional Rust service]
-  PERPLEXITY --> PPLX[Perplexity anonymous/basic access]
 ```
 
 ## Runtime sequence
@@ -27,8 +25,7 @@ flowchart LR
 4. The supervisor waits for the upstream readiness URL and opens a hardened `BrowserWindow` with context isolation, no Node integration, sandboxing, and the preload bridge.
 5. Provider seeding writes the OpenCode Free pool to a schema-compatible internal `deepseek-free` route. The internal key is retained for upstream compatibility; the visible provider is `OpenCode Free Pool`. Model refresh probes every visible model and keeps the catalog plus `settings.yaml` synchronized without deleting user providers.
 6. Provider seeding also writes the optional `gemini-web` route at `http://127.0.0.1:8081/v1`. If Python 3 and the vendored source are available, the shell starts `python -m gemini_web2api`; otherwise the route remains configured for an externally managed instance. Its static model listing is refreshed without issuing one generation request per model.
-7. Provider seeding writes `perplexity-free` after Gemini at `http://127.0.0.1:3030/v1`. The route is intentionally visible without an account or API key; its models refresh from `/v1/models`, while the upstream Rust bridge remains externally managed because its current curl helper targets Linux x86_64.
-8. The browser talks to the harness web server. The shell does not reimplement upstream conversation rendering; it packages the upstream UI and applies the lightweight per-conversation CSS motion layer in `ui-conversation`.
+7. The browser talks to the harness web server. The shell does not reimplement upstream conversation rendering; it packages the upstream UI and applies the lightweight per-conversation CSS motion layer in `ui-conversation`.
 
 ## Process ownership
 
@@ -42,7 +39,6 @@ flowchart LR
 - `packages/workspace-bridge`: import/continuation routing into an existing OpenCode workspace.
 - `vendor/deepseek-harness`: upstream runtime and web client, vendored as a subtree.
 - `vendor/gemini-web2api`: pinned MIT-licensed Gemini Web2API source copied into packaged resources for the optional local provider.
-- `vendor/perplexity-api`: pinned MIT-licensed Perplexity bridge source and curl helper copied into packaged resources for the optional local provider.
 
 ## Model-facing output compression
 
@@ -69,7 +65,6 @@ Development uses `apps/shell/resources/opencode2api/*` and the source tree under
 resources/freecode/
   opencode2api/<platform-binary>
   gemini-web2api/gemini_web2api/*.py  # optional provider source
-  perplexity-api/{Cargo.toml,src/,curl/}  # optional Linux provider source
   dsh/apps/cli/lib/bin.js
   dsh/packages/**/node_modules/@deepseek-ai/*  # workspace links
   runtime-manifest.json
@@ -79,13 +74,6 @@ The provider's mutable configuration lives outside the package at
 `<userData>/gemini-web2api/config.json`. FreeCode creates a loopback-only
 default (`127.0.0.1`, port 8081) and preserves user edits. `FREECODE_GEMINI_WEB2API_PORT`
 and `FREECODE_GEMINI_WEB2API_PYTHON` can override the port or interpreter.
-
-The Perplexity route uses `<userData>/dsh-home/settings.yaml` for its profile and
-defaults to `http://127.0.0.1:3030/v1`; `FREECODE_PERPLEXITY_API_PORT` changes
-the endpoint. The packaged desktop does not build the Rust bridge at startup;
-Linux users can run it from `resources/freecode/perplexity-api`. Its integration
-patch changes the upstream default bind address to loopback, while `HOST` can
-explicitly opt into another bind address.
 
 The complete workspace install is deliberate. A production-only pnpm install leaves upstream workspace links unresolved and causes boot failures.
 
@@ -97,9 +85,6 @@ The complete workspace install is deliberate. A production-only pnpm install lea
 - The optional Gemini Web2API process receives a user-data config and is only
   started when a Python 3 interpreter is discoverable; it is not a required
   dependency of the default OpenCode Free path.
-- The optional Perplexity bridge is exposed as a no-key local route and its
-  source is packaged, but the current upstream Linux-only server is not
-  auto-built or auto-started by the Windows shell.
 - The updater performs one automatic check at startup and every six hours; an in-flight guard prevents overlapping checks, and the native download arrow beside Settings is the confirmation surface.
 - The web harness remains responsible for upstream permission, sandbox, filesystem, and tool policies.
 

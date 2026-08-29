@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.3.2 — 2026-08-29
+
+### Changed / Cambiado
+
+- The desktop selector now keeps only the OpenCode Free pool and the optional
+  `Gemini Web (local)` provider. The short-lived local Perplexity provider and
+  its native bridge were removed after anonymous requests proved unreliable.
+  / El selector de escritorio conserva sólo el pool OpenCode Free y el provider
+  opcional `Gemini Web (local)`. Se retiraron el provider local de Perplexity y
+  su bridge nativo porque las solicitudes anónimas resultaron poco confiables.
+- Existing settings migrate away the app-managed `perplexity-free` entry while
+  preserving separately named user providers. / La configuración existente
+  elimina la entrada `perplexity-free` administrada por la aplicación y conserva
+  los providers del usuario con otro nombre.
+
+### Build and operations / Build y operaciones
+
+- The runtime package contains only the Gemini Web2API optional bridge; release
+  packaging remains manual and no GitHub Actions workflow was added. / El
+  runtime empaquetado contiene sólo el bridge opcional Gemini Web2API; el
+  packaging de releases sigue siendo manual y no se agregó ningún workflow de
+  GitHub Actions.
+
 ## 0.3.1 — 2026-08-28
 
 ### Added / Agregado

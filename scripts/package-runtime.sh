@@ -13,7 +13,6 @@ export CI="${CI:-true}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 VENDOR="$ROOT/vendor/deepseek-harness"
 GEMINI_WEB2API="$ROOT/vendor/gemini-web2api"
-PERPLEXITY_API="$ROOT/vendor/perplexity-api"
 OUT="$ROOT/apps/shell/resources/freecode"
 TMP_BASE="${TMPDIR:-/tmp}"
 STAGE_ROOT="$(mktemp -d "$TMP_BASE/freecode-dsh-stage.XXXXXX")"
@@ -37,11 +36,6 @@ fi
 
 if [[ ! -f "$GEMINI_WEB2API/gemini_web2api/__main__.py" ]]; then
   echo "package-runtime: vendored gemini-web2api source not found: $GEMINI_WEB2API" >&2
-  exit 2
-fi
-
-if [[ ! -f "$PERPLEXITY_API/Cargo.toml" || ! -f "$PERPLEXITY_API/curl/curl_chrome116" ]]; then
-  echo "package-runtime: vendored perplexity-api source not found: $PERPLEXITY_API" >&2
   exit 2
 fi
 
@@ -151,10 +145,11 @@ mkdir -p "$OUT"
 remove_tree "$OUT/dsh" "$OUT/opencode2api"
 cp -a "$STAGE" "$OUT/dsh"
 cp -a "$ROOT/apps/shell/resources/opencode2api" "$OUT/opencode2api"
+# Remove any payload left by a pre-0.3.2 build; the desktop no longer ships
+# the retired Perplexity bridge.
+remove_tree "$OUT/perplexity-api"
 remove_tree "$OUT/gemini-web2api"
 cp -a "$GEMINI_WEB2API" "$OUT/gemini-web2api"
-remove_tree "$OUT/perplexity-api"
-cp -a "$PERPLEXITY_API" "$OUT/perplexity-api"
 
 UPSTREAM_COMMIT=""
 if [[ -f "$VENDOR/.upstream-commit" ]]; then

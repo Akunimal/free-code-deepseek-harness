@@ -24,11 +24,6 @@ import {
   GeminiWeb2ApiSupervisor,
 } from './gemini-web2api-supervisor.js';
 import {
-  DEFAULT_PERPLEXITY_API_PORT,
-  PERPLEXITY_FREE_FALLBACK_MODELS,
-  PERPLEXITY_FREE_PROVIDER,
-} from './local-provider-config.js';
-import {
   TorFleet,
   loadTorFleetState,
   saveTorFleetState,
@@ -805,13 +800,6 @@ function resolveGeminiPort(): number {
     : DEFAULT_GEMINI_WEB2API_PORT;
 }
 
-function resolvePerplexityPort(): number {
-  const parsed = Number(process.env.FREECODE_PERPLEXITY_API_PORT ?? DEFAULT_PERPLEXITY_API_PORT);
-  return Number.isInteger(parsed) && parsed > 0 && parsed <= 65_535
-    ? parsed
-    : DEFAULT_PERPLEXITY_API_PORT;
-}
-
 app.whenReady().then(async () => {
   configurePortableDataDir();
   initLocale(app.getLocale());
@@ -902,12 +890,10 @@ app.whenReady().then(async () => {
   reportPoolState();
   // FASE 5: seed once the LB is up.
   const geminiBaseUrl = geminiWeb2Api?.baseUrl ?? `http://127.0.0.1:${resolveGeminiPort()}`;
-  const perplexityBaseUrl = `http://127.0.0.1:${resolvePerplexityPort()}`;
   seedProviders({
     homeDir: join(userDataDir, 'dsh-home'),
     lbBaseUrl: `${lbUrl}/v1`,
     geminiBaseUrl,
-    perplexityBaseUrl,
   });
 
   // FASE 6: model refresh at boot + every 30 min.
@@ -939,11 +925,6 @@ app.whenReady().then(async () => {
           baseUrl: geminiBaseUrl,
           probeModels: false,
           fallbackModels: GEMINI_WEB_FALLBACK_MODELS,
-        }, {
-          provider: PERPLEXITY_FREE_PROVIDER,
-          baseUrl: perplexityBaseUrl,
-          probeModels: false,
-          fallbackModels: PERPLEXITY_FREE_FALLBACK_MODELS,
         }],
         onUpdate: (c) => {
           catalog = c;
@@ -1047,7 +1028,6 @@ app.whenReady().then(async () => {
     homeDir: join(userDataDir, 'dsh-home'),
     lbBaseUrl: lbUrl,
     geminiBaseUrl,
-    perplexityBaseUrl,
     catalogStore: { get: () => catalog },
     torfleet: {
       get instance() { return torfleet; },
