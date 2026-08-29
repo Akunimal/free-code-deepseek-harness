@@ -160,6 +160,171 @@ describe('model-refresher', () => {
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
+  it('refreshes an optional static provider without probing every model', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL, init?: RequestInit) => {
+        const u = String(url);
+        calls.push(`${init?.method ?? 'GET'} ${u}`);
+        if (u === `${LB}/v1/models`) {
+          return new Response(JSON.stringify({ data: [{ id: 'deepseek-v3.2-free' }] }), { status: 200 });
+        }
+        if (u === `${LB}/v1/chat/completions`) {
+          return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+        }
+        if (u === 'http://127.0.0.1:8081/v1/models') {
+          return new Response(JSON.stringify({ data: [
+            { id: 'gemini-3.7-flash' },
+            { id: 'gemini-3.1-pro' },
+          ] }), { status: 200 });
+        }
+        return new Response('not found', { status: 404 });
+      }),
+    );
+    const { home, data } = tmpDirs();
+    const catalog = await refreshModels({
+      lbBaseUrl: LB,
+      homeDir: home,
+      userDataDir: data,
+      providers: [{
+        provider: 'gemini-web',
+        baseUrl: 'http://127.0.0.1:8081',
+        probeModels: false,
+        fallbackModels: ['gemini-3.7-flash'],
+      }],
+    });
+
+    expect(catalog.providers['gemini-web']?.models).toEqual([
+      { id: 'gemini-3.7-flash', responds: true, latencyMs: null, lastSeen: expect.any(Number) },
+      { id: 'gemini-3.1-pro', responds: true, latencyMs: null, lastSeen: expect.any(Number) },
+    ]);
+    expect(calls).not.toContain('POST http://127.0.0.1:8081/v1/chat/completions');
+    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+    expect(settings['llm-pi-ai'].providers['gemini-web'].models).toEqual([
+      { id: 'gemini-3.7-flash', reasoningEfforts: false },
+      { id: 'gemini-3.1-pro', reasoningEfforts: false },
+    ]);
+    rmSync(dirname(home), { recursive: true, force: true });
+  });
+
+  it('refreshes Gemini before Perplexity and keeps both provider groups visible', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL, init?: RequestInit) => {
+        const u = String(url);
+        calls.push(`${init?.method ?? 'GET'} ${u}`);
+        if (u === `${LB}/v1/models`) {
+          return new Response(JSON.stringify({ data: [{ id: 'deepseek-v3.2-free' }] }), { status: 200 });
+        }
+        if (u === `${LB}/v1/chat/completions`) {
+          return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+        }
+        if (u === 'http://127.0.0.1:8081/v1/models') {
+          return new Response(JSON.stringify({ data: [{ id: 'gemini-3.7-flash' }] }), { status: 200 });
+        }
+        if (u === 'http://127.0.0.1:3030/v1/models') {
+          return new Response(JSON.stringify({ data: [
+            { id: 'experimental' },
+            { id: 'gpt52' },
+          ] }), { status: 200 });
+        }
+        return new Response('not found', { status: 404 });
+      }),
+    );
+    const { home, data } = tmpDirs();
+    const catalog = await refreshModels({
+      lbBaseUrl: LB,
+      homeDir: home,
+      userDataDir: data,
+      providers: [
+        {
+          provider: 'gemini-web',
+          baseUrl: 'http://127.0.0.1:8081',
+          probeModels: false,
+          fallbackModels: ['gemini-3.7-flash'],
+        },
+        {
+          provider: 'perplexity-free',
+          baseUrl: 'http://127.0.0.1:3030',
+          probeModels: false,
+          fallbackModels: ['experimental'],
+        },
+      ],
+    });
+
+    expect(Object.keys(catalog.providers)).toEqual([
+      'deepseek-free',
+      'gemini-web',
+      'perplexity-free',
+    ]);
+    expect(catalog.providers['gemini-web']?.models.map((model) => model.id)).toEqual(['gemini-3.7-flash']);
+    expect(catalog.providers['perplexity-free']?.models.map((model) => model.id)).toEqual([
+      'experimental',
+      'gpt52',
+    ]);
+    expect(calls).not.toContain('POST http://127.0.0.1:8081/v1/chat/completions');
+    expect(calls).not.toContain('POST http://127.0.0.1:3030/v1/chat/completions');
+
+    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+    expect(Object.keys(settings['llm-pi-ai'].providers)).toEqual([
+      'deepseek-free',
+      'gemini-web',
+      'perplexity-free',
+    ]);
+    expect(settings['llm-pi-ai'].providers['perplexity-free'].models).toEqual([
+      { id: 'experimental', reasoningEfforts: false },
+      { id: 'gpt52', reasoningEfforts: false },
+    ]);
+    rmSync(dirname(home), { recursive: true, force: true });
+  });
+
+  it('keeps the optional provider seed when its local server is offline', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string | URL, init?: RequestInit) => {
+        const u = String(url);
+        if (u === `${LB}/v1/models`) {
+          return new Response(JSON.stringify({ data: [{ id: 'deepseek-v3.2-free' }] }), { status: 200 });
+        }
+        if (u === `${LB}/v1/chat/completions`) {
+          return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+        }
+        if (u === 'http://127.0.0.1:8081/v1/models') {
+          return new Response('offline', { status: 503 });
+        }
+        void init;
+        return new Response('not found', { status: 404 });
+      }),
+    );
+    const { home, data } = tmpDirs();
+    const { mkdirSync, writeFileSync } = await import('node:fs');
+    mkdirSync(home, { recursive: true });
+    writeFileSync(
+      join(home, 'settings.yaml'),
+      `llm-pi-ai:\n  providers:\n    gemini-web:\n      models:\n        - id: gemini-3.6-flash\n`,
+    );
+    const catalog = await refreshModels({
+      lbBaseUrl: LB,
+      homeDir: home,
+      userDataDir: data,
+      providers: [{
+        provider: 'gemini-web',
+        baseUrl: 'http://127.0.0.1:8081',
+        probeModels: false,
+        fallbackModels: ['gemini-3.7-flash'],
+      }],
+    });
+    expect(catalog.providers['gemini-web']?.models).toEqual([]);
+    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+    expect(settings['llm-pi-ai'].providers['gemini-web'].models).toEqual([
+      { id: 'gemini-3.6-flash' },
+      { id: 'gemini-3.7-flash', reasoningEfforts: false },
+    ]);
+    rmSync(dirname(home), { recursive: true, force: true });
+  });
+
   it('throws when LB models list fails', async () => {
     vi.stubGlobal(
       'fetch',

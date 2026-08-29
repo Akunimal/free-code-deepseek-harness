@@ -30,6 +30,44 @@ describe('provider-seeder', () => {
     expect(p.compat).toEqual({ thinkingFormat: 'deepseek' });
     // reasoning removed from provider level — each model carries its own capability.
     expect(p.reasoning).toBeUndefined();
+    const gemini = settings['llm-pi-ai'].providers['gemini-web'];
+    expect(gemini.displayName).toBe('Gemini Web (local)');
+    expect(gemini.api).toBe('openai-completions');
+    expect(gemini.baseURL).toBe('http://127.0.0.1:8081/v1');
+    expect(gemini.defaultInput).toEqual(['text', 'image']);
+    expect(gemini.models).toEqual([
+      { id: 'gemini-3.7-flash', reasoningEfforts: false },
+      { id: 'gemini-3.6-flash', reasoningEfforts: false },
+      { id: 'gemini-3.5-flash', reasoningEfforts: false },
+      { id: 'gemini-3.5-flash-thinking', reasoningEfforts: false },
+      { id: 'gemini-3.1-pro', reasoningEfforts: false },
+      { id: 'gemini-3.1-pro-enhanced', reasoningEfforts: false },
+      { id: 'gemini-auto', reasoningEfforts: false },
+      { id: 'gemini-3.5-flash-thinking-lite', reasoningEfforts: false },
+      { id: 'gemini-flash-lite', reasoningEfforts: false },
+    ]);
+    const perplexity = settings['llm-pi-ai'].providers['perplexity-free'];
+    expect(perplexity.displayName).toBe('Perplexity Free (local)');
+    expect(perplexity.api).toBe('openai-completions');
+    expect(perplexity.baseURL).toBe('http://127.0.0.1:3030/v1');
+    expect(perplexity.defaultInput).toEqual(['text', 'image']);
+    expect(perplexity.models).toEqual([
+      { id: 'experimental', reasoningEfforts: false },
+      { id: 'gemini30flash', reasoningEfforts: false },
+      { id: 'gemini30pro', reasoningEfforts: false },
+      { id: 'gpt52', reasoningEfforts: false },
+      { id: 'claude45sonnet', reasoningEfforts: false },
+      { id: 'claude45sonnetthinking', reasoningEfforts: false },
+      { id: 'claude46opus', reasoningEfforts: false },
+      { id: 'grok41nonreasoning', reasoningEfforts: false },
+      { id: 'kimik25thinking', reasoningEfforts: false },
+    ]);
+    // Provider insertion order is the selector order after the built-in pool.
+    expect(Object.keys(settings['llm-pi-ai'].providers)).toEqual([
+      'deepseek-free',
+      'gemini-web',
+      'perplexity-free',
+    ]);
     // Marker written for the versioned seed.
     expect(existsSync(join(home, '.freecode-seeded-v1'))).toBe(true);
     rmSync(home, { recursive: true, force: true });
@@ -94,6 +132,33 @@ llm-pi-ai:
     expect(section.providers.omniroute.baseURL).toBe('http://127.0.0.1:9999');
     // Seed added alongside.
     expect(section.providers['deepseek-free'].baseURL).toBe(LB);
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  it('preserves user customizations on the Gemini route', () => {
+    const home = tmpHome();
+    const path = join(home, 'settings.yaml');
+    writeFileSync(path, `
+llm-pi-ai:
+  providers:
+    gemini-web:
+      displayName: My Gemini Gateway
+      api: openai-completions
+      baseURL: http://127.0.0.1:9999/v1
+      apiKeyEnv: GEMINI_WEB2API_API_KEY
+      models:
+        - id: custom-model
+`);
+
+    seedProviders({ homeDir: home, lbBaseUrl: LB });
+    const settings = loadYaml(readFileSync(path, 'utf8')) as any;
+    expect(settings['llm-pi-ai'].providers['gemini-web']).toEqual({
+      displayName: 'My Gemini Gateway',
+      api: 'openai-completions',
+      baseURL: 'http://127.0.0.1:9999/v1',
+      apiKeyEnv: 'GEMINI_WEB2API_API_KEY',
+      models: [{ id: 'custom-model' }],
+    });
     rmSync(home, { recursive: true, force: true });
   });
 

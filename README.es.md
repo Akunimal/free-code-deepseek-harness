@@ -43,6 +43,15 @@ ejecución (`chmod +x`) y ejecutala.
 - Comprobación automática de actualizaciones, con una flecha de descarga junto a Configuración cuando hay una nueva versión.
 - Compactado automático al 75% del contexto del modelo activo, también al cambiar a un modelo con menor contexto.
 - Compresión opcional de salidas con RTK si ya tenés el ejecutable `rtk`; FreeCode nunca lo instala automáticamente.
+- Provider opcional `Gemini Web (local)` basado en el puente MIT
+  [`gemini-web2api`](https://github.com/Sophomoresty/gemini-web2api). Se
+  muestra en el selector debajo de los providers existentes y usa Python 3
+  cuando está disponible; el puente arranca automáticamente y escucha en
+  `127.0.0.1:8081`.
+- Provider opcional `Perplexity Free (local)` basado en el puente MIT
+  [`Perplexity-AI-API`](https://github.com/AndresDevvv/Perplexity-AI-API). Se
+  muestra debajo de Gemini, en `127.0.0.1:3030`, y permite consultas de texto
+  anónimas básicas sin cuenta de Perplexity.
 
 ## Algunos límites prácticos
 
@@ -57,6 +66,20 @@ servicio y devolver `503`, incluso cuando la API key es válida. Un desajuste
 posterior entre proveedor y modelo puede mostrarse como `API key is invalid`;
 cambiar a un proveedor con un modelo compatible y saludable puede recuperar la
 solicitud, pero cambiar de proveedor por sí solo no lo garantiza.
+
+## Providers Gemini Web y Perplexity Free
+
+El selector agrupa los modelos por provider y conserva el orden: providers
+existentes, `Gemini Web (local)` y luego `Perplexity Free (local)`. Ambos grupos
+se actualizan desde sus endpoints `/v1/models` durante el refresh; si un puente
+está offline, la lista estática sigue visible.
+
+El puente upstream de Perplexity apunta actualmente a Linux x86_64 y usa el
+helper incluido `curl-impersonate`; por eso el desktop de Windows lo muestra,
+pero no compila ni arranca automáticamente el servidor Rust. En Linux podés
+iniciarlo desde `resources/freecode/perplexity-api` con `cargo run --release`.
+La cookie de sesión es opcional y sólo hace falta para funciones Pro, más
+límite o carga de imágenes.
 
 ## Actualización
 

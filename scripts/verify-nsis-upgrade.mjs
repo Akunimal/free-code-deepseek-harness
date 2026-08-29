@@ -85,7 +85,11 @@ const runSetup = async (setup, label, isComplete = layoutIsPopulated) => {
   });
   let spawnError;
   child.on('error', (error) => { spawnError = error; });
-  const deadline = Date.now() + 900_000;
+  // The historical 0.2.4 payload is materially larger than the current
+  // candidate and can take over 15 minutes to expand on a cold Windows
+  // profile or slower temp volume. Match the clean-install smoke budget so
+  // the upgrade gate does not misclassify healthy extraction as a timeout.
+  const deadline = Date.now() + 1_800_000;
   while (Date.now() < deadline) {
     if (spawnError) throw new Error(`${label} installer error: ${spawnError.message}`);
     if (child.exitCode !== null) {
@@ -105,7 +109,7 @@ const runSetup = async (setup, label, isComplete = layoutIsPopulated) => {
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 1000));
   }
   stopProcessTree(child.pid);
-  throw new Error(`${label} installer timed out after 900 seconds`);
+  throw new Error(`${label} installer timed out after 1800 seconds`);
 };
 
 const dsh = () => join(installDir, 'resources/freecode/dsh');

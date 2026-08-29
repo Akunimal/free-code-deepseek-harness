@@ -3,6 +3,16 @@ import { dirname, join } from 'node:path';
 import { load as loadYaml, dump as dumpYaml } from 'js-yaml';
 import { isDeepSeekModel, reasoningEffortsForModel } from './reasoning-policy.js';
 import type { ModelReasoningEfforts } from './reasoning-policy.js';
+import {
+  DEFAULT_GEMINI_WEB2API_PORT,
+  GEMINI_WEB_DISPLAY_NAME,
+  GEMINI_WEB_FALLBACK_MODELS,
+  GEMINI_WEB_PROVIDER,
+  DEFAULT_PERPLEXITY_API_PORT,
+  PERPLEXITY_FREE_DISPLAY_NAME,
+  PERPLEXITY_FREE_FALLBACK_MODELS,
+  PERPLEXITY_FREE_PROVIDER,
+} from './local-provider-config.js';
 
 /**
  * Provider seeder — runs ONCE the harness-supervisor reports ready.
@@ -26,6 +36,8 @@ export interface SeederConfig {
   homeDir: string; // DSH_HOME
   lbBaseUrl: string; // http://127.0.0.1:<PUERTO_LB>/v1
   apiKeyEnv?: string; // default FREECODE_PUBLIC_KEY
+  geminiBaseUrl?: string; // http://127.0.0.1:<port>
+  perplexityBaseUrl?: string; // http://127.0.0.1:<port>
 }
 
 interface ProviderEntry {
@@ -55,6 +67,7 @@ const LEGACY_FREE_PROVIDER_DISPLAY_NAMES = new Set([
 ]);
 /** Seed model — the model-refresher replaces this with the live catalog. */
 const FALLBACK_MODELS = [{ id: 'x-preview-f', reasoningEfforts: reasoningEffortsForModel('x-preview-f') }];
+const DEFAULT_GEMINI_BASE_URL = `http://127.0.0.1:${DEFAULT_GEMINI_WEB2API_PORT}`;
 const MARKER_FILE = '.freecode-seeded-v1';
 
 export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: string } {
@@ -111,6 +124,75 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
     seeded = true;
   }
 
+  // Gemini Web2API is an optional local route. It is seeded alongside the
+  // built-in pool, but never selected as the default model. This keeps the
+  // provider visible and schema-valid even while its Python process is still
+  // starting or unavailable on a machine without Python.
+  const geminiProvider = providers[GEMINI_WEB_PROVIDER];
+  const geminiBaseUrl = `${cfg.geminiBaseUrl ?? DEFAULT_GEMINI_BASE_URL}/v1`;
+  if (!geminiProvider) {
+    providers[GEMINI_WEB_PROVIDER] = {
+      displayName: GEMINI_WEB_DISPLAY_NAME,
+      api: 'openai-completions',
+      baseURL: geminiBaseUrl,
+      defaultInput: ['text', 'image'],
+      models: cloneGeminiFallbackModels(),
+    };
+    seeded = true;
+  } else {
+    if (!geminiProvider.displayName) {
+      geminiProvider.displayName = GEMINI_WEB_DISPLAY_NAME;
+      seeded = true;
+    }
+    if (!geminiProvider.api) {
+      geminiProvider.api = 'openai-completions';
+      seeded = true;
+    }
+    if (!geminiProvider.baseURL) {
+      geminiProvider.baseURL = geminiBaseUrl;
+      seeded = true;
+    }
+    if (!Array.isArray(geminiProvider.models) || geminiProvider.models.length === 0) {
+      geminiProvider.models = cloneGeminiFallbackModels();
+      seeded = true;
+    }
+  }
+
+  // Perplexity-AI-API is another optional local OpenAI-compatible route. Its
+  // upstream server works anonymously for basic text queries; a cookie is
+  // only needed for authenticated/Pro features. The desktop does not make
+  // this native Linux helper a hard dependency, but keeps the route visible
+  // and schema-valid so it appears in the same model selector after Gemini.
+  const perplexityProvider = providers[PERPLEXITY_FREE_PROVIDER];
+  const perplexityBaseUrl = `${cfg.perplexityBaseUrl ?? `http://127.0.0.1:${DEFAULT_PERPLEXITY_API_PORT}`}/v1`;
+  if (!perplexityProvider) {
+    providers[PERPLEXITY_FREE_PROVIDER] = {
+      displayName: PERPLEXITY_FREE_DISPLAY_NAME,
+      api: 'openai-completions',
+      baseURL: perplexityBaseUrl,
+      defaultInput: ['text', 'image'],
+      models: clonePerplexityFallbackModels(),
+    };
+    seeded = true;
+  } else {
+    if (!perplexityProvider.displayName) {
+      perplexityProvider.displayName = PERPLEXITY_FREE_DISPLAY_NAME;
+      seeded = true;
+    }
+    if (!perplexityProvider.api) {
+      perplexityProvider.api = 'openai-completions';
+      seeded = true;
+    }
+    if (!perplexityProvider.baseURL) {
+      perplexityProvider.baseURL = perplexityBaseUrl;
+      seeded = true;
+    }
+    if (!Array.isArray(perplexityProvider.models) || perplexityProvider.models.length === 0) {
+      perplexityProvider.models = clonePerplexityFallbackModels();
+      seeded = true;
+    }
+  }
+
   // Ensure agent-default-model points to deepseek-free with a model that
   // the pool actually serves. If missing or pointing to a provider with no
   // API key configured (e.g. the built-in deepseek-official on a fresh
@@ -147,6 +229,20 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
 
 function cloneFallbackModels(): { id: string; reasoningEfforts: ModelReasoningEfforts }[] {
   return FALLBACK_MODELS.map((model) => ({ ...model }));
+}
+
+function cloneGeminiFallbackModels(): { id: string; reasoningEfforts: ModelReasoningEfforts }[] {
+  return GEMINI_WEB_FALLBACK_MODELS.map((id) => ({
+    id,
+    reasoningEfforts: reasoningEffortsForModel(id),
+  }));
+}
+
+function clonePerplexityFallbackModels(): { id: string; reasoningEfforts: ModelReasoningEfforts }[] {
+  return PERPLEXITY_FREE_FALLBACK_MODELS.map((id) => ({
+    id,
+    reasoningEfforts: reasoningEffortsForModel(id),
+  }));
 }
 
 function normalizeModelEntries(models: unknown[]): unknown[] {

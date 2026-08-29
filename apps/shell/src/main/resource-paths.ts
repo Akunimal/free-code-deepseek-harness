@@ -17,6 +17,28 @@ export function resolveResourcesDir(options: ResourcePathOptions): string {
   return options.developmentRoot ?? resolve(import.meta.dirname, '../../../resources');
 }
 
+/** Resolve the optional vendored Gemini Web2API source in both layouts. */
+export function resolveGeminiWeb2ApiDir(resourcesDir: string): string {
+  const candidates = [
+    resolve(resourcesDir, 'gemini-web2api'),
+    // Development keeps the source under vendor/; package-runtime copies it
+    // beside dsh/ into the first candidate above.
+    resolve(resourcesDir, '..', '..', '..', 'vendor', 'gemini-web2api'),
+  ];
+  return candidates.find((candidate) => existsSync(resolve(candidate, 'gemini_web2api', '__main__.py')))
+    ?? candidates[0]!;
+}
+
+/** Resolve the optional vendored Perplexity bridge source in both layouts. */
+export function resolvePerplexityApiDir(resourcesDir: string): string {
+  const candidates = [
+    resolve(resourcesDir, 'perplexity-api'),
+    resolve(resourcesDir, '..', '..', '..', 'vendor', 'perplexity-api'),
+  ];
+  return candidates.find((candidate) => existsSync(resolve(candidate, 'Cargo.toml')))
+    ?? candidates[0]!;
+}
+
 /** Find the platform worker binary in both the legacy dev layout and the
  * packaged layout. Keeping this compatibility layer makes old checkouts and
  * fresh package-runtime stages runnable during the transition. */

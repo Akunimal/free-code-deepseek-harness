@@ -12,16 +12,36 @@ export CI="${CI:-true}"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 VENDOR="$ROOT/vendor/deepseek-harness"
+GEMINI_WEB2API="$ROOT/vendor/gemini-web2api"
+PERPLEXITY_API="$ROOT/vendor/perplexity-api"
 OUT="$ROOT/apps/shell/resources/freecode"
 TMP_BASE="${TMPDIR:-/tmp}"
 STAGE_ROOT="$(mktemp -d "$TMP_BASE/freecode-dsh-stage.XXXXXX")"
 STAGE="$STAGE_ROOT/dsh"
 
-cleanup() { rm -rf "$STAGE_ROOT"; }
+# Git Bash can report "File too large" while recursively removing generated
+# trees on Windows-mounted volumes, even when the individual files are tiny.
+# Use Node's native filesystem implementation for those cleanup paths so the
+# packaging gate is stable on Windows and remains portable on other hosts.
+remove_tree() {
+  node -e "const fs=require('node:fs'); for (const path of process.argv.slice(1)) fs.rmSync(path,{recursive:true,force:true,maxRetries:5,retryDelay:200})" "$@"
+}
+
+cleanup() { remove_tree "$STAGE_ROOT"; }
 trap cleanup EXIT
 
 if [[ ! -f "$VENDOR/pnpm-lock.yaml" ]]; then
   echo "package-runtime: vendor lockfile not found: $VENDOR" >&2
+  exit 2
+fi
+
+if [[ ! -f "$GEMINI_WEB2API/gemini_web2api/__main__.py" ]]; then
+  echo "package-runtime: vendored gemini-web2api source not found: $GEMINI_WEB2API" >&2
+  exit 2
+fi
+
+if [[ ! -f "$PERPLEXITY_API/Cargo.toml" || ! -f "$PERPLEXITY_API/curl/curl_chrome116" ]]; then
+  echo "package-runtime: vendored perplexity-api source not found: $PERPLEXITY_API" >&2
   exit 2
 fi
 
@@ -128,9 +148,13 @@ if [[ "$NATIVE_OK" != "true" ]]; then
 fi
 
 mkdir -p "$OUT"
-rm -rf "$OUT/dsh" "$OUT/opencode2api"
+remove_tree "$OUT/dsh" "$OUT/opencode2api"
 cp -a "$STAGE" "$OUT/dsh"
 cp -a "$ROOT/apps/shell/resources/opencode2api" "$OUT/opencode2api"
+remove_tree "$OUT/gemini-web2api"
+cp -a "$GEMINI_WEB2API" "$OUT/gemini-web2api"
+remove_tree "$OUT/perplexity-api"
+cp -a "$PERPLEXITY_API" "$OUT/perplexity-api"
 
 UPSTREAM_COMMIT=""
 if [[ -f "$VENDOR/.upstream-commit" ]]; then

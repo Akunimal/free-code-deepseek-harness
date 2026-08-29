@@ -32,7 +32,7 @@ describe('release and runtime packaging contracts', () => {
     expect(releaseGate).toContain("run('all workspace typechecks', ['typecheck'])");
     expect(releaseGate).toContain("run('fresh NSIS install and installed-runtime smoke'");
     expect(releaseGate).toContain("run('0.2.4 to candidate upgrade and installed-runtime smoke'");
-    expect(rootPackage.version).toBe('0.3.0');
+    expect(rootPackage.version).toBe('0.3.1');
     expect(shellPackageJson.version).toBe(rootPackage.version);
   });
 

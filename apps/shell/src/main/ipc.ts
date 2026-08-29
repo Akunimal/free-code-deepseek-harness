@@ -10,6 +10,8 @@ import { detectLocalRoutes } from './omniroute-detector.js';
 import { refreshModels } from './model-refresher.js';
 import { z } from 'zod';
 import type { TorFleet } from './torfleet.js';
+import { GEMINI_WEB_FALLBACK_MODELS, GEMINI_WEB_PROVIDER } from './gemini-web2api-supervisor.js';
+import { PERPLEXITY_FREE_FALLBACK_MODELS, PERPLEXITY_FREE_PROVIDER } from './local-provider-config.js';
 
 const PoolResizePayloadSchema = z.object({ size: z.number().int().min(1).max(16) });
 const LocaleSetPayloadSchema = z.object({ locale: z.enum(['zh', 'en', 'es']) });
@@ -24,6 +26,8 @@ export interface IpcDeps {
   userDataDir: string;
   homeDir: string;
   lbBaseUrl: string;
+  geminiBaseUrl?: string;
+  perplexityBaseUrl?: string;
   catalogStore: { get(): unknown };
   torfleet: {
     instance: TorFleet | null;
@@ -66,6 +70,20 @@ export function registerIpc(deps: IpcDeps): () => void {
         homeDir,
         userDataDir,
         authHeader: 'Bearer public',
+        providers: [
+          ...(deps.geminiBaseUrl ? [{
+            provider: GEMINI_WEB_PROVIDER,
+            baseUrl: deps.geminiBaseUrl,
+            probeModels: false,
+            fallbackModels: GEMINI_WEB_FALLBACK_MODELS,
+          }] : []),
+          ...(deps.perplexityBaseUrl ? [{
+            provider: PERPLEXITY_FREE_PROVIDER,
+            baseUrl: deps.perplexityBaseUrl,
+            probeModels: false,
+            fallbackModels: PERPLEXITY_FREE_FALLBACK_MODELS,
+          }] : []),
+        ],
       });
       const parsed = ModelCatalogSchema.parse(catalog);
       for (const wc of rendererTargets()) wc.send(IpcChannels.modelsCatalog, parsed);

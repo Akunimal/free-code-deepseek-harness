@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.1 — 2026-08-28
+
+### Added / Agregado
+
+- Added the optional `Gemini Web (local)` provider backed by the pinned MIT-licensed `gemini-web2api` project. FreeCode seeds its OpenAI-compatible route, refreshes its model catalog, and starts the local bridge automatically when Python 3 is available; the OpenCode Free route remains the default. / Se agregó el provider opcional `Gemini Web (local)` basado en el proyecto MIT `gemini-web2api`. FreeCode siembra su ruta compatible con OpenAI, actualiza su catálogo de modelos y arranca automáticamente el puente local cuando Python 3 está disponible; OpenCode Free sigue siendo la ruta predeterminada.
+- Added the optional `Perplexity Free (local)` provider backed by the pinned MIT-licensed `Perplexity-AI-API` project. It is seeded after Gemini, refreshes from `/v1/models`, and remains visible without a Perplexity account for basic anonymous text use when its local bridge is running. / Se agregó el provider opcional `Perplexity Free (local)` basado en el proyecto MIT `Perplexity-AI-API`. Se siembra debajo de Gemini, se actualiza desde `/v1/models` y queda visible sin cuenta de Perplexity para texto anónimo básico cuando el puente local está ejecutándose.
+
+### Build and operations / Build y operaciones
+
+- The packaged runtime now includes the pinned Gemini Web2API source under `resources/freecode/gemini-web2api`; user configuration stays in the per-user data directory and is never overwritten after creation. / El runtime empaquetado ahora incluye el código fijado de Gemini Web2API en `resources/freecode/gemini-web2api`; la configuración del usuario queda en el directorio de datos por usuario y no se sobrescribe después de crearla.
+- The packaged runtime also includes the pinned Perplexity bridge source under `resources/freecode/perplexity-api`; the current upstream Rust helper is Linux x86_64-oriented and is not auto-built by the Windows shell. / El runtime empaquetado también incluye el código fijado del puente Perplexity en `resources/freecode/perplexity-api`; el helper Rust upstream actual está orientado a Linux x86_64 y el shell de Windows no lo compila automáticamente.
+
+### Verification / Verificación
+
+- Added provider seeding, multi-provider model refresh, resource resolution, config-preservation, and local Python lifecycle coverage. / Se agregó cobertura de seeding del provider, refresh multi-provider, resolución de recursos, preservación de configuración y ciclo de vida Python local.
+- Added selector-order and static-catalog coverage for the Gemini-then-Perplexity provider groups. / Se agregó cobertura del orden del selector y del catálogo estático para los grupos Gemini y luego Perplexity.
+
 ## 0.3.0 — 2026-08-25
 
 ### Fixed / Corregido

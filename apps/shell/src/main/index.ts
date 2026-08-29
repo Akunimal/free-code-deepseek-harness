@@ -18,6 +18,17 @@ import { awaitHarnessLayout, formatPreflightFailure } from './preflight.js';
 import { initLocale, setLocale as setNativeLocale, t } from './i18n.js';
 import { shouldNotifyBackendState, type BackendState } from './backend-state.js';
 import {
+  DEFAULT_GEMINI_WEB2API_PORT,
+  GEMINI_WEB_FALLBACK_MODELS,
+  GEMINI_WEB_PROVIDER,
+  GeminiWeb2ApiSupervisor,
+} from './gemini-web2api-supervisor.js';
+import {
+  DEFAULT_PERPLEXITY_API_PORT,
+  PERPLEXITY_FREE_FALLBACK_MODELS,
+  PERPLEXITY_FREE_PROVIDER,
+} from './local-provider-config.js';
+import {
   TorFleet,
   loadTorFleetState,
   saveTorFleetState,
@@ -113,6 +124,20 @@ function findNode(): string {
 async function bootstrap(): Promise<ShellRuntime> {
   const userDataDir = app.getPath('userData');
   const resources = resourcesDir();
+  geminiWeb2Api = new GeminiWeb2ApiSupervisor({
+    resourcesDir: resources,
+    userDataDir,
+    port: resolveGeminiPort(),
+    pythonPath: process.env.FREECODE_GEMINI_WEB2API_PYTHON,
+    log: (level, msg, meta) => {
+      const fn = level === 'error' || level === 'warn' ? level : 'info';
+      appLogger?.logger[fn]?.(meta ?? {}, msg);
+    },
+  });
+  const geminiResult = await geminiWeb2Api.start();
+  if (!geminiResult.available) {
+    appLogger?.logger.warn({ reason: geminiResult.reason }, 'Gemini Web2API provider is unavailable; route remains configured');
+  }
   const secrets = await createSecretStore(userDataDir);
   // OpenCode's public route is the zero-config OpenCode Free pool. Keep it in
   // the vault so llm-pi-ai reports the seeded provider as configured, while
@@ -163,6 +188,7 @@ let localUpdateRunning = false;
 let torfleet: TorFleet | null = null;
 let embeddedBrowser: EmbeddedBrowser | null = null;
 let dialogBridge: DialogBridge | null = null;
+let geminiWeb2Api: GeminiWeb2ApiSupervisor | null = null;
 let updateIndicatorView: WebContentsView | null = null;
 let latestUpdateResult: UpdateCheckResult | null = null;
 let updateCheckInFlight: Promise<UpdateCheckResult | null> | null = null;
@@ -772,6 +798,20 @@ function applyNativeLocale(value: 'zh' | 'en' | 'es'): void {
 const REFRESH_INTERVAL_MS = 30 * 60 * 1000;
 const REFRESH_RETRY_DELAYS_MS = [5_000, 15_000, 30_000, 60_000, 120_000];
 
+function resolveGeminiPort(): number {
+  const parsed = Number(process.env.FREECODE_GEMINI_WEB2API_PORT ?? DEFAULT_GEMINI_WEB2API_PORT);
+  return Number.isInteger(parsed) && parsed > 0 && parsed <= 65_535
+    ? parsed
+    : DEFAULT_GEMINI_WEB2API_PORT;
+}
+
+function resolvePerplexityPort(): number {
+  const parsed = Number(process.env.FREECODE_PERPLEXITY_API_PORT ?? DEFAULT_PERPLEXITY_API_PORT);
+  return Number.isInteger(parsed) && parsed > 0 && parsed <= 65_535
+    ? parsed
+    : DEFAULT_PERPLEXITY_API_PORT;
+}
+
 app.whenReady().then(async () => {
   configurePortableDataDir();
   initLocale(app.getLocale());
@@ -861,7 +901,14 @@ app.whenReady().then(async () => {
   runtime.pool.onWorkerChange(reportPoolState);
   reportPoolState();
   // FASE 5: seed once the LB is up.
-  seedProviders({ homeDir: join(userDataDir, 'dsh-home'), lbBaseUrl: `${lbUrl}/v1` });
+  const geminiBaseUrl = geminiWeb2Api?.baseUrl ?? `http://127.0.0.1:${resolveGeminiPort()}`;
+  const perplexityBaseUrl = `http://127.0.0.1:${resolvePerplexityPort()}`;
+  seedProviders({
+    homeDir: join(userDataDir, 'dsh-home'),
+    lbBaseUrl: `${lbUrl}/v1`,
+    geminiBaseUrl,
+    perplexityBaseUrl,
+  });
 
   // FASE 6: model refresh at boot + every 30 min.
   let catalog: ModelCatalog | null = null;
@@ -887,6 +934,17 @@ app.whenReady().then(async () => {
         homeDir: join(userDataDir, 'dsh-home'),
         userDataDir,
         authHeader: 'Bearer public',
+        providers: [{
+          provider: GEMINI_WEB_PROVIDER,
+          baseUrl: geminiBaseUrl,
+          probeModels: false,
+          fallbackModels: GEMINI_WEB_FALLBACK_MODELS,
+        }, {
+          provider: PERPLEXITY_FREE_PROVIDER,
+          baseUrl: perplexityBaseUrl,
+          probeModels: false,
+          fallbackModels: PERPLEXITY_FREE_FALLBACK_MODELS,
+        }],
         onUpdate: (c) => {
           catalog = c;
           reportBackendState('catalog', c.availability === 'degraded' ? 'degraded' : 'ready',
@@ -988,6 +1046,8 @@ app.whenReady().then(async () => {
     userDataDir,
     homeDir: join(userDataDir, 'dsh-home'),
     lbBaseUrl: lbUrl,
+    geminiBaseUrl,
+    perplexityBaseUrl,
     catalogStore: { get: () => catalog },
     torfleet: {
       get instance() { return torfleet; },
@@ -1066,12 +1126,14 @@ app.on('before-quit', async (e) => {
   shuttingDown = true;
   if (!runtime) {
     if (torfleet) await torfleet.stop();
+    await geminiWeb2Api?.stop();
     await appLogger?.close();
     return;
   }
   e.preventDefault();
   if (updateTimer) clearInterval(updateTimer);
   if (torfleet) await torfleet.stop();
+  await geminiWeb2Api?.stop();
   await embeddedBrowser?.close();
   embeddedBrowser = null;
   await dialogBridge?.close();
