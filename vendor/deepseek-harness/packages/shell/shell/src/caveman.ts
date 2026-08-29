@@ -25,7 +25,7 @@ const CAVEMAN_COMMANDS = new Set([
 ])
 
 /** Whether a command is eligible for Caveman compression. */
-function canUseCaveman(command: string): boolean {
+export function canUseCaveman(command: string): boolean {
   const executable = command.trim().split(/\s+/)[0]?.split('/').pop()?.split('\\').pop()
   return executable !== undefined && CAVEMAN_COMMANDS.has(executable)
 }

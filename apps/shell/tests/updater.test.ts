@@ -80,7 +80,7 @@ describe('update service', () => {
     };
     const service = createUpdateService({ enabled: true, adapter });
     await expect(service.downloadAndInstall()).resolves.toEqual({ status: 'installed' });
-    expect(adapter.autoDownload).toBe(true);
+    expect(adapter.autoDownload).toBe(false);
     expect(adapter.downloadUpdate).toHaveBeenCalledTimes(1);
     expect(adapter.quitAndInstall).toHaveBeenCalledTimes(1);
   });

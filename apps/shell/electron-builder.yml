@@ -26,6 +26,7 @@ extraResources:
 icon: build/icon.png
 win:
   icon: build/icon.ico
+  sign: false
   target:
     - nsis
     - portable
