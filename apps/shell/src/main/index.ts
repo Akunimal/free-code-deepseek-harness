@@ -188,7 +188,7 @@ let updateIndicatorView: WebContentsView | null = null;
 let latestUpdateResult: UpdateCheckResult | null = null;
 let updateCheckInFlight: Promise<UpdateCheckResult | null> | null = null;
 let updateIndicatorPlacement = 0;
-const UPDATE_INDICATOR_SIZE = 32;
+const UPDATE_INDICATOR_SIZE = 100;
 let torfleetEnabled = false;
 /** Assigned once enableTorfleet exists; the LB's rate-limit callback delegates
  *  here to auto-enable Tor Fleet with a user warning. */
@@ -358,11 +358,12 @@ function renderUpdateIndicatorHtml(): string {
   const label = t('update.indicator');
   return `<!doctype html><html><head><meta charset="utf-8"><style>
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:transparent;overflow:hidden}
-a{width:32px;height:32px;display:flex;align-items:center;justify-content:center;text-decoration:none;
-  color:#c9ced8;background:#262a33;border:1px solid #3c424e;border-radius:50%;
-  font:600 20px/1 system-ui,-apple-system,sans-serif;cursor:pointer;box-shadow:0 2px 8px #0005}
+a{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;gap:4px;
+  color:#c9ced8;background:#262a33;border:1px solid #3c424e;border-radius:8px;
+  font:600 13px/1 system-ui,-apple-system,sans-serif;cursor:pointer;box-shadow:0 2px 8px #0005;
+  padding:6px 10px;white-space:nowrap}
 a:hover{color:#fff;background:#343a46;border-color:#6b7484}a:active{transform:translateY(1px)}
-</style></head><body><a href="freecode://updates/open" aria-label="${label}" title="${label}">&#8595;</a></body></html>`;
+</style></head><body><a href="freecode://updates/open" aria-label="${label}" title="${label}">&#8595; Update</a></body></html>`;
 }
 
 function updateUpdateIndicatorBounds(): void {
@@ -613,6 +614,10 @@ async function presentUpdateResult(result: UpdateCheckResult): Promise<void> {
       cancelId: 1,
     });
     if (choice.response === 0) {
+      new Notification({
+        title: t('update.installing.title'),
+        body: t('update.installing.body'),
+      }).show();
       const install = await service.installHarness(result.harness!);
       if (install.status === 'installed') {
         await dialog.showMessageBox({ type: 'info', title: t('update.harnessComplete.title'), message: t('update.harnessComplete.message') });
@@ -636,6 +641,10 @@ async function presentUpdateResult(result: UpdateCheckResult): Promise<void> {
       cancelId: 1,
     });
     if (choice.response === 0) {
+      new Notification({
+        title: t('update.installing.title'),
+        body: t('update.installing.body'),
+      }).show();
       const install = await service.downloadAndInstall();
       if (install.status === 'failed') {
         await dialog.showMessageBox({ type: 'error', title: t('update.failed.title'), message: install.error ?? t('update.failed.message') });

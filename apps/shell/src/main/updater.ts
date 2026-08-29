@@ -191,9 +191,14 @@ export function createUpdateService(options: UpdateServiceOptions = {}): UpdateS
           return { status: 'failed', error: checked.error ?? 'No release update is ready to download' };
         }
         adapter ??= await loadElectronUpdater();
-        adapter.autoDownload = true;
-        adapter.autoInstallOnAppQuit = true;
+        adapter.autoDownload = false;
+        adapter.autoInstallOnAppQuit = false;
+        // Explicit download followed by quit-and-install with force.
+        // Setting autoDownload=false avoids a double-download race; the
+        // explicit downloadUpdate() ensures the installer lands in the
+        // pending directory before quitAndInstall() spawns it.
         if (adapter.downloadUpdate) await adapter.downloadUpdate();
+        log('update downloaded, initiating install', { version: checked.info.version });
         adapter.quitAndInstall();
         return { status: 'installed' };
       } catch (error) {

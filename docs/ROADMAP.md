@@ -1,7 +1,7 @@
 # Roadmap / Hoja de ruta
 
-Última revisión / Last reviewed: 2026-08-23  
-Baseline: `v0.2.2`
+Última revisión / Last reviewed: 2026-08-29
+Baseline: `v0.4.0`
 Estado / Status: objetivos sujetos a validación; no son fechas ni promesas de release.
 
 FreeCode mantiene los workflows de publicación manuales para no consumir cuota gratuita de GitHub. Cada versión se publica sólo después de pasar sus contratos, pruebas relevantes y una revisión del instalador.
@@ -13,13 +13,123 @@ FreeCode keeps release workflows manual so they do not consume GitHub free quota
 | Capa / Layer | Estado / Status | Responsabilidad / Responsibility |
 | --- | --- | --- |
 | RTK (`rtk-ai/rtk`) | Disponible hoy, opcional / Available today, optional | Reduce la salida de comandos CLI elegibles antes de que entre al contexto del modelo. Si no existe el ejecutable, FreeCode vuelve al comando original. / Reduces eligible CLI output before it enters model context. If the executable is absent, FreeCode falls back to the original command. |
-| Caveman (`JuliusBrussee/caveman`) | En evaluación, no integrado / Under evaluation, not integrated | Posible compresión de respuestas y/o contexto local con recuperación del original, detrás de un adaptador explícito. / Possible response and/or local-context compression with original-data recovery, behind an explicit adapter. |
+| Caveman (`JuliusBrussee/caveman`) | Integrado, deshabilitado por defecto / Integrated, disabled by default | Compresión de contexto de comandos para ahorro de tokens. Requiere Caveman instalado por separado. / Command output context compression for token savings. Requires Caveman installed separately. |
 
-RTK y Caveman no deben activarse juntos por defecto: pueden ser complementarios, pero una doble compresión puede quitar información útil o dificultar la depuración. La decisión se tomará con mediciones locales de fidelidad, latencia, almacenamiento y tokens; no se tomarán como garantía de ahorro en la factura las cifras publicadas por terceros.
+RTK y Caveman no están habilitados juntos por defecto: pueden ser complementarios, pero una doble compresión puede quitar información útil o dificultar la depuración.
 
-RTK and Caveman must not be enabled together by default: they may complement each other, but double compression can remove useful information or make debugging harder. The decision will use local measurements of fidelity, latency, storage, and tokens; third-party savings figures will not be treated as billing guarantees.
+RTK and Caveman are not enabled together by default: they may complement each other, but double compression can remove useful information or make debugging harder.
+
+## Completado / Completed
+
+### `v0.4.0` — Caveman + Updater Fix
+
+**Estado / Status:** completado / completed.
+
+1. **Caveman integration** — Toggle opcional en Shell settings junto a RTK. Default OFF.
+2. **Updater fix** — Botón alineado con "Enviar", notificaciones en tray, instalación explícita.
+3. **Spanish locale** — Verificado y documentado como funcional.
+4. **Documentation** — CHANGELOG y ROADMAP actualizados.
+
+### `v0.3.3` — Update UX follow-up / Seguimiento de experiencia de actualización
+
+**Estado / Status:** completado dentro de v0.4.0 / completed in v0.4.0.
+
+1. **Botón de actualizar alineado con Enviar** — Implementado en v0.4.0.
+2. **Aviso visible durante la instalación** — Notification nativa en tray.
+3. **Completar la instalación desde la app** — Download explícito + quitAndInstall(true).
 
 ## Próximas versiones / Upcoming versions
+
+### `v0.3.3` — Update UX follow-up / Seguimiento de experiencia de actualización
+
+Estado / Status: planificado; no implementado en `v0.3.2`.
+
+Esta versión debe cerrar dos pendientes visibles del flujo de actualización:
+
+1. **Botón de actualizar alineado con Enviar / Update button matching Send**
+   - Reemplazar el indicador circular independiente de
+     `apps/shell/src/main/index.ts` (`renderUpdateIndicatorHtml`) por un botón
+     con la misma geometría, fondo, borde, estados hover/active y jerarquía
+     visual que el botón de enviar mensaje del Harness.
+   - Mantener la flecha hacia abajo como único icono y conservar el texto
+     accesible `Actualización disponible` / `Update available` para tooltip y
+     lectores de pantalla.
+   - El botón debe seguir apareciendo junto a Configuración, respetar el
+     layout del sidebar y conservar el comportamiento actual de abrir el flujo
+     de actualización al hacer clic.
+   - No duplicar estilos divergentes: reutilizar los tokens o clases del botón
+     de enviar cuando el frontend los exponga; si el shell debe mantener un
+     documento aislado, reflejar esos mismos valores en una única constante o
+     contrato visual probado.
+
+2. **Aviso visible durante la instalación / Visible installation notice**
+   - Antes de comenzar la descarga o instalación, emitir desde el proceso
+     principal una notificación nativa asociada a la tray con un mensaje claro:
+     `FreeCode se está actualizando` / `FreeCode is updating`.
+   - Cubrir tanto la actualización completa de la aplicación
+     (`downloadAndInstall`) como la actualización exclusiva del runtime del
+     Harness (`installHarness`), para que ninguna ruta quede silenciosa cuando
+     la ventana está oculta o minimizada en la tray.
+   - Mantener el aviso visible durante la operación y emitir un resultado final
+     inequívoco de éxito o error; los mensajes deben pasar por
+     `apps/shell/src/main/i18n.ts` y conservar español, inglés y chino.
+   - No iniciar una instalación automática nueva ni agregar workflows de
+     GitHub: el aviso debe acompañar únicamente una actualización que el
+     usuario ya confirmó.
+
+3. **Completar la instalación desde la app / Complete in-app installation**
+   - Corregir la etapa posterior a la descarga: en la prueba real de `v0.3.2`
+     la app detectó la release y descargó correctamente el instalador, pero la
+     versión instalada siguió siendo `0.3.1` y el instalador quedó en
+     `@freecodeshell-updater/pending`.
+   - Trazar y validar la cadena completa
+     `downloadUpdate()` → cierre de Electron → lanzamiento del instalador NSIS
+     → reinicio → versión nueva. No considerar la actualización exitosa sólo
+     porque existe el archivo descargado.
+   - Confirmar explícitamente el resultado de `quitAndInstall()` y registrar un
+     error accionable si el instalador no se inicia, no obtiene permisos o no
+     logra reemplazar la aplicación.
+   - Después del reinicio, verificar que `install-version.txt` y la aplicación
+     instalada indiquen la nueva versión, que el archivo pendiente se consuma y
+     que se conserven la configuración, sesiones y datos del usuario.
+
+   **Evidencia reproducida / Reproduced evidence:** el instalador de
+   `0.3.2` quedó completo en `pending` y su SHA-512 coincidió con `latest.yml`,
+   pero `install-version.txt` siguió indicando `0.3.1`; por lo tanto la
+   descarga funciona y la instalación/reinicio no está demostrado ni
+   funcionando de punta a punta.
+
+**Criterios de aceptación / Acceptance criteria:**
+
+- El botón de actualización se percibe como parte del mismo sistema visual que
+  Enviar y muestra una flecha descendente, sin el círculo usado en `v0.3.2`.
+- Al iniciar cualquiera de las dos rutas de instalación aparece el aviso de
+  actualización aun cuando la ventana principal esté en la tray.
+- Una actualización completa iniciada desde la app termina con la nueva
+  versión instalada y la app reiniciada; no queda el instalador atrapado en
+  `pending` mientras la versión anterior sigue activa.
+- Existen pruebas para la geometría/markup accesible del botón, las claves de
+  traducción y las notificaciones de inicio, finalización y error.
+- Se verifica manualmente Windows empaquetado: actualización desde la tray,
+  ventana abierta, ventana oculta, descarga fallida y reinicio posterior.
+- La documentación de release explica qué aviso verá el usuario y la
+  publicación sigue siendo manual, sin workflows.
+
+**Acceptance criteria (English):**
+
+- The update control uses the same visual system as Send and shows a downward
+  arrow, without the circular control shipped in `v0.3.2`.
+- Starting either installation route shows the updating notice even when the
+  main window is hidden in the tray.
+- A full update started from the app finishes with the new version installed
+  and the app restarted; the installer is not left in `pending` while the old
+  version remains active.
+- Tests cover accessible button markup/geometry, translation keys, and start,
+  success, and failure notifications.
+- Packaged Windows is manually checked from the tray, with the window open,
+  with the window hidden, on a failed download, and after restart.
+- Release documentation explains the user-visible notice and publication
+  remains manual, with no workflows.
 
 ### `v0.2.2` — Released reliability and maintenance / Confiabilidad y mantenimiento publicado
 

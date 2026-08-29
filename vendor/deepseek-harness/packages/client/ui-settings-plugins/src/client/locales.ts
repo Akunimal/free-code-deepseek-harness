@@ -6,6 +6,7 @@ export type PluginsSettingsLocaleKey =
   | 'overridden' | 'reset' | 'readOnly' | 'expand' | 'collapse'
   | 'save' | 'saving' | 'discard' | 'unsaved' | 'saveFailed' | 'invalidNumber'
   | 'bashTitle' | 'bashDescription' | 'bashTimeoutMs' | 'bashTimeoutMsHint' | 'bashRtk' | 'bashRtkHint'
+  | 'bashCaveman' | 'bashCavemanHint'
   | 'bashMaxOutputBytes' | 'bashMaxOutputBytesHint'
   | 'agentLoopTitle' | 'agentLoopDescription' | 'agentLoopMaxParallel' | 'agentLoopMaxParallelHint'
   | 'webSearchTitle' | 'webSearchDescription'
@@ -39,6 +40,8 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
   bashMaxOutputBytesHint: 'Output beyond this spills to a temporary file rather than being lost.',
   bashRtk: 'Use RTK token compression',
   bashRtkHint: 'Uses an already-installed RTK for eligible simple CLI commands. Missing RTK changes nothing.',
+  bashCaveman: 'Use Caveman context compression',
+  bashCavemanHint: 'Compresses command output context for token savings. Requires Caveman installed separately.',
   agentLoopTitle: 'Agent loop',
   agentLoopDescription: 'How the agent dispatches tool calls.',
   agentLoopMaxParallel: 'Parallel tool calls',
@@ -82,6 +85,8 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
   bashMaxOutputBytesHint: '超出部分会转存到临时文件，而不是被丢弃。',
   bashRtk: '使用 RTK 压缩令牌',
   bashRtkHint: '对符合条件的简单 CLI 命令使用已安装的 RTK。未安装 RTK 时不会改变任何行为。',
+  bashCaveman: '使用 Caveman 上下文压缩',
+  bashCavemanHint: '压缩命令输出上下文以节省 token。需要单独安装 Caveman。',
   agentLoopTitle: 'Agent 循环',
   agentLoopDescription: 'Agent 如何派发工具调用。',
   agentLoopMaxParallel: '并行工具调用数',
@@ -125,6 +130,8 @@ export const es: Record<PluginsSettingsLocaleKey, string> = {
   bashMaxOutputBytesHint: 'El excedente se guarda en un archivo temporal en lugar de perderse.',
   bashRtk: 'Usar compresión de tokens RTK',
   bashRtkHint: 'Usa un RTK ya instalado para comandos CLI simples compatibles. Si no existe RTK, no cambia nada.',
+  bashCaveman: 'Usar compresión de contexto Caveman',
+  bashCavemanHint: 'Comprime la salida de comandos para ahorrar tokens. Requiere Caveman instalado por separado.',
   agentLoopTitle: 'Bucle del agente',
   agentLoopDescription: 'Cómo distribuye el agente las llamadas a herramientas.',
   agentLoopMaxParallel: 'Llamadas paralelas a herramientas',

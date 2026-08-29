@@ -11,7 +11,7 @@
 
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { resolveRtk, SHELL_SETTINGS_NAMESPACE, ShellExecutor, wrapWithRtk } from '@deepseek-ai/dsh-shell'
+import { resolveRtk, resolveCaveman, SHELL_SETTINGS_NAMESPACE, ShellExecutor, wrapWithRtk, wrapWithCaveman } from '@deepseek-ai/dsh-shell'
 import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellProcessRead, ShellRunResult, CollectedOutput } from '@deepseek-ai/dsh-shell'
 import type { SubprocessCollect, SubprocessHandle, SubprocessOutputReader, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { installSettingsSection } from '@deepseek-ai/dsh-settings'
@@ -53,6 +53,8 @@ export interface Config {
   graceMs?: number
   /** Use an already-installed RTK binary to compress eligible CLI output. */
   rtk?: boolean
+  /** Use an installed Caveman binary to compress context output. */
+  caveman?: boolean
 }
 
 /** The shape after schemastery applied the defaults (cwd has none). */
@@ -112,6 +114,7 @@ export class LocalBashExecutor extends ShellExecutor {
     maxSpillBytes: z.number().default(DEFAULT_MAX_SPILL_BYTES),
     graceMs: z.number().default(DEFAULT_GRACE_MS),
     rtk: z.boolean().default(true),
+    caveman: z.boolean().default(false),
   })
 
   /** The currently authoritative config: the settings section, or the composition entry. */
@@ -119,6 +122,9 @@ export class LocalBashExecutor extends ShellExecutor {
 
   /** Cached because probing PATH for every command would add avoidable latency. */
   private readonly rtkInstalled: boolean
+
+  /** Cached Caveman binary detection. */
+  private readonly cavemanInstalled: boolean
 
   /** Validated config (schemastery applied the defaults before construction). */
   get config(): ResolvedConfig {
@@ -132,6 +138,7 @@ export class LocalBashExecutor extends ShellExecutor {
     assertServiceableBashConfig(entry)
     this.source = () => entry
     this.rtkInstalled = resolveRtk()
+    this.cavemanInstalled = resolveCaveman()
     installSettingsSection(ctx, SHELL_SETTINGS_NAMESPACE, LocalBashExecutor.Config, entry, {
       validate: assertServiceableBashConfig,
       setSource: (current) => {
@@ -160,7 +167,10 @@ export class LocalBashExecutor extends ShellExecutor {
     const stdoutMaxBytes = request.stdoutMaxBytes ?? this.config.maxOutputBytes
     assertPositiveFinite('request.stdoutMaxBytes', stdoutMaxBytes)
     return {
-      command: wrapWithRtk(request.command, this.config.rtk === true && this.rtkInstalled),
+      command: wrapWithCaveman(
+        wrapWithRtk(request.command, this.config.rtk === true && this.rtkInstalled),
+        this.config.caveman === true && this.cavemanInstalled
+      ),
       workdir: request.workdir ?? this.config.cwd ?? process.cwd(),
       timeoutMs,
       stdoutMaxBytes,

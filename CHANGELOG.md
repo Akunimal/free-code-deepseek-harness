@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.4.0 — 2026-08-29
+
+### Added / Agregado
+
+- Integrated Caveman context compression as an optional toggle alongside RTK in
+  Shell settings. Disabled by default; enables compression of eligible command
+  output when the Caveman binary is installed separately. / Se integró la
+  compresión de contexto Caveman como toggle opcional junto a RTK en la
+  configuración del Shell. Deshabilitado por defecto; activa la compresión de
+  salida de comandos compatibles cuando el binario de Caveman está instalado
+  por separado.
+
+### Fixed / Corregido
+
+- Fixed application updater: the installer now launches correctly after download
+  with explicit download control, and a tray notification appears during the
+  update process. / Corregido el actualizador de la aplicación: el instalador
+  ahora se ejecuta correctamente después de la descarga con control explícito,
+  y aparece una notificación en la bandeja durante el proceso de actualización.
+
+- Aligned the update indicator button with the Send button visual system,
+  replacing the standalone circular control with a rectangular button showing
+  the update arrow and text. / Se alineó el botón de indicador de actualización
+  con el sistema visual del botón Enviar, reemplazando el control circular
+  independiente con un botón rectangular que muestra la flecha y texto de
+  actualización.
+
+### Changed / Cambiado
+
+- Spanish locale support verified and documented. / Se verificó y documentó el
+  soporte del locale español.
+
 ## 0.3.2 — 2026-08-29
 
 ### Changed / Cambiado

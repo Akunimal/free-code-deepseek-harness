@@ -69,6 +69,19 @@ export function BashCard(props: BashCardProps) {
         onEdit={(text) => { props.edit('rtk', text) }}
         onReset={() => { props.resetField('rtk') }}
       />
+      <ToggleField
+        id="plugin-config-bash-caveman"
+        label={t('bashCaveman')}
+        hint={t('bashCavemanHint')}
+        overriddenLabel={t('overridden')}
+        resetLabel={t('reset')}
+        invalidLabel={t('invalidNumber')}
+        disabled={disabled}
+        checked={state.caveman.text === 'true'}
+        {...state.caveman}
+        onEdit={(text) => { props.edit('caveman', text) }}
+        onReset={() => { props.resetField('caveman') }}
+      />
     </PluginCard>
   )
 }

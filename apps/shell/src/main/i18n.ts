@@ -37,6 +37,10 @@ const strings = {
   'tray.show': { es: 'Mostrar', en: 'Show' },
   'tray.tooltip': { es: 'FreeCode DeepSeek Harness', en: 'FreeCode DeepSeek Harness' },
 
+  // Update installing notification
+  'update.installing.title': { es: 'FreeCode se está actualizando', en: 'FreeCode is updating' },
+  'update.installing.body': { es: 'La aplicación se reiniciará pronto…', en: 'The application will restart shortly…' },
+
   // Notifications
   'notify.ready.title': { es: 'Harness listo', en: 'Harness ready' },
   'status.catalog.down.title': { es: 'Catálogo de modelos no disponible', en: 'Model catalog unavailable' },
@@ -298,6 +302,8 @@ const zhStrings = {
   'preflight.reinstallHint': '请从官方安装程序重新安装 FreeCode（v0.2.4 或更高版本）。',
   'version.new': '新版本',
   'version.unknown': '未知',
+  'update.installing.title': 'FreeCode 正在更新',
+  'update.installing.body': '应用程序即将重启…',
 } as const satisfies Record<I18nKey, string>;
 
 let currentLocale: Locale = 'en';

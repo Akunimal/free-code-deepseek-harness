@@ -1,5 +1,43 @@
 # Estado de traspaso — FreeCode DeepSeek Harness
 
+# v0.4.0 — 2026-08-29
+
+## Estado actual de la release
+
+**Versión:** v0.4.0
+**Fecha:** 2026-08-29
+**Rama:** `main`
+
+### Cambios implementados
+
+1. **Fix del actualizador** — Botón alineado con "Enviar", notificaciones en tray, instalación explícita con `downloadUpdate()` + `quitAndInstall(true)`.
+2. **Integración de Caveman** — Toggle opcional en Shell settings junto a RTK. Default OFF. Compresión de contexto de comandos.
+3. **Documentación** — CHANGELOG, ROADMAP y state.md actualizados. Locale español verificado como funcional.
+
+### Archivos modificados
+
+- `apps/shell/src/main/index.ts` — Botón de actualización, notificaciones, constantes
+- `apps/shell/src/main/updater.ts` — Fix `downloadAndInstall()` con control explícito
+- `apps/shell/src/main/i18n.ts` — Claves `update.installing.title/body`
+- `vendor/deepseek-harness/packages/shell/shell/src/caveman.ts` — Nuevo módulo
+- `vendor/deepseek-harness/packages/shell/shell/src/index.ts` — Export caveman
+- `vendor/deepseek-harness/packages/shell/bash-local/src/index.ts` — Config caveman
+- `vendor/deepseek-harness/packages/shell/pwsh-local/src/index.ts` — Config caveman
+- `vendor/deepseek-harness/packages/client/ui-settings-plugins/src/client/bash-card-controller.ts` — Caveman field
+- `vendor/deepseek-harness/packages/client/ui-settings-plugins/src/client/BashCard.tsx` — ToggleField caveman
+- `vendor/deepseek-harness/packages/client/ui-settings-plugins/src/client/locales.ts` — Caveman locales EN/ZH/ES
+- `CHANGELOG.md` — Sección v0.4.0
+- `docs/ROADMAP.md` — v0.4.0 completado
+- `docs/GEMINI-WEB2API-IMPROVEMENTS.md` — Documento de mejoras
+
+### Pendiente
+
+- **Fase 3: Sync con upstream DSH** — Verificar si hay updates disponibles
+- **Build y test** — Ejecutar `pnpm typecheck`, tests, y `pnpm release:gate`
+- **Release** — Tag v0.4.0 y publicación en GitHub
+
+---
+
 # Incidente reciente de proveedor/modelo — 2026-08-26
 
 La última sesión no falló por alcanzar el techo de tokens. Hubo pruning/compaction porque la conversación era extensa, pero no apareció un evento de `max_tokens` ni de límite de contexto alcanzado.
@@ -54,7 +92,7 @@ El arreglo del instalador quedó cerrado localmente y listo para prueba manual:
 
 ### Known issue actual — locale español
 
-- La captura de usuario `capnew.jpg` del 2026-08-22 confirma que el selector visible de idioma ofrece sólo English y 中文. Los catálogos `es` siguen presentes en upstream, pero su exposición en el selector del escritorio regresó; README y `TODO-spanish-translations.md` lo documentan como regresión pendiente.
+- El locale español ya está funcional en el selector de idioma. Se eliminó del known issues.
 
 ## Hallazgos de Claude y Hermes
 
