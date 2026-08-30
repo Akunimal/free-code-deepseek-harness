@@ -10,6 +10,7 @@
 
 - **Application updater**: explicit download control prevents double-download race, and a tray notification appears during the update process. / Actualizador de la aplicación: control explícito de descarga y notificación en la bandeja durante la actualización.
 - **Update indicator button** aligned with the Send button visual system, replacing the standalone circular control. / Botón de indicador de actualización alineado con el sistema visual del botón Enviar.
+- **Gemini Web2API models** now work correctly: config defaults match the `Bearer freecode-local` auth header and include full retry/timeout settings. / Los modelos Gemini Web2API ahora funcionan correctamente: los valores por defecto coinciden con el header de autenticación y incluyen configuración completa de reintentos.
 
 ## Changed
 
