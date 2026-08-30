@@ -34,6 +34,7 @@ mac:
   target:
     - dmg
 linux:
+  icon: build/icon.png
   target:
     - AppImage
 nsis:
