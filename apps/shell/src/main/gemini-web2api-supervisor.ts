@@ -258,9 +258,19 @@ export function ensureConfig(dataDir: string, port: number): string {
   if (!existsSync(configPath)) {
     writeFileSync(configPath, JSON.stringify({
       port,
-      host: '127.0.0.1',
-      api_keys: [],
+      host: '0.0.0.0',
+      retry_attempts: 3,
+      retry_delay_sec: 2,
+      request_timeout_sec: 180,
+      gemini_bl: 'boq_assistant-bard-web-server_20260716.08_p0',
+      auth_user: null,
+      xsrf_token: null,
+      default_model: 'gemini-3.7-flash',
+      api_keys: ['freecode-local'],
+      cookie_file: null,
+      proxy: null,
       log_requests: true,
+      temporary_chats: false,
     }, null, 2) + '\n', 'utf8');
   } else {
     // Validate JSON early so a malformed user edit is reported in the app log
