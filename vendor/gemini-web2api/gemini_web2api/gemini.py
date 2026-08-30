@@ -157,6 +157,40 @@ def _get_url() -> str:
     )
 
 
+def _fetch_latest_bl() -> str | None:
+    """Fetch the latest gemini_bl from gemini.google.com page."""
+    try:
+        req = urllib.request.Request(
+            "https://gemini.google.com/app",
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"})
+        ctx = _get_ssl_ctx()
+        proxy = CONFIG.get("proxy")
+        if proxy:
+            opener = urllib.request.build_opener(
+                urllib.request.ProxyHandler({"http": proxy, "https": proxy}),
+                urllib.request.HTTPSHandler(context=ctx))
+            resp = opener.open(req, timeout=15)
+        else:
+            resp = urllib.request.urlopen(req, context=ctx, timeout=15)
+        html = resp.read().decode("utf-8", errors="replace")
+        m = re.search(r'(boq_assistant-bard-web-server_\d+\.\d+_p\d+)', html)
+        if m:
+            return m.group(1)
+    except Exception as e:
+        log(f"BL auto-detect failed: {e}")
+    return None
+
+
+def _update_bl_if_needed() -> bool:
+    """Attempt to fetch and update gemini_bl. Returns True if updated."""
+    new_bl = _fetch_latest_bl()
+    if new_bl and new_bl != CONFIG["gemini_bl"]:
+        log(f"BL auto-updated: {CONFIG['gemini_bl']} -> {new_bl}")
+        CONFIG["gemini_bl"] = new_bl
+        return True
+    return False
+
+
 def clean_text(text: str, strip: bool = True) -> str:
     text = re.sub(
         r'```(?:python|javascript|text)\?code_(?:reference|stdout)&code_event_index=\d+\n.*?```\n?',
@@ -203,15 +237,14 @@ def extract_response_text(raw: str) -> str:
 
 
 def generate(prompt: str, model_id: int, think_mode: int, file_refs: list = None, extra_fields: dict = None) -> str:
-    """Non-streaming generation with retry."""
-    body = _build_payload(prompt, model_id, think_mode, file_refs, extra_fields).encode()
-    url = _get_url()
-    headers = _build_headers()
-    ctx = _get_ssl_ctx()
-    proxy = CONFIG.get("proxy")
-
+    """Non-streaming generation with retry and auto-bl refresh on 405."""
     last_err = None
     for attempt in range(CONFIG["retry_attempts"]):
+        body = _build_payload(prompt, model_id, think_mode, file_refs, extra_fields).encode()
+        url = _get_url()
+        headers = _build_headers()
+        ctx = _get_ssl_ctx()
+        proxy = CONFIG.get("proxy")
         try:
             req = urllib.request.Request(url, data=body, headers=headers, method="POST")
             if proxy:
@@ -224,6 +257,15 @@ def generate(prompt: str, model_id: int, think_mode: int, file_refs: list = None
                 resp = urllib.request.urlopen(req, context=ctx, timeout=CONFIG["request_timeout_sec"])
             raw = resp.read().decode("utf-8", errors="replace")
             return extract_response_text(raw)
+        except urllib.error.HTTPError as e:
+            if e.code == 405 and _update_bl_if_needed():
+                log("BL auto-updated on 405, retrying...")
+                last_err = e
+                continue
+            last_err = e
+            if attempt < CONFIG["retry_attempts"] - 1:
+                log(f"Retry {attempt+1}/{CONFIG['retry_attempts']}: {e}")
+                time.sleep(CONFIG["retry_delay_sec"])
         except Exception as e:
             last_err = e
             if attempt < CONFIG["retry_attempts"] - 1:
@@ -241,15 +283,20 @@ def generate_stream(prompt: str, model_id: int, think_mode: int, file_refs: list
         return
 
     body = _build_payload(prompt, model_id, think_mode, file_refs, extra_fields)
-    url = _get_url()
-    headers = _build_headers()
     client = _get_httpx_client()
 
     last_err = None
     emitted_raw_text = ""
     for attempt in range(CONFIG["retry_attempts"]):
+        body = _build_payload(prompt, model_id, think_mode, file_refs, extra_fields)
+        url = _get_url()
+        headers = _build_headers()
         try:
             with client.stream("POST", url, content=body, headers=headers) as resp:
+                if resp.status_code == 405 and _update_bl_if_needed():
+                    log("BL auto-updated on 405, retrying stream...")
+                    last_err = RuntimeError("405 BL refresh")
+                    continue
                 resp.raise_for_status()
                 buf = ""
                 for chunk in resp.iter_text():
