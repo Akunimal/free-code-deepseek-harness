@@ -23,7 +23,7 @@ describe('gemini-web2api integration', () => {
     const path = ensureConfig(dataDir, 8765);
     const config = JSON.parse(readFileSync(path, 'utf8'));
     expect(config.port).toBe(8765);
-    expect(config.host).toBe('0.0.0.0');
+    expect(config.host).toBe('127.0.0.1');
     expect(config.api_keys).toEqual(['freecode-local']);
     expect(config.default_model).toBe('gemini-3.7-flash');
     // User edits to non-patched fields are preserved

@@ -50,4 +50,3 @@ publish:
   provider: github
   owner: Akunimal
   repo: free-code-deepseek-harness
-  releaseType: draft

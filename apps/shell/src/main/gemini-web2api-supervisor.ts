@@ -257,7 +257,7 @@ export function ensureConfig(dataDir: string, port: number): string {
   const configPath = join(dataDir, 'config.json');
   const defaults: Record<string, unknown> = {
     port,
-    host: '0.0.0.0',
+    host: '127.0.0.1',
     retry_attempts: 3,
     retry_delay_sec: 2,
     request_timeout_sec: 180,
@@ -286,11 +286,6 @@ export function ensureConfig(dataDir: string, port: number): string {
       // Ensure default_model is set
       if (!existing.default_model) {
         existing.default_model = defaults.default_model;
-        patched = true;
-      }
-      // Ensure host is 0.0.0.0 for local access
-      if (existing.host === '127.0.0.1') {
-        existing.host = '0.0.0.0';
         patched = true;
       }
       if (patched) {
