@@ -25,7 +25,7 @@ export interface UpdaterAdapter {
   autoInstallOnAppQuit: boolean;
   checkForUpdates(): Promise<{ updateInfo?: UpdateInfo } | null>;
   downloadUpdate?: () => Promise<unknown>;
-  quitAndInstall(): void;
+  quitAndInstall(forceRunAfterInstall?: boolean): void;
 }
 
 export interface UpdateService {
@@ -199,7 +199,7 @@ export function createUpdateService(options: UpdateServiceOptions = {}): UpdateS
         // pending directory before quitAndInstall() spawns it.
         if (adapter.downloadUpdate) await adapter.downloadUpdate();
         log('update downloaded, initiating install', { version: checked.info.version });
-        adapter.quitAndInstall();
+        adapter.quitAndInstall(true);
         return { status: 'installed' };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);

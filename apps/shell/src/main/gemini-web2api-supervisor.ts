@@ -255,27 +255,51 @@ export function resolvePythonCommand(explicit?: string): PythonCommand | null {
 export function ensureConfig(dataDir: string, port: number): string {
   mkdirSync(dataDir, { recursive: true });
   const configPath = join(dataDir, 'config.json');
+  const defaults: Record<string, unknown> = {
+    port,
+    host: '0.0.0.0',
+    retry_attempts: 3,
+    retry_delay_sec: 2,
+    request_timeout_sec: 180,
+    gemini_bl: 'boq_assistant-bard-web-server_20260716.08_p0',
+    auth_user: null,
+    xsrf_token: null,
+    default_model: 'gemini-3.7-flash',
+    api_keys: ['freecode-local'],
+    cookie_file: null,
+    proxy: null,
+    log_requests: true,
+    temporary_chats: false,
+  };
+
   if (!existsSync(configPath)) {
-    writeFileSync(configPath, JSON.stringify({
-      port,
-      host: '0.0.0.0',
-      retry_attempts: 3,
-      retry_delay_sec: 2,
-      request_timeout_sec: 180,
-      gemini_bl: 'boq_assistant-bard-web-server_20260716.08_p0',
-      auth_user: null,
-      xsrf_token: null,
-      default_model: 'gemini-3.7-flash',
-      api_keys: ['freecode-local'],
-      cookie_file: null,
-      proxy: null,
-      log_requests: true,
-      temporary_chats: false,
-    }, null, 2) + '\n', 'utf8');
+    writeFileSync(configPath, JSON.stringify(defaults, null, 2) + '\n', 'utf8');
   } else {
-    // Validate JSON early so a malformed user edit is reported in the app log
-    // instead of looking like a generic Python startup failure.
-    JSON.parse(readFileSync(configPath, 'utf8'));
+    try {
+      const existing = JSON.parse(readFileSync(configPath, 'utf8')) as Record<string, unknown>;
+      let patched = false;
+      // Ensure api_keys always contains 'freecode-local' for Bearer auth
+      if (!Array.isArray(existing.api_keys) || !existing.api_keys.includes('freecode-local')) {
+        existing.api_keys = ['freecode-local'];
+        patched = true;
+      }
+      // Ensure default_model is set
+      if (!existing.default_model) {
+        existing.default_model = defaults.default_model;
+        patched = true;
+      }
+      // Ensure host is 0.0.0.0 for local access
+      if (existing.host === '127.0.0.1') {
+        existing.host = '0.0.0.0';
+        patched = true;
+      }
+      if (patched) {
+        writeFileSync(configPath, JSON.stringify(existing, null, 2) + '\n', 'utf8');
+      }
+    } catch {
+      // Corrupt config — rewrite from scratch.
+      writeFileSync(configPath, JSON.stringify(defaults, null, 2) + '\n', 'utf8');
+    }
   }
   return configPath;
 }

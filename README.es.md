@@ -43,6 +43,7 @@ ejecución (`chmod +x`) y ejecutala.
 - Comprobación automática de actualizaciones, con una flecha de descarga junto a Configuración cuando hay una nueva versión.
 - Compactado automático al 75% del contexto del modelo activo, también al cambiar a un modelo con menor contexto.
 - Compresión opcional de salidas con RTK si ya tenés el ejecutable `rtk`; FreeCode nunca lo instala automáticamente.
+- Compresión opcional de contexto Caveman (deshabilitada por defecto) en la configuración del Shell, debajo de RTK. Comprime la salida de comandos para ahorrar tokens cuando el binario de Caveman está instalado por separado.
 - Provider opcional `Gemini Web (local)` basado en el puente MIT
   [`gemini-web2api`](https://github.com/Sophomoresty/gemini-web2api). Se
   muestra en el selector debajo de los providers existentes y usa Python 3

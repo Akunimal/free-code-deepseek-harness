@@ -44,6 +44,7 @@ the `.AppImage`, make it executable (`chmod +x`), and run it.
 - Automatic update checks with a small download-arrow indicator beside Settings when an update is ready.
 - Automatic context compaction at 75% of the active model window, including when switching to a smaller-context model.
 - Optional RTK output compression when an `rtk` executable is already installed; FreeCode never installs it automatically.
+- Optional Caveman context compression (disabled by default) in Shell settings, below RTK. Compresses command output for token savings when the Caveman binary is installed separately.
 - Optional `Gemini Web (local)` provider backed by the MIT-licensed
   [`gemini-web2api`](https://github.com/Sophomoresty/gemini-web2api) bridge.
   It listens on `127.0.0.1:8081` and does not replace the default OpenCode

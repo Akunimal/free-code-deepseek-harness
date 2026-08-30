@@ -21,16 +21,18 @@ describe('gemini-web2api integration', () => {
     const dataDir = mkdtempSync(join(tmpdir(), 'freecode-gemini-config-'));
     cleanup.push(dataDir);
     const path = ensureConfig(dataDir, 8765);
-    expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual({
-      port: 8765,
-      host: '127.0.0.1',
-      api_keys: [],
-      log_requests: true,
-    });
-    const edited = JSON.stringify({ port: 8765, host: '127.0.0.1', proxy: 'http://proxy.test' });
+    const config = JSON.parse(readFileSync(path, 'utf8'));
+    expect(config.port).toBe(8765);
+    expect(config.host).toBe('0.0.0.0');
+    expect(config.api_keys).toEqual(['freecode-local']);
+    expect(config.default_model).toBe('gemini-3.7-flash');
+    // User edits to non-patched fields are preserved
+    const edited = JSON.stringify({ ...config, proxy: 'http://proxy.test' });
     writeFileSync(path, edited);
-    expect(ensureConfig(dataDir, 9999)).toBe(path);
-    expect(readFileSync(path, 'utf8')).toBe(edited);
+    const secondRun = JSON.parse(readFileSync(ensureConfig(dataDir, 9999), 'utf8'));
+    expect(secondRun.proxy).toBe('http://proxy.test');
+    // But api_keys is always patched to include freecode-local
+    expect(secondRun.api_keys).toEqual(['freecode-local']);
   });
 
   it('resolves the vendored source in development and a Python command', () => {
@@ -59,8 +61,10 @@ describe('gemini-web2api integration', () => {
     const result = await supervisor.start();
     expect(result.available).toBe(true);
     expect(result.baseUrl).toBe(`http://127.0.0.1:${port}`);
-    expect(readFileSync(join(dataDir, 'gemini-web2api', 'config.json'), 'utf8')).toContain('127.0.0.1');
-    const models = await fetch(`${result.baseUrl}/v1/models`);
+    expect(readFileSync(join(dataDir, 'gemini-web2api', 'config.json'), 'utf8')).toContain('freecode-local');
+    const models = await fetch(`${result.baseUrl}/v1/models`, {
+      headers: { Authorization: 'Bearer freecode-local' },
+    });
     expect(models.status).toBe(200);
     const modelList = (await models.json()) as { data?: unknown[] };
     expect(modelList.data?.length).toBeGreaterThan(0);
