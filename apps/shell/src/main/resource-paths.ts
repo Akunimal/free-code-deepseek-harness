@@ -58,6 +58,7 @@ export function resolveNodePath(options: NodePathOptions): string {
     executable: platform === 'win32' ? 'where' : 'which',
     args: ['node'],
     encoding: 'utf8',
+    timeout: 10_000,
   });
   const stdout = typeof result.stdout === 'string' ? result.stdout : ''
   const first = stdout.split(/\r?\n/)[0]?.trim();

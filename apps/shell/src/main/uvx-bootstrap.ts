@@ -52,6 +52,7 @@ function firstPathExecutable(name: string, env: NodeJS.ProcessEnv): string | und
     args: [name],
     encoding: 'utf8',
     env: cleanEnv,
+    timeout: 10_000,
   })
   if (result.status !== 0 || result.error) return undefined
   const stdout = typeof result.stdout === 'string' ? result.stdout : ''
@@ -178,8 +179,12 @@ export async function ensureUvxCommand(options: UvxBootstrapOptions): Promise<st
   const env = options.env ?? process.env
   const pathLookup = options.pathLookup ?? firstPathExecutable
 
-  // 1. Check for vendored uv in the payload (try multiple __dirname layouts)
+  // 1. Check for vendored uv in the payload (try multiple __dirname layouts).
+  //    In a packaged Electron app __dirname resolves inside app.asar; the
+  //    freecode/ tree lives outside the asar, so we also try the parent of
+  //    app.asar (4 levels up from dist/src/main).
   const vendoredCandidates = [
+    join(__dirname, '..', '..', '..', '..', 'resources', 'freecode', 'uv', 'uvx.exe'),
     join(__dirname, '..', '..', '..', 'resources', 'freecode', 'uv', 'uvx.exe'),
     join(__dirname, '..', '..', 'resources', 'freecode', 'uv', 'uvx.exe'),
   ]
