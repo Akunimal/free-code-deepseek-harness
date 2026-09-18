@@ -21,15 +21,21 @@ if (fs.existsSync(destination)) {
 }
 
 fs.mkdirSync(path.dirname(destination), { recursive: true });
+// Copy the stage WITHOUT the .pnpm virtual store. pnpm's hoisted symlinks
+// resolve through .pnpm but 7za.exe (NSIS) cannot follow them during
+// packaging. Instead, we materialize workspace packages and resolve broken
+// symlinks in a post-copy step.
+const PNM_EXCLUDE = new Set(['.pnpm', '.modules.yaml']);
+// NOTE: dereference is intentionally NOT used here. pnpm junctions form
+// cycles (cordis -> cordis-plugin-include -> cordis -> ...) which cause
+// ELOOP with dereference. Junctions are resolved in a post-copy step.
 fs.cpSync(source, destination, {
   recursive: true,
   filter(candidate) {
     const relative = path.relative(source, candidate);
     if (relative === '') return true;
     const parts = relative.split(path.sep);
-    // Keep .pnpm virtual store — pnpm's hoisted symlinks resolve through it.
-    // Only drop .modules.yaml (pnpm lock metadata, not needed at runtime).
-    return !(parts[0] === 'node_modules' && parts[1] === '.modules.yaml');
+    return !(parts[0] === 'node_modules' && PNM_EXCLUDE.has(parts[1]));
   },
 });
 
@@ -73,3 +79,54 @@ for (const { dir: pkgDir, name } of materialized) {
   });
 }
 console.log(`copy-runtime-stage: copied verified stage to ${destination} without node_modules/.pnpm; materialized ${materialized.length} workspace packages`);
+
+// Post-copy: resolve broken symlinks in node_modules/ that pointed to .pnpm/.
+// These are non-workspace dependencies (sharp, koffi, @opentelemetry, etc.)
+// that pnpm hoists via symlinks. Without .pnpm, the symlinks are broken.
+// We walk the destination's node_modules, find broken symlinks, and copy
+// the actual package from the source's .pnpm store.
+const sourcePnpm = path.join(source, 'node_modules', '.pnpm');
+let resolved = 0;
+
+function resolveBrokenLinks(dir) {
+  let entries;
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory() && !entry.isSymbolicLink()) {
+      // Recurse into real directories (but skip .pnpm itself)
+      if (entry.name !== '.pnpm') resolveBrokenLinks(full);
+      continue;
+    }
+    // Check if this is a broken symlink or junction
+    let isLink = entry.isSymbolicLink();
+    if (!isLink) {
+      try { isLink = fs.lstatSync(full).isSymbolicLink(); } catch {}
+    }
+    if (!isLink) continue;
+    // Check if target exists
+    let target;
+    try { target = fs.realpathSync(full); } catch { target = null; }
+    if (target && fs.existsSync(target)) continue; // link is valid, skip
+    // Broken link — try to find the package in the source .pnpm store
+    const relativePath = path.relative(destination, full);
+    const sourcePath = path.join(source, relativePath);
+    if (fs.existsSync(sourcePath)) {
+      // Remove broken link, copy from source
+      try { fs.unlinkSync(full); } catch {}
+      const stat = fs.statSync(sourcePath);
+      if (stat.isDirectory()) {
+        fs.cpSync(sourcePath, full, { recursive: true });
+      } else {
+        fs.copyFileSync(sourcePath, full);
+      }
+      resolved++;
+    } else {
+      // Can't resolve — remove broken link to prevent 7za errors
+      try { fs.unlinkSync(full); } catch {}
+    }
+  }
+}
+
+resolveBrokenLinks(path.join(destination, 'node_modules'));
+console.log(`copy-runtime-stage: resolved ${resolved} broken symlinks from .pnpm store`);

@@ -2,7 +2,7 @@ appId: com.freecode.deepseekharness
 productName: FreeCode DeepSeek Harness
 artifactName: FreeCode-DeepSeek-Harness-${version}-${os}-${arch}.${ext}
 asar: true
-compression: store
+compression: normal
 beforePack: build/patch-nsis.cjs
 directories:
   output: release
