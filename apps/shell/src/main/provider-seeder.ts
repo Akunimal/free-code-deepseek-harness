@@ -51,10 +51,11 @@ interface SettingsShape {
 
 const DEFAULT_PROVIDER = 'deepseek-free';
 const DEFAULT_API_KEY_ENV = 'FREECODE_PUBLIC_KEY';
-const FREE_PROVIDER_DISPLAY_NAME = 'OpenCode Free Pool';
+const FREE_PROVIDER_DISPLAY_NAME = 'FreeLLMPool';
 const LEGACY_FREE_PROVIDER_DISPLAY_NAMES = new Set([
   'DeepSeek Free (pool)',
   'DeepSeek Free Pool',
+  'OpenCode Free Pool',
 ]);
 /** Seed model — the model-refresher replaces this with the live catalog. */
 const FALLBACK_MODELS = [{ id: 'x-preview-f', reasoningEfforts: reasoningEffortsForModel('x-preview-f') }];

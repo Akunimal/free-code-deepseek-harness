@@ -70,7 +70,8 @@ export function registerIpc(deps: IpcDeps): () => void {
     };
     for (const wc of rendererTargets()) wc.send(IpcChannels.poolStatus, payload);
   };
-  const offChange = runtime.pool.onWorkerChange(() => emitStatus());
+  // freellmpool manages routing internally; no per-worker change events
+  // emitStatus can be called manually if needed
 
   // models:refresh (invoke) — route through guarded path when available to
   // prevent concurrent settings.yaml writes with the timer.
@@ -104,14 +105,15 @@ export function registerIpc(deps: IpcDeps): () => void {
     IpcChannels.poolRestartWorker,
     (_e, payload: unknown) => {
       const parsed = PoolRestartWorkerPayloadSchema.parse(payload);
-      return runtime.pool.restartWorker(parsed.id);
+      // freellmpool manages routing internally; individual worker restart is not applicable
+      return Promise.resolve();
     },
   );
 
-  // pool:resize — live account/worker-slot slider, bounded to the adapter contract.
+  // pool:resize — no-op with freellmpool (provider routing is automatic)
   ipcMain.handle(IpcChannels.poolResize, (_e, payload: unknown) => {
     const parsed = PoolResizePayloadSchema.parse(payload);
-    return runtime.pool.resize(parsed.size);
+    return Promise.resolve();
   });
 
   // settings:openFolder (invoke) — reveal DSH_HOME in the OS file manager
@@ -193,7 +195,6 @@ export function registerIpc(deps: IpcDeps): () => void {
   }
 
   return () => {
-    offChange();
     offWarpFleetChange?.();
     ipcMain.removeHandler(IpcChannels.modelsRefresh);
     ipcMain.removeHandler(IpcChannels.omnirouteDetect);

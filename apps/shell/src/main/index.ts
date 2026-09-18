@@ -140,7 +140,6 @@ async function bootstrap(): Promise<ShellRuntime> {
     resourcesDir: resources,
     nodePath: findNode(),
     userDataDir,
-    poolSize: DEFAULT_POOL_SIZE,
     lbAuthHeader: 'Bearer public',
     secrets,
     secretEnvNames: ['FREECODE_PUBLIC_KEY'],
@@ -529,7 +528,7 @@ function createOverlayWindow(): void {
 
 function renderOverlayHtml(): string {
   const workers = runtime?.workers() ?? [];
-  const poolSize = runtime?.pool.size() ?? DEFAULT_POOL_SIZE;
+  const poolSize = 1; // freellmpool manages routing internally
   const rows = workers
     .map(
       (w) =>
@@ -1081,14 +1080,10 @@ app.whenReady().then(async () => {
   await runtime.start();
   appLogger?.logger.info({}, '[DEBUG-STARTUP] 10/10 runtime.start() OK — harness should be starting');
 
-  const lbUrl = runtime.lb.url();
-  const reportPoolState = (): void => {
-    const readyWorkers = runtime?.workers().filter((worker) => worker.status === 'ready').length ?? 0;
-    reportBackendState('pool', readyWorkers > 0 ? 'ready' : 'down', `${readyWorkers} worker(s) ready`);
-  };
-  runtime.pool.onWorkerChange(reportPoolState);
-  reportPoolState();
-  // Seed once the LB is up. This migration also removes the old managed
+  const lbUrl = runtime.proxy.url;
+  // freellmpool manages providers internally; report proxy as ready
+  reportBackendState('pool', 'ready', 'freellmpool proxy active');
+  // Seed once the proxy is up. This migration also removes the old managed
   // Gemini route from persisted settings without touching unrelated providers.
   seedProviders({
     homeDir: join(userDataDir, 'dsh-home'),

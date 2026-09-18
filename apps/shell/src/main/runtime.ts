@@ -1,17 +1,9 @@
-import {
-  createLoadBalancer,
-  DEFAULT_POOL_SIZE,
-  LoadBalancer,
-  OpenCodePool,
-  Pool,
-  WorkerHandle,
-} from '@freecode/opencode-adapter';
 import { HarnessSupervisor, HarnessInstance } from './harness-supervisor.js';
 import { SecretStore, resolveSecrets } from './secret-store.js';
 import { join, resolve } from 'node:path';
-import { resolveOpencodeBinary } from './resource-paths.js';
+import { startFreellmpoolProxy, type FreellmpoolInstance } from './freellmpool.js';
 import { embeddedMcpEnvironment, ensureEmbeddedMcpConfig } from './mcp-home.js';
-import type { EmbeddedMcpState, McpRuntimeStatus } from '@freecode/shared-types';
+import type { EmbeddedMcpState, McpRuntimeStatus, WorkerHandle } from '@freecode/shared-types';
 
 /**
  * Shell runtime — owns the full backend stack of the desktop app:
@@ -22,13 +14,14 @@ import type { EmbeddedMcpState, McpRuntimeStatus } from '@freecode/shared-types'
  */
 
 export interface ShellRuntimeConfig {
-  /** Resources dir containing the opencode2api binaries + dsh CLI. */
+  /** Resources dir containing the dsh CLI. */
   resourcesDir: string;
   /** Node binary used to run the dsh CLI. */
   nodePath: string;
   /** User data dir (DSH_HOME + worker logs). */
   userDataDir: string;
-  poolSize?: number;
+  /** Python path for freellmpool. Default: 'python' */
+  pythonPath?: string;
   lbAuthHeader?: string;
   /** Secret vault; apiKeyEnv refs are resolved into spawn env (not process.env). */
   secrets?: SecretStore;
@@ -53,9 +46,10 @@ export interface ShellRuntimeConfig {
 export type McpStatusListener = (status: McpRuntimeStatus) => void;
 
 export interface ShellRuntime {
-  pool: Pool;
-  lb: LoadBalancer;
+  /** Freellmpool proxy instance. */
+  proxy: FreellmpoolInstance;
   supervisor: HarnessSupervisor;
+  /** No per-worker handles with freellmpool; returns empty array. */
   workers: () => WorkerHandle[];
   /** Current managed MCP config plus live connection evidence. */
   mcpState(): EmbeddedMcpState;
@@ -156,22 +150,11 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
       error: error instanceof Error ? error.message : String(error),
     });
   }
-  const binaryPath = resolveOpencodeBinary(cfg.resourcesDir, process.platform, process.arch);
-
-  const pool = new OpenCodePool({
-    size: cfg.poolSize ?? DEFAULT_POOL_SIZE,
-    binaryPath,
-    workDir: join(cfg.userDataDir, 'workers'),
-    logDir: join(cfg.userDataDir, 'logs'),
+  // Start freellmpool proxy instead of opencode2api pool + LB
+  const proxy = await startFreellmpoolProxy({
+    pythonPath: cfg.pythonPath,
+    log: cfg.log ? (level, msg, meta) => cfg.log?.(level, msg, meta) : undefined,
   });
-
-  const lb = createLoadBalancer({
-    pool,
-    authHeader: cfg.lbAuthHeader,
-    logError: (msg, err) => console.error(`[lb] ${msg}`, err ?? ''),
-    onAllWorkersRateLimited: cfg.onAllWorkersRateLimited,
-  });
-  await lb.listen();
 
   const cliEntry = resolve(join(cfg.resourcesDir, 'dsh', 'apps', 'cli', 'lib', 'bin.js'));
   const secretEnvNames = cfg.secretEnvNames ?? ['FREECODE_PUBLIC_KEY'];
@@ -187,7 +170,7 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
     nodePath: cfg.nodePath,
     cliEntry,
     homeDir: join(cfg.userDataDir, 'dsh-home'),
-    lbUrl: lb.url(),
+    lbUrl: proxy.url,
     // Product-managed MCP values are authoritative for the child process:
     // they are derived from the persisted catalog, not inherited from the
     // Electron environment. A new harness process reads the current toggles.
@@ -198,10 +181,9 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
   });
 
   return {
-    pool,
-    lb,
+    proxy,
     supervisor,
-    workers: () => pool.workers(),
+    workers: () => [],
     mcpState,
     refreshMcpState: () => {
       const state = ensureEmbeddedMcpConfig(mcpHome, {
@@ -229,13 +211,11 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
     },
     start: async () => {
       resetMcpStatus();
-      await pool.start();
       await supervisor.start();
     },
     stop: async () => {
       await supervisor.stop();
-      await lb.close();
-      await pool.stop();
+      await proxy.stop();
     },
   };
 }
