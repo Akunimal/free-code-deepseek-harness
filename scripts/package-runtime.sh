@@ -89,7 +89,7 @@ elif [[ -L "$VENDOR/apps/web/node_modules/vite" \
   remove_tree "$VENDOR/node_modules"
   remove_workspace_dependency_trees
 fi
-pnpm --dir "$VENDOR" install --frozen-lockfile --node-linker=hoisted
+pnpm --dir "$VENDOR" install --frozen-lockfile --node-linker=hoisted --ignore-scripts || true
 printf '%s\n' "$INSTALL_PLATFORM" > "$PLATFORM_MARKER"
 if [[ ! -f "$VITE_ROOT_ENTRY" && ! -f "$VITE_WORKSPACE_ENTRY" ]]; then
   echo "package-runtime: Vite entry missing after install: $VITE_ROOT_ENTRY (or $VITE_WORKSPACE_ENTRY)" >&2
@@ -141,7 +141,7 @@ if [[ "$TARGET_OS" != "win32" || "$TARGET_CPU" != "x64" ]]; then
   exit 2
 fi
 node -e "const fs=require('node:fs'); const p=process.argv[1]; const os=process.argv[2]; const cpu=process.argv[3]; let s=fs.readFileSync(p,'utf8'); s += '\\nsupportedArchitectures:\\n  os:\\n    - '+os+'\\n  cpu:\\n    - '+cpu+'\\n'; fs.writeFileSync(p,s)" "$STAGE/pnpm-workspace.yaml" "$TARGET_OS" "$TARGET_CPU"
-pnpm --dir "$STAGE" install --frozen-lockfile --node-linker=hoisted
+pnpm --dir "$STAGE" install --frozen-lockfile --node-linker=hoisted --ignore-scripts || true
 
 if [[ ! -f "$STAGE/apps/cli/lib/bin.js" ]]; then
   echo "package-runtime: missing apps/cli/lib/bin.js after stage build" >&2

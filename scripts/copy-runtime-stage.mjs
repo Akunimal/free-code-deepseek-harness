@@ -27,7 +27,9 @@ fs.cpSync(source, destination, {
     const relative = path.relative(source, candidate);
     if (relative === '') return true;
     const parts = relative.split(path.sep);
-    return !(parts[0] === 'node_modules' && (parts[1] === '.pnpm' || parts[1] === '.modules.yaml'));
+    // Keep .pnpm virtual store — pnpm's hoisted symlinks resolve through it.
+    // Only drop .modules.yaml (pnpm lock metadata, not needed at runtime).
+    return !(parts[0] === 'node_modules' && parts[1] === '.modules.yaml');
   },
 });
 
