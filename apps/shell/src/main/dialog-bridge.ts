@@ -32,9 +32,11 @@ async function readBody(req: IncomingMessage): Promise<string> {
  * delegate to the Electron main process instead.
  */
 export async function createDialogBridge(allowedRoot: string): Promise<DialogBridge> {
+  console.log('[DEBUG-DIALOG-BRIDGE] 1/4 starting createDialogBridge');
   const token = randomBytes(32).toString('hex');
   const root = resolve(allowedRoot);
 
+  console.log('[DEBUG-DIALOG-BRIDGE] 2/4 creating server');
   const server = createServer((req, res) => {
     if (req.method !== 'POST' || !['/pick-directory', '/open-text-file'].includes(req.url ?? '')) {
       reply(res, 404, { error: 'not found' });

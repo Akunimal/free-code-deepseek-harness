@@ -2,7 +2,7 @@ appId: com.freecode.deepseekharness
 productName: FreeCode DeepSeek Harness
 artifactName: FreeCode-DeepSeek-Harness-${version}-${os}-${arch}.${ext}
 asar: true
-compression: maximum
+compression: store
 beforePack: build/patch-nsis.cjs
 directories:
   output: release
@@ -23,6 +23,12 @@ extraResources:
     to: freecode
     filter:
       - '**/*'
+      - '!.uv-cache/**'
+      - '!.uv-cache'
+      - '!.uv-tools/**'
+      - '!.uv-tools'
+      - '!tor/**'
+      - '!tor'
 icon: build/icon.png
 win:
   icon: build/icon.ico
@@ -36,7 +42,7 @@ nsis:
   shortcutName: FreeCode DeepSeek Harness
   createStartMenuShortcut: true
   createDesktopShortcut: always
-  include: installer.nsh
+  # include: installer.nsh
 portable:
   artifactName: FreeCode-DeepSeek-Harness-${version}-${os}-${arch}-portable.${ext}
 publish:

@@ -5,7 +5,7 @@ import type {
   ModelCatalog,
   DetectedRoute,
   WorkerHandle,
-  TorInstance,
+  WarpFleetStatus,
   OcrResult,
   EmbeddedMcpState,
   McpRuntimeStatus,
@@ -24,8 +24,8 @@ const IpcChannels = {
   mcpOpenConfig: 'mcp:openConfig',
   mcpStatus: 'mcp:status',
   harnessRestart: 'harness:restart',
-  torfleetEnable: 'torfleet:enable',
-  torfleetStatus: 'torfleet:status',
+  warpfleetEnable: 'warpfleet:enable',
+  warpfleetStatus: 'warpfleet:status',
   localeSet: 'locale:set',
   ocrExtract: 'ocr:extract',
   ocrStatus: 'ocr:status',
@@ -76,16 +76,16 @@ const api: FreeCodeApi = {
       return () => ipcRenderer.removeListener(IpcChannels.mcpStatus, listener);
     },
   },
-  torfleet: {
+  warpfleet: {
     enable: (on: boolean): Promise<void> =>
-      ipcRenderer.invoke(IpcChannels.torfleetEnable, { enabled: on }),
-    onStatus(cb: (payload: IpcPayloads[typeof IpcChannels.torfleetStatus]) => void): () => void {
+      ipcRenderer.invoke(IpcChannels.warpfleetEnable, { enabled: on }),
+    onStatus(cb: (payload: IpcPayloads[typeof IpcChannels.warpfleetStatus]) => void): () => void {
       const listener = (
         _e: unknown,
-        payload: IpcPayloads[typeof IpcChannels.torfleetStatus],
+        payload: IpcPayloads[typeof IpcChannels.warpfleetStatus],
       ): void => cb(payload);
-      ipcRenderer.on(IpcChannels.torfleetStatus, listener);
-      return () => ipcRenderer.removeListener(IpcChannels.torfleetStatus, listener);
+      ipcRenderer.on(IpcChannels.warpfleetStatus, listener);
+      return () => ipcRenderer.removeListener(IpcChannels.warpfleetStatus, listener);
     },
   },
   locale: {
@@ -102,4 +102,4 @@ const api: FreeCodeApi = {
 
 contextBridge.exposeInMainWorld('freecode', api);
 
-export type { FreeCodeApi, IpcPayloads, ModelCatalog, DetectedRoute, WorkerHandle, TorInstance, OcrResult, EmbeddedMcpState, McpRuntimeStatus };
+export type { FreeCodeApi, IpcPayloads, ModelCatalog, DetectedRoute, WorkerHandle, WarpFleetStatus, OcrResult, EmbeddedMcpState, McpRuntimeStatus };

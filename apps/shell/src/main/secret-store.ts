@@ -247,17 +247,21 @@ function fileImpl(userDataDir: string): SecretStore {
 // ---- factory + env bridge ----
 
 export async function createSecretStore(userDataDir?: string): Promise<SecretStore> {
+  console.log('[DEBUG-SECRET] 1/4 createSecretStore starting');
   // 1. keytar (best).
   const kt = await keytarImpl();
+  console.log('[DEBUG-SECRET] 2/4 keytar result:', kt ? 'OK' : 'null');
   if (kt) return kt;
 
   // 2. Windows Credential Manager via PowerShell.
   if (process.platform === 'win32') {
     const pw = pwshImpl();
+    console.log('[DEBUG-SECRET] 3/4 pwsh result:', pw ? 'OK' : 'null');
     if (pw) return pw;
   }
 
   // 3. File fallback.
+  console.log('[DEBUG-SECRET] 4/4 using file fallback');
   return fileImpl(userDataDir ?? join(process.cwd(), '.secret-vault'));
 }
 

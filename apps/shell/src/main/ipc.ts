@@ -11,13 +11,13 @@ import { detectLocalRoutes } from './omniroute-detector.js';
 import { refreshModels } from './model-refresher.js';
 import { isOcrAvailable, extractText } from './ocr.js';
 import { z } from 'zod';
-import type { TorFleet } from './torfleet.js';
+import type { WarpFleet } from './warfleet.js';
 import { ensureEmbeddedMcpConfig, setEmbeddedMcpEnabled } from './mcp-home.js';
 
 const PoolResizePayloadSchema = z.object({ size: z.number().int().min(1).max(16) });
 const LocaleSetPayloadSchema = z.object({ locale: z.enum(['zh', 'en', 'es']) });
 const PoolRestartWorkerPayloadSchema = z.object({ id: z.string().min(1).max(128) });
-const TorfleetEnablePayloadSchema = z.object({ enabled: z.boolean() });
+const WarpFleetEnablePayloadSchema = z.object({ enabled: z.boolean() });
 const McpSetEnabledPayloadSchema = z.object({ id: z.string().min(1).max(64), enabled: z.boolean() });
 const OcrPayloadSchema = z.object({
   imageBase64: z.string().min(1).max(36_000_000),
@@ -35,8 +35,8 @@ export interface IpcDeps {
   homeDir: string;
   lbBaseUrl: string;
   catalogStore: { get(): unknown };
-  torfleet: {
-    instance: TorFleet | null;
+  warpFleet: {
+    instance: WarpFleet | null;
     enable(on: boolean): Promise<void>;
     isEnabled(): boolean;
   };
@@ -146,11 +146,11 @@ export function registerIpc(deps: IpcDeps): () => void {
     for (const wc of rendererTargets()) wc.send(IpcChannels.mcpStatus, status);
   });
 
-  // torfleet:enable (invoke)
-  ipcMain.handle(IpcChannels.torfleetEnable, async (_e, payload: unknown) => {
-    const parsed = TorfleetEnablePayloadSchema.parse(payload);
-    await deps.torfleet.enable(parsed.enabled);
-    emitTorfleetStatus();
+  // warpfleet:enable (invoke)
+  ipcMain.handle(IpcChannels.warpfleetEnable, async (_e, payload: unknown) => {
+    const parsed = WarpFleetEnablePayloadSchema.parse(payload);
+    await deps.warpFleet.enable(parsed.enabled);
+    emitWarpFleetStatus();
   });
 
   // locale:set — keep native Electron menus/tray in step with the web selector.
@@ -178,23 +178,23 @@ export function registerIpc(deps: IpcDeps): () => void {
     return extractText(buffer, { lang: parsed.lang });
   });
 
-  const emitTorfleetStatus = (): void => {
-    const tf = deps.torfleet;
-    const payload: IpcPayloads[typeof IpcChannels.torfleetStatus] = {
-      enabled: tf.isEnabled(),
-      instances: tf.instance?.status() ?? [],
+  const emitWarpFleetStatus = (): void => {
+    const wf = deps.warpFleet;
+    const payload: IpcPayloads[typeof IpcChannels.warpfleetStatus] = {
+      enabled: wf.isEnabled(),
+      status: wf.instance?.status() ?? null,
     };
-    for (const wc of rendererTargets()) wc.send(IpcChannels.torfleetStatus, payload);
+    for (const wc of rendererTargets()) wc.send(IpcChannels.warpfleetStatus, payload);
   };
 
-  let offTorfleetChange: (() => void) | null = null;
-  if (deps.torfleet.instance) {
-    offTorfleetChange = deps.torfleet.instance.onChange(() => emitTorfleetStatus());
+  let offWarpFleetChange: (() => void) | null = null;
+  if (deps.warpFleet.instance) {
+    offWarpFleetChange = deps.warpFleet.instance.onChange(() => emitWarpFleetStatus());
   }
 
   return () => {
     offChange();
-    offTorfleetChange?.();
+    offWarpFleetChange?.();
     ipcMain.removeHandler(IpcChannels.modelsRefresh);
     ipcMain.removeHandler(IpcChannels.omnirouteDetect);
     ipcMain.removeHandler(IpcChannels.harnessRestart);
@@ -204,7 +204,7 @@ export function registerIpc(deps: IpcDeps): () => void {
     ipcMain.removeHandler(IpcChannels.mcpGetState);
     ipcMain.removeHandler(IpcChannels.mcpSetEnabled);
     ipcMain.removeHandler(IpcChannels.mcpOpenConfig);
-    ipcMain.removeHandler(IpcChannels.torfleetEnable);
+    ipcMain.removeHandler(IpcChannels.warpfleetEnable);
     ipcMain.removeHandler(IpcChannels.localeSet);
     ipcMain.removeHandler(IpcChannels.ocrExtract);
     ipcMain.removeHandler(IpcChannels.ocrStatus);

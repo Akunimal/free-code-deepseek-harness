@@ -298,7 +298,7 @@ export class LifecycleManager {
    *   4. Clean up singleton lock
    *
    * @param processes PIDs to shut down
-   * @param cleanup Optional async cleanup (e.g. stop TorFleet, close embedded browser)
+   * @param cleanup Optional async cleanup (e.g. stop WarpFleet, close embedded browser)
    */
   async gracefulShutdown(
     processes: number[],
@@ -312,7 +312,7 @@ export class LifecycleManager {
     })
 
     try {
-      // Run cleanup first (stop TorFleet, close browser, etc.)
+      // Run cleanup first (stop WarpFleet, close browser, etc.)
       if (cleanup) {
         await Promise.race([
           cleanup(),

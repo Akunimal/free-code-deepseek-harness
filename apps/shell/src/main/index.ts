@@ -26,12 +26,10 @@ import {
   requestElectronSingleInstance,
 } from './lifecycle-manager.js';
 import {
-  TorFleet,
-  loadTorFleetState,
-  saveTorFleetState,
-  resolveTorBinaryPath,
-  resolveTorGeoipDir,
-} from './torfleet.js';
+  WarpFleet,
+  loadWarpFleetState,
+  saveWarpFleetState,
+} from './warfleet.js';
 
 /**
  * Electron main — wires the runtime (pool -> LB -> harness), the native
@@ -120,19 +118,24 @@ function findNode(): string {
 
 async function bootstrap(): Promise<ShellRuntime> {
   const userDataDir = app.getPath('userData');
+  appLogger?.logger.info({}, '[DEBUG-STARTUP] bootstrap 1/5 ensureUvxCommand starting');
   const uvxCommand = await ensureUvxCommand({
     platform: process.platform,
     userDataDir,
     log: (level, message, meta) => appLogger?.logger[level](meta ?? {}, message),
   });
+  appLogger?.logger.info({ uvxCommand }, '[DEBUG-STARTUP] bootstrap 2/5 ensureUvxCommand OK');
   const resources = resourcesDir();
+  appLogger?.logger.info({}, '[DEBUG-STARTUP] bootstrap 3/5 createSecretStore starting');
   const secrets = await createSecretStore(userDataDir);
+  appLogger?.logger.info({}, '[DEBUG-STARTUP] bootstrap 4/5 createSecretStore OK');
   // OpenCode's public route is the zero-config OpenCode Free pool. Keep it in
   // the vault so llm-pi-ai reports the seeded provider as configured, while
   // never overwriting a user's private OpenCode key.
   if (!process.env.FREECODE_PUBLIC_KEY) {
     await ensureSecret(secrets, 'FREECODE_PUBLIC_KEY', 'public');
   }
+  appLogger?.logger.info({}, '[DEBUG-STARTUP] bootstrap 5/5 createShellRuntime starting');
   const runtime = await createShellRuntime({
     resourcesDir: resources,
     nodePath: findNode(),
@@ -146,14 +149,15 @@ async function bootstrap(): Promise<ShellRuntime> {
     uvxCommand,
     browserBridge: embeddedBrowser ? { endpoint: embeddedBrowser.endpoint, token: embeddedBrowser.token } : undefined,
     // The LB fires this once when every ready worker is rate-limited. The
-    // concrete handler is assigned after enableTorfleet is defined; a 429
+    // concrete handler is assigned after enableWarpFleet is defined; a 429
     // storm cannot arrive before the harness is running, well after that.
-    onAllWorkersRateLimited: () => autoEnableTorHandler?.(),
+    onAllWorkersRateLimited: () => autoEnableWarpHandler?.(),
     log: (level, msg, meta) => {
       const fn = level === 'error' || level === 'warn' ? level : 'info';
       appLogger?.logger[fn]?.(meta ?? {}, msg);
     },
   });
+  appLogger?.logger.info({}, '[DEBUG-STARTUP] bootstrap DONE');
   return runtime;
 }
 
@@ -168,7 +172,7 @@ let updateService: UpdateService | null = null;
 let updateTimer: NodeJS.Timeout | null = null;
 let overlayOpen = false;
 let localUpdateRunning = false;
-let torfleet: TorFleet | null = null;
+let warpFleet: WarpFleet | null = null;
 let embeddedBrowser: EmbeddedBrowser | null = null;
 let dialogBridge: DialogBridge | null = null;
 let updateIndicatorView: WebContentsView | null = null;
@@ -179,15 +183,14 @@ const UPDATE_INDICATOR_WIDTH = 34;
 const UPDATE_INDICATOR_HEIGHT = 34;
 type UpdateActivity = 'idle' | 'downloading' | 'installing';
 let updateActivity: UpdateActivity = 'idle';
-let torfleetEnabled = false;
-let torfleetOnChangeCleanup: (() => void) | null = null;
-/** Assigned once enableTorfleet exists; the LB's rate-limit callback delegates
- *  here to auto-enable Tor Fleet with a user warning. */
-let autoEnableTorHandler: (() => void) | null = null;
-/** After the user dismisses/declines an auto-Tor prompt, suppress re-prompting
+let warpFleetEnabled = false;
+/** Assigned once enableWarpFleet exists; the LB's rate-limit callback delegates
+ *  here to auto-enable WARP with a user warning. */
+let autoEnableWarpHandler: (() => void) | null = null;
+/** After the user dismisses/declines an auto-WARP prompt, suppress re-prompting
  *  for this long so a sustained 429 storm does not nag on every request. */
-const TOR_AUTOPROMPT_COOLDOWN_MS = 10 * 60 * 1_000;
-let torAutoPromptSuppressedUntil = 0;
+const WARP_AUTOPROMPT_COOLDOWN_MS = 10 * 60 * 1_000;
+let warpAutoPromptSuppressedUntil = 0;
 let shuttingDown = false;
 let lifecycleMgr: LifecycleManager | null = null;
 let refreshIntervalId: NodeJS.Timeout | null = null;
@@ -555,15 +558,15 @@ input[type=range]{width:100%;margin:8px 0}
 <table><thead><tr><th>id</th><th>status</th><th>addr</th><th>pid</th><th>restarts</th></tr></thead><tbody id="pool-rows">${rows}</tbody></table>
 <hr style="border-color:#2a2f3a;margin:16px 0">
 <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-  <label style="font-weight:600;font-size:14px">TorFleet</label>
+  <label style="font-weight:600;font-size:14px">WARP</label>
   <label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer;-webkit-app-region:no-drag">
-    <input id="tor-toggle" type="checkbox" ${torfleetEnabled ? 'checked' : ''} style="opacity:0;width:0;height:0" onchange="window.freecode.torfleet.enable(this.checked)">
-    <span style="position:absolute;inset:0;background:${torfleetEnabled ? '#ff7a00' : '#2a2f3a'};border-radius:12px;transition:.3s"></span>
-    <span style="position:absolute;top:2px;left:${torfleetEnabled ? '22px' : '2px'};width:20px;height:20px;background:#fff;border-radius:50%;transition:.3s"></span>
+    <input id="warp-toggle" type="checkbox" ${warpFleetEnabled ? 'checked' : ''} style="opacity:0;width:0;height:0" onchange="window.freecode.warpfleet.enable(this.checked)">
+    <span style="position:absolute;inset:0;background:${warpFleetEnabled ? '#ff7a00' : '#2a2f3a'};border-radius:12px;transition:.3s"></span>
+    <span style="position:absolute;top:2px;left:${warpFleetEnabled ? '22px' : '2px'};width:20px;height:20px;background:#fff;border-radius:50%;transition:.3s"></span>
   </label>
-  <span id="tor-status-label" style="font-size:12px;color:#9da4b3">${torfleetEnabled ? 'ON' : 'OFF'}</span>
+  <span id="warp-status-label" style="font-size:12px;color:#9da4b3">${warpFleetEnabled ? 'ON' : 'OFF'}</span>
 </div>
-<table id="tor-table" style="display:${torfleetEnabled ? 'table' : 'none'}"><thead><tr><th>tor</th><th>status</th><th>SOCKS5</th><th>pid</th></tr></thead><tbody id="tor-rows"></tbody></table>
+<table id="warp-table" style="display:${warpFleetEnabled ? 'table' : 'none'}"><thead><tr><th>status</th><th>rotating</th><th>last error</th></tr></thead><tbody id="warp-rows"></tbody></table>
 <script>
 window.freecode.pool.onStatus(function(payload) {
   var tbody = document.getElementById('pool-rows');
@@ -577,10 +580,10 @@ window.freecode.pool.onStatus(function(payload) {
     output.value = payload.workers.length;
   }
 });
-window.freecode.torfleet.onStatus(function(payload) {
-  var toggle = document.getElementById('tor-toggle');
-  var label = document.getElementById('tor-status-label');
-  var table = document.getElementById('tor-table');
+window.freecode.warpfleet.onStatus(function(payload) {
+  var toggle = document.getElementById('warp-toggle');
+  var label = document.getElementById('warp-status-label');
+  var table = document.getElementById('warp-table');
   var track = toggle.nextElementSibling;
   var knob = track.nextElementSibling;
   toggle.checked = payload.enabled;
@@ -588,11 +591,10 @@ window.freecode.torfleet.onStatus(function(payload) {
   track.style.background = payload.enabled ? '#ff7a00' : '#2a2f3a';
   knob.style.left = payload.enabled ? '22px' : '2px';
   table.style.display = payload.enabled ? 'table' : 'none';
-  if (payload.instances) {
-    var tbody = document.getElementById('tor-rows');
-    tbody.innerHTML = payload.instances.map(function(i) {
-      return '<tr><td>tor-'+i.index+'</td><td>'+i.status+'</td><td>127.0.0.1:'+i.socksPort+'</td><td>'+i.pid+'</td></tr>';
-    }).join('');
+  if (payload.status) {
+    var tbody = document.getElementById('warp-rows');
+    var s = payload.status;
+    tbody.innerHTML = '<tr><td>'+(s.active ? 'connected' : 'disconnected')+'</td><td>'+(s.rotating ? 'yes' : 'no')+'</td><td>'+(s.lastError || '-')+'</td></tr>';
   }
 });
 </script>
@@ -1007,26 +1009,77 @@ app.whenReady().then(async () => {
     },
     log: (message, details) => appLogger?.logger.info({ details }, message),
   });
+  console.log('[DEBUG-STARTUP] 1/10 checkForUpdates starting');
+  appLogger?.logger.info({}, '[DEBUG-STARTUP] 1/10 checkForUpdates starting');
   void checkForUpdates();
+  console.log('[DEBUG-STARTUP] 2/10 checkForUpdates fired');
+  appLogger?.logger.info({}, '[DEBUG-STARTUP] 2/10 checkForUpdates fired');
   updateTimer = setInterval(() => void checkForUpdates(), 6 * 60 * 60 * 1_000);
   updateTimer.unref();
+  appLogger?.logger.info({}, '[DEBUG-STARTUP] 3/10 before createEmbeddedBrowser');
   try {
     embeddedBrowser = await createEmbeddedBrowser(userDataDir, () => mainWindow);
+    appLogger?.logger.info({}, '[DEBUG-STARTUP] 4/10 createEmbeddedBrowser OK');
   } catch (error) {
+    appLogger?.logger.error({ err: error }, '[DEBUG-STARTUP] 4/10 createEmbeddedBrowser FAILED');
     appLogger?.logger.warn({ err: error }, 'embedded browser unavailable; computer_use will report capability absence');
   }
   if (process.platform === 'win32') {
+    appLogger?.logger.info({}, '[DEBUG-STARTUP] 5/10 before createDialogBridge');
     try {
       dialogBridge = await createDialogBridge(join(userDataDir, 'dsh-home'));
+      appLogger?.logger.info({}, '[DEBUG-STARTUP] 6/10 createDialogBridge OK');
     } catch (error) {
+      appLogger?.logger.error({ err: error }, '[DEBUG-STARTUP] 6/10 createDialogBridge FAILED');
       appLogger?.logger.warn({ err: error }, 'dialog bridge unavailable; directory picker falls back to koffi worker');
     }
   }
+  appLogger?.logger.info({}, '[DEBUG-STARTUP] 7/10 before bootstrap()');
   runtime = await bootstrap();
+  appLogger?.logger.info({}, '[DEBUG-STARTUP] 8/10 bootstrap() OK');
   // Register before start so MCP failures from the first child generation are
   // visible in the tray/notification path as well as in the Settings tab.
   runtime.onMcpStatus(reportMcpStatus);
+
+  // Register ready/stuck listeners BEFORE runtime.start(). If the supervisor
+  // spawn fails synchronously (e.g. missing binary), the stuck listeners
+  // fire inside runtime.start() — they must already be attached.
+  runtime.supervisor.onReady((h) => {
+    appLogger?.logger.info({ url: h.url, pid: h.pid, restarts: h.restarts }, 'harness ready');
+    closeSplash();
+    if (!mainWindow) createMainWindow(h.url);
+    if (process.platform !== 'darwin') {
+      try {
+        new Notification({ title: t('notify.ready.title'), body: t('notify.ready.body') }).show();
+      } catch {
+        /* fallback silent */
+      }
+    }
+  });
+
+  runtime.supervisor.onStuck((inst) => {
+    closeSplash();
+    const logPath = join(userDataDir, 'logs', 'app.log');
+    appLogger?.logger.error({ restarts: inst.restarts, tail: inst.lastOutputTail }, 'harness supervisor gave up');
+    const tailPreview = inst.lastOutputTail && inst.lastOutputTail.trim().length > 0
+      ? '\n\n' + inst.lastOutputTail.trim().split(/\r?\n/).slice(-12).join('\n').slice(-800)
+      : '';
+    void dialog.showMessageBox({
+      type: 'error',
+      title: t('stuck.title'),
+      message: t('stuck.message', inst.restarts),
+      detail: t('stuck.detail', logPath) + tailPreview,
+      buttons: [t('stuck.retry'), t('stuck.close')],
+      defaultId: 0,
+      cancelId: 1,
+    }).then((choice) => {
+      if (choice.response === 0) void runtime?.supervisor.restart();
+    });
+  });
+
+  appLogger?.logger.info({}, '[DEBUG-STARTUP] 9/10 before runtime.start()');
   await runtime.start();
+  appLogger?.logger.info({}, '[DEBUG-STARTUP] 10/10 runtime.start() OK — harness should be starting');
 
   const lbUrl = runtime.lb.url();
   const reportPoolState = (): void => {
@@ -1084,83 +1137,68 @@ app.whenReady().then(async () => {
   refreshIntervalId = setInterval(() => void doRefresh(), REFRESH_INTERVAL_MS);
   refreshIntervalId.unref();
 
-  // TorFleet — headless Tor SOCKS5 rotation for pool 429 mitigation.
-  const tfState = loadTorFleetState(userDataDir);
-  torfleetEnabled = tfState.enabled;
+  // WarpFleet — Cloudflare WARP tunnel for pool 429 mitigation.
+  // WARP operates at the OS network layer; no per-worker proxy config needed.
+  const wfState = loadWarpFleetState(userDataDir);
+  warpFleetEnabled = wfState.enabled;
 
-  const enableTorfleet = async (on: boolean): Promise<void> => {
-    torfleetEnabled = on;
-    saveTorFleetState(userDataDir, { enabled: on });
+  const enableWarpFleet = async (on: boolean): Promise<void> => {
+    warpFleetEnabled = on;
+    saveWarpFleetState(userDataDir, { enabled: on });
     if (on) {
-      if (!torfleet) {
-        torfleet = new TorFleet({
-          torBinaryPath: resolveTorBinaryPath(resources),
-          dataDir: join(userDataDir, 'torfleet'),
-          geoipDir: resolveTorGeoipDir(resources),
-        });
+      if (!warpFleet) {
+        warpFleet = new WarpFleet();
       }
-      await torfleet.start();
-      const proxies = torfleet.socksProxies();
-      if (proxies.length > 0 && runtime) {
-        await runtime.pool.setSocks5({
-          socks5_proxies: proxies,
-          active_socks5: '__round_robin__',
-          socks5_paid_direct: false,
-        });
+      if (!warpFleet.isAvailable()) {
+        appLogger?.logger.warn({}, 'warp-cli not found; WARP fallback unavailable');
+        warpFleetEnabled = false;
+        saveWarpFleetState(userDataDir, { enabled: false });
+        return;
       }
-      // Remove previous listener to prevent accumulation on toggle on→off→on
-      torfleetOnChangeCleanup?.();
-      torfleetOnChangeCleanup = torfleet.onChange(async (instances) => {
-        const ready = instances.filter((i) => i.status === 'ready');
-        if (runtime && ready.length > 0) {
-          const fresh = torfleet!.socksProxies();
-          await runtime.pool.setSocks5({
-            socks5_proxies: fresh,
-            active_socks5: '__round_robin__',
-            socks5_paid_direct: false,
-          });
-        }
-      });
+      await warpFleet.enable();
     } else {
-      if (torfleet) {
-        await torfleet.stop();
-        torfleet = null;
-      }
-      if (runtime) {
-        await runtime.pool.setSocks5(null);
+      if (warpFleet) {
+        await warpFleet.disable();
+        warpFleet = null;
       }
     }
   };
 
-  if (torfleetEnabled) {
-    void enableTorfleet(true);
+  if (warpFleetEnabled) {
+    void enableWarpFleet(true);
   }
 
-  // Auto-enable Tor Fleet when the whole pool is rate-limited. The LB detects
-  // the condition (every ready worker returned 429 with no 2xx in between)
-  // and fires onAllWorkersRateLimited, which delegates here. We enable Tor
-  // immediately (rotating exits is the mitigation) and inform the user, who
-  // can turn it back off. A cooldown prevents nagging on a sustained storm.
-  autoEnableTorHandler = (): void => {
-    if (torfleetEnabled) return; // already rotating
-    if (Date.now() < torAutoPromptSuppressedUntil) return; // recently dismissed
-    appLogger?.logger.warn({}, 'all workers rate-limited; auto-enabling Tor Fleet');
+  // Auto-enable WARP when the whole pool is rate-limited. The LB detects
+  // the condition and fires onAllWorkersRateLimited, which delegates here.
+  // WARP is enabled immediately (system-level tunnel rotation) and the user
+  // is informed. If WARP is already on, we rotate the exit IP instead.
+  autoEnableWarpHandler = (): void => {
+    if (warpFleetEnabled) {
+      // Already on — rotate IP for a fresh exit
+      if (warpFleet) {
+        void warpFleet.rotateIP().catch((err) =>
+          appLogger?.logger.error({ err }, 'WARP IP rotation failed'));
+      }
+      return;
+    }
+    if (Date.now() < warpAutoPromptSuppressedUntil) return; // recently dismissed
+    appLogger?.logger.warn({}, 'all workers rate-limited; auto-enabling WARP');
     void (async () => {
-      await enableTorfleet(true);
+      await enableWarpFleet(true);
       const choice = await dialog.showMessageBox({
         type: 'info',
-        title: t('tor.auto.title'),
-        message: t('tor.auto.message'),
-        detail: t('tor.auto.detail'),
-        buttons: [t('tor.auto.keep'), t('tor.auto.disable')],
+        title: t('warp.auto.title'),
+        message: t('warp.auto.message'),
+        detail: t('warp.auto.detail'),
+        buttons: [t('warp.auto.keep'), t('warp.auto.disable')],
         defaultId: 0,
         cancelId: 0,
       });
       if (choice.response === 1) {
-        await enableTorfleet(false);
-        torAutoPromptSuppressedUntil = Date.now() + TOR_AUTOPROMPT_COOLDOWN_MS;
+        await enableWarpFleet(false);
+        warpAutoPromptSuppressedUntil = Date.now() + WARP_AUTOPROMPT_COOLDOWN_MS;
       }
-    })().catch((err) => appLogger?.logger.error({ err }, 'auto-enable Tor Fleet failed'));
+    })().catch((err) => appLogger?.logger.error({ err }, 'auto-enable WARP failed'));
   };
 
   // FASE 10: IPC contract.
@@ -1170,10 +1208,10 @@ app.whenReady().then(async () => {
     homeDir: join(userDataDir, 'dsh-home'),
     lbBaseUrl: lbUrl,
     catalogStore: { get: () => catalog },
-    torfleet: {
-      get instance() { return torfleet; },
-      enable: enableTorfleet,
-      isEnabled: () => torfleetEnabled,
+    warpFleet: {
+      get instance() { return warpFleet; },
+      enable: enableWarpFleet,
+      isEnabled: () => warpFleetEnabled,
     },
     reportModelRefreshFailure,
     triggerRefresh: async () => { await doRefresh(); return catalog!; },
@@ -1187,46 +1225,6 @@ app.whenReady().then(async () => {
       : [],
   });
 
-  // Wait for harness readiness, then open the window on its URL.
-  runtime.supervisor.onReady((h) => {
-    appLogger?.logger.info({ url: h.url, pid: h.pid, restarts: h.restarts }, 'harness ready');
-    closeSplash();
-    if (!mainWindow) createMainWindow(h.url);
-    if (process.platform !== 'darwin') {
-      try {
-        // The readiness URL contains a one-time authentication token. Never
-        // put it in an OS notification, where it can be retained or exposed
-        // to notification history; the window already loads the URL directly.
-        new Notification({ title: t('notify.ready.title'), body: t('notify.ready.body') }).show();
-      } catch {
-        /* fallback silent */
-      }
-    }
-  });
-
-  runtime.supervisor.onStuck((inst) => {
-    const logPath = join(userDataDir, 'logs', 'app.log');
-    appLogger?.logger.error({ restarts: inst.restarts, tail: inst.lastOutputTail }, 'harness supervisor gave up');
-    // The tail is the last stderr/stdout captured before the process died;
-    // for boot-time crashes it usually names the missing file or the koffi
-    // abort that caused SIGABRT. Surface at most the last 800 chars so the
-    // dialog stays readable.
-    const tailPreview = inst.lastOutputTail && inst.lastOutputTail.trim().length > 0
-      ? '\n\n' + inst.lastOutputTail.trim().split(/\r?\n/).slice(-12).join('\n').slice(-800)
-      : '';
-    void dialog.showMessageBox({
-      type: 'error',
-      title: t('stuck.title'),
-      message: t('stuck.message', inst.restarts),
-      detail: t('stuck.detail', logPath) + tailPreview,
-      buttons: [t('stuck.retry'), t('stuck.close')],
-      defaultId: 0,
-      cancelId: 1,
-    }).then((choice) => {
-      if (choice.response === 0) void runtime?.supervisor.restart();
-    });
-  });
-
   if (runtime.supervisor.statusValue === 'ready' && runtime.supervisor.currentUrl) {
     closeSplash();
     if (!mainWindow) createMainWindow(runtime.supervisor.currentUrl);
@@ -1234,6 +1232,29 @@ app.whenReady().then(async () => {
 
   buildMenu();
   createTray();
+
+  // Watchdog: if the splash is still visible after 120s, the supervisor
+  // never reached 'ready' or 'stuck'. Close the splash and surface a
+  // diagnostic error so the user is not left staring at a spinner forever.
+  const splashWatchdog = setTimeout(() => {
+    if (splashWindow && !splashWindow.isDestroyed() && !mainWindow) {
+      appLogger?.logger.error({
+        supervisorStatus: runtime?.supervisor.statusValue,
+        supervisorUrl: runtime?.supervisor.currentUrl,
+        poolWorkers: runtime?.workers().length ?? 0,
+      }, 'startup watchdog fired — splash still visible after 120s');
+      closeSplash();
+      const logPath = join(userDataDir, 'logs', 'app.log');
+      void dialog.showMessageBox({
+        type: 'error',
+        title: t('stuck.title'),
+        message: 'The application failed to start within the expected time.',
+        detail: `The harness web server did not become ready.\n\nSupervisor status: ${runtime?.supervisor.statusValue ?? 'unknown'}\n\nCheck the log for details:\n${logPath}`,
+        buttons: [t('stuck.close')],
+      });
+    }
+  }, 120_000);
+  splashWatchdog.unref();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0 && runtime?.supervisor.currentUrl) {
@@ -1263,10 +1284,10 @@ app.on('before-quit', async (e) => {
       if (updateTimer) { clearInterval(updateTimer); updateTimer = null; }
       if (refreshRetryTimer) { clearTimeout(refreshRetryTimer); refreshRetryTimer = null; }
       if (refreshIntervalId) { clearInterval(refreshIntervalId); refreshIntervalId = null; }
-      // Stop TorFleet once (guarded against double-stop)
-      if (torfleet) {
-        try { await torfleet.stop(); } catch { /* best effort */ }
-        torfleet = null;
+      // Stop WarpFleet once (guarded against double-stop)
+      if (warpFleet) {
+        try { await warpFleet.disable(); } catch { /* best effort */ }
+        warpFleet = null;
       }
       await embeddedBrowser?.close();
       embeddedBrowser = null;

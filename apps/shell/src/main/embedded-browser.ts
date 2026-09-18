@@ -242,12 +242,15 @@ function toolbarHtml(): string {
 
 /** Visible Chromium in the main FreeCode window, with a durable profile and computer-use bridge. */
 export async function createEmbeddedBrowser(userDataDir: string, getMainWindow: () => BrowserWindow | null = () => null): Promise<EmbeddedBrowser> {
+  console.log('[DEBUG-EMBED-BROWSER] 1/5 starting createEmbeddedBrowser')
   const dataDir = join(userDataDir, 'browser-data')
   const stateFile = join(userDataDir, 'browser-state.json')
   const debugFile = join(userDataDir, 'logs', 'browser.log')
   mkdirSync(dataDir, { recursive: true })
   mkdirSync(join(userDataDir, 'logs'), { recursive: true })
+  console.log('[DEBUG-EMBED-BROWSER] 2/5 session.fromPath')
   const browserSession = session.fromPath(dataDir)
+  console.log('[DEBUG-EMBED-BROWSER] 3/5 session.fromPath OK')
   const token = randomBytes(32).toString('hex')
   let stored: StoredState = {}
   if (existsSync(stateFile)) {

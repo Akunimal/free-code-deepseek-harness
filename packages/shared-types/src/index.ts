@@ -37,15 +37,14 @@ export const DetectedRouteSchema = z.object({
 });
 export type DetectedRoute = z.infer<typeof DetectedRouteSchema>;
 
-/** TorFleet instance snapshot (mirrors torfleet.ts TorInstance). */
-export const TorInstanceSchema = z.object({
-  index: z.number(),
-  socksPort: z.number(),
-  controlPort: z.number(),
-  pid: z.number(),
-  status: z.enum(['starting', 'ready', 'stopped']),
+/** WarpFleet status snapshot (mirrors warfleet.ts WarpFleetStatus). */
+export const WarpFleetStatusSchema = z.object({
+  active: z.boolean(),
+  rotating: z.boolean(),
+  cooldownMs: z.number(),
+  lastError: z.string().nullable().optional(),
 });
-export type TorInstance = z.infer<typeof TorInstanceSchema>;
+export type WarpFleetStatus = z.infer<typeof WarpFleetStatusSchema>;
 
 /** IPC channel names (single source of truth for main + preload + renderer). */
 export const IpcChannels = {
@@ -61,8 +60,8 @@ export const IpcChannels = {
   mcpOpenConfig: 'mcp:openConfig',
   mcpStatus: 'mcp:status',
   harnessRestart: 'harness:restart',
-  torfleetEnable: 'torfleet:enable',
-  torfleetStatus: 'torfleet:status',
+  warpfleetEnable: 'warpfleet:enable',
+  warpfleetStatus: 'warpfleet:status',
   localeSet: 'locale:set',
   ocrExtract: 'ocr:extract',
   ocrStatus: 'ocr:status',
@@ -84,8 +83,8 @@ export interface IpcPayloads {
   [IpcChannels.mcpOpenConfig]: void;
   [IpcChannels.mcpStatus]: McpRuntimeStatus;
   [IpcChannels.harnessRestart]: void;
-  [IpcChannels.torfleetEnable]: { enabled: boolean };
-  [IpcChannels.torfleetStatus]: { enabled: boolean; instances: TorInstance[] };
+  [IpcChannels.warpfleetEnable]: { enabled: boolean };
+  [IpcChannels.warpfleetStatus]: { enabled: boolean; status: WarpFleetStatus | null };
   [IpcChannels.localeSet]: { locale: 'zh' | 'en' | 'es' };
   [IpcChannels.ocrExtract]: { imageBase64: string; lang?: string };
   [IpcChannels.ocrStatus]: { available: boolean; binaryPath: string | null };
@@ -125,9 +124,9 @@ export interface FreeCodeApi {
     openConfig(): Promise<void>;
     onStatus(cb: (status: McpRuntimeStatus) => void): () => void;
   };
-  torfleet: {
+  warpfleet: {
     enable(on: boolean): Promise<void>;
-    onStatus(cb: (payload: IpcPayloads[typeof IpcChannels.torfleetStatus]) => void): () => void;
+    onStatus(cb: (payload: IpcPayloads[typeof IpcChannels.warpfleetStatus]) => void): () => void;
   };
   locale: {
     set(locale: 'zh' | 'en' | 'es'): Promise<void>;

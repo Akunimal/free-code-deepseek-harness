@@ -14,7 +14,11 @@ export function resolveResourcesDir(options: ResourcePathOptions): string {
     const bundled = resolve(options.resourcesPath, 'freecode');
     if (existsSync(bundled)) return bundled;
   }
-  return options.developmentRoot ?? resolve(import.meta.dirname, '../../../resources');
+  const base = options.developmentRoot ?? resolve(import.meta.dirname, '../../../resources');
+  // In dev mode the freecode/ subdirectory mirrors the packaged layout.
+  const freecode = resolve(base, 'freecode');
+  if (existsSync(freecode)) return freecode;
+  return base;
 }
 
 /** Find the platform worker binary in both the legacy dev layout and the

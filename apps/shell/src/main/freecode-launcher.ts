@@ -97,6 +97,14 @@ export interface LaunchResult {
 }
 
 /**
+ * Check if a path looks like an absolute/relative file path (contains a
+ * directory separator) rather than a bare command name resolved via PATH.
+ */
+function isFilePath(executable: string): boolean {
+  return executable.includes('/') || executable.includes('\\')
+}
+
+/**
  * Spawn a hidden child process through the centralized seam.
  *
  * The process is:
@@ -121,8 +129,10 @@ export function launchHidden(options: LaunchOptions): LaunchResult {
     launchedAt: Date.now(),
   }
 
-  // Validate executable exists
-  if (!existsSync(options.executable)) {
+  // Validate executable exists — only for absolute/relative file paths.
+  // Bare command names (e.g. "powershell.exe", "where", "git") are resolved
+  // by the OS via PATH at spawn time; existsSync does NOT search PATH.
+  if (isFilePath(options.executable) && !existsSync(options.executable)) {
     throw new LaunchError('executable-not-found', `Executable not found: ${options.executable}`, metrics)
   }
 
@@ -197,7 +207,8 @@ export interface LaunchSyncOptions {
 export function launchHiddenSync(options: LaunchSyncOptions): ReturnType<typeof spawnSync> {
   const id = launchId()
 
-  if (!existsSync(options.executable)) {
+  // Only validate existence for file paths, not bare command names.
+  if (isFilePath(options.executable) && !existsSync(options.executable)) {
     throw new LaunchError('executable-not-found', `Executable not found: ${options.executable}`, {
       id,
       executable: options.executable,

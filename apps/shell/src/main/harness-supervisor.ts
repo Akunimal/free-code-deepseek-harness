@@ -289,8 +289,20 @@ export class HarnessSupervisor {
       });
       proc = launched;
     } catch (err) {
-      console.error('[supervisor] spawn failed:', err);
+      const message = err instanceof Error ? err.message : String(err);
+      console.error('[supervisor] spawn failed:', message);
+      this.cfg.log?.('error', 'dsh spawn failed — no child process created', {
+        nodePath: this.cfg.nodePath,
+        cliEntry: this.cfg.cliEntry,
+        error: message,
+      });
       this.status = 'unhealthy';
+      // Fire stuck listeners so the shell can close the splash and show
+      // an actionable error dialog instead of hanging forever.
+      const tail = `Spawn failed: ${message}\nnode: ${this.cfg.nodePath}\ncli: ${this.cfg.cliEntry}`;
+      for (const cb of this.stuckListeners) {
+        cb({ url: '', pid: -1, startedAt: this.startedAt, restarts: this.restarts, lastOutputTail: tail });
+      }
       return;
     }
     this.proc = proc;

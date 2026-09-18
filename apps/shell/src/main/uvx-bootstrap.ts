@@ -174,6 +174,7 @@ async function installManagedUvxAsync(userDataDir: string, fetchImpl: typeof fet
  * 3. Managed bootstrap download (last resort)
  */
 export async function ensureUvxCommand(options: UvxBootstrapOptions): Promise<string | undefined> {
+  console.log('[DEBUG-UVX] 1/4 ensureUvxCommand starting');
   const platform = options.platform ?? process.platform
   if (platform !== 'win32') return undefined
   const env = options.env ?? process.env
@@ -188,9 +189,11 @@ export async function ensureUvxCommand(options: UvxBootstrapOptions): Promise<st
     join(__dirname, '..', '..', '..', 'resources', 'freecode', 'uv', 'uvx.exe'),
     join(__dirname, '..', '..', 'resources', 'freecode', 'uv', 'uvx.exe'),
   ]
+  console.log('[DEBUG-UVX] 2/4 checking vendored candidates:', vendoredCandidates.map(c => `${c} exists=${existsSync(c)}`));
   for (const vendoredUvx of vendoredCandidates) {
     if (existsSync(vendoredUvx)) {
       options.log?.('info', 'using vendored uvx from payload', { path: vendoredUvx })
+      console.log('[DEBUG-UVX] 3/4 FOUND vendored:', vendoredUvx);
       return vendoredUvx
     }
   }
