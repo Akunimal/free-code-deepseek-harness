@@ -130,3 +130,51 @@ function resolveBrokenLinks(dir) {
 
 resolveBrokenLinks(path.join(destination, 'node_modules'));
 console.log(`copy-runtime-stage: resolved ${resolved} broken symlinks from .pnpm store`);
+
+// Post-copy: remove all remaining junctions/reparse points. pnpm creates
+// junctions on Windows that form cycles (cordis <-> cordis-plugin-include).
+// 7za.exe (used by NSIS) cannot follow junctions and fails with "path not
+// found". Node.js resolution still works because the root node_modules/
+// has all materialized workspace packages, and nested node_modules/ are
+// optional (pnpm hoists to root). Removing junctions in the packaged
+// resources prevents 7za errors without affecting runtime resolution.
+let junctionsRemoved = 0;
+// Scan ALL node_modules/ directories in the tree, not just the root one.
+// Junctions exist in apps/cli/node_modules/, packages/*/node_modules/, etc.
+function removeJunctionsInDir(dir) {
+  let entries;
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    let isJunction = entry.isSymbolicLink();
+    if (!isJunction && entry.isDirectory()) {
+      try { isJunction = fs.lstatSync(full).isSymbolicLink(); } catch {}
+    }
+    if (isJunction) {
+      fs.rmSync(full, { recursive: true, force: true });
+      junctionsRemoved++;
+    } else if (entry.isDirectory()) {
+      removeJunctionsInDir(full);
+    }
+  }
+}
+// Start from every node_modules/ directory in the tree
+const allNmDirs = [path.join(destination, 'node_modules')];
+function findNmDirs(dir) {
+  let entries;
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+  for (const entry of entries) {
+    if (entry.name === '.pnpm') continue;
+    const full = path.join(dir, entry.name);
+    if (!entry.isDirectory()) continue;
+    if (entry.name === 'node_modules') {
+      allNmDirs.push(full);
+    }
+    findNmDirs(full);
+  }
+}
+findNmDirs(destination);
+for (const nmDir of allNmDirs) {
+  removeJunctionsInDir(nmDir);
+}
+console.log(`copy-runtime-stage: removed ${junctionsRemoved} junctions for 7za compatibility`);
