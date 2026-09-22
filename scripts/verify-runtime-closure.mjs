@@ -29,6 +29,7 @@ const forbidden = [
   'node_modules/lefthook-windows-x64',
   'node_modules/jscpd-windows-x64-msvc',
   'node_modules/@oxlint-tsgolint',
+  'node_modules/@oxlint',
   'node_modules/oxlint',
   'node_modules/typescript',
   'node_modules/mermaid',

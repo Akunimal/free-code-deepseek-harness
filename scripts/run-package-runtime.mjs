@@ -1,5 +1,9 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 // The 0.6.0 release is Windows-only. WSL is allowed as a build host, but the
 // target must remain Win32 so native dependencies and the OCR payload cannot
@@ -23,8 +27,9 @@ if (targetOs !== 'win32') {
   process.exit(2);
 }
 
-const result = spawnSync(bash, ['scripts/package-runtime.sh'], {
+const result = spawnSync(bash, [join(repoRoot, 'scripts', 'package-runtime.sh')], {
   stdio: 'inherit',
+  cwd: repoRoot,
   env: {
     ...process.env,
     DSH_TARGET_OS: targetOs,

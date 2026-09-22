@@ -25,7 +25,7 @@ for (const relativePath of topLevel) {
 // the TypeScript project graphs.
 for (const entry of readdirSync(stage)) {
   if (/^tsconfig\..*\.tsbuildinfo$/.test(entry)
-    || /^vitest\..*\.config\.ts$/.test(entry)
+    || /^vitest(\..*)?\.config\.ts$/.test(entry)
     || /^tsconfig\..*\.json$/.test(entry)) {
     rmSync(join(stage, entry), { recursive: true, force: true });
   }
@@ -49,6 +49,7 @@ const relativePaths = [
   'node_modules/lefthook-windows-x64',
   'node_modules/jscpd-windows-x64-msvc',
   'node_modules/@oxlint-tsgolint',
+  'node_modules/@oxlint',
   'node_modules/oxlint',
   'node_modules/typescript',
   // Docs-diagram and bundler backends (website/tsdown build inputs).
