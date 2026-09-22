@@ -28,6 +28,9 @@ export interface UvxBootstrapOptions {
   env?: NodeJS.ProcessEnv
   fetchImpl?: typeof fetch
   pathLookup?: (name: string, env: NodeJS.ProcessEnv) => string | undefined
+  /** Override for the vendored-binary search roots (testability). When
+   *  omitted, the packaged-layout candidates below are used. */
+  vendoredRoots?: string[]
   log?: (level: 'info' | 'warn', message: string, meta?: Record<string, unknown>) => void
 }
 
@@ -174,7 +177,6 @@ async function installManagedUvxAsync(userDataDir: string, fetchImpl: typeof fet
  * 3. Managed bootstrap download (last resort)
  */
 export async function ensureUvxCommand(options: UvxBootstrapOptions): Promise<string | undefined> {
-  console.log('[DEBUG-UVX] 1/4 ensureUvxCommand starting');
   const platform = options.platform ?? process.platform
   if (platform !== 'win32') return undefined
   const env = options.env ?? process.env
@@ -184,16 +186,14 @@ export async function ensureUvxCommand(options: UvxBootstrapOptions): Promise<st
   //    In a packaged Electron app __dirname resolves inside app.asar; the
   //    freecode/ tree lives outside the asar, so we also try the parent of
   //    app.asar (4 levels up from dist/src/main).
-  const vendoredCandidates = [
-    join(__dirname, '..', '..', '..', '..', 'resources', 'freecode', 'uv', 'uvx.exe'),
-    join(__dirname, '..', '..', '..', 'resources', 'freecode', 'uv', 'uvx.exe'),
-    join(__dirname, '..', '..', 'resources', 'freecode', 'uv', 'uvx.exe'),
-  ]
-  console.log('[DEBUG-UVX] 2/4 checking vendored candidates:', vendoredCandidates.map(c => `${c} exists=${existsSync(c)}`));
+  const vendoredCandidates = (options.vendoredRoots ?? [
+    join(__dirname, '..', '..', '..', '..', 'resources'),
+    join(__dirname, '..', '..', '..', 'resources'),
+    join(__dirname, '..', '..', 'resources'),
+  ]).map((root) => join(root, 'freecode', 'uv', 'uvx.exe'))
   for (const vendoredUvx of vendoredCandidates) {
     if (existsSync(vendoredUvx)) {
       options.log?.('info', 'using vendored uvx from payload', { path: vendoredUvx })
-      console.log('[DEBUG-UVX] 3/4 FOUND vendored:', vendoredUvx);
       return vendoredUvx
     }
   }

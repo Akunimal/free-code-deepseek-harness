@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
 import { checkUpstreamUpdate, createUpdateService, isNewerVersion, resolveUpdaterAdapter, type UpdaterAdapter } from '../src/main/updater.js';
-import { checkHarnessRelease, harnessAssetName, installHarnessRuntime } from '../src/main/harness-updater.js';
+import { checkHarnessRelease, harnessAssetName, installHarnessRuntime, resolveTarExecutable } from '../src/main/harness-updater.js';
 
 describe('update service', () => {
   it('only treats a strictly newer release as available', () => {
@@ -151,6 +151,15 @@ describe('update service', () => {
     expect(install).toHaveBeenCalledWith(info);
   });
 
+  it('pins System32 bsdtar on Windows instead of a PATH-resolved msys tar', () => {
+    // msys GNU tar (Git-for-Windows) misparses native D:\ paths as remote
+    // host:file tapes, which breaks both fixture creation and production
+    // extraction on dev machines.
+    expect(resolveTarExecutable('win32')).toMatch(/System32[\\/]tar\.exe$/i);
+    expect(resolveTarExecutable('linux')).toBe('tar');
+    expect(resolveTarExecutable('darwin')).toBe('tar');
+  });
+
   it('atomically installs the Harness and its runtime manifest', async () => {
     const root = mkdtempSync(join(tmpdir(), 'freecode-updater-test-'));
     try {
@@ -164,7 +173,9 @@ describe('update service', () => {
       writeFileSync(join(resources, 'runtime-manifest.json'), JSON.stringify({ version: 'old', cli: 'dsh/apps/cli/lib/bin.js' }));
       writeFileSync(join(archiveRoot, 'dsh', 'apps', 'cli', 'lib', 'bin.js'), 'new');
       writeFileSync(join(archiveRoot, 'runtime-manifest.json'), JSON.stringify({ version: 'new', cli: 'dsh/apps/cli/lib/bin.js' }));
-      const archive = spawnSync('tar', ['-czf', archivePath, '-C', archiveRoot, 'dsh', 'runtime-manifest.json'], { windowsHide: true });
+      // Build the fixture with the same tar the production extractor uses:
+      // a PATH-resolved GNU tar misparses native D:\ paths as remote tapes.
+      const archive = spawnSync(resolveTarExecutable(), ['-czf', archivePath, '-C', archiveRoot, 'dsh', 'runtime-manifest.json'], { windowsHide: true });
       expect(archive.status).toBe(0);
       const bytes = readFileSync(archivePath);
 

@@ -31,8 +31,32 @@ describe('uvx bootstrap', () => {
       platform: 'win32',
       userDataDir,
       fetchImpl,
+      // No vendored payload in this scenario: PATH reuse must win without
+      // any download attempt.
+      vendoredRoots: [],
       pathLookup: () => userUvx,
     })).resolves.toBe(userUvx)
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  it('prefers the vendored payload over a user-installed uvx', async () => {
+    const userDataDir = mkdtempSync(join(tmpdir(), 'freecode-uvx-'))
+    dirs.push(userDataDir)
+    const payloadRoot = mkdtempSync(join(tmpdir(), 'freecode-uvx-payload-'))
+    dirs.push(payloadRoot)
+    const vendoredDir = join(payloadRoot, 'freecode', 'uv')
+    const { mkdirSync } = await import('node:fs')
+    mkdirSync(vendoredDir, { recursive: true })
+    const vendoredUvx = join(vendoredDir, 'uvx.exe')
+    writeFileSync(vendoredUvx, 'MZ vendored uvx')
+    const fetchImpl = vi.fn()
+    await expect(ensureUvxCommand({
+      platform: 'win32',
+      userDataDir,
+      fetchImpl,
+      vendoredRoots: [payloadRoot],
+      pathLookup: () => join(userDataDir, 'user-uvx.exe'),
+    })).resolves.toBe(vendoredUvx)
     expect(fetchImpl).not.toHaveBeenCalled()
   })
 })

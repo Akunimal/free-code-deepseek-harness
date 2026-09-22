@@ -32,6 +32,23 @@ interface GitHubRelease {
 
 const DEFAULT_REPO = 'Akunimal/free-code-deepseek-harness';
 
+/**
+ * Resolve the tar binary used for harness runtime extraction.
+ *
+ * On Windows we must NOT rely on PATH resolution: a Git-for-Windows install
+ * puts msys GNU tar first, and it misparses native `D:\...` paths as remote
+ * `host:file` tapes ("Cannot connect to D: resolve failed"). System32 bsdtar
+ * ships with every supported Windows release and handles native paths, so it
+ * is pinned explicitly with a PATH fallback for exotic layouts.
+ */
+export function resolveTarExecutable(platform: NodeJS.Platform = process.platform): string {
+  if (platform === 'win32') {
+    const systemTar = join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe');
+    if (existsSync(systemTar)) return systemTar;
+  }
+  return 'tar';
+}
+
 export function harnessPlatform(platform: NodeJS.Platform): string {
   return platform === 'win32' ? 'win32' : platform === 'darwin' ? 'darwin' : 'linux';
 }
@@ -126,7 +143,7 @@ export async function installHarnessRuntime(
     verifyDigest(archive, info.digest);
     writeFileSync(archivePath, archive);
     const extracted = launchHiddenSync({
-      executable: 'tar',
+      executable: resolveTarExecutable(),
       args: ['-xzf', archivePath, '-C', extractRoot],
       encoding: 'utf8',
     });

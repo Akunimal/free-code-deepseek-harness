@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   resolveCavemanBinary,
   isCavemanAvailable,
@@ -11,8 +11,29 @@ import {
 } from '../src/main/caveman-resolver.js'
 
 let dirs: string[] = []
+// The resolver falls back to PATH (where/which), so the suite must not see
+// the developer machine's PATH: a box with rtk/caveman installed would fail
+// the "empty directory" cases. PATH is reduced to the test dir plus the OS
+// lookup binary's own home (System32//usr/bin); PATHEXT is left intact
+// because where.exe needs it to match extensionless queries.
+function isolatedPath(dir: string): string {
+  if (process.platform === 'win32') {
+    return `${dir};${join(process.env.SystemRoot ?? 'C:\\Windows', 'System32')}`;
+  }
+  return `${dir}:/usr/bin:/bin`;
+}
+let emptyPathDir = ''
+
+beforeAll(() => {
+  emptyPathDir = mkdtempSync(join(tmpdir(), 'caveman-empty-path-'))
+})
+
+beforeEach(() => {
+  vi.stubEnv('PATH', isolatedPath(emptyPathDir))
+})
 
 afterEach(() => {
+  vi.unstubAllEnvs()
   _clearCache()
   for (const d of dirs.splice(0)) {
     rmSync(d, { recursive: true, force: true })
@@ -63,6 +84,18 @@ describe('caveman-resolver', () => {
     expect(first).toBeNull()
     expect(second).toBeNull()
     // Cache should prevent a second lookup — verified by consistency
+  })
+
+  it('falls back to a user-installed rtk on PATH', () => {
+    const binDir = mkdtempSync(join(tmpdir(), 'rtk-path-'))
+    dirs.push(binDir)
+    const userRtk = join(binDir, process.platform === 'win32' ? 'rtk.exe' : 'rtk')
+    writeFileSync(userRtk, 'fake')
+    vi.stubEnv('PATH', isolatedPath(binDir))
+    const dir = mkdtempSync(join(tmpdir(), 'rtk-test-'))
+    dirs.push(dir)
+    expect(resolveRtkBinary(dir)).toBe(userRtk)
+    expect(isRtkAvailable(dir)).toBe(true)
   })
 
   it('clearCache resets state', () => {

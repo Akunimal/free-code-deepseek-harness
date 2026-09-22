@@ -103,11 +103,18 @@ describe('HarnessSupervisor (C5)', () => {
 });
 
 describe('HarnessSupervisor lifecycle hardening', () => {
-  it('handles asynchronous spawn errors with a bounded retry contract', async () => {
+  it('reports an unspawnable executable through the bounded stuck contract', async () => {
     const tmp = mkdtempSync(join(tmpdir(), 'dsh-sup-spawn-error-'));
     const logs: string[] = [];
+    // Windows reports both a missing executable (pre-spawn validation) and
+    // an invalid image (spawn UNKNOWN) synchronously, so the supervisor's
+    // sync throw branch owns this contract here. The async 'error'-event
+    // handler stays as defense-in-depth for delete-between-check-and-spawn
+    // races, which cannot be triggered deterministically.
+    const notExecutable = join(tmp, 'not-an-executable.exe');
+    writeFileSync(notExecutable, 'this is not a PE image', 'utf8');
     const supervisor = new HarnessSupervisor({
-      nodePath: join(tmp, 'missing-node.exe'),
+      nodePath: notExecutable,
       cliEntry: join(tmp, 'missing-cli.mjs'),
       homeDir: join(tmp, 'home'),
       lbUrl: null,
@@ -122,7 +129,7 @@ describe('HarnessSupervisor lifecycle hardening', () => {
       const deadline = Date.now() + 5_000;
       while (!stuck && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 10));
       expect(stuck).toBe(true);
-      expect(logs.some((message) => message === 'dsh spawn error')).toBe(true);
+      expect(logs.some((message) => message === 'dsh spawn failed — no child process created')).toBe(true);
       expect(supervisor.currentPid).toBeNull();
     } finally {
       await supervisor.stop();
