@@ -1,50 +1,49 @@
-# syntax=docker/dockerfile:1.7
-
-FROM --platform=$BUILDPLATFORM golang:1.22-alpine AS build
-
-WORKDIR /src
+FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS builder
 
 ARG TARGETOS
 ARG TARGETARCH
-ARG TARGETVARIANT
 ARG VERSION=dev
-ARG COMMIT=none
-ARG DATE=unknown
+
+WORKDIR /src
 
 COPY go.mod go.sum ./
 RUN go mod download
 
-COPY cmd ./cmd
-COPY internal ./internal
+COPY . .
 
-RUN set -eux; \
-    if [ "$TARGETARCH" = "arm" ]; then export GOARM="${TARGETVARIANT#v}"; fi; \
-    CGO_ENABLED=0 GOOS="$TARGETOS" GOARCH="$TARGETARCH" \
-      go build -trimpath \
-      -ldflags "-s -w -X github.com/6Kmfi6HP/opencode2api/internal/app.version=$VERSION -X github.com/6Kmfi6HP/opencode2api/internal/app.commit=$COMMIT -X github.com/6Kmfi6HP/opencode2api/internal/app.date=$DATE" \
+RUN CGO_ENABLED=0 \
+    GOOS="${TARGETOS:-linux}" \
+    GOARCH="${TARGETARCH:-amd64}" \
+    go build \
+      -trimpath \
+      -ldflags="-s -w -X main.version=${VERSION}" \
       -o /out/opencode2api ./cmd/opencode2api
 
-FROM alpine:3.20
+FROM alpine:3.22
 
-RUN apk add --no-cache ca-certificates su-exec tzdata wget \
+RUN apk add --no-cache ca-certificates su-exec tzdata \
     && addgroup -S opencode2api \
-    && adduser -S -G opencode2api -h /data opencode2api \
-    && mkdir -p /app /data \
-    && chown -R opencode2api:opencode2api /data
+    && adduser -S -G opencode2api -h /var/lib/opencode2api opencode2api \
+    && mkdir -p /app /var/lib/opencode2api \
+    && chown -R opencode2api:opencode2api /app /var/lib/opencode2api
 
-WORKDIR /data
+COPY --from=builder /out/opencode2api /usr/local/bin/opencode2api
+COPY --chmod=0755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint
+COPY --chown=opencode2api:opencode2api config.example.json /app/config.example.json
 
-COPY --from=build /out/opencode2api /usr/local/bin/opencode2api
-COPY config.example.json /app/config.example.json
-COPY docker/entrypoint.sh /entrypoint.sh
+# LISTEN_ADDRESS / WEBUI_LISTEN_ADDRESS are intentionally unset: config.json is
+# authoritative. Export them to override the configured listen addresses.
+ENV CONFIG_PATH=/var/lib/opencode2api/config.json \
+    CONFIG_SEED_PATH= \
+    LISTEN_ADDRESS= \
+    WEBUI_LISTEN_ADDRESS= \
+    STATE_DIR=/var/lib/opencode2api
 
-ENV OPENCODE2API_PORT=8000 \
-    OPENCODE2API_CONFIG=/data/config.json \
-    OPENCODE2API_PASSWORD=123456
+WORKDIR /app
 
-EXPOSE 8000
+EXPOSE 8080 8081
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD wget -qO- "http://127.0.0.1:${OPENCODE2API_PORT}/health" >/dev/null || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1
 
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint"]

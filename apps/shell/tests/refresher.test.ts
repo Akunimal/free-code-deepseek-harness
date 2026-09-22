@@ -175,6 +175,37 @@ describe('model-refresher', () => {
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
+  it('syncs optional no-auth providers with their own credential and input shape', async () => {
+    mockFetchWithModels(['deepseek-v4-flash-free'], ['deepseek-v4-flash-free']);
+    const { home, data } = tmpDirs();
+    await refreshModels({
+      lbBaseUrl: LB,
+      homeDir: home,
+      userDataDir: data,
+      providers: [
+        {
+          provider: 'opencode-free',
+          baseUrl: 'http://127.0.0.1:45678',
+          authHeader: 'Bearer public',
+          apiKeyEnv: 'FREECODE_PUBLIC_KEY',
+          defaultInput: ['text'],
+          probeModels: false,
+          fallbackModels: ['deepseek-v4-flash-free'],
+        },
+      ],
+    });
+    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+    const p = settings['llm-pi-ai'].providers['opencode-free'];
+    expect(p.api).toBe('openai-completions');
+    expect(p.baseURL).toBe('http://127.0.0.1:45678/v1');
+    expect(p.apiKeyEnv).toBe('FREECODE_PUBLIC_KEY');
+    expect(p.defaultInput).toEqual(['text']);
+    expect(p.models).toEqual([
+      deepseekModel('deepseek-v4-flash-free'),
+    ]);
+    rmSync(dirname(home), { recursive: true, force: true });
+  });
+
   it('throws when LB models list fails', async () => {
     vi.stubGlobal(
       'fetch',

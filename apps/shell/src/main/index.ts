@@ -1081,19 +1081,26 @@ app.whenReady().then(async () => {
   appLogger?.logger.info({}, '[DEBUG-STARTUP] 10/10 runtime.start() OK — harness should be starting');
 
   const lbUrl = runtime.proxy.url;
+  const opencodeUrl = runtime.opencode2api?.url;
+  const opencodeApiKey = runtime.opencode2api?.apiKey ?? 'public';
   // freellmpool manages providers internally; report proxy as ready
   reportBackendState('pool', 'ready', 'freellmpool proxy active');
   // Seed once the proxy is up. This migration also removes the old managed
   // Gemini route from persisted settings without touching unrelated providers.
+  // The opencode-free lane is seeded only while the sidecar runs.
   seedProviders({
     homeDir: join(userDataDir, 'dsh-home'),
     lbBaseUrl: `${lbUrl}/v1`,
+    ...(opencodeUrl ? { opencodeBaseUrl: opencodeUrl } : {}),
   });
 
   // FASE 6: model refresh at boot + every 30 min.
   let catalog: ModelCatalog | null = null;
   let refreshInFlight = false;
   let refreshRetryAttempt = 0;
+  let opencodeRetryAttempt = 0;
+  const OPENCODE_REFRESH_RETRIES = 8; // ~4 min grace for the Zen catalog to load
+  const OPENCODE_REFRESH_RETRY_MS = 30_000;
   const scheduleRefreshRetry = (): void => {
     if (refreshRetryTimer) return;
     const delay = REFRESH_RETRY_DELAYS_MS[Math.min(refreshRetryAttempt, REFRESH_RETRY_DELAYS_MS.length - 1)]!;
@@ -1113,6 +1120,20 @@ app.whenReady().then(async () => {
         homeDir: join(userDataDir, 'dsh-home'),
         userDataDir,
         authHeader: 'Bearer public',
+        providers: opencodeUrl ? [
+          {
+            provider: 'opencode-free',
+            baseUrl: opencodeUrl,
+            // Same local credential the seeder writes (apiKeyEnv) and the
+            // gateway was started with (server_keys).
+            authHeader: `Bearer ${opencodeApiKey}`,
+            apiKeyEnv: 'FREECODE_PUBLIC_KEY',
+            defaultInput: ['text'],
+            probeModels: false,
+            alwaysExposedModels: new Set(['deepseek-v4-flash-free']),
+            fallbackModels: ['deepseek-v4-flash-free'],
+          },
+        ] : [],
         onUpdate: (c) => {
           catalog = c;
           reportBackendState('catalog', c.availability === 'degraded' ? 'degraded' : 'ready',
@@ -1120,6 +1141,18 @@ app.whenReady().then(async () => {
         },
       });
       refreshRetryAttempt = 0;
+      // The anonymous catalog loads asynchronously after gateway boot; an
+      // empty first pass is expected, so retry a few times before leaving it
+      // to the 30-minute cadence.
+      if (opencodeUrl) {
+        const ocModels = catalog?.providers['opencode-free']?.models ?? [];
+        if (ocModels.length === 0 && opencodeRetryAttempt < OPENCODE_REFRESH_RETRIES && !shuttingDown) {
+          opencodeRetryAttempt++;
+          setTimeout(() => { void doRefresh(); }, OPENCODE_REFRESH_RETRY_MS).unref?.();
+        } else {
+          opencodeRetryAttempt = 0;
+        }
+      }
     } catch (err) {
       reportModelRefreshFailure(err);
       console.error('[main] model refresh failed:', err);

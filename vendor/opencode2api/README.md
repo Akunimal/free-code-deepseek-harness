@@ -1,205 +1,421 @@
 # opencode2api
 
-`opencode2api` 是一个本地 HTTP 代理，把 OpenAI Chat Completions、OpenAI Responses 和 Anthropic Messages 风格的请求转发到 OpenCode 上游接口，并提供模型别名、reasoning/thinking 兼容、SOCKS5 代理和一个轻量管理面板。
+[English](README.md) | [简体中文](README.zh-CN.md)
 
-> 这个项目不是 OpenAI、Anthropic 或 OpenCode 的官方项目。请遵守上游服务条款，并只在你有权限的环境中使用。
+A Go gateway for **OpenCode Zen and Zen Go**. It exposes Chat Completions, Responses, and Anthropic Messages endpoints, translates between their native protocols, and manages upstream keys and proxies.
 
-## 功能
+The executable includes the WebUI. Running the service requires no Node.js runtime or database.
 
-- OpenAI 兼容接口：`/v1/chat/completions`、`/v1/models`
-- OpenAI Responses 兼容接口：`/v1/responses`
-- Anthropic Messages 兼容接口：`/v1/messages`
-- 流式 SSE 转换和 token 用量统计
-- 模型别名、reasoning effort 映射、强制禁用 thinking
-- SOCKS5 直连、指定代理和轮询代理
-- Web 管理面板：配置、统计、刷新上游会话
-- GitHub Actions 自动构建 Linux、macOS、Windows、FreeBSD 多平台 release
-- GitHub Actions 自动发布 Docker 镜像到 GHCR
+## Capabilities
 
+- JSON and SSE responses across all three inference protocols.
+- Text, images, reasoning, function tools, tool calls, and tool results; file content where the target protocol can represent it.
+- Separate Zen and Go key pools, configurable tier preference, retries, and session affinity.
+- Optional anonymous Zen access with the OpenCode `public` credential.
+- Direct, HTTP, HTTPS, SOCKS5, and SOCKS5H connections, including a proxy file.
+- Dynamic model discovery, native protocol metadata, and disk caches.
+- A separate management port with configuration editing, a Playground, diagnostics, token statistics, and live logs.
+- Configuration hot reload with validation before switching new requests to a replacement gateway.
 
-## 开发结构
+## Quick start
 
-```text
-cmd/opencode2api/         # 可执行入口
-internal/app/             # 代理核心：handler、协议转换、上游调用、管理面板
-internal/domain/          # 协议 DTO
-internal/ids/             # 响应 ID 规范化
-internal/random/          # 随机 ID 工具
-```
-
-本地构建：
+Download a binary from [GitHub Releases](https://github.com/jasonxu114514/opencode2api/releases), or build with **Go 1.24 or newer**:
 
 ```bash
-go build ./cmd/opencode2api
-```
-
-## 快速开始
-
-```bash
-git clone https://github.com/6Kmfi6HP/opencode2api.git
+git clone https://github.com/jasonxu114514/opencode2api.git
 cd opencode2api
 cp config.example.json config.json
-go run ./cmd/opencode2api -port 8000 -config config.json -password "change-me"
+go build -o opencode2api ./cmd/opencode2api
 ```
 
-健康检查：
+Before starting, edit `config.json`:
+
+1. Replace `server_keys` with your own local API key.
+2. Supply Zen or Go keys. Alternatively, set `anonymous: true` and empty both upstream key arrays.
+3. Replace `webui.password`. The example enables the WebUI with username `admin`.
 
 ```bash
-curl http://127.0.0.1:8000/health
+./opencode2api -config config.json
 ```
 
-查看模型：
+On Windows, use `Copy-Item config.example.json config.json`, build with `go build -o opencode2api.exe ./cmd/opencode2api`, then run `.\opencode2api.exe -config config.json`.
+
+The example listens on `127.0.0.1:8080` for the API and `0.0.0.0:8081` for the WebUI. Open `http://localhost:8081` locally. Restrict management access and use an HTTPS reverse proxy when accessing it over a network.
+
+Command-line options:
+
+| Option        | Default       | Purpose                            |
+| ------------- | ------------- | ---------------------------------- |
+| `-config`     | `config.json` | Configuration file path.           |
+| `-listen`     | Unset         | Override the API listen address.   |
+| `-web-listen` | Unset         | Override the WebUI listen address. |
+
+The configuration directory must be writable for password migration, configuration saves, and model caches.
+
+## Docker
+
+The published image is `ghcr.io/jasonxu114514/opencode2api`.
 
 ```bash
-curl http://127.0.0.1:8000/v1/models
+cp config.example.json config.json
+# Configure keys and replace the WebUI password before starting.
+docker compose up -d
+docker compose logs -f
 ```
 
-认证模式：
-
-- 不带 `Authorization`，或使用 `Bearer public`：走 OpenCode public，只可稳定访问 `-free` 结尾的免费 Zen 模型。
-- 使用 `Bearer <api-key>`：默认走 Zen；如果请求的是仅存在于 Go 目录中的模型，会自动切到 Go。
-- 使用 `Bearer zen:<api-key>`：强制走 Zen，适合你明确要用 Zen 按量计费目录时。
-- 使用 `Bearer go:<api-key>`：优先走 Go 订阅目录；共享模型也会按 Go 路径请求。
-- 无效或占位 key（如 `no-key-required`）会自动回退到 public 模式。
-
-Chat Completions 示例：
+Compose imports the host configuration into the `opencode2api-state` volume **only on first startup**. Subsequent changes should be made through the WebUI. To import an edited host configuration again:
 
 ```bash
-curl http://127.0.0.1:8000/v1/chat/completions \
+docker compose cp config.json opencode2api:/var/lib/opencode2api/config.json
+docker compose restart
+```
+
+The container runs the service as an unprivileged user. Compose uses a read-only root filesystem, a writable state volume, and a temporary `/tmp` filesystem.
+
+| Compose variable            | Default  | Effect                                            |
+| --------------------------- | -------- | ------------------------------------------------- |
+| `OPENCODE2API_VERSION`      | `latest` | Image tag. Pin a release tag for a fixed version. |
+| `OPENCODE2API_PORT`         | `8080`   | Host port mapped to container port 8080.          |
+| `OPENCODE2API_WEBUI_PORT`   | `8081`   | Host port mapped to container port 8081.          |
+| `OPENCODE2API_LISTEN`       | Unset    | Explicit container API listen override.           |
+| `OPENCODE2API_WEBUI_LISTEN` | Unset    | Explicit container WebUI listen override.         |
+
+The last two variables become `LISTEN_ADDRESS` and `WEBUI_LISTEN_ADDRESS` inside the container. Empty values defer to the configuration file. While initializing a configuration, the entrypoint changes the example API address `127.0.0.1:8080` to `0.0.0.0:8080` so published ports can reach it.
+
+Changing host ports does not change container listeners. If you change the internal API port, also update the port mapping and the image health check, which uses port 8080.
+
+For a local image:
+
+```bash
+docker build -t opencode2api:local .
+docker volume create opencode2api-state
+docker run -d --name opencode2api \
+  -p 8080:8080 -p 8081:8081 \
+  -e CONFIG_SEED_PATH=/run/config/opencode2api.json \
+  -v "$(pwd)/config.json:/run/config/opencode2api.json:ro" \
+  -v opencode2api-state:/var/lib/opencode2api \
+  opencode2api:local
+```
+
+A `proxyfile` used in Docker must also be available inside the container at the configured path.
+
+## API usage
+
+`server_keys` authenticate clients to this gateway. They are separate from `zen_keys` and `go_keys` and are never used as upstream credentials.
+
+Send `Authorization: Bearer YOUR_LOCAL_API_KEY` or `x-api-key: YOUR_LOCAL_API_KEY`. Health checks require no authentication.
+
+| Method | Path                   | Description                                               |
+| ------ | ---------------------- | --------------------------------------------------------- |
+| GET    | `/v1/models`           | Models that can be routed with the current configuration. |
+| POST   | `/v1/chat/completions` | Chat Completions.                                         |
+| POST   | `/v1/responses`        | Responses.                                                |
+| POST   | `/v1/messages`         | Anthropic Messages.                                       |
+| GET    | `/healthz`             | Readiness and resource summary.                           |
+
+Discover an available model first:
+
+```bash
+curl http://localhost:8080/v1/models \
+  -H "Authorization: Bearer YOUR_LOCAL_API_KEY"
+```
+
+Replace `MODEL_ID` below with an ID from that response.
+
+**Chat Completions**
+
+```bash
+curl http://localhost:8080/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_LOCAL_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{
-    "model": "gpt-4o-mini",
-    "messages": [{"role": "user", "content": "hello"}],
-    "stream": false
-  }'
+  -d '{"model":"MODEL_ID","messages":[{"role":"user","content":"Hello"}]}'
 ```
 
-Go 订阅示例：
+**Responses**
 
 ```bash
-curl http://127.0.0.1:8000/v1/chat/completions \
+curl http://localhost:8080/v1/responses \
+  -H "Authorization: Bearer YOUR_LOCAL_API_KEY" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer go:YOUR_OPENCODE_KEY" \
-  -d '{
-    "model": "glm-5.2",
-    "messages": [{"role": "user", "content": "hello"}],
-    "stream": false
-  }'
+  -d '{"model":"MODEL_ID","input":"Hello"}'
 ```
 
-## 命令行参数
+**Anthropic Messages**
+
+```bash
+curl http://localhost:8080/v1/messages \
+  -H "x-api-key: YOUR_LOCAL_API_KEY" \
+  -H "anthropic-version: 2023-06-01" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"MODEL_ID","max_tokens":512,"messages":[{"role":"user","content":"Hello"}]}'
+```
+
+For streaming, add `"stream": true` to the body and use `curl -N`. Responses include an `x-request-id` for correlation. API request bodies are limited to 32 MiB.
+
+### Compatibility boundaries
+
+Requests using the upstream's native protocol retain provider-specific fields. Requests crossing protocols pass through a common representation; not every option has an equivalent. For example, Chat JSON output constraints and `seed` are not forwarded to Anthropic Messages. Unsupported content or tool types may be rejected.
+
+The gateway exposes the routes listed above. It does not implement embeddings, file uploads, image generation, or Responses retrieval and cancellation. It does not store conversation history; clients must supply the history or use features supported by the actual upstream.
+
+## Routing and models
+
+### Model discovery
+
+The gateway refreshes Zen/Go `/v1/models` and OpenCode's [capability catalog](https://models.opencode.ai/api.json) on the configured interval. Native protocols and model limits are tracked separately for each tier. OpenCode's Zen/Go documentation is a fallback for protocol discovery.
+
+`models.protocols` overrides discovery:
+
+```json
+{
+  "models": {
+    "refresh_seconds": 300,
+    "protocols": {
+      "custom-model": "chat"
+    }
+  }
+}
+```
+
+Allowed protocol values are `chat`, `responses`, and `anthropic`. Models using unsupported native protocols are filtered from discovery unless overridden.
+
+Cost and deprecation metadata come from [models.dev](https://models.dev/api.json), refreshed every 24 hours. Metadata requests use a 30-second timeout per HTTP client. Refresh failures retain existing data.
+
+### Anonymous access and fallback
+
+With `anonymous: true`, either condition makes a model eligible for the anonymous Zen lane:
+
+- Its ID contains `free`, case-insensitively.
+- models.dev reports zero input and output cost and the model is not deprecated.
+
+Eligibility is a routing decision; the upstream can still reject or rate-limit the request. Anonymous requests use `public` in the upstream authentication header.
+
+The routing sequence is:
+
+1. For an eligible model, try each available anonymous proxy once.
+2. Try authenticated tiers in `prefer` order, using only tiers with a configured key and a route for that model.
+3. Apply `retry.max_attempts` separately to each authenticated tier.
+
+Anonymous attempts are not cut short by `retry.max_attempts`, but all attempts share the request timeout. Network errors, authentication failures, rate limits, and server errors can rotate keys. Other 4xx responses end the current tier; another available tier may still be tried.
+
+Requests are encoded for each tier's own protocol. Once a stream has started, the gateway does not retry generation on another node. A recognized stale Responses reasoning reference can trigger one repair pass; selected-key diagnostics never use that replay.
+
+When only anonymous access is configured, `/v1/models` exposes only models eligible for that lane.
+
+### Sessions and proxies
+
+Keys are initially spread across proxies. Real traffic can trigger proxy checks, key rebinding, and cooldowns. Unhealthy proxies are rechecked every 15 minutes against Cloudflare trace.
+
+A stable session hash selects the preferred key or anonymous proxy. Send an explicit `x-session-id` to separate independent conversations. The gateway also accepts `x-opencode-session`, `x-session-affinity`, `conversation-id`, `conversation_id`, and `metadata.session_id`.
+
+Without an explicit ID, the first user message is used as a seed. Conversations beginning with the same content can therefore share affinity. Changing pool membership can change the selected node.
+
+Cooldowns grow exponentially up to eight times `performance.failure_cooldown_seconds`, and a longer `Retry-After` is honored. If every authenticated key is cooling down, routing may try the key whose cooldown ends first. Anonymous nodes still in cooldown are skipped.
+
+## Configuration reference
+
+See [config.example.json](config.example.json) for a complete starting configuration. JSON supports `//` and `/* ... */` comments; unknown fields and invalid values are rejected.
+
+### Keys, listeners, and routing
+
+| Field                    | Default / requirement                                                     |
+| ------------------------ | ------------------------------------------------------------------------- |
+| `listen`                 | `127.0.0.1:8080`.                                                         |
+| `server_keys`            | At least one local key is required.                                       |
+| `zen_keys`, `go_keys`    | At least one upstream key is required unless anonymous access is enabled. |
+| `anonymous`              | `false`.                                                                  |
+| `prefer`                 | `go`; accepts `go` or `zen`.                                              |
+| `upstream.zen`           | `https://opencode.ai/zen`.                                                |
+| `upstream.go`            | `https://opencode.ai/zen/go`.                                             |
+| `proxies`                | Falls back to `["direct"]` when both proxy sources are empty.             |
+| `proxyfile`              | Optional; relative paths resolve beside the configuration file.           |
+| `models.refresh_seconds` | `300`; minimum 1.                                                         |
+| `models.protocols`       | `{}`; per-model native protocol overrides.                                |
+
+Proxy entries accept `direct`, `http://`, `https://`, `socks5://`, and `socks5h://`, including URL credentials. The inline list is merged with `proxyfile` and deduplicated in order.
+
+A proxy file contains one entry per line and supports blank lines and comments:
 
 ```text
--port string
-    服务端口，默认 8000
--config string
-    配置文件路径，默认 config.json
--password string
-    管理面板密码，默认 123456；留空表示不启用登录验证
--debug
-    输出调试日志（等价于将 -log-level 提升到 debug）
--log-level string
-    日志级别: debug/info/warn/error，默认 info
--log-file string
-    日志文件路径，默认 opencode2api.log；配合自动轮换
--log-stdout
-    是否同时写 stdout，默认 true
--log-max-size int
-    单日志文件最大 MB，默认 100
--log-max-backups int
-    保留旧日志个数，默认 7
--log-max-age int
-    旧日志保留天数，默认 14
--log-compress
-    轮换后 gzip 压缩，默认 true
--log-bodies
-    Debug 下记录截断的 body 形状摘要，默认 false
--version
-    显示构建版本
+# Primary proxy
+http://user:password@127.0.0.1:7890
+socks5://127.0.0.1:1080  # Backup proxy
+direct
 ```
 
-第一次部署请务必修改 `-password`。如果把服务暴露到公网，建议只通过反向代理、访问控制或 VPN 暴露管理面板。
+Comment markers are `#`, `;`, and `//` at the start of a line or after whitespace.
 
-### 排障日志
+### Timeouts and connection pools
 
-默认同时写文件与 stdout。每个请求带 `request_id`（响应头 `X-Request-Id`），可串联：
+| Field                                   | Default | Meaning                                                |
+| --------------------------------------- | ------- | ------------------------------------------------------ |
+| `retry.max_attempts`                    | `3`     | Attempts per authenticated tier, including the first.  |
+| `retry.timeout_seconds`                 | `300`   | Total inference timeout, including stream consumption. |
+| `performance.attempt_timeout_seconds`   | `0`     | Header wait per attempt; 0 uses the request timeout.   |
+| `performance.connect_timeout_seconds`   | `5`     | Connection establishment timeout.                      |
+| `performance.failure_cooldown_seconds`  | `15`    | Base failure cooldown.                                 |
+| `performance.max_idle_conns`            | `2048`  | Idle connection limit per proxy transport.             |
+| `performance.max_idle_conns_per_host`   | `256`   | Idle connection limit per host and transport.          |
+| `performance.max_conns_per_host`        | `0`     | Connection limit per host; 0 is unlimited.             |
+| `performance.idle_conn_timeout_seconds` | `120`   | Idle connection lifetime.                              |
 
-`request_started → request_plan → upstream_attempt* → upstream_result → stream_result|request_result → request_done`
+The per-attempt header timeout is capped by the request timeout. Set it below the total timeout if a slow upstream should leave time for fallback. Expired request contexts stop further attempts without penalizing unused keys or proxies.
 
-常见排查：
+### Logging and management
+
+| Field                         | Default / requirement                                         |
+| ----------------------------- | ------------------------------------------------------------- |
+| `logging.level`               | `info`; accepts `debug`, `info`, `warn`, `error`.             |
+| `logging.ring_size`           | `2000`; range 100–50,000.                                     |
+| `logging.dump_request_bodies` | `false`. Requires `debug` logging to emit outbound bodies.    |
+| `webui.enabled`               | `false` when omitted; the example sets it to `true`.          |
+| `webui.listen`                | `0.0.0.0:8081`.                                               |
+| `webui.username`              | Required when the WebUI is enabled; the example uses `admin`. |
+| `webui.password`              | Bootstrap password with a minimum length of 10.               |
+| `webui.password_hash`         | Generated Argon2id hash; replaces the plaintext password.     |
+| `webui.session_ttl_minutes`   | `720`; range 5–10,080.                                        |
+
+On startup, a bootstrap password is hashed and removed from the configuration. The backup containing that bootstrap plaintext is deleted. Keep configuration files and backups private: upstream keys and proxy credentials remain necessary configuration secrets.
+
+Body dumps are opt-in and capped at 64 KiB per prepared body. Configured secrets are redacted, but conversation content may still be sensitive.
+
+## WebUI and diagnostics
+
+The management listener serves the UI and `/api/*` routes. Authentication uses one administrator account, server-side sessions, HttpOnly/SameSite cookies, CSRF checks for writes, and login throttling.
+
+| Management route                                 | Purpose                                                               |
+| ------------------------------------------------ | --------------------------------------------------------------------- |
+| `POST /api/auth/login`                           | Log in and obtain a session cookie and CSRF token.                    |
+| `GET /api/auth/session`, `POST /api/auth/logout` | Inspect or end the session.                                           |
+| `GET /api/config`, `PUT /api/config`             | Read masked configuration or apply changes.                           |
+| `POST /api/config/reload`                        | Reload the file from disk.                                            |
+| `POST /api/config/reveal`                        | Reveal configured secrets after password verification.                |
+| `PUT /api/account`                               | Update credentials after password verification; invalidates sessions. |
+| `GET /api/monitor`                               | Request, token, upstream, and resource statistics.                    |
+| `GET /api/debug/models`                          | Model routes, key fingerprints, and metadata diagnostics.             |
+| `POST /api/debug/inference`                      | Run a Playground request.                                             |
+| `GET /api/logs`, `GET /api/logs/stream`          | Recent logs or a live SSE subscription.                               |
+
+Playground requests require a session and `X-CSRF-Token` and are limited to 12 per minute per client IP:
+
+```json
+{
+  "protocol": "chat",
+  "key": { "mode": "auto" },
+  "request": {
+    "model": "MODEL_ID",
+    "messages": [{ "role": "user", "content": "Hello" }]
+  }
+}
+```
+
+The server forces `stream: false`. Use `{"mode":"selected","tier":"zen","id":"KEY_FINGERPRINT"}` to test a specific key from `/api/debug/models`. A selected request makes at most one upstream attempt, without anonymous access, key rotation, tier fallback, or reasoning replay.
+
+**Both automatic and selected diagnostics preserve production key cooldowns, failure counts, proxy health, and bindings.** They still make real upstream requests, can consume provider quota, and appear in monitoring.
+
+After execution, the management endpoint returns HTTP 200 with the actual result in `ok`, `http_status`, `request_id`, `route`, and `response`. Selected-key results also include `selected_key` and `key_test`: `usable`, `rejected`, `rate_limited`, `transport_error`, `upstream_error`, `request_error`, or `unavailable`. Invalid management input, authentication, CSRF, and throttling retain their own HTTP error statuses.
+
+### Saving and reloading
+
+The server validates a candidate configuration and builds its replacement gateway before saving and switching. Failed validation or persistence leaves the active gateway in place. Requests already running continue on their original gateway.
+
+Keys, proxies, upstream URLs, retry settings, model settings, logging, and routing preferences apply to new requests immediately. Changes to `listen`, `webui.listen`, or `webui.enabled` require a process restart. Saved JSON is normalized; comments are not retained.
+
+## Monitoring and persistence
+
+Request outcomes describe the completed inference. A failed SSE response or truncated stream counts as an error even when HTTP 200 was already sent; its outcome is `stream_error`. Client cancellations are recorded as `client_canceled`. The WebUI displays those outcomes alongside the HTTP status.
+
+Upstream **attempt** records measure the HTTP exchange through receipt of response headers. Their success and latency are separate from completion of the full JSON body or stream.
+
+Token statistics use reported usage only. Input tokens include cache reads and writes; cached tokens separately count cache reads. Missing usage is not estimated, and coverage shows how many routed inference requests reported usage.
+
+| Data                                                      | Storage / retention                                                                          |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Sessions, metrics, token totals, latest Playground result | Process memory; cleared on restart.                                                          |
+| Request and attempt details                               | Recent hour, capped at 10,000 requests and 20,000 attempts; API returns at most 500 of each. |
+| Live log ring                                             | Process memory; size set by `logging.ring_size`.                                             |
+| Structured logs                                           | JSON on stdout; collect externally for durable history.                                      |
+| Configuration and previous version                        | `config.json` and `config.json.bak`.                                                         |
+| Model directory cache                                     | `config.json.models.catalog.json`.                                                           |
+| Price/deprecation cache                                   | `config.json.models.dev.json`.                                                               |
+
+Cache filenames are based on the actual configuration path. Lifetime counters mean the current process lifetime. Instances do not share sessions or monitoring state.
+
+### Health checks
+
+`/healthz` does not increment monitoring counters or trigger network requests. It reports resource counts without keys or proxy addresses.
+
+- HTTP 503: initial catalog pending, no models routable with the current configuration, or no healthy proxies.
+- HTTP 200: ready, including when a usable catalog cache is stale. In that case the model status is `stale` and overall status is `degraded`.
+
+The staleness threshold is twice `models.refresh_seconds`, with a minimum of 60 seconds. Readiness is a discovery and resource check; it does not verify that an upstream key will accept the next inference.
+
+## Development
+
+Go source is organized into packages by responsibility. The command wires the service together; implementation packages live under `internal/`.
+
+```text
+cmd/
+  opencode2api/main.go    CLI flags, startup, and graceful shutdown
+internal/
+  admin/                 Management API, login sessions, and Playground
+  buildinfo/             Version shared by health and management endpoints
+  config/                Configuration, persistence, passwords, and redaction
+  gateway/               HTTP routing, retries, pools, refresh, and runtime
+  httpx/                 Shared HTTP responses, body handling, and headers
+  identity/              Request IDs and session affinity
+  jsonutil/              JSON access and decoding helpers
+  models/                Model catalog, capabilities, pricing, and caches
+  protocol/              Request/response conversion and SSE parsing/output
+  telemetry/             Request tracking, metrics, logs, and recovery
+webui/
+  embed.go               Embeds the three static assets into the executable
+  index.html             Page structure
+  app.js                 UI behavior
+  styles.css             UI styles
+```
+
+Suggested reading order:
+
+1. [Command entry](cmd/opencode2api/main.go) → [runtime management](internal/gateway/runtime.go) → [HTTP handlers](internal/gateway/gateway.go).
+2. [Upstream attempts](internal/gateway/upstream.go) and [model routing](internal/models/catalog.go) explain how a request reaches a provider.
+3. [Request conversion](internal/protocol/request.go), [response conversion](internal/protocol/response.go), and [stream transport](internal/protocol/stream.go) cover protocol behavior.
+4. [Management routes](internal/admin/server.go) and [WebUI logic](webui/app.js) cover configuration and diagnostics.
+
+Run Go formatting, analysis, and the command build:
 
 ```bash
-rg 'empty_reply=true' opencode2api.log
-rg 'request_id=XXXX' opencode2api.log
-rg 'promoted_reasoning=true' opencode2api.log
+gofmt -w cmd internal webui
+go vet ./...
+go build -o opencode2api ./cmd/opencode2api
 ```
 
-容器内默认日志路径是 `/data/opencode2api.log`（挂载卷持久化），可用环境变量覆盖：
+For local development, start the service with `go run ./cmd/opencode2api -config config.json`. Release builds still inject the version with `-ldflags "-X main.version=vX.Y.Z"`.
 
-- `OPENCODE2API_LOG_FILE`
-- `OPENCODE2API_LOG_LEVEL`
-- `OPENCODE2API_LOG_STDOUT`
-
-## 本地构建
+Node.js is only needed for development formatting and JavaScript syntax checks:
 
 ```bash
-make test
-make vet
-make build
-./bin/opencode2api -version
+npm ci --ignore-scripts
+npm run format
+npm run format:check
+npm run check:web
 ```
 
-生成本地多平台 release 包：
+`.editorconfig`, `.gitattributes`, Go formatting, and pinned Prettier settings standardize the source. CI runs `go vet` and builds with Go 1.24 and stable Go on Linux/Windows, plus formatting, WebUI syntax, and entrypoint shell syntax checks. Release archives include both READMEs.
 
-```bash
-make release-snapshot VERSION=v0.1.0
-ls dist/
-```
+## Troubleshooting
 
-## 自动 Release
+| Symptom                              | Check                                                                                     |
+| ------------------------------------ | ----------------------------------------------------------------------------------------- |
+| API returns 401                      | Use a configured local `server_keys` value.                                               |
+| Health remains `starting`            | Inspect catalog refresh logs and outbound connectivity; add protocol overrides if needed. |
+| No models are exposed                | Check configured tiers, anonymous eligibility, and native protocol support.               |
+| Requests return 502/504              | Inspect upstream attempts, credentials, proxies, and total/per-attempt timeouts.          |
+| HTTP 200 but generation failed       | Inspect the SSE error event and request outcome, not only HTTP status.                    |
+| Host edits have no effect in Docker  | The active file is in the state volume; import it again or use the WebUI.                 |
+| Container ports are unreachable      | Check listener addresses, published ports, and the active volume configuration.           |
+| Monitoring disappeared after restart | Monitoring is stored only in memory; collect stdout logs externally.                      |
 
-推送 `v*` tag 后，GitHub Actions 会先运行一次格式、测试和 vet 检查，然后用 matrix 并发构建以下目标：
+## Acknowledgements
 
-- `linux/amd64`
-- `linux/arm64`
-- `linux/arm/v7`
-- `darwin/amd64`
-- `darwin/arm64`
-- `windows/amd64`
-- `windows/arm64`
-- `freebsd/amd64`
-- `freebsd/arm64`
-
-发布命令：
-
-```bash
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-Release 会包含每个平台的 `.tar.gz` 包和统一生成的 `checksums.txt`。
-
-## Docker Compose 部署
-
-项目提供单独运行、Tor 代理、WARP 代理三套 compose 模版：
-
-```bash
-export OPENCODE2API_PASSWORD="change-me"
-docker compose -f deploy/compose/compose.yml up -d
-```
-
-代理部署见 [Docker Compose 部署模版](deploy/compose/README.md)。
-
-## 文档
-
-- [API 兼容说明](docs/API.md)
-- [配置说明](docs/CONFIGURATION.md)
-- [部署说明](docs/DEPLOYMENT.md)
-- [发布流程](docs/RELEASE.md)
-- [Docker Compose 部署模版](deploy/compose/README.md)
-- [贡献指南](CONTRIBUTING.md)
-- [安全说明](SECURITY.md)
-
-## 许可证
-
-当前仓库默认保留全部权利，避免在未确认授权策略前自动开源。需要公开开源时，可将 `LICENSE` 替换为 MIT、Apache-2.0 或其他许可证。
+Thanks to the [LINUX DO](https://linux.do) community for its support.

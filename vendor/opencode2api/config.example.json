@@ -1,34 +1,43 @@
 {
-  "model_alias": {
-    "deepseek-v4-flash": "deepseek-v4-flash-free",
-    "mimo-v2.5": "mimo-v2.5-free",
-    "ling-3.0-flash": "ling-3.0-flash-free",
-    "nemotron-3-ultra": "nemotron-3-ultra-free",
-    "north-mini-code": "north-mini-code-free",
-    "laguna-s-2.1": "laguna-s-2.1-free"
+  "listen": "127.0.0.1:8080",
+  "server_keys": ["change-this-local-key"],
+  "zen_keys": ["sk-your-zen-key"],
+  "go_keys": [],
+  "anonymous": false,
+  "prefer": "go",
+  "proxyfile": "",
+  "proxies": ["direct"],
+  "upstream": {
+    "zen": "https://opencode.ai/zen",
+    "go": "https://opencode.ai/zen/go"
   },
-  "reasoning_effort_map": {
-    "minimal": "low",
-    "medium": "medium",
-    "high": "high"
+  "retry": {
+    "max_attempts": 3,
+    "timeout_seconds": 300
   },
-  "force_disable_thinking": false,
-  "max_tokens_cap": 131072,
-  "max_tokens_cap_per_model": {
-    "deepseek-v4-flash-free": 131072,
-    "laguna-s-2.1-free": 262144,
-    "mimo-v2.5-free": 1048576,
-    "nemotron-3-ultra-free": 1000000,
-    "nemotron-3.5-lightning-free": 1000000
+  "models": {
+    "refresh_seconds": 300,
+    "protocols": {}
   },
-  "socks5_proxies": [
-    {
-      "name": "local",
-      "addr": "127.0.0.1:1080",
-      "username": "",
-      "password": ""
-    }
-  ],
-  "active_socks5": "",
-  "socks5_paid_direct": false
+  "performance": {
+    "max_idle_conns": 2048,
+    "max_idle_conns_per_host": 256,
+    "max_conns_per_host": 0,
+    "idle_conn_timeout_seconds": 120,
+    "connect_timeout_seconds": 5,
+    "failure_cooldown_seconds": 15,
+    "attempt_timeout_seconds": 0
+  },
+  "logging": {
+    "level": "info",
+    "ring_size": 2000,
+    "dump_request_bodies": false
+  },
+  "webui": {
+    "enabled": true,
+    "listen": "0.0.0.0:8081",
+    "username": "admin",
+    "password": "change-this-admin-password",
+    "session_ttl_minutes": 720
+  }
 }

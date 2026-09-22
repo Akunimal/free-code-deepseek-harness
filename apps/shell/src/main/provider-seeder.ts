@@ -26,6 +26,9 @@ export interface SeederConfig {
   homeDir: string; // DSH_HOME
   lbBaseUrl: string; // http://127.0.0.1:<PUERTO_LB>/v1
   apiKeyEnv?: string; // default FREECODE_PUBLIC_KEY
+  /** Root URL of the opencode2api no-auth sidecar (no /v1). When set the
+   *  `opencode-free` provider is seeded; when absent it is removed. */
+  opencodeBaseUrl?: string;
 }
 
 interface ProviderEntry {
@@ -57,6 +60,15 @@ const LEGACY_FREE_PROVIDER_DISPLAY_NAMES = new Set([
   'DeepSeek Free Pool',
   'OpenCode Free Pool',
 ]);
+/** Second lane — the opencode2api anonymous-Zen gateway. Seeded only while
+ *  the sidecar is up; removed when it is not (avoids a dead route).
+ *  The model-refresher syncs the live anonymous-eligible catalog; the fallback
+ *  below exists only so the section passes the non-empty validator. */
+const OPENCODE_PROVIDER = 'opencode-free';
+const OPENCODE_DISPLAY_NAME = 'OpenCode No-Auth';
+const OPENCODE_FALLBACK_MODELS = [
+  { id: 'deepseek-v4-flash-free', reasoningEfforts: reasoningEffortsForModel('deepseek-v4-flash-free') },
+];
 /** Seed model — the model-refresher replaces this with the live catalog. */
 const FALLBACK_MODELS = [{ id: 'x-preview-f', reasoningEfforts: reasoningEffortsForModel('x-preview-f') }];
 const LEGACY_PERPLEXITY_PROVIDER = 'perplexity-free';
@@ -133,6 +145,47 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
   // migration only changes the live provider catalog.
   if (providers[REMOVED_GEMINI_PROVIDER] !== undefined) {
     delete providers[REMOVED_GEMINI_PROVIDER];
+    seeded = true;
+  }
+
+  // OpenCode No-Auth lane (opencode2api anonymous-Zen gateway). Present only
+  // while the sidecar is running: seed it when up, remove the app-managed
+  // route when down so the selector never shows a dead entry.
+  if (cfg.opencodeBaseUrl) {
+    const baseURL = `${cfg.opencodeBaseUrl}/v1`;
+    const oc = providers[OPENCODE_PROVIDER];
+    if (oc) {
+      if (oc.displayName !== OPENCODE_DISPLAY_NAME) {
+        oc.displayName = OPENCODE_DISPLAY_NAME;
+        seeded = true;
+      }
+      if (oc.baseURL !== baseURL) {
+        oc.baseURL = baseURL;
+        seeded = true;
+      }
+      if (oc.apiKeyEnv !== (cfg.apiKeyEnv ?? DEFAULT_API_KEY_ENV)) {
+        oc.apiKeyEnv = cfg.apiKeyEnv ?? DEFAULT_API_KEY_ENV;
+        seeded = true;
+      }
+      if (!Array.isArray(oc.models) || oc.models.length === 0) {
+        oc.models = OPENCODE_FALLBACK_MODELS.map((entry) => ({ ...entry }));
+        seeded = true;
+      }
+    } else {
+      providers[OPENCODE_PROVIDER] = {
+        displayName: OPENCODE_DISPLAY_NAME,
+        api: 'openai-completions',
+        baseURL,
+        apiKeyEnv: cfg.apiKeyEnv ?? DEFAULT_API_KEY_ENV,
+        defaultInput: ['text'],
+        models: OPENCODE_FALLBACK_MODELS.map((entry) => ({ ...entry })),
+        // NOTE: no thinkingFormat compat here — the refresher sets per-model
+        // reasoningEfforts for the anonymous-eligible catalog.
+      };
+      seeded = true;
+    }
+  } else if (providers[OPENCODE_PROVIDER]?.displayName === OPENCODE_DISPLAY_NAME) {
+    delete providers[OPENCODE_PROVIDER];
     seeded = true;
   }
 

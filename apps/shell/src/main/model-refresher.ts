@@ -42,6 +42,12 @@ export interface ProviderRefreshTarget {
   baseUrl: string;
   /** Optional Authorization value, for example `Bearer public`. */
   authHeader?: string;
+  /** Credential reference written to settings (`apiKeyEnv`); set for
+   *  non-free providers that authenticate like the built-in pool. */
+  apiKeyEnv?: string;
+  /** Profile input modalities (settings `defaultInput`); defaults to the
+   *  legacy non-free shape. */
+  defaultInput?: string[];
   /** Set false for static local gateways where probing every model is costly. */
   probeModels?: boolean;
   /** Models that should remain visible when a transient probe fails. */
@@ -193,10 +199,16 @@ function syncProviderModels(
   const provider = providers[target.provider] ?? (providers[target.provider] = {
     api: 'openai-completions',
     baseURL: providerBaseUrl(target.baseUrl),
-    ...(target.provider === FREE_PROVIDER ? { apiKeyEnv: 'FREECODE_PUBLIC_KEY' } : {}),
-    defaultInput: target.provider === FREE_PROVIDER ? ['text'] : ['text', 'image'],
+    ...(target.provider === FREE_PROVIDER || target.apiKeyEnv
+      ? { apiKeyEnv: target.provider === FREE_PROVIDER ? 'FREECODE_PUBLIC_KEY' : target.apiKeyEnv }
+      : {}),
+    defaultInput: target.defaultInput
+      ?? (target.provider === FREE_PROVIDER ? ['text'] : ['text', 'image']),
     models: [],
   });
+  if (target.apiKeyEnv !== undefined && provider.apiKeyEnv !== target.apiKeyEnv) {
+    provider.apiKeyEnv = target.apiKeyEnv;
+  }
   const responders = entries
     .filter((model) => model.responds)
     .sort((a, b) => {

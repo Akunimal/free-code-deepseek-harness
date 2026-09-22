@@ -1,0 +1,620 @@
+package telemetry
+
+import (
+	"fmt"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"opencode2api/internal/protocol"
+)
+
+type metricBucket struct {
+	minute        int64
+	total         uint64
+	success       uint64
+	errors        uint64
+	duration      uint64
+	histogram     [11]uint64
+	endpoints     map[string]uint64
+	models        map[string]uint64
+	tiers         map[string]uint64
+	statuses      map[string]uint64
+	usageRequests uint64
+	usageReported uint64
+	tokens        TokenCounts
+	usageModels   map[string]TokenCounts
+	usageTiers    map[string]TokenCounts
+}
+
+func (b *metricBucket) reset(minute int64) {
+	*b = metricBucket{
+		minute: minute, endpoints: make(map[string]uint64), models: make(map[string]uint64),
+		tiers: make(map[string]uint64), statuses: make(map[string]uint64),
+		usageModels: make(map[string]TokenCounts), usageTiers: make(map[string]TokenCounts),
+	}
+}
+
+type TokenCounts struct {
+	Input     uint64 `json:"input_tokens"`
+	Output    uint64 `json:"output_tokens"`
+	Cached    uint64 `json:"cached_tokens"`
+	Reasoning uint64 `json:"reasoning_tokens"`
+	Total     uint64 `json:"total_tokens"`
+}
+
+type UsagePeriod struct {
+	Requests uint64                 `json:"requests"`
+	Reported uint64                 `json:"reported"`
+	Coverage float64                `json:"coverage"`
+	Tokens   TokenCounts            `json:"tokens"`
+	Models   map[string]TokenCounts `json:"models"`
+	Tiers    map[string]TokenCounts `json:"tiers"`
+}
+
+type UsageSnapshot struct {
+	Lifetime UsagePeriod `json:"lifetime"`
+	Window   UsagePeriod `json:"last_hour"`
+}
+
+type AttemptCounts struct {
+	Total   uint64 `json:"total"`
+	Success uint64 `json:"success"`
+	Failed  uint64 `json:"failed"`
+}
+
+type AttemptAggregate struct {
+	AttemptCounts
+	SuccessRate float64                  `json:"success_rate"`
+	Tiers       map[string]AttemptCounts `json:"tiers"`
+	Channels    map[string]AttemptCounts `json:"channels"`
+	Keys        map[string]AttemptCounts `json:"keys"`
+}
+
+type UpstreamAttempt struct {
+	Time       time.Time `json:"time"`
+	RequestID  string    `json:"request_id"`
+	Model      string    `json:"model"`
+	Tier       string    `json:"tier"`
+	Attempt    int       `json:"attempt"`
+	KeyID      string    `json:"key_id"`
+	Channel    string    `json:"channel"`
+	Anonymous  bool      `json:"anonymous"`
+	Proxy      string    `json:"proxy_node"`
+	Status     int       `json:"status,omitempty"`
+	DurationMS int64     `json:"duration_ms"`
+	Success    bool      `json:"success"`
+	Outcome    string    `json:"outcome"`
+}
+
+// UpstreamRequest is the credential route that was actually used for one
+// client inference request. It is kept separately from UpstreamAttempt,
+// because a single request can try several keys before it succeeds.
+type UpstreamRequest struct {
+	Time       time.Time `json:"time"`
+	RequestID  string    `json:"request_id"`
+	Model      string    `json:"model"`
+	Tier       string    `json:"tier,omitempty"`
+	KeyID      string    `json:"key_id,omitempty"`
+	Channel    string    `json:"channel"`
+	Anonymous  bool      `json:"anonymous"`
+	Proxy      string    `json:"proxy_node,omitempty"`
+	Attempts   int       `json:"attempts"`
+	Status     int       `json:"status"`
+	DurationMS int64     `json:"duration_ms"`
+	Success    bool      `json:"success"`
+	Outcome    string    `json:"outcome"`
+}
+
+type attemptBucket struct {
+	minute    int64
+	aggregate AttemptAggregate
+}
+
+type UpstreamSnapshot struct {
+	Lifetime AttemptAggregate  `json:"lifetime"`
+	Window   AttemptAggregate  `json:"last_hour"`
+	Requests []UpstreamRequest `json:"requests"`
+	Recent   []UpstreamAttempt `json:"recent"`
+}
+
+const (
+	monitorRecentRequestCapacity = 10000
+	monitorRecentAttemptCapacity = 20000
+	monitorRecentOutputLimit     = 500
+)
+
+type upstreamRequestRing struct {
+	items []UpstreamRequest
+	start int
+	count int
+}
+
+func newUpstreamRequestRing() upstreamRequestRing {
+	return upstreamRequestRing{items: make([]UpstreamRequest, monitorRecentRequestCapacity)}
+}
+
+func (ring *upstreamRequestRing) Add(value UpstreamRequest) {
+	if len(ring.items) == 0 {
+		ring.items = make([]UpstreamRequest, monitorRecentRequestCapacity)
+	}
+	index := (ring.start + ring.count) % len(ring.items)
+	if ring.count == len(ring.items) {
+		ring.items[index] = value
+		ring.start = (ring.start + 1) % len(ring.items)
+		return
+	}
+	ring.items[index] = value
+	ring.count++
+}
+
+func (ring *upstreamRequestRing) PruneBefore(cutoff time.Time) {
+	for ring.count > 0 && ring.items[ring.start].Time.Before(cutoff) {
+		ring.items[ring.start] = UpstreamRequest{}
+		ring.start = (ring.start + 1) % len(ring.items)
+		ring.count--
+	}
+}
+
+func (ring *upstreamRequestRing) Snapshot(cutoff time.Time, limit int) []UpstreamRequest {
+	if limit < 1 || ring.count == 0 {
+		return nil
+	}
+	result := make([]UpstreamRequest, 0, min(ring.count, limit))
+	for offset := 0; offset < ring.count; offset++ {
+		value := ring.items[(ring.start+offset)%len(ring.items)]
+		if !value.Time.Before(cutoff) {
+			result = append(result, value)
+		}
+	}
+	if len(result) > limit {
+		result = result[len(result)-limit:]
+	}
+	return result
+}
+
+type upstreamAttemptRing struct {
+	items []UpstreamAttempt
+	start int
+	count int
+}
+
+func newUpstreamAttemptRing() upstreamAttemptRing {
+	return upstreamAttemptRing{items: make([]UpstreamAttempt, monitorRecentAttemptCapacity)}
+}
+
+func (ring *upstreamAttemptRing) Add(value UpstreamAttempt) {
+	if len(ring.items) == 0 {
+		ring.items = make([]UpstreamAttempt, monitorRecentAttemptCapacity)
+	}
+	index := (ring.start + ring.count) % len(ring.items)
+	if ring.count == len(ring.items) {
+		ring.items[index] = value
+		ring.start = (ring.start + 1) % len(ring.items)
+		return
+	}
+	ring.items[index] = value
+	ring.count++
+}
+
+func (ring *upstreamAttemptRing) PruneBefore(cutoff time.Time) {
+	for ring.count > 0 && ring.items[ring.start].Time.Before(cutoff) {
+		ring.items[ring.start] = UpstreamAttempt{}
+		ring.start = (ring.start + 1) % len(ring.items)
+		ring.count--
+	}
+}
+
+func (ring *upstreamAttemptRing) Snapshot(cutoff time.Time, limit int) []UpstreamAttempt {
+	if limit < 1 || ring.count == 0 {
+		return nil
+	}
+	result := make([]UpstreamAttempt, 0, min(ring.count, limit))
+	for offset := 0; offset < ring.count; offset++ {
+		value := ring.items[(ring.start+offset)%len(ring.items)]
+		if !value.Time.Before(cutoff) {
+			result = append(result, value)
+		}
+	}
+	if len(result) > limit {
+		result = result[len(result)-limit:]
+	}
+	return result
+}
+
+type Monitor struct {
+	started         time.Time
+	active          atomic.Int64
+	activeStreams   atomic.Int64
+	total           atomic.Uint64
+	success         atomic.Uint64
+	errors          atomic.Uint64
+	mu              sync.Mutex
+	buckets         [60]metricBucket
+	lifetimeUsage   UsagePeriod
+	attemptLifetime AttemptAggregate
+	attemptBuckets  [60]attemptBucket
+	recentRequests  upstreamRequestRing
+	recentAttempts  upstreamAttemptRing
+}
+
+func NewMonitor() *Monitor {
+	return &Monitor{
+		started:         time.Now().UTC(),
+		lifetimeUsage:   newUsagePeriod(),
+		attemptLifetime: newAttemptAggregate(),
+		recentRequests:  newUpstreamRequestRing(),
+		recentAttempts:  newUpstreamAttemptRing(),
+	}
+}
+
+// BeginStream records a stream entering its response body phase.
+func (m *Monitor) BeginStream() { m.activeStreams.Add(1) }
+
+// EndStream releases a stream recorded by BeginStream.
+func (m *Monitor) EndStream() { m.activeStreams.Add(-1) }
+
+var latencyBounds = [...]uint64{50, 100, 250, 500, 1000, 2500, 5000, 10000, 30000, 60000}
+
+func (m *Monitor) Record(endpoint string, status int, duration time.Duration, meta *RequestMeta) {
+	success := requestSucceeded(status, meta)
+	m.total.Add(1)
+	if success {
+		m.success.Add(1)
+	} else {
+		m.errors.Add(1)
+	}
+	minute := time.Now().Unix() / 60
+	m.mu.Lock()
+	bucket := &m.buckets[minute%60]
+	if bucket.minute != minute {
+		bucket.reset(minute)
+	}
+	bucket.total++
+	if success {
+		bucket.success++
+	} else {
+		bucket.errors++
+	}
+	milliseconds := uint64(max(duration.Milliseconds(), 0))
+	bucket.duration += milliseconds
+	index := len(latencyBounds)
+	for i, bound := range latencyBounds {
+		if milliseconds <= bound {
+			index = i
+			break
+		}
+	}
+	bucket.histogram[index]++
+	bucket.endpoints[endpoint]++
+	bucket.statuses[fmt.Sprint(status)]++
+	if meta != nil {
+		if meta.Model != "" {
+			bucket.models[meta.Model]++
+		}
+		if meta.Tier != "" {
+			bucket.tiers[meta.Tier]++
+			bucket.usageRequests++
+			m.lifetimeUsage.Requests++
+			if meta.UsageReported {
+				bucket.usageReported++
+				m.lifetimeUsage.Reported++
+			}
+			tokens := tokenCounts(meta.Usage)
+			addTokenCounts(&bucket.tokens, tokens)
+			addTokenCounts(&m.lifetimeUsage.Tokens, tokens)
+			addTokenMap(bucket.usageModels, meta.Model, tokens)
+			addTokenMap(bucket.usageTiers, meta.Tier, tokens)
+			addTokenMap(m.lifetimeUsage.Models, meta.Model, tokens)
+			addTokenMap(m.lifetimeUsage.Tiers, meta.Tier, tokens)
+		}
+		if meta.Request != "" && meta.Model != "" {
+			request := UpstreamRequest{
+				Time: time.Now().UTC(), RequestID: meta.Request, Model: meta.Model, Tier: meta.Tier,
+				KeyID: meta.KeyID, Channel: meta.Channel, Anonymous: meta.Anonymous, Proxy: meta.Proxy,
+				Attempts: meta.Attempts, Status: status, DurationMS: max(duration.Milliseconds(), 0),
+				Success: success,
+			}
+			if request.Channel == "" {
+				request.Channel = "not_routed"
+			}
+			if request.Anonymous {
+				request.KeyID = "anonymous"
+			}
+			request.Outcome = requestOutcome(status, request.Channel)
+			if meta.Outcome != "" {
+				request.Outcome = meta.Outcome
+			}
+			m.recentRequests.PruneBefore(request.Time.Add(-time.Hour))
+			m.recentRequests.Add(request)
+		}
+	}
+	m.mu.Unlock()
+}
+
+// A stream can fail after HTTP headers have been sent. Preserve its HTTP
+// status while using the terminal result for request success and error counts.
+func requestSucceeded(status int, meta *RequestMeta) bool {
+	return status >= 200 && status < 400 && (meta == nil || meta.Outcome == "")
+}
+
+func requestOutcome(status int, channel string) string {
+	if channel == "" || channel == "not_routed" {
+		return "not_routed"
+	}
+	if status >= 200 && status < 400 {
+		return "success"
+	}
+	if status >= 400 && status < 500 {
+		return "client_error"
+	}
+	if status >= 500 {
+		return "server_error"
+	}
+	return "unknown"
+}
+
+func (m *Monitor) RecordAttempt(attempt UpstreamAttempt) {
+	if attempt.Time.IsZero() {
+		attempt.Time = time.Now().UTC()
+	} else {
+		attempt.Time = attempt.Time.UTC()
+	}
+	minute := attempt.Time.Unix() / 60
+	m.mu.Lock()
+	recordAttemptAggregate(&m.attemptLifetime, attempt)
+	bucket := &m.attemptBuckets[minute%60]
+	if bucket.minute != minute {
+		*bucket = attemptBucket{minute: minute, aggregate: newAttemptAggregate()}
+	}
+	recordAttemptAggregate(&bucket.aggregate, attempt)
+	m.recentAttempts.PruneBefore(attempt.Time.Add(-time.Hour))
+	m.recentAttempts.Add(attempt)
+	m.mu.Unlock()
+}
+
+type MonitorSnapshot struct {
+	StartedAt     time.Time         `json:"started_at"`
+	UptimeSeconds int64             `json:"uptime_seconds"`
+	Active        int64             `json:"active_requests"`
+	ActiveStreams int64             `json:"active_streams"`
+	Lifetime      MetricSummary     `json:"lifetime"`
+	Window        MetricSummary     `json:"last_hour"`
+	Series        []MetricSeries    `json:"series"`
+	Endpoints     map[string]uint64 `json:"endpoints"`
+	Models        map[string]uint64 `json:"models"`
+	Tiers         map[string]uint64 `json:"tiers"`
+	Statuses      map[string]uint64 `json:"statuses"`
+	Usage         UsageSnapshot     `json:"usage"`
+	Upstream      UpstreamSnapshot  `json:"upstream"`
+}
+
+type MetricSummary struct {
+	Total       uint64  `json:"total"`
+	Success     uint64  `json:"success"`
+	Errors      uint64  `json:"errors"`
+	SuccessRate float64 `json:"success_rate"`
+	AverageMS   float64 `json:"average_ms,omitempty"`
+	P50MS       uint64  `json:"p50_ms,omitempty"`
+	P95MS       uint64  `json:"p95_ms,omitempty"`
+	P99MS       uint64  `json:"p99_ms,omitempty"`
+}
+
+type MetricSeries struct {
+	Minute          time.Time `json:"minute"`
+	Total           uint64    `json:"total"`
+	Success         uint64    `json:"success"`
+	Errors          uint64    `json:"errors"`
+	InputTokens     uint64    `json:"input_tokens"`
+	OutputTokens    uint64    `json:"output_tokens"`
+	CachedTokens    uint64    `json:"cached_tokens"`
+	ReasoningTokens uint64    `json:"reasoning_tokens"`
+	TotalTokens     uint64    `json:"total_tokens"`
+	UsageReported   uint64    `json:"usage_reported"`
+}
+
+func (m *Monitor) Snapshot() MonitorSnapshot {
+	nowMinute := time.Now().Unix() / 60
+	window := MetricSummary{}
+	var histogram [11]uint64
+	endpoints, models, tiers, statuses := map[string]uint64{}, map[string]uint64{}, map[string]uint64{}, map[string]uint64{}
+	series := make([]MetricSeries, 0, 60)
+	usageWindow := newUsagePeriod()
+	upstreamWindow := newAttemptAggregate()
+	var recentRequests []UpstreamRequest
+	var recentAttempts []UpstreamAttempt
+	m.mu.Lock()
+	for offset := int64(59); offset >= 0; offset-- {
+		minute := nowMinute - offset
+		bucket := &m.buckets[minute%60]
+		entry := MetricSeries{Minute: time.Unix(minute*60, 0).UTC()}
+		if bucket.minute == minute {
+			entry.Total, entry.Success, entry.Errors = bucket.total, bucket.success, bucket.errors
+			entry.InputTokens, entry.OutputTokens = bucket.tokens.Input, bucket.tokens.Output
+			entry.CachedTokens, entry.ReasoningTokens, entry.TotalTokens = bucket.tokens.Cached, bucket.tokens.Reasoning, bucket.tokens.Total
+			entry.UsageReported = bucket.usageReported
+			window.Total += bucket.total
+			window.Success += bucket.success
+			window.Errors += bucket.errors
+			window.AverageMS += float64(bucket.duration)
+			for i := range histogram {
+				histogram[i] += bucket.histogram[i]
+			}
+			mergeCounts(endpoints, bucket.endpoints)
+			mergeCounts(models, bucket.models)
+			mergeCounts(tiers, bucket.tiers)
+			mergeCounts(statuses, bucket.statuses)
+			usageWindow.Requests += bucket.usageRequests
+			usageWindow.Reported += bucket.usageReported
+			addTokenCounts(&usageWindow.Tokens, bucket.tokens)
+			mergeTokenMaps(usageWindow.Models, bucket.usageModels)
+			mergeTokenMaps(usageWindow.Tiers, bucket.usageTiers)
+		}
+		attemptBucket := &m.attemptBuckets[minute%60]
+		if attemptBucket.minute == minute {
+			mergeAttemptAggregate(&upstreamWindow, attemptBucket.aggregate)
+		}
+		series = append(series, entry)
+	}
+	usageLifetime := cloneUsagePeriod(m.lifetimeUsage)
+	upstreamLifetime := cloneAttemptAggregate(m.attemptLifetime)
+	cutoff := time.Now().Add(-time.Hour)
+	m.recentRequests.PruneBefore(cutoff)
+	m.recentAttempts.PruneBefore(cutoff)
+	recentRequests = m.recentRequests.Snapshot(cutoff, monitorRecentOutputLimit)
+	recentAttempts = m.recentAttempts.Snapshot(cutoff, monitorRecentOutputLimit)
+	m.mu.Unlock()
+	finalizeUsagePeriod(&usageLifetime)
+	finalizeUsagePeriod(&usageWindow)
+	finalizeAttemptAggregate(&upstreamLifetime)
+	finalizeAttemptAggregate(&upstreamWindow)
+	if window.Total > 0 {
+		window.SuccessRate = float64(window.Success) / float64(window.Total)
+		window.AverageMS /= float64(window.Total)
+		window.P50MS = histogramPercentile(histogram, window.Total, 0.50)
+		window.P95MS = histogramPercentile(histogram, window.Total, 0.95)
+		window.P99MS = histogramPercentile(histogram, window.Total, 0.99)
+	}
+	lifetime := MetricSummary{Total: m.total.Load(), Success: m.success.Load(), Errors: m.errors.Load()}
+	if lifetime.Total > 0 {
+		lifetime.SuccessRate = float64(lifetime.Success) / float64(lifetime.Total)
+	}
+	return MonitorSnapshot{
+		StartedAt: m.started, UptimeSeconds: int64(time.Since(m.started).Seconds()), Active: m.active.Load(),
+		ActiveStreams: m.activeStreams.Load(), Lifetime: lifetime, Window: window, Series: series,
+		Endpoints: endpoints, Models: models, Tiers: tiers, Statuses: statuses,
+		Usage:    UsageSnapshot{Lifetime: usageLifetime, Window: usageWindow},
+		Upstream: UpstreamSnapshot{Lifetime: upstreamLifetime, Window: upstreamWindow, Requests: recentRequests, Recent: recentAttempts},
+	}
+}
+
+func mergeCounts(target, source map[string]uint64) {
+	for key, value := range source {
+		target[key] += value
+	}
+}
+
+func newUsagePeriod() UsagePeriod {
+	return UsagePeriod{Models: make(map[string]TokenCounts), Tiers: make(map[string]TokenCounts)}
+}
+
+func tokenCounts(usage protocol.Usage) TokenCounts {
+	return TokenCounts{
+		Input: uint64(max(usage.Input, 0)), Output: uint64(max(usage.Output, 0)),
+		Cached: uint64(max(usage.Cached, 0)), Reasoning: uint64(max(usage.Reasoning, 0)), Total: uint64(max(usage.Total, 0)),
+	}
+}
+
+func addTokenCounts(target *TokenCounts, source TokenCounts) {
+	target.Input += source.Input
+	target.Output += source.Output
+	target.Cached += source.Cached
+	target.Reasoning += source.Reasoning
+	target.Total += source.Total
+}
+
+func addTokenMap(target map[string]TokenCounts, key string, value TokenCounts) {
+	if key == "" {
+		return
+	}
+	current := target[key]
+	addTokenCounts(&current, value)
+	target[key] = current
+}
+
+func mergeTokenMaps(target, source map[string]TokenCounts) {
+	for key, value := range source {
+		addTokenMap(target, key, value)
+	}
+}
+
+func cloneUsagePeriod(source UsagePeriod) UsagePeriod {
+	result := newUsagePeriod()
+	result.Requests, result.Reported, result.Tokens = source.Requests, source.Reported, source.Tokens
+	mergeTokenMaps(result.Models, source.Models)
+	mergeTokenMaps(result.Tiers, source.Tiers)
+	return result
+}
+
+func finalizeUsagePeriod(period *UsagePeriod) {
+	if period.Requests > 0 {
+		period.Coverage = float64(period.Reported) / float64(period.Requests)
+	}
+}
+
+func newAttemptAggregate() AttemptAggregate {
+	return AttemptAggregate{
+		Tiers: make(map[string]AttemptCounts), Channels: make(map[string]AttemptCounts), Keys: make(map[string]AttemptCounts),
+	}
+}
+
+func recordAttemptAggregate(target *AttemptAggregate, attempt UpstreamAttempt) {
+	recordAttemptCounts(&target.AttemptCounts, attempt.Success)
+	addAttemptMap(target.Tiers, attempt.Tier, attempt.Success)
+	addAttemptMap(target.Channels, attempt.Channel, attempt.Success)
+	addAttemptMap(target.Keys, attempt.KeyID, attempt.Success)
+}
+
+func recordAttemptCounts(target *AttemptCounts, success bool) {
+	target.Total++
+	if success {
+		target.Success++
+	} else {
+		target.Failed++
+	}
+}
+
+func addAttemptMap(target map[string]AttemptCounts, key string, success bool) {
+	if key == "" {
+		return
+	}
+	current := target[key]
+	recordAttemptCounts(&current, success)
+	target[key] = current
+}
+
+func mergeAttemptAggregate(target *AttemptAggregate, source AttemptAggregate) {
+	target.Total += source.Total
+	target.Success += source.Success
+	target.Failed += source.Failed
+	mergeAttemptMaps(target.Tiers, source.Tiers)
+	mergeAttemptMaps(target.Channels, source.Channels)
+	mergeAttemptMaps(target.Keys, source.Keys)
+}
+
+func mergeAttemptMaps(target, source map[string]AttemptCounts) {
+	for key, value := range source {
+		current := target[key]
+		current.Total += value.Total
+		current.Success += value.Success
+		current.Failed += value.Failed
+		target[key] = current
+	}
+}
+
+func cloneAttemptAggregate(source AttemptAggregate) AttemptAggregate {
+	result := newAttemptAggregate()
+	mergeAttemptAggregate(&result, source)
+	return result
+}
+
+func finalizeAttemptAggregate(aggregate *AttemptAggregate) {
+	if aggregate.Total > 0 {
+		aggregate.SuccessRate = float64(aggregate.Success) / float64(aggregate.Total)
+	}
+}
+
+func histogramPercentile(histogram [11]uint64, total uint64, percentile float64) uint64 {
+	target := uint64(float64(total)*percentile + 0.999)
+	var count uint64
+	for i, value := range histogram {
+		count += value
+		if count >= target {
+			if i < len(latencyBounds) {
+				return latencyBounds[i]
+			}
+			return latencyBounds[len(latencyBounds)-1] + 1
+		}
+	}
+	return 0
+}

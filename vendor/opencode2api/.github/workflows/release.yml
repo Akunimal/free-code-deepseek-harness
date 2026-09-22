@@ -1,4 +1,4 @@
-name: Release
+name: Release binaries and GHCR image
 
 on:
   push:
@@ -6,137 +6,226 @@ on:
       - "v*"
   workflow_dispatch:
     inputs:
-      version:
-        description: "Release version, for example v0.1.0"
+      tag:
+        description: "Release tag, for example v1.0.0"
         required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: true
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  metadata:
+  prepare:
+    name: Prepare release
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.version.outputs.version }}
+      release_tag: ${{ steps.metadata.outputs.release_tag }}
+      image_name: ${{ steps.metadata.outputs.image_name }}
     steps:
-      - name: Resolve version
-        id: version
+      - name: Resolve release metadata
+        id: metadata
+        shell: bash
+        env:
+          DISPATCH_TAG: ${{ inputs.tag }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            version="${{ inputs.version }}"
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            release_tag="$DISPATCH_TAG"
           else
-            version="${GITHUB_REF_NAME}"
+            release_tag="$GITHUB_REF_NAME"
           fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ ! "$release_tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$ ]]; then
+            echo "Release tag must be a semantic version such as v1.0.0 or v1.0.0-rc.1" >&2
+            exit 1
+          fi
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+          echo "image_name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
 
   verify:
+    name: Verify source
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - name: Check out source
+        uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v5
         with:
-          go-version: "1.22.x"
-          cache: false
+          go-version-file: go.mod
+          cache: true
 
-      - name: Verify
-        run: |
-          gofmt -l . | tee /tmp/gofmt.txt
-          test ! -s /tmp/gofmt.txt
-          go test ./...
-          go vet ./...
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build
+        run: go build ./...
 
   build:
-    name: Build ${{ matrix.asset }}
-    needs:
-      - metadata
-      - verify
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    needs: [prepare, verify]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - target: linux/amd64
-            asset: linux_amd64
-          - target: linux/arm64
-            asset: linux_arm64
-          - target: linux/arm/v7
-            asset: linux_arm_v7
-          - target: darwin/amd64
-            asset: darwin_amd64
-          - target: darwin/arm64
-            asset: darwin_arm64
-          - target: windows/amd64
-            asset: windows_amd64
-          - target: windows/arm64
-            asset: windows_arm64
-          - target: freebsd/amd64
-            asset: freebsd_amd64
-          - target: freebsd/arm64
-            asset: freebsd_arm64
+          - goos: linux
+            goarch: amd64
+            extension: ""
+            archive: tar.gz
+          - goos: linux
+            goarch: arm64
+            extension: ""
+            archive: tar.gz
+          - goos: windows
+            goarch: amd64
+            extension: .exe
+            archive: zip
+          - goos: windows
+            goarch: arm64
+            extension: .exe
+            archive: zip
+          - goos: darwin
+            goarch: amd64
+            extension: ""
+            archive: tar.gz
+          - goos: darwin
+            goarch: arm64
+            extension: ""
+            archive: tar.gz
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
+      - name: Check out source
+        uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v5
         with:
-          go-version: "1.22.x"
-          cache: false
+          go-version-file: go.mod
+          cache: true
 
-      - name: Build target
+      - name: Prepare package name
+        id: metadata
+        shell: bash
         env:
-          TARGETS: ${{ matrix.target }}
-          CHECKSUMS: "false"
-          VERSION: ${{ needs.metadata.outputs.version }}
-          COMMIT: ${{ github.sha }}
-        run: ./scripts/build-release.sh
+          RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
+        run: |
+          package_name="opencode2api_${RELEASE_TAG}_${{ matrix.goos }}_${{ matrix.goarch }}"
+          echo "package_name=$package_name" >> "$GITHUB_OUTPUT"
 
-      - name: Upload target artifact
-        uses: actions/upload-artifact@v7
+      - name: Build and package
+        shell: bash
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
+          PACKAGE_NAME: ${{ steps.metadata.outputs.package_name }}
+          EXTENSION: ${{ matrix.extension }}
+          ARCHIVE_FORMAT: ${{ matrix.archive }}
+        run: |
+          mkdir -p "dist/$PACKAGE_NAME"
+          go build -trimpath -ldflags="-s -w -X main.version=$RELEASE_TAG" -o "dist/$PACKAGE_NAME/opencode2api$EXTENSION" ./cmd/opencode2api
+          cp README.md README.zh-CN.md config.example.json "dist/$PACKAGE_NAME/"
+          if [[ "$ARCHIVE_FORMAT" == "zip" ]]; then
+            (cd dist && zip -q -r "$PACKAGE_NAME.zip" "$PACKAGE_NAME")
+            archive="$PACKAGE_NAME.zip"
+          else
+            tar -C dist -czf "dist/$PACKAGE_NAME.tar.gz" "$PACKAGE_NAME"
+            archive="$PACKAGE_NAME.tar.gz"
+          fi
+          (cd dist && sha256sum "$archive" > "$archive.sha256")
+
+      - name: Upload release files
+        uses: actions/upload-artifact@v4
         with:
-          name: opencode2api-${{ needs.metadata.outputs.version }}-${{ matrix.asset }}
-          path: dist/*.tar.gz
+          name: ${{ steps.metadata.outputs.package_name }}
+          path: |
+            dist/${{ steps.metadata.outputs.package_name }}.${{ matrix.archive }}
+            dist/${{ steps.metadata.outputs.package_name }}.${{ matrix.archive }}.sha256
           if-no-files-found: error
 
-  publish:
+  container:
+    name: Publish GHCR image
+    needs: [prepare, verify]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate image metadata
+        id: image_metadata
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ needs.prepare.outputs.image_name }}
+          tags: |
+            type=raw,value=${{ needs.prepare.outputs.release_tag }}
+            type=semver,pattern={{version}},value=${{ needs.prepare.outputs.release_tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.prepare.outputs.release_tag }},enable=${{ !contains(needs.prepare.outputs.release_tag, '-') }}
+            type=semver,pattern={{major}},value=${{ needs.prepare.outputs.release_tag }},enable=${{ !contains(needs.prepare.outputs.release_tag, '-') }}
+          labels: |
+            org.opencontainers.image.title=opencode2api
+            org.opencontainers.image.description=OpenAI-compatible API gateway for OpenCode Zen and Go
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.image_metadata.outputs.tags }}
+          labels: ${{ steps.image_metadata.outputs.labels }}
+          build-args: |
+            VERSION=${{ needs.prepare.outputs.release_tag }}
+          cache-from: type=gha,scope=container
+          cache-to: type=gha,mode=max,scope=container
+          provenance: mode=max
+          sbom: true
+
+  release:
     name: Publish GitHub Release
-    needs:
-      - metadata
-      - build
+    needs: [prepare, build, container]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Download target artifacts
-        uses: actions/download-artifact@v8
+      - name: Download release files
+        uses: actions/download-artifact@v4
         with:
-          path: dist
+          pattern: opencode2api_*
+          path: release-files
           merge-multiple: true
 
-      - name: Generate checksums
-        run: |
-          cd dist
-          sha256sum ./*.tar.gz > checksums.txt
-          ls -lh
-
-      - name: Publish GitHub Release
+      - name: Create or update release
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ needs.metadata.outputs.version }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
         run: |
-          if gh release view "$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$VERSION" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+          release_type=()
+          if [[ "$RELEASE_TAG" == *-* ]]; then
+            release_type+=(--prerelease)
+          fi
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" release-files/* --clobber --repo "$GITHUB_REPOSITORY"
           else
-            gh release create "$VERSION" dist/* \
-              --repo "$GITHUB_REPOSITORY" \
-              --title "opencode2api $VERSION" \
-              --target "$GITHUB_SHA" \
-              --generate-notes
+            gh release create "$RELEASE_TAG" release-files/* "${release_type[@]}" --generate-notes --title "$RELEASE_TAG" --target "$GITHUB_SHA" --repo "$GITHUB_REPOSITORY"
           fi

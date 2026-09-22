@@ -2,15 +2,17 @@ import { HarnessSupervisor, HarnessInstance } from './harness-supervisor.js';
 import { SecretStore, resolveSecrets } from './secret-store.js';
 import { join, resolve } from 'node:path';
 import { startFreellmpoolProxy, type FreellmpoolInstance } from './freellmpool.js';
+import { startOpencode2api, type Opencode2apiInstance } from './opencode2api.js';
 import { embeddedMcpEnvironment, ensureEmbeddedMcpConfig } from './mcp-home.js';
 import type { EmbeddedMcpState, McpRuntimeStatus, WorkerHandle } from '@freecode/shared-types';
 
 /**
  * Shell runtime — owns the full backend stack of the desktop app:
- *   opencode-adapter pool (N workers) -> LoadBalancer -> dsh web supervisor.
+ *   freellmpool proxy + opencode2api (anonymous Zen) -> dsh web supervisor.
  *
- * The LB is the single entry point the renderer talks to; the harness gets
- * OPENCODE2API_LB_URL injected so its /api calls land on the pool.
+ * The proxies are local OpenAI-compatible endpoints; the harness reaches the
+ * freellmpool route through the supervisor's lbUrl, and the second
+ * no-auth provider is registered separately through settings.yaml seeding.
  */
 
 export interface ShellRuntimeConfig {
@@ -48,6 +50,8 @@ export type McpStatusListener = (status: McpRuntimeStatus) => void;
 export interface ShellRuntime {
   /** Freellmpool proxy instance. */
   proxy: FreellmpoolInstance;
+  /** opencode2api anonymous-Zen instance; undefined when unavailable. */
+  opencode2api?: Opencode2apiInstance;
   supervisor: HarnessSupervisor;
   /** No per-worker handles with freellmpool; returns empty array. */
   workers: () => WorkerHandle[];
@@ -150,10 +154,13 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
       error: error instanceof Error ? error.message : String(error),
     });
   }
-  // Start freellmpool proxy instead of opencode2api pool + LB
+  // Start freellmpool as the primary pool and opencode2api (anonymous Zen)
+  // as the optional no-auth sidecar. Both are local loopback proxies.
+  const log = cfg.log ? (level: string, msg: string, meta?: Record<string, unknown>) =>
+    cfg.log?.(level as 'debug' | 'info' | 'warn' | 'error', msg, meta) : undefined;
   const proxy = await startFreellmpoolProxy({
     pythonPath: cfg.pythonPath,
-    log: cfg.log ? (level, msg, meta) => cfg.log?.(level, msg, meta) : undefined,
+    log,
   });
 
   const cliEntry = resolve(join(cfg.resourcesDir, 'dsh', 'apps', 'cli', 'lib', 'bin.js'));
@@ -166,6 +173,21 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
       extraEnv[k] = v;
     }
   }
+  // The no-auth gateway authenticates locally with the same public key the
+  // harness route uses, so server_keys and apiKeyEnv always agree even when
+  // the operator overrode FREECODE_PUBLIC_KEY.
+  const publicKey = extraEnv.FREECODE_PUBLIC_KEY ?? process.env.FREECODE_PUBLIC_KEY ?? 'public';
+  const opencode2api = await startOpencode2api({
+    resourcesDir: join(cfg.resourcesDir),
+    userDataDir: cfg.userDataDir,
+    apiKey: publicKey,
+    log,
+  }).catch((error: unknown) => {
+    cfg.log?.('warn', 'opencode2api sidecar failed to start', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return undefined;
+  });
   const supervisor = new HarnessSupervisor({
     nodePath: cfg.nodePath,
     cliEntry,
@@ -182,6 +204,7 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
 
   return {
     proxy,
+    opencode2api,
     supervisor,
     workers: () => [],
     mcpState,
@@ -216,6 +239,7 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
     stop: async () => {
       await supervisor.stop();
       await proxy.stop();
+      await opencode2api?.stop();
     },
   };
 }

@@ -1,5 +1,7 @@
-module github.com/6Kmfi6HP/opencode2api
+module opencode2api
 
-go 1.22
+go 1.24
 
-require gopkg.in/natefinch/lumberjack.v2 v2.2.1
+require golang.org/x/crypto v0.41.0
+
+require golang.org/x/sys v0.35.0 // indirect

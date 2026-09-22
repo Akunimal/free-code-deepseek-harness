@@ -1,0 +1,12 @@
+{
+  "name": "opencode2api-dev",
+  "private": true,
+  "scripts": {
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check:web": "node --check webui/app.js"
+  },
+  "devDependencies": {
+    "prettier": "3.9.6"
+  }
+}
