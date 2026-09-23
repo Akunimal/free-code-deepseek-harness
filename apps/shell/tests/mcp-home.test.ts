@@ -16,7 +16,7 @@ afterEach(() => {
 })
 
 describe('embedded MCP catalog', () => {
-  it('materializes all servers enabled with an explicit toggle file and managed patch', () => {
+  it('materializes only runnable servers enabled, with toggle file and managed patch', () => {
     const home = mkdtempSync(join(tmpdir(), 'freecode-mcp-home-'))
     homes.push(home)
     const state = ensureEmbeddedMcpConfig(home)
@@ -25,13 +25,17 @@ describe('embedded MCP catalog', () => {
     }
     const patch = readFileSync(state.patchPath, 'utf8')
 
-    expect(state.enabled).toEqual(['serena', 'free-search'])
+    // The repo payload vendors serena.exe but not free-search-mcp.exe: only
+    // the runnable entry starts enabled. A dead command must never be
+    // registered enabled (it would only burn the reconnect budget).
+    expect(state.enabled).toEqual(['serena'])
     expect(config.servers.map((server) => server.id)).toEqual([
       'serena',
       'free-search',
     ])
     expect(config.servers).toHaveLength(2)
-    expect(config.servers.every((server) => server.enabled)).toBe(true)
+    expect(config.servers.find((server) => server.id === 'serena')?.enabled).toBe(true)
+    expect(config.servers.find((server) => server.id === 'free-search')?.enabled).toBe(false)
     // When no uvxCommand/serenaLauncherPath is provided and the vendored
     // serena.exe exists, args are the bare server args (no --from uvx prefix).
     expect(config.servers.find((server) => server.id === 'serena')?.args).toEqual([
@@ -62,7 +66,10 @@ describe('embedded MCP catalog', () => {
     const patch = readFileSync(second.patchPath, 'utf8')
     expect(patch).toContain('user-overlay')
     expect(patch).toContain('id: "freecode-mcp-serena"')
-    expect(patch).toMatch(/id: "freecode-mcp-serena"[\s\S]*?disabled: !!js process\.env\.FREECODE_WEB_MODE === '1'/)
+    // The persisted serena toggle applies to serena's own row (disabled:
+    // true). Match within the row: the free-search row follows and must not
+    // satisfy this assertion by accident.
+    expect(patch).toMatch(/id: "freecode-mcp-serena"\n  name: "@deepseek-ai\/dsh-mcp-client"\n  disabled: true\n/)
     expect(patch.match(new RegExp(MCP_MANAGED_PATCH_BEGIN, 'g'))).toHaveLength(1)
   })
 
@@ -73,7 +80,8 @@ describe('embedded MCP catalog', () => {
     expect(embeddedMcpEnvironment(state)).toMatchObject({
       FREECODE_WEB_MODE: '1',
       FREECODE_MCP_SERENA_ENABLED: 'false',
-      FREECODE_MCP_FREE_SEARCH_ENABLED: 'true',
+      // free-search has no runnable binary in this checkout, so it stays off.
+      FREECODE_MCP_FREE_SEARCH_ENABLED: 'false',
     })
   })
 
@@ -98,9 +106,12 @@ describe('embedded MCP catalog', () => {
   it('uses the packaged Serena launcher on Windows without changing other MCP rows', () => {
     const home = mkdtempSync(join(tmpdir(), 'freecode-mcp-home-'))
     homes.push(home)
+    // The override applies only to a launcher file that really exists.
+    const launcher = join(home, 'serena-headless-launcher.py')
+    writeFileSync(launcher, '# fake launcher')
     const state = ensureEmbeddedMcpConfig(home, {
       uvxCommand: 'C:\\Tools\\uvx.exe',
-      serenaLauncherPath: 'C:\\Program Files\\FreeCode\\resources\\freecode\\serena-headless-launcher.py',
+      serenaLauncherPath: launcher,
     })
     const config = JSON.parse(readFileSync(state.configPath, 'utf8')) as {
       servers: Array<{ id: string, command: string, args: string[] }>
@@ -111,12 +122,29 @@ describe('embedded MCP catalog', () => {
       '--from',
       'git+https://github.com/oraios/serena',
       'python',
-      'C:\\Program Files\\FreeCode\\resources\\freecode\\serena-headless-launcher.py',
+      launcher,
       'start-mcp-server',
       '--context',
       'claude-code',
     ])
-    // With the vendored free-search-mcp.exe, args are empty (no uvx prefix).
+    // The free-search row keeps its base shape (empty args, no uvx prefix)
+    // even while the server stays disabled for lack of a binary.
     expect(config.servers.find((server) => server.id === 'free-search')!.args).toEqual([])
+  })
+
+  it('ignores a missing Serena launcher and keeps the vendored server row', () => {
+    const home = mkdtempSync(join(tmpdir(), 'freecode-mcp-home-'))
+    homes.push(home)
+    const state = ensureEmbeddedMcpConfig(home, {
+      uvxCommand: 'C:\\Tools\\uvx.exe',
+      serenaLauncherPath: join(home, 'does-not-exist.py'),
+    })
+    const config = JSON.parse(readFileSync(state.configPath, 'utf8')) as {
+      servers: Array<{ id: string, command: string, args: string[] }>
+    }
+    const serena = config.servers.find((server) => server.id === 'serena')!
+    // No uvx prefix: the bare vendored server args survive.
+    expect(serena.args).toEqual(['start-mcp-server', '--context', 'claude-code'])
+    expect(serena.command).not.toBe('C:\\Tools\\uvx.exe')
   })
 })

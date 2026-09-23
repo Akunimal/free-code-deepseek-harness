@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -99,11 +99,18 @@ function definitions(options: EmbeddedMcpOptions = {}): typeof BASE_SERVER_DEFIN
         args: override.args ?? server.args,
       }
     }
-    // Legacy: serenaLauncherPath + uvxCommand fallback
-    if (server.id === 'serena' && options.serenaLauncherPath !== undefined) {
+    // Legacy: serenaLauncherPath + uvxCommand fallback. The override applies
+    // ONLY when the launcher script actually exists and a uvx command was
+    // provided; otherwise the row would point uvx (or, worse, the vendored
+    // serena.exe) at launcher args it cannot run, and the MCP supervisor
+    // would burn its reconnect budget respawning a dead server.
+    if (server.id === 'serena'
+      && options.serenaLauncherPath !== undefined
+      && existsSync(options.serenaLauncherPath)
+      && options.uvxCommand !== undefined) {
       return {
         ...server,
-        command: options.uvxCommand ?? server.command,
+        command: options.uvxCommand,
         args: [
           '--from', 'git+https://github.com/oraios/serena',
           'python', options.serenaLauncherPath,
@@ -118,10 +125,25 @@ function definitions(options: EmbeddedMcpOptions = {}): typeof BASE_SERVER_DEFIN
   }) as unknown as typeof BASE_SERVER_DEFINITIONS
 }
 
+/**
+ * Whether a catalog command can actually spawn. Absolute paths must exist;
+ * bare names (`uvx`) resolve via PATH at spawn time. Relative subpaths are
+ * unresolved vendored placeholders (e.g. a not-yet-built `.uv-tools/...`
+ * entry) and can never run — registering them only burns the MCP
+ * reconnect budget on guaranteed spawn failures.
+ */
+function isCommandAvailable(command: string): boolean {
+  if (isAbsolute(command)) return existsSync(command)
+  return !command.includes('/') && !command.includes('\\')
+}
+
 function defaultConfig(options: EmbeddedMcpOptions = {}): EmbeddedMcpConfig {
   return {
     version: EMBEDDED_MCP_CONFIG_VERSION,
-    servers: definitions(options).map((server) => ({ ...server, enabled: true })),
+    // A server whose command cannot spawn starts disabled: an enabled dead
+    // entry only burns the MCP reconnect budget (spawn, fail, backoff ×10)
+    // on every boot without ever registering tools.
+    servers: definitions(options).map((server) => ({ ...server, enabled: isCommandAvailable(server.command) })),
   }
 }
 
@@ -167,7 +189,9 @@ function readConfig(path: string, options: EmbeddedMcpOptions = {}): EmbeddedMcp
       version: EMBEDDED_MCP_CONFIG_VERSION,
       servers: definitions(resolvedOptions).map((server) => ({
         ...server,
-        enabled: flags.get(server.id) ?? true,
+        // A persisted user toggle wins, except that a command which cannot
+        // spawn is forced off: it could only fail its reconnect budget.
+        enabled: isCommandAvailable(server.command) && (flags.get(server.id) ?? true),
       })),
     }
   } catch {

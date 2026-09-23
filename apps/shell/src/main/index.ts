@@ -164,6 +164,32 @@ let splashWindow: BrowserWindow | null = null;
 let mainWindow: BrowserWindow | null = null;
 let harnessView: WebContentsView | null = null;
 let overlayWindow: BrowserWindow | null = null;
+/**
+ * Native windows owned by the shell (splash/main/overlay). Anything else
+ * that appears — renderer popups that escaped a window-open handler, stray
+ * tool windows — is destroyed on sight (see the browser-window-created
+ * backstop): no product surface may flash native windows over the user's
+ * work on Windows.
+ */
+const managedWindows = new Set<BrowserWindow>();
+function trackManagedWindow(window: BrowserWindow): void {
+  managedWindows.add(window);
+  window.on('closed', () => {
+    managedWindows.delete(window);
+  });
+}
+function installPopupBackstop(): void {
+  app.on('browser-window-created', (_event, window) => {
+    // The event fires during `new BrowserWindow`, before our own creation
+    // sites register — defer one tick so managed windows are recognized.
+    setImmediate(() => {
+      if (!managedWindows.has(window) && !window.isDestroyed()) {
+        appLogger?.logger.warn({ title: window.getTitle() }, 'destroying unregistered popup window');
+        window.close();
+      }
+    });
+  });
+}
 let tray: Tray | null = null;
 let runtime: ShellRuntime | null = null;
 let appLogger: AppLogger | null = null;
@@ -277,6 +303,7 @@ p{font-size:13px;color:#9da4b3;margin-bottom:24px}
 </body></html>`;
   splashWindow.loadURL('data:text/html,' + encodeURIComponent(html));
   splashWindow.on('closed', () => { splashWindow = null; });
+  trackManagedWindow(splashWindow);
 }
 
 function closeSplash(): void {
@@ -295,6 +322,7 @@ function createMainWindow(harnessUrl: string): void {
     // WebContentsView so we can shrink it when the embedded browser opens.
     // The mainWindow's built-in webContents stays unused (blank).
   });
+  trackManagedWindow(mainWindow);
   // The harness renders in a WebContentsView child of contentView so its
   // bounds can be resized independently. Loading the harness into
   // mainWindow.webContents (classic BrowserWindow.loadURL) would fill the
@@ -313,6 +341,14 @@ function createMainWindow(harnessUrl: string): void {
   mainWindow.contentView.addChildView(harnessView);
   const size = mainWindow.getContentSize();
   harnessView.setBounds({ x: 0, y: 0, width: size[0] ?? 1280, height: size[1] ?? 820 });
+  // Renderer popups (window.open / target=_blank) from the harness page must
+  // never become native on-top windows: they flash over the user's work and
+  // close within a second. Deny them all; explicit browsing belongs to the
+  // embedded browser panel, opened deliberately from the menu.
+  harnessView.webContents.setWindowOpenHandler(() => {
+    appLogger?.logger.warn({}, 'denied harness popup window.open');
+    return { action: 'deny' };
+  });
   void harnessView.webContents.loadURL(harnessUrl);
   embeddedBrowser?.attachWindow(mainWindow, harnessView);
   ensureUpdateIndicator();
@@ -524,6 +560,7 @@ function createOverlayWindow(): void {
     overlayWindow = null;
     overlayOpen = false;
   });
+  trackManagedWindow(overlayWindow);
 }
 
 function renderOverlayHtml(): string {
@@ -949,6 +986,9 @@ app.whenReady().then(async () => {
   });
 
   initLocale(app.getLocale());
+  // No native window outside splash/main/overlay may ever appear (Windows
+  // focus-stealing flashes). Install before the first creation site.
+  installPopupBackstop();
   createSplashWindow();
   if (app.isPackaged && !isPortable()) writeInstallMarker(userDataDir);
   checkStalePortable();
