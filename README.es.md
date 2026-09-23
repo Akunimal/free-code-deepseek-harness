@@ -8,52 +8,49 @@ servidores MCP y llamadas al modelo.
 
 ## Español
 
-## Estado actual: baseline 0.6.0 y roadmap correctivo 0.7.0
+## Estado actual: 0.7.0 publicado (Windows x64)
 
-0.6.0 es una baseline anti-regresiones publicada para Windows x64. Publica
-únicamente:
+0.7.0 está publicado para Windows x64 con:
 
-- un instalador NSIS;
-- un ejecutable portable de Windows.
+- un instalador NSIS (~300 MB);
+- un ejecutable portable de Windows (~300 MB).
 
-Linux y macOS son targets manuales para contribuidores. Durante el desarrollo
-pudieron generarse binarios Linux localmente, pero no fueron probados en un
-Linux real por el mantenedor, que usa Windows; requieren testing en Linux antes
-de considerarse utilizables. No se sube ningún binario Linux/macOS como asset
-oficial de 0.6.0. Las compilaciones son locales y no usan workflows de GitHub
-Actions. El roadmap de 0.7.0 sigue siendo Windows-only para la release.
+**Soporte de plataformas: probado solo en Windows 10/11 x64**
+(instalación limpia, arranque, `harness ready`, los dos lanes con modelos,
+apagado limpio). **NO probado y NO soportado**: Windows ARM64, Linux
+(cualquier distribución/arquitectura), macOS (cualquier arquitectura). No se
+publican artefactos para estas plataformas; los builds de contribuidores
+existen pero no fueron probados por el mantenedor y no deben tratarse como
+releases utilizables. Las compilaciones son locales y no usan workflows de
+GitHub Actions.
 
 `0.4.3` es la última referencia operativa conocida porque abre bien. No es la
-fuente de verdad y puede no contener los fixes de este worktree. El gate de
-instalación de 0.6.0 no exige actualizar una instalación existente desde
-0.4.3.
-
-La auditoría de 0.6.0 dejó abiertos: el español falta del catálogo de desktop,
-RTK no está en el payload instalado, los MCP administrados todavía dependen de
-`uvx` externo/bootstrap, el probe de ventanas puede perder flashes
-transitorios, Git no tiene un contrato completo de diagnóstico PATH/sandbox y
-se capturó un stream truncado que terminó vacío. La release publicada 0.6.0 no
-debe describirse como completamente autocontenida. El trabajo correctivo está
-en el [roadmap de 0.7.0](docs/ROADMAP-0.7.0.md) y su estado en el [ledger de
-0.7.0](docs/STATE-0.7.0.md).
+fuente de verdad y puede no contener los fixes de este worktree.
 
 ## Qué incluye
 
-- Ruteo de modelos OpenCode Free mediante el pool local compatible con OpenCode.
+- Ruteo de modelos OpenCode Free mediante el pool local compatible con OpenCode,
+  más un segundo **lane OpenCode No-Auth** (`opencode-free`) servido por el
+  gateway opencode2api v1.3.2 incluido — modelos gratuitos anónimos, sin keys.
+  Solo los modelos que responden un 200 real llegan al selector; los muertos
+  se ocultan y el lane se recupera solo cuando vuelve la cuota.
 - La UI upstream de DeepSeek Harness, sesiones, workspaces, permisos y
   herramientas de archivos.
 - Una sola shell Electron y una sola generación del proceso `dsh` como objetivo
   de runtime.
-- Serena y free-search como entradas MCP administradas, activadas por defecto
-  en el catálogo de 0.6.0. Sus servidores de 0.6.0 todavía dependen de `uvx`
-  externo/bootstrap; el cierre offline de dependencias es un gate explícito de
-  0.7.0.
+- Los popups del renderer se deniegan y un backstop destruye cualquier ventana
+  nativa fuera de splash/main/overlay: ninguna tool ni página puede flashear
+  ventanas transitorias sobre tu trabajo.
+- Serena y free-search como entradas MCP administradas. Serena corre con el
+  launcher headless incluido; las entradas cuyo comando no puede ejecutarse
+  arrancan deshabilitadas en vez de quemar el presupuesto de reconexión
+  (free-search queda apagado hasta empaquetar su binario).
 - Una tab Configuración → Plugins → MCP con toggles, estado de conexión,
   cantidad de herramientas registradas, errores y ruta de configuración.
 - Configuración de Caveman en la tarjeta Shell, activada por defecto en el
   schema del shell; si falta el ejecutable queda como no-op explícito.
-- Toggles separados para RTK y Caveman. RTK no está en el payload publicado de
-  0.6.0; empaquetar todo lo declarado es un gate de 0.7.0.
+- Toggles separados para RTK y Caveman. Ambos siguen como helpers opcionales
+  por PATH en 0.7.0, no son binarios empaquetados.
 - Tesseract incluido en Windows para los flujos de imágenes de modelos
   text-only.
 - Navegador embebido solamente cuando el usuario lo abre explícitamente.
@@ -67,17 +64,18 @@ semántica MCP.
 
 ## Instalación y primer uso
 
-1. Descargá el setup o portable de Windows de la release.
+1. Descargá el setup o portable de Windows de la release 0.7.0 en GitHub.
 2. Instalalo o descomprimilo y abrí el acceso directo/ejecutable real.
 3. Elegí la carpeta de tu proyecto en el picker.
 4. Pedile al modelo que inspeccione o modifique el proyecto.
 
-El instalador de 0.6.0 incluye Electron, el runtime upstream del Harness, el
-binario del pool OpenCode, dependencias nativas y Tesseract. Todavía no es un
-cierre offline completo: RTK falta y los MCP administrados pueden hacer
-bootstrap de `uvx`. Si detecta una instalación incompleta, muestra el log y
-recomienda el instalador oficial `v0.4.3` como última referencia estable para
-recuperarse.
+El instalador de 0.7.0 incluye Electron, el runtime upstream del Harness, el
+binario del gateway opencode2api, dependencias nativas y Tesseract (~300 MB
+de descarga, ~69.000 archivos, unos 10 minutos para desempaquetar — es
+normal, no es un cuelgue). Los MCP administrados todavía resuelven `uvx`
+(incluido, con fallbacks a PATH del usuario y descarga fijada). Si detecta
+una instalación incompleta, muestra el log y recomienda reinstalar desde la
+release oficial 0.7.0.
 
 El bootstrap de Windows reutiliza silenciosamente un `uvx.exe` ya instalado o
 descarga el ZIP oficial fijado de uv en una carpeta de herramientas por usuario,
@@ -94,11 +92,13 @@ En el primer arranque FreeCode crea atómicamente:
 <userData>/dsh-home/cordis.patch.yml
 ```
 
-Las dos entradas administradas quedan activadas por defecto. Abrí
-Configuración → Plugins → MCP para alternarlas o abrir el JSON exacto. Sólo se
-regenera el bloque marcado de FreeCode en el patch de Cordis; las filas propias
-del usuario se conservan. Un toggle actualiza el entorno del hijo y reinicia
-únicamente el Harness, nunca una segunda instancia de Electron.
+Las dos entradas administradas quedan activadas cuando su comando puede
+ejecutarse. Abrí Configuración → Plugins → MCP para alternarlas o abrir el
+JSON exacto. Sólo se regenera el bloque marcado de FreeCode en el patch de
+Cordis; las filas propias del usuario se conservan. Un toggle actualiza el
+entorno del hijo y reinicia únicamente el Harness, nunca una segunda
+instancia de Electron. Los servidores sin binario (hoy free-search) arrancan
+deshabilitados automáticamente.
 
 El contrato de readiness objetivo es:
 
@@ -106,12 +106,13 @@ El contrato de readiness objetivo es:
 spawn → initialize → tools/list → validación de schemas → registro de tools
 ```
 
-La tab y la tray deben mostrar el estado resultante. La auditoría de 0.6.0
-confirmó configuración y arranque de procesos, pero no demostró que no exista
-ningún flash transitorio de Win32: el probe por polling puede perder una
-consola que vive menos de un intervalo. Cualquier afirmación de headless queda
-abierta hasta que pase el trace por eventos de ventanas de 0.7.0. Ningún hijo
-MCP debe usar `cmd.exe`, `start`, una terminal ni una ventana visible.
+La tab y la tray deben mostrar el estado resultante. Los popups del renderer
+se deniegan y un backstop destruye cualquier ventana nativa fuera de
+splash/main/overlay, así que ni las tools ni las páginas pueden flashear
+ventanas transitorias sobre tu trabajo. Ningún hijo MCP debe usar `cmd.exe`,
+`start`, una terminal ni una ventana visible; los reportes aislados de
+flashes siguen bienvenidos (título/contenido de la ventana) y el backstop
+loguea cada popup destruido.
 
 Serena arranca deliberadamente sin `--project-from-cwd`: el cwd del hijo es el
 `dsh-home` privado, no el proyecto elegido, para evitar escanear todo el disco.
@@ -169,10 +170,8 @@ reemplaza silenciosamente por `[image omitted...]`.
 Configuración → Plugins → configuración de plugins → Shell muestra toggles
 independientes para RTK y Caveman. Los defaults del schema están activados. Si
 falta el binario, la feature correspondiente no opera y no se presenta como
-activa. En 0.6.0 RTK no está empaquetado, así que el setting no satisface el
-requisito de que todo lo declarado esté incluido. 0.7.0 debe empaquetar RTK y
-todos los helpers declarados, verificar hashes/licencias y demostrar operación
-con un `PATH` externo vacío. Sólo se envuelven comandos simples y seguros;
+activa. RTK y Caveman son helpers opcionales por PATH en 0.7.0, no binarios
+empaquetados. Sólo se envuelven comandos simples y seguros;
 pipes, redirecciones, sustituciones y sintaxis compuesta se conservan.
 
 Workspace Write continúa siendo el permiso predeterminado. La política de
@@ -181,15 +180,15 @@ distingue un fallo de permisos de uno de herramienta/MCP.
 
 ## Updater y versión
 
-About usa `app.getVersion()`, por lo que el binario empaquetado debe decir
-0.6.0. La app chequea updates al iniciar y cada seis horas. El control de
-actualizar es exactamente el botón circular primario de Enviar, con la flecha
-apuntando hacia abajo. Al descargar, tooltip/menú de tray y notificación nativa
-lo informan; la instalación/reinicio también es visible. El gate no exige
+About usa `app.getVersion()`, por lo que el binario empaquetado dice 0.7.0.
+La app chequea updates al iniciar y cada seis horas. El control de actualizar
+es exactamente el botón circular primario de Enviar, con la flecha apuntando
+hacia abajo. Al descargar, tooltip/menú de tray y notificación nativa lo
+informan; la instalación/reinicio también es visible. El gate no exige
 actualización desde 0.4.3: sólo debe conservar el arranque limpio y no ocultar
 un fallo.
 
-## Causa de las regresiones anteriores y gates abiertos de 0.7.0
+## Causa de las regresiones anteriores y cierre de 0.7.0
 
 El crash de instalación provenía de un bundle de `directory-picker-native` sin
 el bridge Electron del diálogo. Después, eventos `exit` viejos del supervisor
@@ -198,27 +197,26 @@ reemplazo. Además, readiness y registro de tools se confundían, un stream real
 terminó truncado y vacío, RTK quedó fuera del payload, y los tests de ventanas
 no observaban el evento de creación.
 
-La baseline 0.6.0 contiene mitigaciones parciales, pero 0.7.0 debe cerrar
-explícitamente:
+0.7.0 cierra el roadmap correctivo con evidencia (ver el
+[ledger de 0.7.0](docs/STATE-0.7.0.md)):
 
-- bridge nativo del picker presente en cada bundle empaquetado;
-- generaciones del supervisor y del pool probadas contra carreras, con espera
-  del árbol completo;
-- trace por eventos Win32 que prohíba flashes de consola, `conhost`, `cmd`,
-  PowerShell o ventanas de workers;
-- readiness MCP real con `initialize`, `tools/list`, schemas y una llamada real,
-  incluso con dependencias offline;
-- contratos de stream/provider que no conviertan truncamiento o respuesta vacía
-  en éxito;
-- RTK, uv/uvx, Serena, free-search y cada helper declarado incluidos o
-  eliminados del contrato del producto;
-- resolver determinista de Git y diagnóstico in-app de PATH/sandbox;
-- locale español, gating de capabilities, picker, shortcut y clean install con
-  pruebas específicas.
+- la ABI de addons nativos se controla antes de empaquetar, y los hashes del
+  runtime se verifican contra el manifiesto;
+- el stage del runtime dsh elimina ~1,1 GB de peso dev-only (instalador
+  559 MB → ~300 MB);
+- la suite del shell es hermética y está en verde (165/165), con cobertura de
+  seeder, refresher, catálogo MCP, resolvers y updater;
+- el lane anónimo prueba cada modelo anunciado y expone solo los que
+  responden 200;
+- los popups del renderer se deniegan y un backstop controla la superficie
+  nativa;
+- las entradas MCP con comandos irresolubles arrancan deshabilitadas en vez
+  de quemar presupuestos de reconexión.
 
-El plan ejecutable está en [docs/ROADMAP-0.7.0.md](docs/ROADMAP-0.7.0.md), su
-ledger en [docs/STATE-0.7.0.md](docs/STATE-0.7.0.md) y la auditoría de sólo
-lectura en [docs/AUDIT-0.6.0-TEST-PLAN.md](docs/AUDIT-0.6.0-TEST-PLAN.md).
+Las limitaciones honestas restantes están en
+[Problemas conocidos](docs/KNOWN-ISSUES.md): la cuota del upstream gobierna
+el lane anónimo, los binarios RTK/Caveman/free-search no están empaquetados y
+las demás plataformas no están probadas.
 
 ## Desarrollo upstream-first
 
@@ -238,7 +236,7 @@ limitado a vendor y fail-closed. No dejes una feature permanente como edición
 directa de `vendor/deepseek-harness`. Ver
 [docs/UPSTREAM-PATCHING.md](docs/UPSTREAM-PATCHING.md).
 
-## Gate local de Windows: baseline 0.6.0 y requisito 0.7.0
+## Gate local de Windows: 0.7.0 publicado
 
 Ejecutá desde PowerShell en la workstation mantenedora:
 
@@ -246,33 +244,31 @@ Ejecutá desde PowerShell en la workstation mantenedora:
 pnpm install --frozen-lockfile
 pnpm apply:upstream-patches
 pnpm test
-pnpm test:contract
 pnpm typecheck
 pnpm build:vendor
 pnpm build:shell
-pnpm package:runtime
+pnpm --filter @freecode/shell package:runtime
 pnpm --filter @freecode/shell package
 pnpm --filter @freecode/shell smoke:nsis
-pnpm release:gate
 ```
 
-Este era el conjunto histórico de 0.6.0. No alcanzó para detectar la regresión
-de español, RTK ausente, cierre externo de MCP, flashes transitorios, Git ni
-streams truncados. El gate de 0.7.0 agrega las pruebas offline de dependencias,
-trace Win32 por eventos, contrato Git, fixtures adversariales de provider/tool,
-locale y capabilities detalladas en el roadmap. Sigue sin exigir upgrade desde
-0.4.3: sólo instalación limpia y apertura correcta.
+Este gate pasó para 0.7.0 con typecheck limpio, suite del shell en 165/165,
+todos los verificadores prepackage en verde (hooks NSIS, frescura de vendor,
+manifiesto de runtime, ABI nativa), instalación limpia, `harness ready`, los
+dos lanes con modelos y apagado limpio. Sigue sin exigir upgrade desde 0.4.3:
+sólo instalación limpia y apertura correcta.
 
-No se crea tag ni release 0.7.0 hasta que cada fase tenga evidencia, su commit
-haya sido pusheado y el smoke final de instalación Windows pase.
+El tag `0.7.0` y la release de GitHub (setup, portable, blockmap,
+`latest.yml`, tarball del runtime) se publicaron desde estos artefactos.
 
 Los artefactos quedan en `apps/shell/release/`.
 
 ## Builds manuales de otros sistemas
 
-Linux y macOS no son targets de release de 0.7.0. Un contribuidor puede
-trabajar en un host nativo con Node, pnpm, Git, herramientas de build de Electron
-y dependencias nativas del sistema:
+Linux y macOS no son targets de release de 0.7.0, y Windows ARM64 tampoco
+está probado. Un contribuidor puede trabajar en un host nativo con Node,
+pnpm, Git, herramientas de build de Electron y dependencias nativas del
+sistema:
 
 ```bash
 pnpm install --frozen-lockfile
@@ -311,6 +307,7 @@ local en ambos idiomas.
 ## Índice de documentación
 
 - [Inventario de features upstream](docs/UPSTREAM-FEATURES.md)
+- [Notas de la release 0.7.0](release-notes-v0.7.0.md)
 - [Estado de 0.6.0](docs/STATE-0.6.0.md)
 - [Roadmap de 0.6.0](docs/ROADMAP-0.6.0.md)
 - [Auditoría y plan de tests de 0.6.0](docs/AUDIT-0.6.0-TEST-PLAN.md)

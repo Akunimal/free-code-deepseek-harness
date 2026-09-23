@@ -7,26 +7,25 @@ reproducen mediante el stack ordenado de patches.
 
 ## Baseline actual
 
-La release publicada 0.6.0 es una baseline auditada para Windows x64:
+La release publicada 0.7.0 es la baseline actual para Windows x64:
 
-- instalador NSIS de Windows 0.6.0;
-- ejecutable portable de Windows 0.6.0.
+- instalador NSIS de Windows 0.7.0 (~300 MB);
+- ejecutable portable de Windows 0.7.0 (~300 MB);
+- `latest.yml` más blockmap para el updater;
+- tarball del runtime del Harness (+`.sha256`) para updates in-app.
 
-El gate histórico de 0.6.0 comprobó instalación limpia, acceso directo,
-bridge del directory picker, arranque empaquetado básico, payload OCR y
-llamadas MCP reales usando el entorno disponible/bootstrap. No comprobó que
-RTK estuviera empaquetado, que los MCP fueran offline-completos, que estuviera
-el español, que nunca aparecieran ventanas helper de corta duración, que Git
-se resolviera dentro de DSH ni que un stream truncado no terminara como éxito
-vacío. No describas el artefacto publicado como completamente autocontenido.
+El gate de 0.7.0 pasó: typecheck limpio, suite del shell 165/165, todos los
+verificadores prepackage en verde, instalación limpia, `harness ready`, los
+dos lanes con modelos, apagado limpio. Probado en Windows 10/11 x64
+ÚNICAMENTE. Windows ARM64, Linux y macOS NO están probados ni soportados;
+no se publican artefactos para esas plataformas.
 
 0.4.3 es la última referencia operativa porque abre bien. No es una garantía
 de compatibilidad ni la fuente de verdad del código actual. El gate de 0.7.0
 no exige actualizar desde 0.4.3; exige instalar limpio, abrir, seleccionar un
 proyecto y relanzar.
 
-El contrato correctivo está en el
-[roadmap de 0.7.0](ROADMAP-0.7.0.md), con estado en el
+El roadmap de 0.7.0 está cerrado; su ledger está en el
 [ledger de 0.7.0](STATE-0.7.0.md). Los hallazgos completos de sólo lectura
 están en [AUDIT-0.6.0-TEST-PLAN.md](AUDIT-0.6.0-TEST-PLAN.md).
 
@@ -38,56 +37,49 @@ Ejecutá desde PowerShell en Windows x64:
 pnpm install --frozen-lockfile
 pnpm apply:upstream-patches
 pnpm test
-pnpm test:contract
 pnpm typecheck
 pnpm build:vendor
 pnpm build:shell
-pnpm package:runtime
+pnpm --filter @freecode/shell package:runtime
 pnpm --filter @freecode/shell package
 pnpm --filter @freecode/shell smoke:nsis
-pnpm release:gate
 ~~~
 
-Estos comandos son locales y no usan GitHub Actions. El gate de 0.7.0 debe
-agregar las pruebas de dependencias offline, RTK, Git/sandbox, español,
-streams adversariales y ventanas Win32 por eventos descritas en el roadmap.
-Los recursos obligatorios deben hacer fallar el gate cuando faltan; no se
-pueden saltear silenciosamente porque la máquina del desarrollador no tiene
-un fixture.
+Estos comandos son locales y no usan GitHub Actions. Los recursos
+obligatorios hacen fallar el gate cuando faltan; nunca se saltean
+silenciosamente porque la máquina del desarrollador no tenga un fixture.
 
-Los artefactos Windows esperados de 0.6.0 son:
+Los artefactos Windows esperados de 0.7.0 son:
 
 ~~~
-apps/shell/release/FreeCode-DeepSeek-Harness-0.6.0-win-x64-setup.exe
-apps/shell/release/FreeCode-DeepSeek-Harness-0.6.0-win-x64-portable.exe
-apps/shell/release/FreeCode-DeepSeek-Harness-0.6.0-win-x64-setup.exe.blockmap
+apps/shell/release/FreeCode-DeepSeek-Harness-0.7.0-win-x64-setup.exe
+apps/shell/release/FreeCode-DeepSeek-Harness-0.7.0-win-x64-portable.exe
+apps/shell/release/FreeCode-DeepSeek-Harness-0.7.0-win-x64-setup.exe.blockmap
+apps/shell/release/latest.yml
+apps/shell/release/deepseek-harness-runtime-0.1.3-alpha.1-win32-x64.tar.gz
 apps/shell/release/win-unpacked/FreeCode DeepSeek Harness.exe
 ~~~
 
-Los nombres de 0.7.0 deben salir de la versión del package y verificarse
-después del packaging; no copies el nombre 0.6.0 en una release nueva.
+Los nombres se generan desde la versión del paquete y se verifican después
+de empaquetar; no copies un nombre viejo en una release nueva.
 
 ## Política de dependencias runtime
 
-El instalador 0.6.0 contiene Electron, el runtime del Harness, el worker de
-OpenCode, archivos nativos del picker/runtime y Tesseract. No contiene RTK y
-sus filas administradas de Serena/free-search pueden usar uvx
-externo/bootstrap. Es un defecto abierto de 0.7.0, no una política final
-aceptable.
-
-Para 0.7.0, el cierre instalado debe enumerar versión, arquitectura, origen,
-licencia, hash y ruta relativa de RTK, uv/uvx o su reemplazo, Serena,
-free-search, Tesseract, workers y helpers nativos. El primer arranque
-instalado debe funcionar con PATH externo vacío y red bloqueada. Una referencia
-a uvx del perfil del usuario o a una descarga git+https no es una dependencia
-empaquetada.
+El instalador 0.7.0 contiene Electron, el runtime del Harness, el gateway
+opencode2api, archivos nativos del picker/runtime y Tesseract. RTK, Caveman
+y free-search no están empaquetados: siguen como helpers opcionales por
+PATH, y las entradas MCP irresolubles arrancan deshabilitadas. El cierre
+instalado enumera versión, arquitectura, origen, licencia, hash y ruta
+relativa en `runtime-deps.json`, verificado por
+`verify-runtime-dependencies.mjs`.
 
 ## Publicación sólo Windows
 
-Ningún artefacto Linux o macOS es asset oficial. Los contribuidores pueden
-compilar en un host nativo, pero un binario Linux generado desde Windows/WSL no
-es evidencia de usabilidad Linux y no debe anunciarse sin testing real en
-Linux. No mezcles node_modules de Windows y WSL; reinstalá dependencias para el
+Ningún artefacto Linux, macOS o Windows-ARM64 es asset oficial, y ninguna
+de esas plataformas fue probada por el mantenedor. Los contribuidores pueden
+compilar en un host nativo, pero un binario generado fuera de su plataforma
+no es evidencia de usabilidad y no debe anunciarse sin testing real en ella.
+No mezcles node_modules de Windows y WSL; reinstalá dependencias para el
 sistema operativo activo.
 
 El repositorio no tiene workflow de release. Los pushes no compilan ni
@@ -121,10 +113,8 @@ Ver [docs/UPSTREAM-PATCHING.md](UPSTREAM-PATCHING.md) y
 Los documentos viejos bajo docs/RELEASE-NOTES-v*.md describen releases
 históricas y deliberadamente no se reescriben como instrucciones actuales. La
 baseline publicada se sigue en
-[GitHub release 0.6.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/0.6.0).
-
-La próxima release no debe recibir tag ni publicarse hasta que todas las filas
-críticas de STATE-0.7.0.md estén LOCKED y los artefactos Windows pasen el smoke
-offline completo de instalación limpia.
+[GitHub release 0.7.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/0.7.0);
+las notas bilingües completas están en
+[release-notes-v0.7.0.md](../release-notes-v0.7.0.md).
 
 For the English guide, see [RELEASE.md](RELEASE.md).

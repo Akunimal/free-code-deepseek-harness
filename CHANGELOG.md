@@ -1,5 +1,65 @@
 # Changelog
 
+## 0.7.0 — 2026-09-23
+
+### Added / Agregado
+
+- **OpenCode No-Auth lane** — Second model lane (`opencode-free`) served by
+  the vendored opencode2api v1.3.2 gateway: anonymous free models in the
+  selector, no keys, no login. / Segundo lane de modelos (`opencode-free`)
+  servido por el gateway opencode2api v1.3.2 incluido: modelos gratuitos
+  anónimos en el selector, sin keys ni login.
+- **Strict 200-only model exposure** — Every advertised anonymous model is
+  probed with a real chat completion; only responders sync into settings,
+  stale entries are erased on zero responders, and bounded retries recover
+  the lane after quota recovery. / Cada modelo anunciado se prueba con un
+  chat real; solo los que responden llegan a settings, con borrado estricto
+  y reintentos acotados.
+- **Popup backstop** — The harness view denies `window.open` and a managed
+  window registry destroys any native window outside splash/main/overlay.
+  / La vista del harness deniega `window.open` y un registry destruye
+  cualquier ventana nativa fuera de splash/main/overlay.
+- **MCP availability gating** — Servers whose command cannot spawn start
+  disabled instead of burning the reconnect budget; the Serena launcher
+  override requires both the launcher file and a uvx command. / Los
+  servidores que no pueden ejecutarse arrancan deshabilitados; el override
+  del launcher de Serena exige archivo y comando uvx.
+
+### Changed / Cambiado
+
+- **Slimmer installer** — The dsh runtime stage drops dev-only weight:
+  setup 559 MB → ~300 MB, payload 2.2 GB → ~1 GB, same clean-install
+  contract. / Stage más liviano: setup 559 MB → ~300 MB, payload
+  2,2 GB → ~1 GB.
+- **Hermetic shell suite** — 165/165 green: PATH-isolated resolver tests,
+  injectable uvx vendored roots, pinned System32 `tar`, corrected spawn
+  contract test. / Suite hermética en verde, 165/165.
+- **MCP catalog honesty** — free-search stays disabled until its binary is
+  vendored; RTK/Caveman remain optional PATH helpers. / free-search
+  deshabilitado hasta empaquetar su binario; RTK/Caveman siguen opcionales
+  por PATH.
+
+### Fixed / Corregido
+
+- **Native addon ABI gate** — Packaging refuses mismatched native ABIs
+  before they can hang the boot (`harness supervisor gave up`). / El
+  empaquetado rechaza ABIs nativas incompatibles antes de colgar el arranque.
+- **msys tar misparse** — Harness extraction pins System32 bsdtar; a
+  Git-for-Windows-first PATH broke native `D:\` paths as remote tapes
+  (production + updater test). / Extracción pineada a bsdtar de System32.
+- **`run-package-runtime.mjs` cwd bug** — The stage script now resolves
+  from the repo root instead of the package cwd. / El script resuelve
+  desde la raíz del repo.
+- **Stale seeder label tests** — Aligned to the `FreeLLMPool` rename. /
+  Tests alineados al rename `FreeLLMPool`.
+
+### Platform support / Plataformas
+
+- Tested: Windows 10/11 x64 ONLY. / Probado: solo Windows 10/11 x64.
+- NOT tested, NOT supported: Windows ARM64, Linux, macOS. No artifacts
+  published. / NO probado, NO soportado: Windows ARM64, Linux, macOS. Sin
+  artefactos publicados.
+
 ## 0.6.0 — 2026-09-09
 
 ### Added / Agregado

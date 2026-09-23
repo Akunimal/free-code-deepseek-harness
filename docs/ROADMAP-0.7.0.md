@@ -1,5 +1,9 @@
 # FreeCode 0.7.0 aggressive remediation roadmap
 
+> COMPLETED 2026-09-23 — released as tag `0.7.0` + GitHub release with all
+> binaries. This document is frozen as the execution contract that was
+> followed; final status lives in [STATE-0.7.0.md](STATE-0.7.0.md).
+
 Last updated: 2026-09-10
 
 This is the execution contract for the next Windows x64 release. It is

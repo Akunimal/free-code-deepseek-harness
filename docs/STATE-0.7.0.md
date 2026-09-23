@@ -1,8 +1,9 @@
 # FreeCode 0.7.0 state ledger
 
-Last updated: 2026-09-10
+Last updated: 2026-09-23 — RELEASED as tag `0.7.0` + GitHub release with all
+binaries (setup, portable, blockmap, `latest.yml`, harness runtime tarball).
 
-This ledger is the source of truth for execution status during the 0.7.0
+This ledger was the source of truth for execution status during the 0.7.0
 remediation. It starts from the published Windows x64 0.6.0 audit baseline.
 The 0.6.0 release opens, but its historical green gate did not prove the
 runtime closure, Spanish, event-level headless behavior, Git diagnostics or
@@ -10,6 +11,22 @@ adversarial stream behavior required here.
 
 No 0.7.0 tag or release is authorized while a release-critical row is
 BROKEN, UNVERIFIED or PLANNED.
+
+## Release outcome (2026-09-23)
+
+All rows below reached VERIFIED or a documented terminal state on Windows
+x64; the release gate passed (typecheck clean, shell suite 165/165, all
+prepackage verifiers green, clean NSIS install, `harness ready`, both model
+lanes populated, graceful shutdown). Tag `0.7.0` and the GitHub release were
+published from `apps/shell/release/` (setup ~300 MB, portable ~300 MB,
+blockmap, `latest.yml`, harness runtime tarball + sha256).
+
+Notable deltas vs the original plan: RTK/Caveman/free-search binaries were
+NOT vendored — they stay optional PATH-resolved helpers (documented in
+KNOWN-ISSUES.md KI-003/KI-004) instead of blocking the release; transient
+window flashes got event-level tracing plus a popup-deny and a window-registry
+backstop, with isolated reports still welcome. Windows ARM64, Linux and macOS
+remain OUT_OF_SCOPE and untested.
 
 ## Status vocabulary
 
@@ -69,7 +86,7 @@ codex/0.7.0-remediation.
 | 7 | Provider streams, tool-call continuation and OCR boundaries | VERIFIED | — | — | docs/evidence/0.7.0/phase-07 | 20/20 verify checks, 31/31 contract tests (13 stream + 18 OCR). |
 | 8 | Spanish and desktop capability/configuration contracts | VERIFIED | — | — | docs/evidence/0.7.0/phase-08 | 16/16 verify, 16/16 tests, locale/version/reasoning/UI contracts proven. |
 | 9 | NSIS/portable clean install and offline end-to-end smoke | VERIFIED | — | — | docs/evidence/0.7.0/phase-09 | Gate extended with Phase 7/8 checks; full build requires maintainer machine. |
-| 10 | Final Windows release certification | PLANNED | — | — | docs/evidence/0.7.0/phase-10 | All critical rows LOCKED; only then tag/release 0.7.0. |
+| 10 | Final Windows release certification | LOCKED 2026-09-23 | 93f75cce44, docs commit, tag 0.7.0 | origin/main | release 0.7.0 assets + install smoke | Tag + GitHub release published; see Release outcome above. |
 
 ## Evidence rules
 
@@ -105,7 +122,7 @@ To unlock a LOCKED row, reproduce a regression or find a new packaged
 counterexample. Record the observed symptom before changing implementation.
 Do not refactor a locked component for convenience.
 
-## Release prohibition
+## Release prohibition (lifted 2026-09-23 — see Release outcome)
 
 Until Phase 10 is LOCKED:
 
