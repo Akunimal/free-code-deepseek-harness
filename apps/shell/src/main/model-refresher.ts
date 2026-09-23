@@ -54,6 +54,11 @@ export interface ProviderRefreshTarget {
   alwaysExposedModels?: ReadonlySet<string>;
   /** Schema-valid seed models used when the route has not answered yet. */
   fallbackModels?: readonly string[];
+  /** When true, settings expose ONLY probed responders: with zero responders
+   *  the synced list is erased (stale entries are not kept) so the selector
+   *  never offers dead models. The diagnostic catalog still records every
+   *  advertised id with its responds flag. */
+  strictResponders?: boolean;
 }
 
 export interface RefresherConfig {
@@ -227,6 +232,15 @@ function syncProviderModels(
     const responderIds = new Set(responders.map((model) => model.id));
     provider.models = [...responders, ...advertisedFallbacks.filter((model) => !responderIds.has(model.id))]
       .map((model) => modelSettingsForModel(model.id));
+    return;
+  }
+
+  // Strict lanes (anonymous free tiers) must not offer anything that did not
+  // answer 200: erase the synced list instead of keeping last-known-good.
+  // An empty list makes the upstream validator skip the route until the next
+  // refresh repopulates it; the catalog below still records the attempts.
+  if (target.strictResponders) {
+    provider.models = [];
     return;
   }
 

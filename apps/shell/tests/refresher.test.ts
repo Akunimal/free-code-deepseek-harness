@@ -206,6 +206,62 @@ describe('model-refresher', () => {
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
+  it('strict lane exposes only 200 responders, never the advertised catalog', async () => {
+    mockFetchWithModels(['a-free', 'b-free'], ['b-free']);
+    const { home, data } = tmpDirs();
+    await refreshModels({
+      lbBaseUrl: LB,
+      homeDir: home,
+      userDataDir: data,
+      providers: [
+        {
+          provider: 'opencode-free',
+          baseUrl: 'http://127.0.0.1:45678',
+          authHeader: 'Bearer public',
+          apiKeyEnv: 'FREECODE_PUBLIC_KEY',
+          defaultInput: ['text'],
+          strictResponders: true,
+        },
+      ],
+    });
+    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+    // a-free advertised but 500: hidden. b-free answered 200: exposed.
+    expect(settings['llm-pi-ai'].providers['opencode-free'].models).toEqual([
+      { id: 'b-free', reasoningEfforts: false },
+    ]);
+    rmSync(dirname(home), { recursive: true, force: true });
+  });
+
+  it('strict lane erases stale models when nothing responds', async () => {
+    mockFetchWithModels(['a-free'], []);
+    const { home, data } = tmpDirs();
+    const { mkdirSync, writeFileSync } = await import('node:fs');
+    mkdirSync(home, { recursive: true });
+    writeFileSync(
+      join(home, 'settings.yaml'),
+      `llm-pi-ai:\n  providers:\n    opencode-free:\n      api: openai-completions\n      baseURL: http://127.0.0.1:45678/v1\n      models:\n        - id: stale-model\n`,
+    );
+    await refreshModels({
+      lbBaseUrl: LB,
+      homeDir: home,
+      userDataDir: data,
+      providers: [
+        {
+          provider: 'opencode-free',
+          baseUrl: 'http://127.0.0.1:45678',
+          authHeader: 'Bearer public',
+          apiKeyEnv: 'FREECODE_PUBLIC_KEY',
+          defaultInput: ['text'],
+          strictResponders: true,
+        },
+      ],
+    });
+    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+    // Zero responders: stale entries erased instead of kept as last-known-good.
+    expect(settings['llm-pi-ai'].providers['opencode-free'].models).toEqual([]);
+    rmSync(dirname(home), { recursive: true, force: true });
+  });
+
   it('throws when LB models list fails', async () => {
     vi.stubGlobal(
       'fetch',

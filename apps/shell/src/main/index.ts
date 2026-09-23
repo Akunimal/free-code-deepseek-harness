@@ -1099,7 +1099,7 @@ app.whenReady().then(async () => {
   let refreshInFlight = false;
   let refreshRetryAttempt = 0;
   let opencodeRetryAttempt = 0;
-  const OPENCODE_REFRESH_RETRIES = 8; // ~4 min grace for the Zen catalog to load
+  const OPENCODE_REFRESH_RETRIES = 8; // ~4 min of responder recovery after boot
   const OPENCODE_REFRESH_RETRY_MS = 30_000;
   const scheduleRefreshRetry = (): void => {
     if (refreshRetryTimer) return;
@@ -1129,9 +1129,13 @@ app.whenReady().then(async () => {
             authHeader: `Bearer ${opencodeApiKey}`,
             apiKeyEnv: 'FREECODE_PUBLIC_KEY',
             defaultInput: ['text'],
-            probeModels: false,
-            alwaysExposedModels: new Set(['deepseek-v4-flash-free']),
-            fallbackModels: ['deepseek-v4-flash-free'],
+            // Strict 200-only exposure: every advertised id is probed with a
+            // real chat completion (the gateway shapes the ping into an
+            // agent body upstream) and only responders reach settings. No
+            // forced exposure, no static fallback: with zero responders the
+            // synced list is erased and the route stays hidden until the
+            // next refresh.
+            strictResponders: true,
           },
         ] : [],
         onUpdate: (c) => {
@@ -1141,12 +1145,13 @@ app.whenReady().then(async () => {
         },
       });
       refreshRetryAttempt = 0;
-      // The anonymous catalog loads asynchronously after gateway boot; an
-      // empty first pass is expected, so retry a few times before leaving it
-      // to the 30-minute cadence.
+      // The anonymous lane is strict-200: retry while nothing responds, so
+      // the selector self-heals within minutes of quota recovery instead of
+      // waiting for the 30-minute cadence. Bounded: 8 attempts, then cadence.
       if (opencodeUrl) {
-        const ocModels = catalog?.providers['opencode-free']?.models ?? [];
-        if (ocModels.length === 0 && opencodeRetryAttempt < OPENCODE_REFRESH_RETRIES && !shuttingDown) {
+        const ocEntries = catalog?.providers['opencode-free']?.models ?? [];
+        const ocResponders = ocEntries.filter((model) => model.responds).length;
+        if (ocResponders === 0 && opencodeRetryAttempt < OPENCODE_REFRESH_RETRIES && !shuttingDown) {
           opencodeRetryAttempt++;
           setTimeout(() => { void doRefresh(); }, OPENCODE_REFRESH_RETRY_MS).unref?.();
         } else {
