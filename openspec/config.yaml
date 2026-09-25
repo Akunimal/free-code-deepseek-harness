@@ -1,0 +1,67 @@
+# OpenSpec configuration — free-code-deepseek-harness
+# SDD-INIT scaffold for change 0.8.0-gentle-ai-mode. Technical artifact: English by default.
+
+project: free-code-deepseek-harness
+target_version: 0.8.0
+change: 0.8.0-gentle-ai-mode
+
+artifact_store:
+  mode: both
+  file_root: openspec/
+  memory:
+    preferred: engram
+    status: engram_unavailable
+    fallback: file-only # do not block; continue with files
+
+session_preflight:
+  execution_mode: auto
+  delivery_strategy: ask-on-risk
+  # No practical cap requested; treat as very high budget, not 400/800.
+  review_budget_lines: very-high
+  branch: main # do NOT create main1; one commit per phase to main
+  route: full-sdd
+  scope: integrated-mode # selectable gentle-ai preset reusing IPC/MCP, not pool replacement
+
+upstream:
+  strategy: sync-latest
+  vendor_prefix: vendor/deepseek-harness/
+  subtree_remote: upstream
+  subtree_ref: master
+  manifest: patches/upstream/upstream-patches.json
+  patches: patches/upstream/*.patch # 15 patches, orders 010-140, vendorOnly
+  apply_script: scripts/apply-upstream-patches.mjs
+  verify_script: scripts/verify-upstream-patch-stack.mjs
+  policy: vendor is read-only for SDD phases; modify only via replayed patches + gate
+
+stack:
+  node: ">=22.19 (verified v24.12.0)"
+  package_manager: pnpm@11.22.0
+  shell: Electron 35 (@freecode/shell in apps/shell)
+  vendor: vendor/deepseek-harness (subtree, upstream v0.1.3-alpha.1 syncCommit 2e70569)
+  worker_pool: vendor/opencode2api (Go) via packages/opencode-adapter
+  workspace_globs:
+    - apps/*
+    - packages/*
+
+testing:
+  commands:
+    test: pnpm test # prepare:upstream + build adapter + recursive workspace vitest
+    contract: pnpm test:contract # prepare:upstream + build adapter + @freecode/contract-tests
+    typecheck: pnpm typecheck # recursive tsc --noEmit
+    gate: pnpm release:gate # full Windows-only local gate (see scripts/release-gate.mjs)
+    verify_patches: pnpm verify:upstream-patches
+  runners: vitest ^2.1.8, tsc ^5.6.3, node --test
+  contracts: packages/shared-types (Zod IPC), packages/contract-tests
+
+release_flow:
+  - everything local first (clean install + open + user test)
+  - tag + GitHub release 0.8.0 ONLY after explicit approval
+  - no workflows; Windows x64 assets only
+
+language_contract:
+  conversation_orchestration: neutral Spanish
+  technical_artifacts: English by default # specs, design, tasks, code comments, tests
+
+change_layout: openspec/changes/0.8.0-gentle-ai-mode/
+stages: [explore, propose, spec, design, tasks, apply, verify, archive]
+next: sdd-explore for 0.8.0-gentle-ai-mode
