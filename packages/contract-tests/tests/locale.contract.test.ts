@@ -85,10 +85,10 @@ describe('Locale contract — About/version', () => {
     expect(src).toContain('app.getVersion()');
   });
 
-  it('shell package.json version is 0.7.0', () => {
+  it('shell package.json version is 0.8.0', () => {
     const pkg = readFile(join(APPS, 'package.json'));
     expect(pkg).not.toBeNull();
-    expect(pkg).toContain('"0.7.0"');
+    expect(pkg).toContain('"0.8.0"');
   });
 });
 

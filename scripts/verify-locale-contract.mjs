@@ -116,15 +116,15 @@ logCheck(
   'About dialog must use app.getVersion()',
 );
 
-// ── CHECK 7: Version is 0.7.0 ──────────────────────────────────────
+// ── CHECK 7: Version is 0.8.0 ──────────────────────────────────────
 
 const shellPkgPath = join(APPS, 'package.json');
 const shellPkgSrc = readFileSafe(shellPkgPath);
 
 logCheck(
-  'version-is-070',
-  shellPkgSrc !== null && shellPkgSrc.includes('"0.7.0"'),
-  'Shell package.json version must be 0.7.0',
+  'version-is-080',
+  shellPkgSrc !== null && shellPkgSrc.includes('"0.8.0"'),
+  'Shell package.json version must be 0.8.0',
 );
 
 // ── CHECK 8: Reasoning policy hides for non-supporting models ───────
