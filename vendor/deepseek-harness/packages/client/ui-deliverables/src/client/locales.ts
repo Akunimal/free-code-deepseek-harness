@@ -23,11 +23,11 @@ export const en: Record<DeliverablesKey, string> = {
 
 /** Spanish dictionary (same key set). */
 export const es: Record<DeliverablesKey, string> = {
-  'produced.label': 'Produced',
-  'produced.moreOne': '+ 1 file',
-  'produced.more': '+ {count} files',
-  'produced.open': 'Open {name}',
-  'produced.showInFolder': 'Show in folder',
+  'produced.label': 'Producido',
+  'produced.moreOne': '+ 1 archivo',
+  'produced.more': '+ {count} archivos',
+  'produced.open': 'Abrir {name}',
+  'produced.showInFolder': 'Mostrar en la carpeta',
 }
 
 /** Union of this namespace's dictionary keys. */

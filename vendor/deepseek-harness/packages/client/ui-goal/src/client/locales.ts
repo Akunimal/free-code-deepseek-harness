@@ -35,15 +35,15 @@ export const en = {
 
 /** Spanish dictionary. */
 export const es = {
-  'phase.active': 'Ongoing Goal',
-  'phase.paused': 'Paused Goal',
-  'phase.blocked': 'Blocked Goal',
-  'objective.aria': 'Goal objective',
-  'commandInput.aria': 'Command input',
-  'action.save': 'Save goal',
-  'action.cancel': 'Cancel edit',
-  'action.pause': 'Pause goal',
-  'action.resume': 'Resume goal',
-  'action.edit': 'Edit goal',
-  'action.clear': 'Clear goal',
+  'phase.active': 'Objetivo en curso',
+  'phase.paused': 'Objetivo en pausa',
+  'phase.blocked': 'Objetivo bloqueado',
+  'objective.aria': 'Contenido del objetivo',
+  'commandInput.aria': 'Entrada de comando',
+  'action.save': 'Guardar objetivo',
+  'action.cancel': 'Cancelar edición',
+  'action.pause': 'Pausar objetivo',
+  'action.resume': 'Reanudar objetivo',
+  'action.edit': 'Editar objetivo',
+  'action.clear': 'Eliminar objetivo',
 } satisfies Record<GoalKey, string>

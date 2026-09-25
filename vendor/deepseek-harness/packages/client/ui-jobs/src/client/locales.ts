@@ -43,21 +43,21 @@ export const en: Record<JobKey, string> = {
 
 /** Spanish dictionary, key-identical to the Chinese source of truth. */
 export const es: Record<JobKey, string> = {
-  'count.live.one': '{count} background job running',
-  'count.live.other': '{count} background jobs running',
-  'count.idle.one': '{count} background job',
-  'count.idle.other': '{count} background jobs',
-  'list.aria': 'Background jobs',
-  'status.running': 'running',
-  'status.stopping': 'stopping',
-  'status.completed': 'completed',
-  'status.killed': 'cancelled',
-  'status.failed': 'failed',
-  'duration.seconds': '{seconds}s',
-  'duration.minutes': '{minutes}m {seconds}s',
-  'duration.hours': '{hours}h {minutes}m',
-  'duration.title.live': 'Running for {duration}',
-  'duration.title.done': 'Took {duration}',
+  'count.live.one': '{count} trabajo en segundo plano en ejecución',
+  'count.live.other': '{count} trabajos en segundo plano en ejecución',
+  'count.idle.one': '{count} trabajo en segundo plano',
+  'count.idle.other': '{count} trabajos en segundo plano',
+  'list.aria': 'Trabajos en segundo plano',
+  'status.running': 'en ejecución',
+  'status.stopping': 'deteniendo',
+  'status.completed': 'completado',
+  'status.killed': 'cancelado',
+  'status.failed': 'fallido',
+  'duration.seconds': '{seconds} s',
+  'duration.minutes': '{minutes} min {seconds} s',
+  'duration.hours': '{hours} h {minutes} min',
+  'duration.title.live': 'En ejecución durante {duration}',
+  'duration.title.done': 'Duró {duration}',
 }
 
 /** Key domain of the `job` namespace (zh is the source of truth). */

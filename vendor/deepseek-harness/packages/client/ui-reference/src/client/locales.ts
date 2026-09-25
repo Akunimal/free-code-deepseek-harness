@@ -51,14 +51,14 @@ export const en = {
 
 /** Spanish dictionary. */
 export const es = {
-  'section.files': 'Files & folders',
-  'section.sessions': 'Sessions',
-  'candidate.noCwd': '(no cwd)',
-  'crumb.root': 'Workspace',
-  'time.now': 'now',
-  'time.minutes': '{n}min',
-  'time.hours': '{n}h',
-  'time.days': '{n}d',
-  'time.months': '{n}mo',
-  'time.years': '{n}y',
+  'section.files': 'Archivos y carpetas',
+  'section.sessions': 'Sesiones',
+  'candidate.noCwd': '(sin cwd)',
+  'crumb.root': 'Espacio de trabajo',
+  'time.now': 'ahora',
+  'time.minutes': '{n} min',
+  'time.hours': '{n} h',
+  'time.days': '{n} d',
+  'time.months': '{n} meses',
+  'time.years': '{n} años',
 } satisfies Record<ReferenceKey, string>

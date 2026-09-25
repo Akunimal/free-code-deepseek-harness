@@ -26,9 +26,9 @@ export const en = {
 /** Spanish dictionary. */
 export const es = {
   'chip.label': 'Plan',
-  'chip.on.aria': 'Plan mode on, press to turn off',
-  'chip.on.title': 'Plan mode on — click to turn off (/plan off)',
-  'chip.off.aria': 'Plan mode off, press to turn on',
-  'chip.off.title': 'Plan mode off — click to turn on (/plan)',
-  'chip.exitFailed': 'Failed to exit plan mode',
+  'chip.on.aria': 'Modo plan activado, presione para desactivar',
+  'chip.on.title': 'Modo plan activado — clic para desactivar (/plan off)',
+  'chip.off.aria': 'Modo plan desactivado, presione para activar',
+  'chip.off.title': 'Modo plan desactivado — clic para activar (/plan)',
+  'chip.exitFailed': 'No se pudo salir del modo plan',
 } satisfies Record<PlanKey, string>

@@ -21,8 +21,8 @@ export const en = {
 
 /** Spanish dictionary. */
 export const es = {
-  'session.new': 'New Session',
-  'session.new.label': 'New session',
-  'toggle.open': 'Open sidebar',
-  'toggle.collapse': 'Collapse sidebar',
+  'session.new': 'Nueva sesión',
+  'session.new.label': 'Nueva sesión',
+  'toggle.open': 'Abrir barra lateral',
+  'toggle.collapse': 'Contraer barra lateral',
 } satisfies Record<SidebarKey, string>

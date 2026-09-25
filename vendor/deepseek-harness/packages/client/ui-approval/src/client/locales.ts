@@ -23,9 +23,9 @@ export const en = {
 
 /** Spanish dictionary. */
 export const es = {
-  waiting: 'Waiting for approval',
-  'detail.aria': 'Approval details',
-  escalation: 'Tool {toolName} requests privileged execution',
-  reject: 'Reject',
-  allowOnce: 'Allow once',
+  waiting: 'En espera de aprobación',
+  'detail.aria': 'Detalles de la aprobación',
+  escalation: 'La herramienta {toolName} solicita ejecución con privilegios',
+  reject: 'Rechazar',
+  allowOnce: 'Permitir una vez',
 } satisfies Record<ApprovalKey, string>

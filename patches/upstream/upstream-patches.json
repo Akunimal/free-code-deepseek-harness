@@ -168,6 +168,17 @@
       "vendorOnly": true
     },
     {
+      "file": "141-freecode-spanish-translations.patch",
+      "order": 141,
+      "owner": "freecode",
+      "description": "Neutral Spanish dictionaries for all 30 upstream component locales (es stubs identical to en)",
+      "seam": "packages/client/* locales + experimental + extensions + session-query",
+      "contractTests": [
+        "packages/contract-tests/tests/locale.contract.test.ts"
+      ],
+      "vendorOnly": true
+    },
+    {
       "file": "150-freecode-gentle-ai-preset.patch",
       "order": 150,
       "owner": "freecode",

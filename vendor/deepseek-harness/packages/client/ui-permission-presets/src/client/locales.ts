@@ -37,18 +37,18 @@ export const en = {
 
 /** Spanish dictionary. */
 export const es = {
-  'title': 'Permission',
-  'description': 'Choose the default permission mode for new sessions',
-  'loading': 'Loading',
-  'unavailable': 'Unavailable',
-  'preset.readOnly': 'Read Only',
-  'preset.workspaceWrite': 'Workspace Write',
-  'preset.fullAccess': 'Full access',
-  'confirm.title': 'Enable Full access?',
-  'confirm.description': 'Full access lets new sessions reduce confirmation steps and perform more actions directly, including sensitive operations, file changes, or external commands. Only use it when you trust subsequent tasks.',
-  'confirm.acknowledge': 'I understand the risks and want to continue',
-  'confirm.cancel': 'Cancel',
-  'confirm.enable': 'Enable Full access',
+  'title': 'Permisos',
+  'description': 'Elija el modo de permisos predeterminado para las sesiones nuevas',
+  'loading': 'Cargando',
+  'unavailable': 'No disponible',
+  'preset.readOnly': 'Solo lectura',
+  'preset.workspaceWrite': 'Escritura en el espacio de trabajo',
+  'preset.fullAccess': 'Acceso total',
+  'confirm.title': '¿Activar el acceso total?',
+  'confirm.description': 'El acceso total permite que las sesiones nuevas reduzcan los pasos de confirmación y realicen más acciones directamente, incluidas operaciones sensibles, cambios de archivos o comandos externos. Úselo solo cuando confíe en las tareas siguientes.',
+  'confirm.acknowledge': 'Entiendo los riesgos y deseo continuar',
+  'confirm.cancel': 'Cancelar',
+  'confirm.enable': 'Activar acceso total',
 } satisfies Record<PermissionSettingsKey, string>
 
 /** Simplified Chinese dictionary for the current-session popup gate. */
@@ -80,12 +80,12 @@ export const accessEn = {
 
 /** Spanish dictionary for the current-session popup gate. */
 export const accessEs = {
-  'preset.readOnly': 'Read Only',
-  'preset.workspaceWrite': 'Workspace Write',
-  'preset.fullAccess': 'Full access',
-  'confirm.title': 'Enable Full access?',
-  'confirm.description': 'Full access reduces confirmation steps and lets the agent perform more actions directly, including sensitive operations, file changes, or external commands. Only use it when you trust the current task.',
-  'confirm.acknowledge': 'I understand the risks and want to continue',
-  'confirm.cancel': 'Cancel',
-  'confirm.enable': 'Enable Full access',
+  'preset.readOnly': 'Solo lectura',
+  'preset.workspaceWrite': 'Escritura en el espacio de trabajo',
+  'preset.fullAccess': 'Acceso total',
+  'confirm.title': '¿Activar el acceso total?',
+  'confirm.description': 'El acceso total reduce los pasos de confirmación y permite que el agente realice más acciones directamente, incluidas operaciones sensibles, cambios de archivos o comandos externos. Úselo solo cuando confíe en la tarea actual.',
+  'confirm.acknowledge': 'Entiendo los riesgos y deseo continuar',
+  'confirm.cancel': 'Cancelar',
+  'confirm.enable': 'Activar acceso total',
 } satisfies Record<PermissionAccessKey, string>

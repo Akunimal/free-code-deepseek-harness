@@ -37,16 +37,16 @@ export const en = {
 
 /** Spanish dictionary. */
 export const es = {
-  'trigger': 'Settings',
-  'title': 'Settings',
-  'close': 'Close',
-  'openDocument': 'Open configuration file',
-  'openDocument.error': 'Could not open configuration file',
+  'trigger': 'Configuración',
+  'title': 'Configuración',
+  'close': 'Cerrar',
+  'openDocument': 'Abrir archivo de configuración',
+  'openDocument.error': 'No se pudo abrir el archivo de configuración',
   'general.nav': 'General',
-  'connection.error': 'Disconnected',
-  'connection.retry': 'Reconnect now',
-  'connection.connecting': 'Connecting',
-  'connection.connected': 'Connected',
-  'connection.reconnect': 'Disconnected, reconnect now',
-  'connection.restart': 'Connecting, restart now',
+  'connection.error': 'Desconectado',
+  'connection.retry': 'Reconectar ahora',
+  'connection.connecting': 'Conectando',
+  'connection.connected': 'Conectado',
+  'connection.reconnect': 'Desconectado, reconectar ahora',
+  'connection.restart': 'Conectando, reiniciar ahora',
 } satisfies Record<SettingsKey, string>

@@ -35,13 +35,13 @@ export const en = {
 
 /** Spanish dictionary. */
 export const es = {
-  'command': 'Commands',
-  'skill': 'Skills',
-  'subagent': 'Subagents',
-  'loading': 'Loading…',
-  'drill.aria': 'Browse folder',
-  'drill.hint': 'Browse folder',
+  'command': 'Comandos',
+  'skill': 'Habilidades',
+  'subagent': 'Subagentes',
+  'loading': 'Cargando…',
+  'drill.aria': 'Explorar carpeta',
+  'drill.hint': 'Explorar carpeta',
   'drill.key': 'Tab',
-  'crumbs.aria': 'Folder navigation',
-  'suggestions.aria': 'Trigger suggestions',
+  'crumbs.aria': 'Navegación de carpetas',
+  'suggestions.aria': 'Sugerencias de activación',
 } satisfies Record<MenuKey, string>

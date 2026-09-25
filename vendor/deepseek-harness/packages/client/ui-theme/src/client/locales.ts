@@ -31,13 +31,13 @@ export const en = {
 
 /** Spanish dictionary. */
 export const es = {
-  'appearance.title': 'Appearance',
-  'appearance.light': 'Light',
-  'appearance.dark': 'Dark',
-  'appearance.system': 'System',
-  'fontSize.title': 'Font size',
-  'fontSize.description': 'Only affects conversation content',
+  'appearance.title': 'Apariencia',
+  'appearance.light': 'Claro',
+  'appearance.dark': 'Oscuro',
+  'appearance.system': 'Sistema',
+  'fontSize.title': 'Tamaño de fuente',
+  'fontSize.description': 'Solo afecta el contenido de la conversación',
   'fontSize.unit': 'px',
-  'fontSize.increase': 'Increase font size',
-  'fontSize.decrease': 'Decrease font size',
+  'fontSize.increase': 'Aumentar tamaño de fuente',
+  'fontSize.decrease': 'Reducir tamaño de fuente',
 } satisfies Record<ThemeKey, string>
