@@ -1,0 +1,3 @@
+name: Gentle AI
+description: Gentle orchestrator preset reusing Standard composition, permissions, sandbox and plan-mode.
+order: 2

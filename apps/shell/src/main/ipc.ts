@@ -4,12 +4,15 @@ import {
   IpcPayloads,
   ModelCatalogSchema,
   WorkerHandleSchema,
+  GentleAiRunRequestSchema,
+  GentleAiStatusSchema,
   type ModelCatalog,
 } from '@freecode/shared-types';
 import { ShellRuntime } from './runtime.js';
 import { detectLocalRoutes } from './omniroute-detector.js';
 import { refreshModels } from './model-refresher.js';
 import { isOcrAvailable, extractText } from './ocr.js';
+import { getGentleAiStatus, runGentleAi, runGentleAiDoctor } from './gentle-ai.js';
 import { z } from 'zod';
 import type { WarpFleet } from './warfleet.js';
 import { ensureEmbeddedMcpConfig, setEmbeddedMcpEnabled } from './mcp-home.js';
@@ -34,6 +37,7 @@ export interface IpcDeps {
   userDataDir: string;
   homeDir: string;
   lbBaseUrl: string;
+  resourcesDir?: string;
   catalogStore: { get(): unknown };
   warpFleet: {
     instance: WarpFleet | null;
@@ -167,6 +171,30 @@ export function registerIpc(deps: IpcDeps): () => void {
     binaryPath: null, // not exposed to renderer for security
   }));
 
+  // gentle-ai:status — bounded presence probe (no secrets)
+  ipcMain.handle(IpcChannels.gentleAiStatus, () => {
+    const resourcesDir = deps.resourcesDir ?? userDataDir;
+    const status = getGentleAiStatus(resourcesDir);
+    return GentleAiStatusSchema.parse({ ...status, binaryPath: status.binaryPath });
+  });
+
+  // gentle-ai:doctor — bounded checks (presence, --version, DSH_HOME, Engram)
+  ipcMain.handle(IpcChannels.gentleAiDoctor, async () => {
+    const resourcesDir = deps.resourcesDir ?? userDataDir;
+    return runGentleAiDoctor(resourcesDir, homeDir);
+  });
+
+  // gentle-ai:run — Zod-validated pre-spawn; size/timeout/DSH_HOME guard
+  ipcMain.handle(IpcChannels.gentleAiRun, async (_e, payload: unknown) => {
+    const parsed = GentleAiRunRequestSchema.parse(payload);
+    const resourcesDir = deps.resourcesDir ?? userDataDir;
+    return runGentleAi(
+      { prompt: parsed.prompt, timeoutMs: parsed.timeoutMs, allowGlobal: parsed.allowGlobal },
+      resourcesDir,
+      homeDir,
+    );
+  });
+
   // ocr:extract — extract text from a bounded base64-encoded image. The
   // canonical round-trip check rejects malformed base64 instead of silently
   // turning it into a different/empty image.
@@ -209,6 +237,9 @@ export function registerIpc(deps: IpcDeps): () => void {
     ipcMain.removeHandler(IpcChannels.localeSet);
     ipcMain.removeHandler(IpcChannels.ocrExtract);
     ipcMain.removeHandler(IpcChannels.ocrStatus);
+    ipcMain.removeHandler(IpcChannels.gentleAiStatus);
+    ipcMain.removeHandler(IpcChannels.gentleAiDoctor);
+    ipcMain.removeHandler(IpcChannels.gentleAiRun);
     offMcpStatus();
   };
 }

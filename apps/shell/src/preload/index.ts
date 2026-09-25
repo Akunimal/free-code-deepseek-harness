@@ -9,6 +9,9 @@ import type {
   OcrResult,
   EmbeddedMcpState,
   McpRuntimeStatus,
+  GentleAiStatus,
+  GentleAiDoctor,
+  GentleAiRunResponse,
 } from '@freecode/shared-types';
 
 const IpcChannels = {
@@ -29,6 +32,9 @@ const IpcChannels = {
   localeSet: 'locale:set',
   ocrExtract: 'ocr:extract',
   ocrStatus: 'ocr:status',
+  gentleAiStatus: 'gentle-ai:status',
+  gentleAiDoctor: 'gentle-ai:doctor',
+  gentleAiRun: 'gentle-ai:run',
 } as const;
 
 /**
@@ -97,6 +103,14 @@ const api: FreeCodeApi = {
       ipcRenderer.invoke(IpcChannels.ocrStatus),
     extract: (imageBase64: string, lang?: string): Promise<OcrResult> =>
       ipcRenderer.invoke(IpcChannels.ocrExtract, { imageBase64, lang }),
+  },
+  gentleAi: {
+    status: (): Promise<GentleAiStatus> =>
+      ipcRenderer.invoke(IpcChannels.gentleAiStatus),
+    doctor: (): Promise<GentleAiDoctor> =>
+      ipcRenderer.invoke(IpcChannels.gentleAiDoctor),
+    run: (prompt: string, opts?: { timeoutMs?: number; allowGlobal?: boolean }): Promise<GentleAiRunResponse> =>
+      ipcRenderer.invoke(IpcChannels.gentleAiRun, { prompt, ...opts }),
   },
 };
 

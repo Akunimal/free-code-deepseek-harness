@@ -33,17 +33,15 @@ function resolveVendoredMcpExe(subpath: string): string {
 
 const BASE_SERVER_DEFINITIONS = [
   {
-    id: 'serena',
-    serverName: 'serena',
+    id: 'engram',
+    serverName: 'engram',
     transport: 'stdio',
-    command: resolveVendoredMcpExe('.uv-tools/serena-agent/Scripts/serena.exe'),
-    // Do not pass --project-from-cwd here. The Electron harness cwd is DSH_HOME,
-    // not the user's workspace; Serena would walk up to a drive root and scan
-    // the entire disk before it can register its MCP tools. The MCP bridge
-    // activates the selected session workspace before each Serena call.
-    args: ['start-mcp-server', '--context', 'claude-code'],
+    command: 'engram',
+    // Engram owns storage and project selection; the harness only launches
+    // the `mcp` subcommand. Bare command resolves via PATH at spawn time;
+    // failOnStartupError:false keeps startup fail-open when absent.
+    args: ['mcp'],
     cwd: PROCESS_CWD,
-    projectActivation: { toolName: 'activate_project', pathArgument: 'project' },
   },
   {
     id: 'free-search',
@@ -60,8 +58,6 @@ export const SERVER_DEFINITIONS = BASE_SERVER_DEFINITIONS
 export interface EmbeddedMcpOptions {
   /** Absolute uvx path selected by the Windows bootstrap, when available. */
   uvxCommand?: string
-  /** Packaged Serena launcher that prevents SolidLSP's Windows shell hop. */
-  serenaLauncherPath?: string
   /** Override for the entire server catalog (e.g. vendored absolute paths). */
   serverOverrides?: Record<string, { command: string, args?: readonly string[] }>
 }
@@ -99,25 +95,6 @@ function definitions(options: EmbeddedMcpOptions = {}): typeof BASE_SERVER_DEFIN
         args: override.args ?? server.args,
       }
     }
-    // Legacy: serenaLauncherPath + uvxCommand fallback. The override applies
-    // ONLY when the launcher script actually exists and a uvx command was
-    // provided; otherwise the row would point uvx (or, worse, the vendored
-    // serena.exe) at launcher args it cannot run, and the MCP supervisor
-    // would burn its reconnect budget respawning a dead server.
-    if (server.id === 'serena'
-      && options.serenaLauncherPath !== undefined
-      && existsSync(options.serenaLauncherPath)
-      && options.uvxCommand !== undefined) {
-      return {
-        ...server,
-        command: options.uvxCommand,
-        args: [
-          '--from', 'git+https://github.com/oraios/serena',
-          'python', options.serenaLauncherPath,
-          'start-mcp-server', '--context', 'claude-code',
-        ],
-      }
-    }
     // Legacy: uvx command replacement (for servers still using uvx)
     return server.command === 'uvx' && options.uvxCommand !== undefined
       ? { ...server, command: options.uvxCommand }
@@ -151,11 +128,11 @@ function persistedUvxCommand(raw: { servers?: unknown }): string | undefined {
   if (!Array.isArray(raw.servers)) return undefined
   const candidate = raw.servers.find((server) => (
     typeof server === 'object' && server !== null
-    && (server as { id?: unknown }).id === 'serena'
+    && (server as { id?: unknown }).id === 'engram'
     && typeof (server as { command?: unknown }).command === 'string'
   )) as { command?: string } | undefined
   const command = candidate?.command
-  // Vendored absolute path (serena.exe or free-search-mcp.exe) — no uvx needed
+  // Vendored absolute path (free-search-mcp.exe) — no uvx needed
   if (command !== undefined && existsSync(command) && !command.toLowerCase().endsWith('uvx.exe')) {
     return undefined
   }

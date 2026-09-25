@@ -167,6 +167,24 @@
       "network": false,
       "required": false,
       "notes": "Optional; not bundled; resolves from PATH only; code checks cavemanInstalled at runtime"
+    },
+    {
+      "id": "gentle-ai",
+      "name": "Gentle AI",
+      "version": "2.6.0",
+      "arch": "win-x64",
+      "source": "gentle-ai",
+      "license": "N/A",
+      "sha256": "N/A",
+      "path": "gentle-ai/gentle-ai.exe",
+      "launch": {
+        "type": "exec",
+        "args": ["$COMMAND"],
+        "cwd": "$DSH_HOME"
+      },
+      "network": false,
+      "required": false,
+      "notes": "Optional; bundled when approved else PATH-only; resolver prefers resources/gentle-ai/gentle-ai.exe then PATH; caveman/RTK extras PATH-only (size gate)"
     }
   ]
 }

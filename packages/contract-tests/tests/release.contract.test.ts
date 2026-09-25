@@ -170,12 +170,19 @@ describe('release and runtime packaging contracts', () => {
     // package boundary Node uses at runtime.
     const sdkStdio = readFileSync(resolveMcpSdk.resolve('@modelcontextprotocol/sdk/client/stdio.js'), 'utf8');
 
-    // Two distinct managed rows must remain present in both config seams;
-    // otherwise a host-only row can disappear from the model-facing preset.
+    // Two distinct managed rows must remain present in the shell catalog;
+    // the scripts catalog (scripts/mcp-config.mjs) still pins serena +
+    // free-search (pre-existing drift, out of scope for 0.8.0 gentle-ai
+    // migration which owns apps/shell/src/main/mcp-home.ts). The shell
+    // catalog migrated serena -> engram per the gentle-ai MCP spec.
     for (const id of ['serena', 'free-search']) {
       expect(mcpConfig, id).toContain(`id: '${id}'`);
+    }
+    for (const id of ['engram', 'free-search']) {
       expect(mcpHome, id).toContain(`id: '${id}'`);
     }
+    expect(mcpHome).not.toContain(`id: 'serena'`);
+    expect(mcpHome).not.toContain('FREECODE_MCP_SERENA_ENABLED');
     expect(mcpConfig).not.toContain('mcp-language-server');
     expect(mcpConfig).not.toContain('@anthropic-ai/serena-mcp');
     expect(mcpConfig).not.toContain('@isaacphi/mcp-language-server');
@@ -190,7 +197,10 @@ describe('release and runtime packaging contracts', () => {
     expect(mcpTransport).toContain('new StdioClientTransport');
     expect(mcpTransport).toContain("stderr: 'pipe'");
     expect(sdkStdio).toMatch(/windowsHide:\s+(?:process|node_process_1\.default)\.platform === 'win32'/);
-    expect(runtime).toContain('serena-headless-launcher.py');
+    // Serena launcher retired from the runtime path with the Engram
+    // migration (mcp-home no longer passes serenaLauncherPath). The
+    // launcher file itself still ships until packaging cleanup.
+    expect(runtime).not.toContain('serena-headless-launcher.py');
     expect(serenaLauncher).toContain('shell=False');
     expect(serenaLauncher).toContain('CREATE_NO_WINDOW');
     expect(serenaLauncher).toContain('ManagedSubprocessLauncher.launch');

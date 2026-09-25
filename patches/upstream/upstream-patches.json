@@ -166,6 +166,17 @@
         "packages/contract-tests/tests/locale.contract.test.ts"
       ],
       "vendorOnly": true
+    },
+    {
+      "file": "150-freecode-gentle-ai-preset.patch",
+      "order": 150,
+      "owner": "freecode",
+      "description": "Gentle-AI preset (copy of standard with gentle persona and Engram managed row; vendor standard history untouched for replay)",
+      "seam": "packages/preset/agent-presets/presets/gentle-ai",
+      "contractTests": [
+        "packages/contract-tests/tests/gentle-ai-preset.contract.test.ts"
+      ],
+      "vendorOnly": true
     }
   ]
 }

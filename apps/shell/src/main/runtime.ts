@@ -125,9 +125,6 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
   try {
     const mcp = ensureEmbeddedMcpConfig(mcpHome, {
       uvxCommand: cfg.uvxCommand,
-      serenaLauncherPath: process.platform === 'win32'
-        ? join(cfg.resourcesDir, 'serena-headless-launcher.py')
-        : undefined,
     });
     setMcpCatalog({
       configPath: mcp.configPath,
@@ -211,9 +208,6 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
     refreshMcpState: () => {
       const state = ensureEmbeddedMcpConfig(mcpHome, {
         uvxCommand: cfg.uvxCommand,
-        serenaLauncherPath: process.platform === 'win32'
-          ? join(cfg.resourcesDir, 'serena-headless-launcher.py')
-          : undefined,
       });
       setMcpCatalog({
         configPath: state.configPath,
