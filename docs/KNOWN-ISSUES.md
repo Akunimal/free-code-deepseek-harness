@@ -1,22 +1,24 @@
 # Known issues / Problemas conocidos
 
-Última revisión / Last reviewed: 2026-09-23
-Baseline revisada / Reviewed baseline: `0.7.0`
+Última revisión / Last reviewed: 2026-09-27
+Baseline revisada / Reviewed baseline: `0.8.0`
 
 ## Estado actual / Current status
 
-El checkout publicado de `0.7.0` cierra el roadmap correctivo con evidencia
-(suite 165/165, gate de release en verde, instalación limpia verificada).
-Quedan limitaciones honestas: la cuota del upstream gobierna el lane
-anónimo, los binarios RTK/Caveman/free-search no están empaquetados, y las
-demás plataformas no están probadas. Windows ARM64, Linux y macOS no están
-soportados en 0.7.0.
+El checkout publicado de `0.8.0` incorpora modo Gentle AI integrado, elimina
+freellmpool, agrega Engram como tercera fila MCP administrada, elimina Serena
+del catálogo administrado y corrige el locale español completamente (parche
+`141-*`, 30 archivos, ~1000 claves). Las limitaciones honestas restantes: la
+cuota del upstream gobierna el lane anónimo, los binarios RTK/Caveman/free-search
+no están empaquetados, y las demás plataformas no están probadas. Windows ARM64,
+Linux y macOS no están soportados en 0.8.0.
 
-The published `0.7.0` checkout closes the corrective roadmap with evidence
-(165/165 suite, green release gate, verified clean install). Honest
-limitations remain: upstream quota governs the anonymous lane, the
-RTK/Caveman/free-search binaries are not vendored, and other platforms are
-untested. Windows ARM64, Linux and macOS are unsupported in 0.7.0.
+The published `0.8.0` checkout adds Gentle AI integrated mode, removes
+freellmpool, adds Engram as the third managed MCP row, removes Serena from the
+managed catalog, and fully fixes the Spanish locale (patch `141-*`, 30 files,
+~1000 keys). Honest limitations remain: upstream quota governs the anonymous
+lane, the RTK/Caveman/free-search binaries are not vendored, and other platforms
+are untested. Windows ARM64, Linux and macOS are unsupported in 0.8.0.
 
 ## Limitaciones operativas / Operational limitations
 
@@ -28,43 +30,39 @@ La ruta OpenCode Free depende del puente local, los workers disponibles, los lí
 
 ### KI-002 — Windows artifacts are large / Los artefactos Windows son grandes
 
-The portable and setup artifacts (~300 MB download, ~69,000 files, ~10
+The portable and setup artifacts (~286 MB download, ~69,000 files, ~10
 minutes to unpack) include a local runtime. This is an operational cost of
 the current packaging, not evidence that the application is hung. Slimmed
 from 559 MB in 0.7.0; further slimming is deferred work.
 
-Los artefactos portable y setup (~300 MB de descarga, ~69.000 archivos,
+Los artefactos portable y setup (~286 MB de descarga, ~69.000 archivos,
 ~10 minutos para desempaquetar) incluyen un runtime local. Es un costo
 operativo del empaquetado actual, no una evidencia de que la aplicación se
 haya colgado. Adelgazado desde 559 MB en 0.7.0; más recorte queda diferido.
 
 ### KI-003 — RTK/Caveman are PATH helpers, not bundled / RTK/Caveman son helpers por PATH, no empaquetados
 
-RTK and Caveman are not bundled in the published `0.7.0` artifact. The code
+RTK and Caveman are not bundled in the published `0.8.0` artifact. The code
 probes the user PATH and treats a missing binary as an explicit no-op, so
 the release works but is not self-contained for these helpers. Vendoring
 them with version/hash/license metadata remains deferred work.
 
-RTK y Caveman no están incluidos en el artefacto publicado de `0.7.0`: el
+RTK y Caveman no están incluidos en el artefacto publicado de `0.8.0`: el
 código consulta el PATH del usuario y la ausencia es un no-op explícito. La
 release funciona pero no es autocontenida para estos helpers. Empaquetarlos
 con metadata de versión/hash/licencia queda diferido.
 
 ### KI-004 — free-search binary not vendored / Binario free-search no empaquetado
 
-The MCP client bridge, catalog, configuration file, and managed patch are
-shipped, and Serena runs through the packaged headless launcher. The
+The MCP client bridge, catalog, and configuration file are shipped. The
 free-search binary is not vendored, so its entry starts disabled instead of
 burning the reconnect budget; it enables automatically once the binary
-exists. Serena owns semantic code navigation; no separate LSP bridge is
-shipped. See [`mcp-servers.md`](mcp-servers.md).
+exists. See [`mcp-servers.md`](mcp-servers.md).
 
-El bridge cliente MCP, el catálogo, el archivo de configuración y el patch
-administrado vienen incluidos, y Serena corre con el launcher headless
-incluido. El binario free-search no está empaquetado, así que su entrada
+El bridge cliente MCP, el catálogo y el archivo de configuración vienen
+incluidos. El binario free-search no está empaquetado, así que su entrada
 arranca deshabilitada en vez de quemar reconexiones; se activa sola cuando
-exista el binario. Serena gestiona la navegación semántica; no se distribuye
-un bridge LSP separado. Ver [`mcp-servers.md`](mcp-servers.md).
+exista el binario. Ver [`mcp-servers.md`](mcp-servers.md).
 
 ### KI-005 — Provider/model desynchronization can look like an invalid API key / El desajuste proveedor-modelo puede parecer una API key inválida
 
@@ -101,15 +99,18 @@ plataformas no deben tratarse como releases utilizables.
 
 These entries are kept here so an old report is easy to classify:
 
-- The Spanish language option was intended to be restored, but is missing from
-  the published 0.6.0 catalog and remains an open regression.
+- **Spanish locale (resolved in 0.8.0)** — The Spanish language option was
+  missing from the selector in 0.6.0 and 0.7.0 web UI builds. Fixed in 0.8.0
+  via patch `141-*` (30 locale files, ~1000 ES keys). The selector now renders
+  Spanish correctly. / **Locale español (resuelto en 0.8.0)** — La opción de
+  español faltaba en el selector en las builds web de 0.6.0 y 0.7.0. Corregido
+  en 0.8.0 con el parche `141-*` (30 archivos, ~1000 claves ES). El selector
+  ahora renderiza español correctamente.
 - Tool calls request headless execution through `windowsHide` at every
   owned spawn layer; renderer popups are denied and a window-registry
   backstop destroys any native window outside splash/main/overlay (each
   kill is logged). Isolated transient reports are still welcome: window
   title/content plus what the agent was doing.
-- The Spanish language option was intended to be restored, but is missing from
-  the published 0.6.0 catalog and remains an open regression.
 - The FreeCode animated working background is present.
 - Pool shutdown errors are handled as state/diagnostic information rather than an API-key failure.
 - The primary README, Spanish README, and release descriptions have bilingual coverage.
@@ -117,15 +118,12 @@ These entries are kept here so an old report is easy to classify:
 
 Estas entradas quedan para clasificar rápidamente reportes antiguos:
 
-- La opción de español debía estar restaurada, pero falta en el catálogo
-  publicado de 0.6.0 y sigue siendo una regresión abierta.
+- **Locale español (resuelto en 0.8.0)** — ver arriba.
 - Los tool calls piden ejecución headless con `windowsHide` en cada capa
   propia de spawn; los popups del renderer se deniegan y un backstop
   destruye cualquier ventana nativa fuera de splash/main/overlay (cada kill
   queda logueado). Los reportes aislados de transitorias siguen bienvenidos:
   título/contenido de la ventana más qué hacía el agente.
-- La opción de español debía estar restaurada, pero falta en el catálogo
-  publicado de 0.6.0 y sigue siendo una regresión abierta.
 - Está presente el fondo animado de trabajo de FreeCode.
 - Los errores de apagado del pool se tratan como estado/diagnóstico y no como fallo de API key.
 - El README principal, el README en español y las descripciones de release tienen cobertura bilingüe.

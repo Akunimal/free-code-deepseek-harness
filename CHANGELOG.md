@@ -1,5 +1,56 @@
 # Changelog
 
+## 0.8.0 — 2026-09-27
+
+### Added / Agregado
+
+- **Gentle AI integrated mode** — Selectable `gentle-ai` agent preset that
+  reuses IPC, MCP, ModelCatalog, permissions, sandbox, and plan-mode. Binary
+  resolved from bundled `resources/gentle-ai/gentle-ai.exe` with PATH fallback;
+  cached and null-safe. / Preset de agente `gentle-ai` seleccionable que
+  reutiliza IPC, MCP, ModelCatalog, permisos, sandbox y plan-mode. Binario
+  resuelto desde bundle con fallback a PATH.
+- **Engram as third managed MCP row** — On by default. Provides persistent
+  memory and knowledge storage across sessions. Replaces Serena in the managed
+  catalog. / Engram como tercera fila MCP administrada, activa por defecto.
+  Provee memoria y almacenamiento de conocimiento persistentes.
+- **Bounded gentle-ai IPC** — `gentle-ai:status`, `gentle-ai:doctor`,
+  `gentle-ai:run` channels with Zod contract exposed as
+  `window.freecode.gentleAi` in the renderer preload. / IPC `gentle-ai:*`
+  acotado con contrato Zod expuesto al renderer.
+- **RDD v2 enforced** — `status → START → next_transition` verbatim transition
+  enforcement in the harness. Gentle AI owns `.atl/skill-registry.md`. / RDD v2
+  con transiciones literales impuestas.
+- **Spanish locale** — Real `es` dictionaries via `141-*` patch (30 files,
+  ~1000 keys). The language selector now renders Spanish correctly in the web UI.
+  / Diccionarios `es` reales vía parche `141-*`. El selector renderiza español
+  correctamente.
+
+### Changed / Cambiado
+
+- **freellmpool removed** — The harness now relies solely on `opencode2api`
+  (OpenCode No-Auth) as the free model gateway. No Python dependency, no
+  `freellmpool` process, no `startFreellmpoolProxy` import. `lbUrl` references
+  replaced with `opencodeUrl` throughout `index.ts` and `runtime.ts`. /
+  **freellmpool eliminado** — El harness depende ahora únicamente de
+  `opencode2api`. Sin Python, sin proceso `freellmpool`.
+- **Serena removed from managed catalog** — Serena is no longer a managed MCP
+  entry. User-owned `servers.json` rows are preserved. Engram is the new managed
+  semantic/memory surface. / **Serena eliminada del catálogo administrado** —
+  Engram es la nueva superficie de memoria semántica.
+- **Version 0.8.0** — Bumped in `package.json` and `apps/shell/package.json`;
+  version gates, locale contract and release contract aligned. / Versión 0.8.0
+  en ambos `package.json` y gates de versión alineados.
+- **Installer size** — ~286 MB (down from ~300 MB in 0.7.0); freellmpool
+  elimination removes Python dependency weight. / ~286 MB (antes ~300 MB).
+
+### Platform support / Plataformas
+
+- Tested: Windows 10/11 x64 ONLY. / Probado: solo Windows 10/11 x64.
+- NOT tested, NOT supported: Windows ARM64, Linux, macOS. No artifacts
+  published. / NO probado, NO soportado: Windows ARM64, Linux, macOS. Sin
+  artefactos publicados.
+
 ## 0.7.0 — 2026-09-23
 
 ### Added / Agregado

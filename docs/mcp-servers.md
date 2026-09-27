@@ -1,7 +1,7 @@
 # FreeCode DeepSeek Harness — managed MCP servers
 
 FreeCode ships the MCP client bridge and a versioned product catalog. On first
-boot it materializes two entries, enabled by default:
+boot it materializes three entries, enabled by default:
 
 ```text
 <Electron userData>/dsh-home/mcp/servers.json
@@ -15,12 +15,12 @@ marked FreeCode block; user-owned rows survive upgrades and toggles.
 
 | ID | Server process | Purpose | Default |
 |---|---|---|---|
-| `serena` | `uvx` → official `oraios/serena` | Semantic retrieval and structural editing. | Enabled |
-| `free-search` | `uvx free-search-mcp` | HTTP-first search/fetch for agent research without opening a browser. | Enabled |
+| `engram` | Engram MCP server | Persistent memory and knowledge storage across sessions. Used by Gentle AI for skill registry and cross-session context. | Enabled |
+| `free-search` | `uvx free-search-mcp` | HTTP-first search/fetch for agent research without opening a browser. | Disabled (binary not vendored) |
 
-Independent LSP MCP rows are intentionally not included. Serena provides the
-semantic project tools and avoids two competing language-server surfaces.
-Gemini2API and Gemini selector models are not part of 0.6.0.
+Serena was removed from the managed catalog in 0.8.0. Independent LSP MCP rows
+are intentionally not included. Engram provides the persistent memory surface
+and avoids competing semantic-retrieval entries.
 
 ## Configuration and status
 
@@ -44,8 +44,8 @@ Example:
 {
   "version": 1,
   "servers": [
-    { "id": "serena", "enabled": true },
-    { "id": "free-search", "enabled": true }
+    { "id": "engram", "enabled": true },
+    { "id": "free-search", "enabled": false }
   ]
 }
 ```
@@ -59,19 +59,16 @@ pnpm setup:mcp --all
 It uses argument arrays, restrictive file permissions where supported and
 fails closed for a selected server whose prerequisite cannot be installed.
 
-## Serena project lifecycle
+## Engram
 
-The Electron Harness child starts Serena without `--project-from-cwd`. Its cwd
-is the private `dsh-home`, so automatic discovery would walk toward a drive
-root and scan unrelated files. When the model calls a Serena tool, the bridge
-reads the session workspace, canonicalizes it (absolute/real path where
-available), calls `activate_project`, and then calls the requested tool in one
-serialized queue. A second project activates only after the prior operation is
-finished. Activation failures are visible to both model and user.
+Engram is the third managed MCP row, on by default. It provides persistent
+memory and knowledge storage across agent sessions. Gentle AI uses
+`.atl/skill-registry.md` as its skill index and enforces RDD v2 verbatim
+transitions (`status → START → next_transition`).
 
-This preserves project-on-demand behavior without spawning a second Serena or
-opening a terminal window. The process stays under the one `dsh` child tree,
-uses `shell:false`/`windowsHide:true`, and reconnects with bounded attempts.
+The Engram server process runs under the `dsh` child tree using
+`shell:false`/`windowsHide:true`. It reconnects with bounded attempts on
+failure. Activation and tool calls share one serialized queue per session.
 
 ## free-search and uvx
 
@@ -86,9 +83,17 @@ mutate `PATH`, require administrator rights or open a console. Failure is
 recoverable: the application still boots, and the MCP tab/log reports the
 missing prerequisite.
 
-The uv bootstrap is a product dependency for MCP startup; Serena and
+The uv bootstrap is a product dependency for MCP startup; Engram and
 free-search remain separately toggleable. It is not a reason to install a
 second FreeCode application instance.
+
+## Serena (removed in 0.8.0)
+
+Serena was part of the managed catalog through 0.7.0 and provided semantic
+code navigation via the packaged headless launcher. It was removed in 0.8.0;
+no Serena process, config entry or bridge is shipped. If you have a custom
+`servers.json` row for Serena from a previous install, it will remain intact
+(user-owned rows are preserved) but the managed entry is gone.
 
 ## Tool-call contract
 

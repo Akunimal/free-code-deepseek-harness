@@ -1,8 +1,10 @@
 # Roadmap / Hoja de ruta
 
-Última revisión / Last reviewed: 2026-09-07
-Baseline: `v0.6.0`
+Última revisión / Last reviewed: 2026-09-27
+Baseline: `v0.8.0`
 Estado / Status: objetivos sujetos a validación; no son fechas ni promesas de release.
+
+> **0.8.0** — Gentle AI integrado, freellmpool eliminado, Engram como tercera fila MCP, Serena removida del catálogo, locale español completamente funcional (parche `141-*`, 30 archivos). Ver [CHANGELOG.md](../CHANGELOG.md) y [release-notes-v0.8.0.md](../release-notes-v0.8.0.md).
 
 FreeCode mantiene los workflows de publicación manuales para no consumir cuota gratuita de GitHub. Cada versión se publica sólo después de pasar sus contratos, pruebas relevantes y una revisión del instalador.
 

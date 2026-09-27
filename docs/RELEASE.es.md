@@ -7,21 +7,22 @@ reproducen mediante el stack ordenado de patches.
 
 ## Baseline actual
 
-La release publicada 0.7.0 es la baseline actual para Windows x64:
+La release publicada 0.8.0 es la baseline actual para Windows x64:
 
-- instalador NSIS de Windows 0.7.0 (~300 MB);
-- ejecutable portable de Windows 0.7.0 (~300 MB);
+- instalador NSIS de Windows 0.8.0 (~286 MB);
+- ejecutable portable de Windows 0.8.0 (~286 MB);
 - `latest.yml` más blockmap para el updater;
 - tarball del runtime del Harness (+`.sha256`) para updates in-app.
 
-El gate de 0.7.0 pasó: typecheck limpio, suite del shell 165/165, todos los
-verificadores prepackage en verde, instalación limpia, `harness ready`, los
-dos lanes con modelos, apagado limpio. Probado en Windows 10/11 x64
+El gate de 0.8.0 pasó: typecheck limpio, suite del shell en verde, todos los
+verificadores prepackage en verde, instalación limpia, `harness ready`, lane
+opencode-free con modelos, preset gentle-ai visible, locale español
+renderizando correctamente, apagado limpio. Probado en Windows 10/11 x64
 ÚNICAMENTE. Windows ARM64, Linux y macOS NO están probados ni soportados;
 no se publican artefactos para esas plataformas.
 
 0.4.3 es la última referencia operativa porque abre bien. No es una garantía
-de compatibilidad ni la fuente de verdad del código actual. El gate de 0.7.0
+de compatibilidad ni la fuente de verdad del código actual. El gate de 0.8.0
 no exige actualizar desde 0.4.3; exige instalar limpio, abrir, seleccionar un
 proyecto y relanzar.
 
@@ -49,12 +50,12 @@ Estos comandos son locales y no usan GitHub Actions. Los recursos
 obligatorios hacen fallar el gate cuando faltan; nunca se saltean
 silenciosamente porque la máquina del desarrollador no tenga un fixture.
 
-Los artefactos Windows esperados de 0.7.0 son:
+Los artefactos Windows esperados de 0.8.0 son:
 
 ~~~
-apps/shell/release/FreeCode-DeepSeek-Harness-0.7.0-win-x64-setup.exe
-apps/shell/release/FreeCode-DeepSeek-Harness-0.7.0-win-x64-portable.exe
-apps/shell/release/FreeCode-DeepSeek-Harness-0.7.0-win-x64-setup.exe.blockmap
+apps/shell/release/FreeCode-DeepSeek-Harness-0.8.0-win-x64-setup.exe
+apps/shell/release/FreeCode-DeepSeek-Harness-0.8.0-win-x64-portable.exe
+apps/shell/release/FreeCode-DeepSeek-Harness-0.8.0-win-x64-setup.exe.blockmap
 apps/shell/release/latest.yml
 apps/shell/release/deepseek-harness-runtime-0.1.3-alpha.1-win32-x64.tar.gz
 apps/shell/release/win-unpacked/FreeCode DeepSeek Harness.exe
@@ -65,13 +66,13 @@ de empaquetar; no copies un nombre viejo en una release nueva.
 
 ## Política de dependencias runtime
 
-El instalador 0.7.0 contiene Electron, el runtime del Harness, el gateway
-opencode2api, archivos nativos del picker/runtime y Tesseract. RTK, Caveman
-y free-search no están empaquetados: siguen como helpers opcionales por
-PATH, y las entradas MCP irresolubles arrancan deshabilitadas. El cierre
-instalado enumera versión, arquitectura, origen, licencia, hash y ruta
-relativa en `runtime-deps.json`, verificado por
-`verify-runtime-dependencies.mjs`.
+El instalador 0.8.0 contiene Electron, el runtime del Harness, el gateway
+opencode2api (único gateway de modelos — freellmpool eliminado en 0.8.0),
+archivos nativos del picker/runtime y Tesseract. RTK, Caveman y free-search
+no están empaquetados: siguen como helpers opcionales por PATH, y las entradas
+MCP irresolubles arrancan deshabilitadas. El cierre instalado enumera versión,
+arquitectura, origen, licencia, hash y ruta relativa en `runtime-deps.json`,
+verificado por `verify-runtime-dependencies.mjs`.
 
 ## Publicación sólo Windows
 
@@ -92,7 +93,7 @@ ledger.
 El updater de la aplicación no reemplaza al gate de release. Debe conservar el
 control con forma de Enviar y flecha hacia abajo, chequear al iniciar y en su
 intervalo programado, mostrar progreso en tray/notificación durante descarga e
-instalación y respetar los datos del usuario. 0.7.0 no exige actualizar desde
+instalación y respetar los datos del usuario. 0.8.0 no exige actualizar desde
 0.4.3.
 
 El camino de actualización de upstream, sólo para el checkout fuente, es:
@@ -113,8 +114,11 @@ Ver [docs/UPSTREAM-PATCHING.md](UPSTREAM-PATCHING.md) y
 Los documentos viejos bajo docs/RELEASE-NOTES-v*.md describen releases
 históricas y deliberadamente no se reescriben como instrucciones actuales. La
 baseline publicada se sigue en
-[GitHub release 0.7.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/0.7.0);
+[GitHub release v0.8.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.8.0);
 las notas bilingües completas están en
+[release-notes-v0.8.0.md](../release-notes-v0.8.0.md).
+
+Release anterior: [GitHub release v0.7.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.7.0) —
 [release-notes-v0.7.0.md](../release-notes-v0.7.0.md).
 
 For the English guide, see [RELEASE.md](RELEASE.md).

@@ -8,15 +8,15 @@ servidores MCP y llamadas al modelo.
 
 ## Español
 
-## Estado actual: 0.7.0 publicado (Windows x64)
+## Estado actual: 0.8.0 publicado (Windows x64)
 
-0.7.0 está publicado para Windows x64 con:
+0.8.0 está publicado para Windows x64 con:
 
-- un instalador NSIS (~300 MB);
-- un ejecutable portable de Windows (~300 MB).
+- un instalador NSIS (~286 MB);
+- un ejecutable portable de Windows (~286 MB).
 
 **Soporte de plataformas: probado solo en Windows 10/11 x64**
-(instalación limpia, arranque, `harness ready`, los dos lanes con modelos,
+(instalación limpia, arranque, `harness ready`, lane con modelos,
 apagado limpio). **NO probado y NO soportado**: Windows ARM64, Linux
 (cualquier distribución/arquitectura), macOS (cualquier arquitectura). No se
 publican artefactos para estas plataformas; los builds de contribuidores
@@ -29,11 +29,16 @@ fuente de verdad y puede no contener los fixes de este worktree.
 
 ## Qué incluye
 
-- Ruteo de modelos OpenCode Free mediante el pool local compatible con OpenCode,
-  más un segundo **lane OpenCode No-Auth** (`opencode-free`) servido por el
-  gateway opencode2api v1.3.2 incluido — modelos gratuitos anónimos, sin keys.
-  Solo los modelos que responden un 200 real llegan al selector; los muertos
-  se ocultan y el lane se recupera solo cuando vuelve la cuota.
+- **Modo integrado Gentle AI** — un preset de agente `gentle-ai` seleccionable
+  que reutiliza IPC, MCP, ModelCatalog, permisos, sandbox y plan-mode. Se activa
+  automáticamente cuando se detecta el binario; si no, usa `standard`. Un bridge
+  IPC acotado `gentle-ai:*` (`status`, `doctor`, `run`) con contrato Zod queda
+  expuesto al renderer mediante `window.freecode.gentleAi`.
+- **Lane OpenCode No-Auth** (`opencode-free`) servido por el gateway opencode2api
+  incluido — modelos gratuitos anónimos, sin keys. Este es el único gateway de
+  modelos: la dependencia freellmpool fue eliminada en 0.8.0. Solo los modelos
+  que responden un 200 real llegan al selector; los muertos se ocultan y el lane
+  se recupera solo cuando vuelve la cuota.
 - La UI upstream de DeepSeek Harness, sesiones, workspaces, permisos y
   herramientas de archivos.
 - Una sola shell Electron y una sola generación del proceso `dsh` como objetivo
@@ -41,49 +46,53 @@ fuente de verdad y puede no contener los fixes de este worktree.
 - Los popups del renderer se deniegan y un backstop destruye cualquier ventana
   nativa fuera de splash/main/overlay: ninguna tool ni página puede flashear
   ventanas transitorias sobre tu trabajo.
-- Serena y free-search como entradas MCP administradas. Serena corre con el
-  launcher headless incluido; las entradas cuyo comando no puede ejecutarse
-  arrancan deshabilitadas en vez de quemar el presupuesto de reconexión
-  (free-search queda apagado hasta empaquetar su binario).
+- Engram y free-search como entradas MCP administradas. Engram está activado por
+  defecto como la tercera fila administrada; free-search arranca deshabilitado
+  hasta empaquetar su binario. Las entradas cuyo comando no puede ejecutarse
+  arrancan deshabilitadas en vez de quemar el presupuesto de reconexión.
 - Una tab Configuración → Plugins → MCP con toggles, estado de conexión,
   cantidad de herramientas registradas, errores y ruta de configuración.
 - Configuración de Caveman en la tarjeta Shell, activada por defecto en el
   schema del shell; si falta el ejecutable queda como no-op explícito.
 - Toggles separados para RTK y Caveman. Ambos siguen como helpers opcionales
-  por PATH en 0.7.0, no son binarios empaquetados.
+  por PATH en 0.8.0, no son binarios empaquetados.
 - Tesseract incluido en Windows para los flujos de imágenes de modelos
   text-only.
 - Navegador embebido solamente cuando el usuario lo abre explícitamente.
 - Versión real en About, botón de actualizar igual a Enviar con flecha hacia
   abajo y avisos de tray durante descarga/instalación.
+- **Locale español** completamente funcional en la UI web vía el parche `141-*`
+  (30 archivos, ~1000 claves). El selector de idioma ahora renderiza español
+  correctamente.
 
 Gemini2API fue eliminado del runtime de 0.6.0. No queda proceso, provider,
 modelo del selector, recurso empaquetado ni fallback Gemini para configurar.
-También se eliminaron las entradas LSP independientes: Serena es la superficie
-semántica MCP.
+Serena fue eliminada del catálogo MCP administrado en 0.8.0; Engram es la
+superficie de memoria semántica.
 
 ## Instalación y primer uso
 
-1. Descargá el setup o portable de Windows de la release 0.7.0 en GitHub.
+1. Descargá el setup o portable de Windows de la
+   [release 0.8.0 en GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.8.0).
 2. Instalalo o descomprimilo y abrí el acceso directo/ejecutable real.
 3. Elegí la carpeta de tu proyecto en el picker.
 4. Pedile al modelo que inspeccione o modifique el proyecto.
 
-El instalador de 0.7.0 incluye Electron, el runtime upstream del Harness, el
-binario del gateway opencode2api, dependencias nativas y Tesseract (~300 MB
+El instalador de 0.8.0 incluye Electron, el runtime upstream del Harness, el
+binario del gateway opencode2api, dependencias nativas y Tesseract (~286 MB
 de descarga, ~69.000 archivos, unos 10 minutos para desempaquetar — es
 normal, no es un cuelgue). Los MCP administrados todavía resuelven `uvx`
 (incluido, con fallbacks a PATH del usuario y descarga fijada). Si detecta
 una instalación incompleta, muestra el log y recomienda reinstalar desde la
-release oficial 0.7.0.
+release oficial 0.8.0.
 
 El bootstrap de Windows reutiliza silenciosamente un `uvx.exe` ya instalado o
 descarga el ZIP oficial fijado de uv en una carpeta de herramientas por usuario,
 verificando HTTPS y SHA-256. No modifica `PATH`, no requiere administrador y no
-abre una consola. Ese comportamiento es una deuda de cierre de 0.7.0: la
-release corregida debe funcionar con red bloqueada y sin dependencias externas.
+abre una consola. Un bootstrap fallido deja la app principal recuperable y
+expone el problema MCP en la tab/log.
 
-## MCP: Serena y free-search
+## MCP: Engram y free-search
 
 En el primer arranque FreeCode crea atómicamente:
 
@@ -92,13 +101,18 @@ En el primer arranque FreeCode crea atómicamente:
 <userData>/dsh-home/cordis.patch.yml
 ```
 
-Las dos entradas administradas quedan activadas cuando su comando puede
+Las tres entradas administradas quedan activadas cuando su comando puede
 ejecutarse. Abrí Configuración → Plugins → MCP para alternarlas o abrir el
 JSON exacto. Sólo se regenera el bloque marcado de FreeCode en el patch de
 Cordis; las filas propias del usuario se conservan. Un toggle actualiza el
 entorno del hijo y reinicia únicamente el Harness, nunca una segunda
 instancia de Electron. Los servidores sin binario (hoy free-search) arrancan
 deshabilitados automáticamente.
+
+**Engram** es la tercera fila MCP administrada, activa por defecto. Provee
+memoria persistente y almacenamiento de conocimiento entre sesiones a través
+del servidor MCP de Engram. Gentle AI usa `.atl/skill-registry.md` como
+índice de skills y RDD v2 para desarrollo guiado por recibos.
 
 El contrato de readiness objetivo es:
 
@@ -113,14 +127,6 @@ ventanas transitorias sobre tu trabajo. Ningún hijo MCP debe usar `cmd.exe`,
 `start`, una terminal ni una ventana visible; los reportes aislados de
 flashes siguen bienvenidos (título/contenido de la ventana) y el backstop
 loguea cada popup destruido.
-
-Serena arranca deliberadamente sin `--project-from-cwd`: el cwd del hijo es el
-`dsh-home` privado, no el proyecto elegido, para evitar escanear todo el disco.
-Antes de la primera herramienta Serena de un proyecto, el bridge canoniza la
-ruta y llama `activate_project`; la activación y la llamada pedida se
-serializan. Al cambiar de proyecto se hace una activación nueva cuando termina
-la operación anterior. Los errores de activación vuelven al modelo y aparecen
-como estado MCP degradado/fallido.
 
 free-search usa `free-search-mcp` mediante `uvx` y es la ruta HTTP-first para
 investigar. No abre el navegador para buscar. El navegador embebido sólo se
@@ -170,7 +176,7 @@ reemplaza silenciosamente por `[image omitted...]`.
 Configuración → Plugins → configuración de plugins → Shell muestra toggles
 independientes para RTK y Caveman. Los defaults del schema están activados. Si
 falta el binario, la feature correspondiente no opera y no se presenta como
-activa. RTK y Caveman son helpers opcionales por PATH en 0.7.0, no binarios
+activa. RTK y Caveman son helpers opcionales por PATH en 0.8.0, no binarios
 empaquetados. Sólo se envuelven comandos simples y seguros;
 pipes, redirecciones, sustituciones y sintaxis compuesta se conservan.
 
@@ -180,7 +186,7 @@ distingue un fallo de permisos de uno de herramienta/MCP.
 
 ## Updater y versión
 
-About usa `app.getVersion()`, por lo que el binario empaquetado dice 0.7.0.
+About usa `app.getVersion()`, por lo que el binario empaquetado dice 0.8.0.
 La app chequea updates al iniciar y cada seis horas. El control de actualizar
 es exactamente el botón circular primario de Enviar, con la flecha apuntando
 hacia abajo. Al descargar, tooltip/menú de tray y notificación nativa lo
@@ -236,7 +242,7 @@ limitado a vendor y fail-closed. No dejes una feature permanente como edición
 directa de `vendor/deepseek-harness`. Ver
 [docs/UPSTREAM-PATCHING.md](docs/UPSTREAM-PATCHING.md).
 
-## Gate local de Windows: 0.7.0 publicado
+## Gate local de Windows: 0.8.0 publicado
 
 Ejecutá desde PowerShell en la workstation mantenedora:
 
@@ -252,20 +258,21 @@ pnpm --filter @freecode/shell package
 pnpm --filter @freecode/shell smoke:nsis
 ```
 
-Este gate pasó para 0.7.0 con typecheck limpio, suite del shell en 165/165,
+Este gate pasó para 0.8.0 con typecheck limpio, suite del shell en verde,
 todos los verificadores prepackage en verde (hooks NSIS, frescura de vendor,
-manifiesto de runtime, ABI nativa), instalación limpia, `harness ready`, los
-dos lanes con modelos y apagado limpio. Sigue sin exigir upgrade desde 0.4.3:
-sólo instalación limpia y apertura correcta.
+manifiesto de runtime, ABI nativa), instalación limpia, `harness ready`, el
+lane opencode-free con modelos, preset gentle-ai visible, locale español
+renderizando correctamente y apagado limpio. Sigue sin exigir upgrade desde
+0.4.3: sólo instalación limpia y apertura correcta.
 
-El tag `0.7.0` y la release de GitHub (setup, portable, blockmap,
+El tag `v0.8.0` y la release de GitHub (setup, portable, blockmap,
 `latest.yml`, tarball del runtime) se publicaron desde estos artefactos.
 
 Los artefactos quedan en `apps/shell/release/`.
 
 ## Builds manuales de otros sistemas
 
-Linux y macOS no son targets de release de 0.7.0, y Windows ARM64 tampoco
+Linux y macOS no son targets de release de 0.8.0, y Windows ARM64 tampoco
 está probado. Un contribuidor puede trabajar en un host nativo con Node,
 pnpm, Git, herramientas de build de Electron y dependencias nativas del
 sistema:
@@ -295,7 +302,7 @@ Proyectos relacionados: [OpenCode2API](https://github.com/jasonxu114514/opencode
 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness),
 [RTK](https://github.com/rtk-ai/rtk),
 [Caveman](https://github.com/JuliusBrussee/caveman),
-[Serena](https://github.com/oraios/serena) y
+[Gentle AI](https://github.com/Gentleman-Programming/gentle-ai) y
 [free-search-mcp](https://github.com/sweetcornna/free-search-mcp).
 
 ## English
@@ -307,12 +314,13 @@ local en ambos idiomas.
 ## Índice de documentación
 
 - [Inventario de features upstream](docs/UPSTREAM-FEATURES.md)
+- [Notas de la release 0.8.0](release-notes-v0.8.0.md)
 - [Notas de la release 0.7.0](release-notes-v0.7.0.md)
+- [Estado de 0.7.0](docs/STATE-0.7.0.md)
+- [Roadmap agresivo de 0.7.0](docs/ROADMAP-0.7.0.md)
 - [Estado de 0.6.0](docs/STATE-0.6.0.md)
 - [Roadmap de 0.6.0](docs/ROADMAP-0.6.0.md)
 - [Auditoría y plan de tests de 0.6.0](docs/AUDIT-0.6.0-TEST-PLAN.md)
-- [Estado de 0.7.0](docs/STATE-0.7.0.md)
-- [Roadmap agresivo de 0.7.0](docs/ROADMAP-0.7.0.md)
 - [Release y packaging de Windows](docs/RELEASE.es.md)
 - [Roadmap histórico](docs/ROADMAP.md)
 - [Problemas conocidos](docs/KNOWN-ISSUES.md)

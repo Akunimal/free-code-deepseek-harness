@@ -3,35 +3,45 @@
 El shell (menus, splash, diálogos) ya tiene i18n ES/EN en `apps/shell/src/main/i18n.ts`.
 
 El **harness web** (la UI interna de DeepSeek) conserva catálogos chino (zh), inglés
-(en) y español (es), pero en el build desktop actual el selector visible sólo ofrece
-inglés y chino. La exposición de español es una regresión conocida pendiente; no se
-debe documentar como disponible hasta que el selector vuelva a mostrarla.
+(en) y español (es). En 0.8.0 el selector visible muestra correctamente español,
+inglés y chino gracias al parche `141-*`.
 
-## Archivos principales
+## Estado actual (0.8.0)
 
-- `vendor/deepseek-harness/packages/client/locale/src/locales/en.ts` → copiar como `es.ts`
-- `vendor/deepseek-harness/packages/client/locale/src/locales/settings.ts` → agregar ES
-- `vendor/deepseek-harness/packages/client/locale/src/locales/index.ts` → registrar ES
+✅ **Resuelto en 0.8.0** — El locale español está completamente funcional en la
+UI web. El parche `141-freecode-spanish-translations.patch` agrega diccionarios
+`es` reales a 30 archivos `locales.ts` (~1000 claves), y los bundles de vendor
+se reconstruyeron con `pnpm build:vendor` para que los cambios queden activos.
+El selector de idioma renderiza español correctamente.
 
-## Archivos por componente (~20 archivos)
+## Archivos actualizados en el parche 141
 
-Cada paquete `ui-*` tiene su propio `locales.ts`:
+- `vendor/deepseek-harness/packages/client/locale/src/locales/en.ts` (base)
+- `vendor/deepseek-harness/packages/client/locale/src/locales/settings.ts` (ES agregado)
+- `vendor/deepseek-harness/packages/client/locale/src/locales/index.ts` (ES registrado)
+
+## Archivos por componente (~30 archivos)
+
+Cada paquete `ui-*` tiene su propio `locales.ts` con clave `es` agregada:
 
 ```
 vendor/deepseek-harness/packages/client/ui-chat/src/client/locales.ts
 vendor/deepseek-harness/packages/client/ui-settings/src/client/locales.ts
 vendor/deepseek-harness/packages/client/ui-sidebar/src/client/locales.ts
-... (y ~17 más)
+... (y ~27 más)
 ```
 
 ## Verificación realizada
 
-- Se agregaron catálogos `es` a los 25 namespaces `locales.ts`, además de los
+- Se agregaron catálogos `es` a los 30 namespaces `locales.ts`, además de los
   catálogos base, settings y el selector de directorios.
 - Se registró `es` en cada plugin que expone UI traducible y en la preferencia
   persistida `locale.preference`.
 - Se verificó paridad de claves `zh/en/es`, typecheck upstream y las pruebas
   de locale, settings, conversación y directory picker.
+- Se reconstruyeron los bundles de vendor con `pnpm build:vendor`.
+- Se instaló la app 0.8.0 y se confirmó que el selector expone y renderiza
+  español correctamente.
 
 ## Nota
 

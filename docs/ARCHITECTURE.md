@@ -2,53 +2,60 @@
 
 FreeCode DeepSeek Harness is a Windows Electron shell around the upstream
 DeepSeek Harness web application. The shell owns native lifecycle, the local
-OpenCode-compatible pool, secrets, model discovery, MCP configuration,
+OpenCode-compatible gateway, secrets, model discovery, MCP configuration,
 packaging and tray/UI affordances. The upstream subtree owns the agent runtime
 and conversation web product.
 
 ```mermaid
 flowchart LR
   UI[DSH web conversation UI] -->|HTTP / API RPC| DSH[dsh web child]
-  DSH -->|OPENCODE2API_LB_URL| LB[loopback load balancer]
-  LB --> POOL[opencode2api worker pool]
-  POOL --> O[OpenCode Free providers]
-  DSH -->|stdio MCP| SERENA[Serena]
+  DSH -->|OPENCODE2API_URL| GW[opencode2api gateway]
+  GW --> O[OpenCode Free providers]
+  DSH -->|stdio MCP| ENGRAM[Engram]
   DSH -->|stdio MCP| SEARCH[free-search]
   SHELL[Electron main + preload] --> DSH
-  SHELL --> LB
-  SHELL --> POOL
+  SHELL --> GW
   SHELL --> VAULT[secret store]
   SHELL --> DATA[userData / dsh-home / logs]
+  SHELL --> GAI[gentle-ai binary]
 ```
 
 ## Runtime sequence
 
 1. Electron resolves development resources or packaged `resources/freecode`.
-2. The shell starts the local worker pool and loopback load balancer.
+2. The shell starts the opencode2api gateway (sole model gateway — freellmpool
+   was removed in 0.8.0).
 3. The supervisor starts `dsh web --host 127.0.0.1 --port 0 --no-open` with a
    whitelisted environment and waits for its authenticated readiness URL.
 4. The shell opens one hardened `BrowserWindow` with context isolation, no Node
    integration, renderer sandboxing and the preload bridge.
-5. Provider seeding maintains the OpenCode Free route and removes only the
-   managed legacy `gemini-web` route. Gemini2API is not started, packaged or
-   exposed by 0.6.0.
+5. Provider seeding maintains the OpenCode Free route via opencode2api and
+   removes only the managed legacy `gemini-web` route. Gemini2API is not
+   started, packaged or exposed. freellmpool was removed in 0.8.0.
 6. The managed MCP catalog is materialized under `dsh-home/mcp/servers.json`.
-   Standard mounts Serena and free-search only when their persisted flags are
-   enabled. The bridge reports a server ready only after
+   Standard mounts Engram (on by default) and free-search (disabled until its
+   binary is vendored) only when their persisted flags are enabled. The bridge
+   reports a server ready only after
    `initialize → tools/list → schema validation → registration`.
-7. Serena receives the canonicalized session workspace immediately before its
-   first tool call for that workspace. Activation and the dependent call share
-   one serialized queue, so concurrent sessions cannot switch Serena between
-   activation and use.
+7. The Gentle AI binary is resolved from `resources/gentle-ai/gentle-ai.exe`
+   with a PATH fallback. The `gentle-ai:status`, `gentle-ai:doctor`, and
+   `gentle-ai:run` IPC channels are registered with Zod validation and exposed
+   to the renderer via `window.freecode.gentleAi`. The `gentle-ai` preset
+   activates automatically when the binary is detected.
 
 ## Process ownership and headless policy
 
 - `apps/shell/src/main/index.ts`: Electron lifecycle, one native window, tray,
   menus, notifications, updater and logging.
-- `apps/shell/src/main/runtime.ts`: composition of pool, load balancer,
+- `apps/shell/src/main/runtime.ts`: composition of opencode2api gateway,
   supervisor and live MCP status projection.
 - `apps/shell/src/main/harness-supervisor.ts`: readiness, generations, restart
   budget, tree termination and no-window child spawning.
+- `apps/shell/src/main/gentle-ai.ts`: bounded IPC wrapper for gentle-ai binary
+  (status/doctor/run channels).
+- `apps/shell/src/main/gentle-ai-resolver.ts`: bundled-to-PATH binary resolver,
+  cached, null-safe.
+- `apps/shell/src/main/rdd.ts`: RDD v2 verbatim transition enforcer.
 - `packages/opencode-adapter`: worker spawn, health, respawn, round-robin and
   process-tree termination.
 - `packages/shared-types`: zod-backed IPC and runtime status contracts.
@@ -102,6 +109,7 @@ the helper is unavailable or returns empty/invalid output.
 ```text
 resources/freecode/
   opencode2api/<windows-binary>
+  gentle-ai/gentle-ai.exe
   tesseract/tesseract.exe
   tesseract/*.dll
   tesseract/tessdata/eng.traineddata
@@ -149,7 +157,7 @@ edits are temporary working changes until represented by a patch. See
 
 ## Windows release scope
 
-0.6.0 publishes only Windows x64 NSIS and portable artifacts. Linux/macOS are
+0.8.0 publishes only Windows x64 NSIS and portable artifacts. Linux/macOS are
 contributor-only manual builds and have no release gate, no binary upload and
 no claim of parity. The final local gate is documented in
-[`docs/ROADMAP-0.6.0.md`](ROADMAP-0.6.0.md).
+[`docs/RELEASE.md`](RELEASE.md).
