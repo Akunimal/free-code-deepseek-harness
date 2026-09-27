@@ -1,18 +1,13 @@
 import { HarnessSupervisor, HarnessInstance } from './harness-supervisor.js';
 import { SecretStore, resolveSecrets } from './secret-store.js';
 import { join, resolve } from 'node:path';
-import { startFreellmpoolProxy, type FreellmpoolInstance } from './freellmpool.js';
 import { startOpencode2api, type Opencode2apiInstance } from './opencode2api.js';
 import { embeddedMcpEnvironment, ensureEmbeddedMcpConfig } from './mcp-home.js';
 import type { EmbeddedMcpState, McpRuntimeStatus, WorkerHandle } from '@freecode/shared-types';
 
 /**
  * Shell runtime — owns the full backend stack of the desktop app:
- *   freellmpool proxy + opencode2api (anonymous Zen) -> dsh web supervisor.
- *
- * The proxies are local OpenAI-compatible endpoints; the harness reaches the
- * freellmpool route through the supervisor's lbUrl, and the second
- * no-auth provider is registered separately through settings.yaml seeding.
+ *   opencode2api (anonymous Zen) -> dsh web supervisor.
  */
 
 export interface ShellRuntimeConfig {
@@ -48,12 +43,10 @@ export interface ShellRuntimeConfig {
 export type McpStatusListener = (status: McpRuntimeStatus) => void;
 
 export interface ShellRuntime {
-  /** Freellmpool proxy instance. */
-  proxy: FreellmpoolInstance;
   /** opencode2api anonymous-Zen instance; undefined when unavailable. */
   opencode2api?: Opencode2apiInstance;
   supervisor: HarnessSupervisor;
-  /** No per-worker handles with freellmpool; returns empty array. */
+  /** No per-worker handles; returns empty array. */
   workers: () => WorkerHandle[];
   /** Current managed MCP config plus live connection evidence. */
   mcpState(): EmbeddedMcpState;
@@ -151,14 +144,8 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
       error: error instanceof Error ? error.message : String(error),
     });
   }
-  // Start freellmpool as the primary pool and opencode2api (anonymous Zen)
-  // as the optional no-auth sidecar. Both are local loopback proxies.
   const log = cfg.log ? (level: string, msg: string, meta?: Record<string, unknown>) =>
     cfg.log?.(level as 'debug' | 'info' | 'warn' | 'error', msg, meta) : undefined;
-  const proxy = await startFreellmpoolProxy({
-    pythonPath: cfg.pythonPath,
-    log,
-  });
 
   const cliEntry = resolve(join(cfg.resourcesDir, 'dsh', 'apps', 'cli', 'lib', 'bin.js'));
   const secretEnvNames = cfg.secretEnvNames ?? ['FREECODE_PUBLIC_KEY'];
@@ -189,7 +176,7 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
     nodePath: cfg.nodePath,
     cliEntry,
     homeDir: join(cfg.userDataDir, 'dsh-home'),
-    lbUrl: proxy.url,
+    lbUrl: opencode2api?.url ?? 'http://127.0.0.1:55405',
     // Product-managed MCP values are authoritative for the child process:
     // they are derived from the persisted catalog, not inherited from the
     // Electron environment. A new harness process reads the current toggles.
@@ -200,7 +187,6 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
   });
 
   return {
-    proxy,
     opencode2api,
     supervisor,
     workers: () => [],
@@ -232,7 +218,6 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
     },
     stop: async () => {
       await supervisor.stop();
-      await proxy.stop();
       await opencode2api?.stop();
     },
   };

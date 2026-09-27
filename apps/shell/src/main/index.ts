@@ -1120,18 +1120,13 @@ app.whenReady().then(async () => {
   await runtime.start();
   appLogger?.logger.info({}, '[DEBUG-STARTUP] 10/10 runtime.start() OK — harness should be starting');
 
-  const lbUrl = runtime.proxy.url;
-  const opencodeUrl = runtime.opencode2api?.url;
+  const opencodeUrl = runtime.opencode2api?.url ?? 'http://127.0.0.1:55405';
   const opencodeApiKey = runtime.opencode2api?.apiKey ?? 'public';
-  // freellmpool manages providers internally; report proxy as ready
-  reportBackendState('pool', 'ready', 'freellmpool proxy active');
-  // Seed once the proxy is up. This migration also removes the old managed
-  // Gemini route from persisted settings without touching unrelated providers.
-  // The opencode-free lane is seeded only while the sidecar runs.
+  reportBackendState('pool', 'ready', 'opencode2api gateway active');
   seedProviders({
     homeDir: join(userDataDir, 'dsh-home'),
-    lbBaseUrl: `${lbUrl}/v1`,
-    ...(opencodeUrl ? { opencodeBaseUrl: opencodeUrl } : {}),
+    lbBaseUrl: `${opencodeUrl}/v1`,
+    opencodeBaseUrl: opencodeUrl,
   });
 
   // FASE 6: model refresh at boot + every 30 min.
@@ -1156,10 +1151,10 @@ app.whenReady().then(async () => {
     refreshInFlight = true;
     try {
       catalog = await refreshModels({
-        lbBaseUrl: lbUrl,
+        lbBaseUrl: opencodeUrl,
         homeDir: join(userDataDir, 'dsh-home'),
         userDataDir,
-        authHeader: 'Bearer public',
+        authHeader: `Bearer ${opencodeApiKey}`,
         providers: opencodeUrl ? [
           {
             provider: 'opencode-free',
@@ -1279,7 +1274,7 @@ app.whenReady().then(async () => {
     runtime,
     userDataDir,
     homeDir: join(userDataDir, 'dsh-home'),
-    lbBaseUrl: lbUrl,
+    lbBaseUrl: opencodeUrl,
     catalogStore: { get: () => catalog },
     warpFleet: {
       get instance() { return warpFleet; },
