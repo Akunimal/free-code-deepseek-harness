@@ -26,6 +26,8 @@ const IpcChannels = {
   mcpOpenConfig: 'mcp:openConfig',
   mcpStatus: 'mcp:status',
   harnessRestart: 'harness:restart',
+  torStatus: 'tor:status',
+  torRotate: 'tor:rotate',
   localeSet: 'locale:set',
   ocrExtract: 'ocr:extract',
   ocrStatus: 'ocr:status',
@@ -77,6 +79,14 @@ const api: FreeCodeApi = {
       const listener = (_e: unknown, status: McpRuntimeStatus): void => cb(status);
       ipcRenderer.on(IpcChannels.mcpStatus, listener);
       return () => ipcRenderer.removeListener(IpcChannels.mcpStatus, listener);
+    },
+  },
+  tor: {
+    rotate: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.torRotate),
+    onStatus(cb: (status: any) => void): () => void {
+      const listener = (_e: unknown, status: any): void => cb(status);
+      ipcRenderer.on(IpcChannels.torStatus, listener);
+      return () => ipcRenderer.removeListener(IpcChannels.torStatus, listener);
     },
   },
   locale: {

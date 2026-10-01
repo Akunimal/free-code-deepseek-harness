@@ -593,6 +593,12 @@ input[type=range]{width:100%;margin:8px 0}
 <input id="pool-size" type="range" min="1" max="16" step="1" value="${poolSize}" oninput="document.getElementById('pool-size-value').value=this.value" onchange="window.freecode.pool.resize(Number(this.value))">
 <p style="font-size:12px;color:#9da4b3">${t('overlay.workersNote')}</p>
 <table><thead><tr><th>id</th><th>status</th><th>addr</th><th>pid</th><th>restarts</th></tr></thead><tbody id="pool-rows">${rows}</tbody></table>
+<hr style="border-color:#2a2f3a;margin:16px 0">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+  <label style="font-weight:600;font-size:14px">Resiliencia Tor</label>
+  <button id="tor-rotate-btn" style="padding:4px 8px;font-size:11px" onclick="window.freecode.tor.rotate()">Rotar IP (NEWNYM)</button>
+</div>
+<table><thead><tr><th>active</th><th>status</th><th>socks</th><th>control</th><th>pid</th></tr></thead><tbody id="tor-rows"><tr><td colspan="5" style="color:#9da4b3">Cargando estado Tor...</td></tr></tbody></table>
 <script>
 window.freecode.pool.onStatus(function(payload) {
   var tbody = document.getElementById('pool-rows');
@@ -605,6 +611,11 @@ window.freecode.pool.onStatus(function(payload) {
     slider.value = payload.workers.length;
     output.value = payload.workers.length;
   }
+});
+window.freecode.tor.onStatus(function(s) {
+  var tbody = document.getElementById('tor-rows');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td>'+(s.active ? 'YES' : 'NO')+'</td><td>'+s.status+'</td><td>127.0.0.1:'+s.socksPort+'</td><td>127.0.0.1:'+s.controlPort+'</td><td>'+s.pid+'</td></tr>';
 });
 </script>
 </body></html>`;
@@ -1181,6 +1192,7 @@ app.whenReady().then(async () => {
   // FASE 10: IPC contract.
   registerIpc({
     runtime,
+    torManager,
     userDataDir,
     homeDir: join(userDataDir, 'dsh-home'),
     lbBaseUrl: opencodeUrl,

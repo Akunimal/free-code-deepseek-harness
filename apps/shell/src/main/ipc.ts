@@ -9,6 +9,7 @@ import {
   type ModelCatalog,
 } from '@freecode/shared-types';
 import { ShellRuntime } from './runtime.js';
+import type { TorManager } from './tor-manager.js';
 import { detectLocalRoutes } from './omniroute-detector.js';
 import { refreshModels } from './model-refresher.js';
 import { isOcrAvailable, extractText } from './ocr.js';
@@ -32,6 +33,7 @@ const OcrPayloadSchema = z.object({
 
 export interface IpcDeps {
   runtime: ShellRuntime;
+  torManager?: TorManager | null;
   userDataDir: string;
   homeDir: string;
   lbBaseUrl: string;
@@ -194,7 +196,25 @@ export function registerIpc(deps: IpcDeps): () => void {
     return extractText(buffer, { lang: parsed.lang });
   });
 
+  // tor:rotate — trigger manual SIGNAL NEWNYM rotation
+  ipcMain.handle(IpcChannels.torRotate, async () => {
+    if (!deps.torManager) return false;
+    return deps.torManager.rotateIdentity();
+  });
+
+  const emitTorStatus = (): void => {
+    if (!deps.torManager) return;
+    const status = deps.torManager.getStatus();
+    for (const wc of rendererTargets()) wc.send(IpcChannels.torStatus, status);
+  };
+
+  let offTorChange: (() => void) | null = null;
+  if (deps.torManager) {
+    offTorChange = deps.torManager.onChange(() => emitTorStatus());
+  }
+
   return () => {
+    offTorChange?.();
     ipcMain.removeHandler(IpcChannels.modelsRefresh);
     ipcMain.removeHandler(IpcChannels.omnirouteDetect);
     ipcMain.removeHandler(IpcChannels.harnessRestart);
@@ -204,6 +224,7 @@ export function registerIpc(deps: IpcDeps): () => void {
     ipcMain.removeHandler(IpcChannels.mcpGetState);
     ipcMain.removeHandler(IpcChannels.mcpSetEnabled);
     ipcMain.removeHandler(IpcChannels.mcpOpenConfig);
+    ipcMain.removeHandler(IpcChannels.torRotate);
     ipcMain.removeHandler(IpcChannels.localeSet);
     ipcMain.removeHandler(IpcChannels.ocrExtract);
     ipcMain.removeHandler(IpcChannels.ocrStatus);

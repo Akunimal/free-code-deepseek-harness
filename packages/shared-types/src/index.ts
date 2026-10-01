@@ -37,6 +37,19 @@ export const DetectedRouteSchema = z.object({
 });
 export type DetectedRoute = z.infer<typeof DetectedRouteSchema>;
 
+/** Tor resilience status snapshot. */
+export const TorStatusSchema = z.object({
+  active: z.boolean(),
+  status: z.enum(['stopped', 'starting', 'ready', 'rotating', 'failed']),
+  socksPort: z.number(),
+  controlPort: z.number(),
+  pid: z.number(),
+  circuitCount: z.number(),
+  lastRotatedAt: z.number().nullable(),
+  lastError: z.string().nullable(),
+});
+export type TorStatus = z.infer<typeof TorStatusSchema>;
+
 /** IPC channel names (single source of truth for main + preload + renderer). */
 export const IpcChannels = {
   poolStatus: 'pool:status',
@@ -51,6 +64,8 @@ export const IpcChannels = {
   mcpOpenConfig: 'mcp:openConfig',
   mcpStatus: 'mcp:status',
   harnessRestart: 'harness:restart',
+  torStatus: 'tor:status',
+  torRotate: 'tor:rotate',
   localeSet: 'locale:set',
   ocrExtract: 'ocr:extract',
   ocrStatus: 'ocr:status',
@@ -75,6 +90,8 @@ export interface IpcPayloads {
   [IpcChannels.mcpOpenConfig]: void;
   [IpcChannels.mcpStatus]: McpRuntimeStatus;
   [IpcChannels.harnessRestart]: void;
+  [IpcChannels.torStatus]: TorStatus;
+  [IpcChannels.torRotate]: void;
   [IpcChannels.localeSet]: { locale: 'zh' | 'en' | 'es' };
   [IpcChannels.ocrExtract]: { imageBase64: string; lang?: string };
   [IpcChannels.ocrStatus]: { available: boolean; binaryPath: string | null };
@@ -157,6 +174,10 @@ export interface FreeCodeApi {
     setEnabled(id: string, enabled: boolean): Promise<EmbeddedMcpState>;
     openConfig(): Promise<void>;
     onStatus(cb: (status: McpRuntimeStatus) => void): () => void;
+  };
+  tor: {
+    rotate(): Promise<boolean>;
+    onStatus(cb: (status: TorStatus) => void): () => void;
   };
   locale: {
     set(locale: 'zh' | 'en' | 'es'): Promise<void>;
