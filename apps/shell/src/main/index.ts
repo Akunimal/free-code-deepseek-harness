@@ -25,6 +25,7 @@ import {
   acquireSingletonLock,
   requestElectronSingleInstance,
 } from './lifecycle-manager.js';
+import { TorManager } from './tor-manager.js';
 
 /**
  * Electron main — wires the runtime (pool -> LB -> harness), the native
@@ -130,6 +131,22 @@ async function bootstrap(): Promise<ShellRuntime> {
   if (!process.env.FREECODE_PUBLIC_KEY) {
     await ensureSecret(secrets, 'FREECODE_PUBLIC_KEY', 'public');
   }
+  let torMgr: TorManager | undefined;
+  const torBinaryPath = join(resources, 'tor', 'tor.exe');
+  if (existsSync(torBinaryPath)) {
+    torMgr = new TorManager({
+      torBinaryPath,
+      dataDir: userDataDir,
+      geoipDir: join(resources, 'tor'),
+      log: (level, msg, meta) => {
+        const fn = level === 'error' || level === 'warn' ? level : 'info';
+        appLogger?.logger[fn]?.(meta ?? {}, `[tor-manager] ${msg}`);
+      },
+    });
+    await torMgr.start();
+    torManager = torMgr;
+  }
+
   appLogger?.logger.info({}, '[DEBUG-STARTUP] bootstrap 5/5 createShellRuntime starting');
   const runtime = await createShellRuntime({
     resourcesDir: resources,
@@ -141,6 +158,7 @@ async function bootstrap(): Promise<ShellRuntime> {
     nodeEnv: nodeRuntimeEnv(app.isPackaged),
     extraEnv: buildHarnessExtraEnv(dialogBridge),
     uvxCommand,
+    proxies: torMgr?.isReady ? ['direct', torMgr.socksUrl] : ['direct'],
     browserBridge: embeddedBrowser ? { endpoint: embeddedBrowser.endpoint, token: embeddedBrowser.token } : undefined,
     log: (level, msg, meta) => {
       const fn = level === 'error' || level === 'warn' ? level : 'info';
@@ -183,6 +201,7 @@ function installPopupBackstop(): void {
 }
 let tray: Tray | null = null;
 let runtime: ShellRuntime | null = null;
+let torManager: TorManager | null = null;
 let appLogger: AppLogger | null = null;
 let updateService: UpdateService | null = null;
 let updateTimer: NodeJS.Timeout | null = null;
@@ -1239,6 +1258,8 @@ app.on('before-quit', async (e) => {
       if (refreshIntervalId) { clearInterval(refreshIntervalId); refreshIntervalId = null; }
       await embeddedBrowser?.close();
       embeddedBrowser = null;
+      await torManager?.stop();
+      torManager = null;
       await dialogBridge?.close();
       dialogBridge = null;
       await runtime?.stop();

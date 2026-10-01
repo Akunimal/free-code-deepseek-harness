@@ -30,6 +30,8 @@ export interface ShellRuntimeConfig {
   log?: (level: string, msg: string, meta?: Record<string, unknown>) => void;
   /** Additional stable environment for the bundled Harness web client. */
   extraEnv?: Record<string, string>;
+  /** Optional egress proxies passed to opencode2api (e.g. ['direct', 'socks5://127.0.0.1:9050']). */
+  proxies?: string[];
   /** Authenticated loopback bridge for the visible persistent browser. */
   browserBridge?: { endpoint: string; token: string };
   /** Absolute uvx executable selected by the platform bootstrap. */
@@ -165,6 +167,7 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
     resourcesDir: join(cfg.resourcesDir),
     userDataDir: cfg.userDataDir,
     apiKey: publicKey,
+    proxies: cfg.proxies,
     log,
   }).catch((error: unknown) => {
     cfg.log?.('warn', 'opencode2api sidecar failed to start', {

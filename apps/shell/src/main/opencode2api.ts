@@ -25,6 +25,8 @@ export interface Opencode2apiConfig {
   userDataDir: string
   /** Local API key the gateway accepts (`server_keys`). */
   apiKey: string
+  /** Optional egress proxies passed to opencode2api (e.g. ['direct', 'socks5://127.0.0.1:9050']). */
+  proxies?: string[]
   platform?: NodeJS.Platform
   arch?: NodeJS.Architecture
   /** Structured logger. */
@@ -67,7 +69,7 @@ async function findFreePort(host: string): Promise<number> {
 
 /** Mirror of the anonymous Zen runtime config (E:\AgentZeroPhoenix layout):
  *  no upstream keys, anonymous lane on, loopback only, WebUI disabled. */
-function buildConfig(port: number, apiKey: string): string {
+function buildConfig(port: number, apiKey: string, proxies: string[] = ['direct']): string {
   return JSON.stringify(
     {
       listen: `127.0.0.1:${port}`,
@@ -76,7 +78,7 @@ function buildConfig(port: number, apiKey: string): string {
       go_keys: [],
       anonymous: true,
       prefer: 'zen',
-      proxies: ['direct'],
+      proxies,
       proxyfile: '',
       upstream: {
         zen: 'https://opencode.ai/zen',
@@ -147,7 +149,7 @@ export async function startOpencode2api(
 
   try {
     mkdirSync(configDir, { recursive: true })
-    writeFileSync(configPath, buildConfig(port, config.apiKey), 'utf8')
+    writeFileSync(configPath, buildConfig(port, config.apiKey, config.proxies), 'utf8')
   } catch (error) {
     log('warn', 'opencode2api config write failed; no-auth lane disabled', {
       error: error instanceof Error ? error.message : String(error),
