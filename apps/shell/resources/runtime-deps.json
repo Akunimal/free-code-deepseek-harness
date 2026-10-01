@@ -26,6 +26,23 @@
       "required": true
     },
     {
+      "id": "tor",
+      "name": "Tor Expert Bundle",
+      "version": "13.5.7",
+      "arch": "win-x64",
+      "source": "torproject.org/tor-expert-bundle",
+      "license": "BSD-3-Clause",
+      "sha256": "6b866c187a0dee2fb751a8990d50dc1ed83f68e025720081e4d8e27097067dc8",
+      "path": "tor/tor.exe",
+      "launch": {
+        "type": "exec",
+        "args": ["-f", "$DSH_HOME/tor/torrc"],
+        "cwd": "$DSH_HOME/tor"
+      },
+      "network": false,
+      "required": true
+    },
+    {
       "id": "dsh-cli",
       "name": "dsh CLI",
       "version": "0.1.3-alpha.1",

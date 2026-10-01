@@ -27,8 +27,6 @@ extraResources:
       - '!.uv-cache'
       - '!.uv-tools/**'
       - '!.uv-tools'
-      - '!tor/**'
-      - '!tor'
 icon: build/icon.png
 win:
   icon: build/icon.ico
