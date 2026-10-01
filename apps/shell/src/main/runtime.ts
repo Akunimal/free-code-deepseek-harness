@@ -17,9 +17,6 @@ export interface ShellRuntimeConfig {
   nodePath: string;
   /** User data dir (DSH_HOME + worker logs). */
   userDataDir: string;
-  /** Python path for freellmpool. Default: 'python' */
-  pythonPath?: string;
-  lbAuthHeader?: string;
   /** Secret vault; apiKeyEnv refs are resolved into spawn env (not process.env). */
   secrets?: SecretStore;
   /** Env var names to resolve from the vault into the harness child env. */
@@ -36,10 +33,6 @@ export interface ShellRuntimeConfig {
   browserBridge?: { endpoint: string; token: string };
   /** Absolute uvx executable selected by the platform bootstrap. */
   uvxCommand?: string;
-  /** Fired once when every ready worker is rate-limited (429) within the LB
-   *  detection window. The shell uses it to auto-enable Tor Fleet exit
-   *  rotation and warn the user about added latency. */
-  onAllWorkersRateLimited?: () => void;
 }
 
 export type McpStatusListener = (status: McpRuntimeStatus) => void;

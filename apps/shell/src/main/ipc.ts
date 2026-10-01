@@ -69,7 +69,7 @@ export function registerIpc(deps: IpcDeps): () => void {
     };
     for (const wc of rendererTargets()) wc.send(IpcChannels.poolStatus, payload);
   };
-  // freellmpool manages routing internally; no per-worker change events
+  // opencode2api routes requests internally; no per-worker change events
   // emitStatus can be called manually if needed
 
   // models:refresh (invoke) — route through guarded path when available to
@@ -104,12 +104,12 @@ export function registerIpc(deps: IpcDeps): () => void {
     IpcChannels.poolRestartWorker,
     (_e, payload: unknown) => {
       const parsed = PoolRestartWorkerPayloadSchema.parse(payload);
-      // freellmpool manages routing internally; individual worker restart is not applicable
+      // opencode2api routes internally; individual worker restart is not applicable
       return Promise.resolve();
     },
   );
 
-  // pool:resize — no-op with freellmpool (provider routing is automatic)
+  // pool:resize — no-op with opencode2api (provider routing is automatic)
   ipcMain.handle(IpcChannels.poolResize, (_e, payload: unknown) => {
     const parsed = PoolResizePayloadSchema.parse(payload);
     return Promise.resolve();

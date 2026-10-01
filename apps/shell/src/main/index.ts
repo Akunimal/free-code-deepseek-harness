@@ -152,7 +152,6 @@ async function bootstrap(): Promise<ShellRuntime> {
     resourcesDir: resources,
     nodePath: findNode(),
     userDataDir,
-    lbAuthHeader: 'Bearer public',
     secrets,
     secretEnvNames: ['FREECODE_PUBLIC_KEY'],
     nodeEnv: nodeRuntimeEnv(app.isPackaged),
@@ -566,7 +565,7 @@ function createOverlayWindow(): void {
 
 function renderOverlayHtml(): string {
   const workers = runtime?.workers() ?? [];
-  const poolSize = 1; // freellmpool manages routing internally
+  const poolSize = 1; // opencode2api routes internally
   const rows = workers
     .map(
       (w) =>

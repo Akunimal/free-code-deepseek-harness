@@ -193,19 +193,6 @@ const strings = {
   // Dialog bridge
   'dialog.selectWorkspace': { es: 'Seleccionar carpeta de trabajo', en: 'Select Workspace Directory' },
 
-  // Auto-enable WARP when the whole pool is rate-limited
-  'warp.auto.title': { es: 'WARP activado', en: 'WARP enabled' },
-  'warp.auto.message': {
-    es: 'Todos los workers recibieron rate limit (429). Se activó Cloudflare WARP para rotar la IP de salida y sortear el límite.',
-    en: 'Every worker was rate-limited (429). Cloudflare WARP was enabled to rotate the exit IP and route around the limit.',
-  },
-  'warp.auto.detail': {
-    es: 'WARP funciona a nivel de sistema operativo — no hay proxies SOCKS5 por worker. Si el límite persiste, se rota la IP automáticamente. Podés desactivarlo cuando el límite se libere.',
-    en: 'WARP operates at the OS network layer — no per-worker SOCKS5 proxy. If the limit persists, the IP rotates automatically. You can turn it off once the limit clears.',
-  },
-  'warp.auto.keep': { es: 'Mantener activado', en: 'Keep enabled' },
-  'warp.auto.disable': { es: 'Desactivar', en: 'Disable' },
-
   // Startup preflight failure — installer bug or corrupted install
   'preflight.title': { es: 'Instalación incompleta', en: 'Install incomplete' },
   'preflight.reinstallHint': {
@@ -315,11 +302,6 @@ const zhStrings = {
   'portable.stale.title': 'Portable 已过时',
   'portable.stale.message': '检测到更新的安装版本 ($1)。此 Portable ($2) 可能存在已修复的问题。请更新或移除此 Portable。',
   'dialog.selectWorkspace': '选择工作目录',
-  'warp.auto.title': 'Cloudflare WARP 已启用',
-  'warp.auto.message': '所有 worker 都被限流（429）。已启用 Cloudflare WARP 以轮换出口 IP 绕过限制。',
-  'warp.auto.detail': 'WARP 在操作系统网络层运行 — 没有每 worker 的 SOCKS5 代理。如果限制持续，IP 会自动轮换。限制解除后可以关闭。',
-  'warp.auto.keep': '保持启用',
-  'warp.auto.disable': '禁用',
   'preflight.title': '安装不完整',
   'preflight.reinstallHint': '请从官方安装程序重新安装 FreeCode（v0.4.3，最后一个稳定版本，或更高版本）。',
   'version.new': '新版本',
