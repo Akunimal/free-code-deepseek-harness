@@ -189,10 +189,19 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
     seeded = true;
   }
 
-  // Ensure agent-default-model points to deepseek-free with a model that
-  // the pool actually serves. If missing or pointing to a provider with no
-  // API key configured (e.g. the built-in deepseek-official on a fresh
-  // install), correct it to the free pool route.
+  // Ensure agent-default-model points to a model the pool actually serves,
+  // WITHOUT clobbering the user's chosen provider/model on every boot.
+  // Rules (in order):
+  //  1. Missing/invalid default -> seed deepseek-free + first served model.
+  //  2. Default pointing at a removed route (gemini-web, perplexity-free) ->
+  //     migrate to deepseek-free first served model.
+  //  3. Default pointing at a managed lane (deepseek-free, opencode-free) with
+  //     that model still listed -> KEEP the user's choice (only strip a stale
+  //     reasoningEffort when the model is not a DeepSeek reasoning model).
+  //  4. Default pointing at a managed lane whose model is gone (e.g. strict
+  //     200-only lane erased it, or the opencode sidecar is down and its route
+  //     was removed) -> fall back to deepseek-free first served model.
+  //  5. Default pointing at an unrelated user provider -> never touch.
   const defaultModel = settings['agent-default-model'] as
     | { provider?: string; model?: string; reasoningEffort?: string }
     | undefined;
@@ -201,19 +210,52 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
     : [];
   const firstModel = freeModels.find((entry) => typeof entry?.id === 'string')?.id as string
     | undefined ?? FALLBACK_MODELS[0]!.id;
-  if (!defaultModel || defaultModel.provider !== DEFAULT_PROVIDER) {
+  const modelIdsOf = (providerId: string): Set<string> => {
+    const models = providers[providerId]?.models;
+    if (!Array.isArray(models)) return new Set();
+    return new Set(
+      models
+        .map((entry) => (entry !== null && typeof entry === 'object' && typeof (entry as { id?: unknown }).id === 'string'
+          ? (entry as { id: string }).id
+          : null))
+        .filter((id): id is string => id !== null),
+    );
+  };
+  const stripStaleEffort = (entry: { provider?: string; model?: string; reasoningEffort?: string }): boolean => {
+    if (entry.reasoningEffort !== undefined && !isDeepSeekModel(entry.model)) {
+      const { reasoningEffort: _staleEffort, ...withoutStaleEffort } = entry;
+      settings['agent-default-model'] = withoutStaleEffort;
+      return true;
+    }
+    return false;
+  };
+  if (!defaultModel || typeof defaultModel.model !== 'string' || typeof defaultModel.provider !== 'string') {
     settings['agent-default-model'] = {
       provider: DEFAULT_PROVIDER,
       model: firstModel,
     };
     seeded = true;
-  } else if (
-    defaultModel.reasoningEffort !== undefined
-    && !isDeepSeekModel(defaultModel.model)
-  ) {
-    const { reasoningEffort: _staleEffort, ...withoutStaleEffort } = defaultModel;
-    settings['agent-default-model'] = withoutStaleEffort;
+  } else if (defaultModel.provider === REMOVED_GEMINI_PROVIDER || defaultModel.provider === LEGACY_PERPLEXITY_PROVIDER) {
+    settings['agent-default-model'] = {
+      provider: DEFAULT_PROVIDER,
+      model: firstModel,
+    };
     seeded = true;
+  } else if (defaultModel.provider === DEFAULT_PROVIDER || defaultModel.provider === OPENCODE_PROVIDER) {
+    if (modelIdsOf(defaultModel.provider).has(defaultModel.model)) {
+      // User's chosen lane + model still served: keep it, clean stale effort only.
+      if (stripStaleEffort(defaultModel)) seeded = true;
+    } else {
+      // Chosen model no longer served (or its lane was removed while down):
+      // fall back to the free pool's first served model.
+      settings['agent-default-model'] = {
+        provider: DEFAULT_PROVIDER,
+        model: firstModel,
+      };
+      seeded = true;
+    }
+  } else {
+    // Unrelated user provider (e.g. omniroute, custom gateway): never touch.
   }
 
   if (seeded) {

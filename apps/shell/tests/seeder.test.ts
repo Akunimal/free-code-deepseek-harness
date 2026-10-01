@@ -282,6 +282,93 @@ llm-pi-ai:
     rmSync(home, { recursive: true, force: true });
   });
 
+  it('preserves the user-chosen opencode-free model instead of forcing deepseek-free', () => {
+    const home = tmpHome();
+    const path = join(home, 'settings.yaml');
+    writeFileSync(path, `
+llm-pi-ai:
+  providers:
+    deepseek-free:
+      displayName: FreeLLMPool
+      api: openai-completions
+      baseURL: ${LB}/v1
+      models:
+        - id: x-preview-f
+    opencode-free:
+      displayName: OpenCode No-Auth
+      api: openai-completions
+      baseURL: http://127.0.0.1:45678/v1
+      models:
+        - id: some-anon-model
+agent-default-model:
+  provider: opencode-free
+  model: some-anon-model
+`);
+    const { seeded } = seedProviders({
+      homeDir: home,
+      lbBaseUrl: `${LB}/v1`,
+      opencodeBaseUrl: 'http://127.0.0.1:45678',
+    });
+    const settings = loadYaml(readFileSync(path, 'utf8')) as any;
+    expect(settings['agent-default-model']).toEqual({
+      provider: 'opencode-free',
+      model: 'some-anon-model',
+    });
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  it('preserves a non-first deepseek-free model chosen by the user', () => {
+    const home = tmpHome();
+    const path = join(home, 'settings.yaml');
+    writeFileSync(path, `
+llm-pi-ai:
+  providers:
+    deepseek-free:
+      displayName: FreeLLMPool
+      api: openai-completions
+      baseURL: ${LB}/v1
+      models:
+        - id: x-preview-f
+        - id: deepseek-v4-flash
+agent-default-model:
+  provider: deepseek-free
+  model: deepseek-v4-flash
+`);
+    seedProviders({ homeDir: home, lbBaseUrl: `${LB}/v1` });
+    const settings = loadYaml(readFileSync(path, 'utf8')) as any;
+    expect(settings['agent-default-model']).toEqual({
+      provider: 'deepseek-free',
+      model: 'deepseek-v4-flash',
+    });
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  it('falls back to deepseek-free when the chosen managed model is gone', () => {
+    const home = tmpHome();
+    const path = join(home, 'settings.yaml');
+    writeFileSync(path, `
+llm-pi-ai:
+  providers:
+    deepseek-free:
+      displayName: FreeLLMPool
+      api: openai-completions
+      baseURL: ${LB}/v1
+      models:
+        - id: x-preview-f
+agent-default-model:
+  provider: opencode-free
+  model: vanished-model
+`);
+    // No opencodeBaseUrl: sidecar down, managed opencode-free route removed.
+    seedProviders({ homeDir: home, lbBaseUrl: `${LB}/v1` });
+    const settings = loadYaml(readFileSync(path, 'utf8')) as any;
+    expect(settings['agent-default-model']).toEqual({
+      provider: 'deepseek-free',
+      model: 'x-preview-f',
+    });
+    rmSync(home, { recursive: true, force: true });
+  });
+
   it('normalizes MiMo V2.5 to binary thinking and its DeepSeek wire dialect', () => {
     const home = tmpHome();
     const path = join(home, 'settings.yaml');
