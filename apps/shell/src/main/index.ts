@@ -1110,7 +1110,6 @@ app.whenReady().then(async () => {
   seedProviders({
     homeDir: join(userDataDir, 'dsh-home'),
     lbBaseUrl: `${opencodeUrl}/v1`,
-    opencodeBaseUrl: opencodeUrl,
   });
 
   // FASE 6: model refresh at boot + every 30 min.
@@ -1139,24 +1138,10 @@ app.whenReady().then(async () => {
         homeDir: join(userDataDir, 'dsh-home'),
         userDataDir,
         authHeader: `Bearer ${opencodeApiKey}`,
-        providers: opencodeUrl ? [
-          {
-            provider: 'opencode-free',
-            baseUrl: opencodeUrl,
-            // Same local credential the seeder writes (apiKeyEnv) and the
-            // gateway was started with (server_keys).
-            authHeader: `Bearer ${opencodeApiKey}`,
-            apiKeyEnv: 'FREECODE_PUBLIC_KEY',
-            defaultInput: ['text'],
-            // Strict 200-only exposure: every advertised id is probed with a
-            // real chat completion (the gateway shapes the ping into an
-            // agent body upstream) and only responders reach settings. No
-            // forced exposure, no static fallback: with zero responders the
-            // synced list is erased and the route stays hidden until the
-            // next refresh.
-            strictResponders: true,
-          },
-        ] : [],
+        // Single lane: deepseek-free is the only provider seeded, served by
+        // the opencode2api gateway. The former opencode-free duplicate pointed
+        // at the same gateway and doubled every model in the selector.
+        providers: [],
         onUpdate: (c) => {
           catalog = c;
           reportBackendState('catalog', c.availability === 'degraded' ? 'degraded' : 'ready',
@@ -1164,13 +1149,13 @@ app.whenReady().then(async () => {
         },
       });
       refreshRetryAttempt = 0;
-      // The anonymous lane is strict-200: retry while nothing responds, so
-      // the selector self-heals within minutes of quota recovery instead of
-      // waiting for the 30-minute cadence. Bounded: 8 attempts, then cadence.
+      // Retry while nothing responds, so the selector self-heals within
+      // minutes of quota recovery instead of waiting for the 30-minute
+      // cadence. Bounded: 8 attempts, then cadence.
       if (opencodeUrl) {
-        const ocEntries = catalog?.providers['opencode-free']?.models ?? [];
-        const ocResponders = ocEntries.filter((model) => model.responds).length;
-        if (ocResponders === 0 && opencodeRetryAttempt < OPENCODE_REFRESH_RETRIES && !shuttingDown) {
+        const freeEntries = catalog?.providers['deepseek-free']?.models ?? [];
+        const responders = freeEntries.filter((model) => model.responds).length;
+        if (responders === 0 && opencodeRetryAttempt < OPENCODE_REFRESH_RETRIES && !shuttingDown) {
           opencodeRetryAttempt++;
           setTimeout(() => { void doRefresh(); }, OPENCODE_REFRESH_RETRY_MS).unref?.();
         } else {

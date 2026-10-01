@@ -5,16 +5,16 @@ import { join } from 'node:path'
 import { resolveOpencodeBinary } from './resource-paths.js'
 
 /**
- * opencode2api sidecar — runs the bundled v1.3.2 gateway as a second local
- * OpenAI-compatible endpoint next to freellmpool, exposing OpenCode's
- * anonymous Zen free lane ("no auth").
+ * opencode2api sidecar — runs the bundled gateway as the single local
+ * OpenAI-compatible endpoint, exposing OpenCode's anonymous Zen free lane
+ * ("no auth").
  *
  * The upstream request contract (canonical `ses_` session headers,
  * `x-opencode-client`, anthropic-version/beta headers, agent-shaped streaming
  * bodies with the core toolset) lives inside the vendored binary, so the
  * headers this app sends upstream are exactly the ones opencode2api's logic
  * produces. Locally the gateway authenticates with `server_keys` via
- * `Authorization: Bearer <key>` (or `x-api-key`), same as the FreeLLMPool
+ * `Authorization: Bearer <key>` (or `x-api-key`), same as the free pool
  * route's `FREECODE_PUBLIC_KEY`.
  */
 

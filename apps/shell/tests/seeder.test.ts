@@ -4,7 +4,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { load as loadYaml } from 'js-yaml';
 import { seedProviders } from '../src/main/provider-seeder.js';
-import { reasoningEffortsForModel } from '../src/main/reasoning-policy.js';
 
 const LB = 'http://127.0.0.1:41234';
 
@@ -20,7 +19,7 @@ describe('provider-seeder', () => {
     const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
     expect(settings['llm-pi-ai'].defaultProvider).toBeUndefined(); // no such key upstream
     const p = settings['llm-pi-ai'].providers['deepseek-free'];
-    expect(p.displayName).toBe('FreeLLMPool');
+    expect(p.displayName).toBe('OpenCode Free');
     expect(p.api).toBe('openai-completions');
     expect(p.baseURL).toBe(LB);
     expect(p.apiKeyEnv).toBe('FREECODE_PUBLIC_KEY');
@@ -64,26 +63,28 @@ describe('provider-seeder', () => {
     rmSync(home, { recursive: true, force: true });
   });
 
-  it('migrates the legacy DeepSeek Free pool label to FreeLLMPool', () => {
-    const home = tmpHome();
-    const path = join(home, 'settings.yaml');
-    writeFileSync(path, `
+  it('migrates legacy pool labels (incl. FreeLLMPool) to OpenCode Free', () => {
+    for (const legacy of ['DeepSeek Free (pool)', 'FreeLLMPool']) {
+      const home = tmpHome();
+      const path = join(home, 'settings.yaml');
+      writeFileSync(path, `
 llm-pi-ai:
   providers:
     deepseek-free:
-      displayName: DeepSeek Free (pool)
+      displayName: ${legacy}
       api: openai-completions
       baseURL: ${LB}
       models:
         - id: x-preview-f
 `);
 
-    const { seeded } = seedProviders({ homeDir: home, lbBaseUrl: LB });
-    expect(seeded).toBe(true);
-    const settings = loadYaml(readFileSync(path, 'utf8')) as any;
-    expect(settings['llm-pi-ai'].providers['deepseek-free'].displayName)
-      .toBe('FreeLLMPool');
-    rmSync(home, { recursive: true, force: true });
+      const { seeded } = seedProviders({ homeDir: home, lbBaseUrl: LB });
+      expect(seeded).toBe(true);
+      const settings = loadYaml(readFileSync(path, 'utf8')) as any;
+      expect(settings['llm-pi-ai'].providers['deepseek-free'].displayName)
+        .toBe('OpenCode Free');
+      rmSync(home, { recursive: true, force: true });
+    }
   });
 
   it('never deletes user-added providers', () => {
@@ -210,31 +211,7 @@ agent-default-model:
     rmSync(home, { recursive: true, force: true });
   });
 
-  it('seeds opencode-free when the no-auth sidecar URL is provided', () => {
-    const home = tmpHome();
-    const { seeded } = seedProviders({
-      homeDir: home,
-      lbBaseUrl: LB,
-      opencodeBaseUrl: 'http://127.0.0.1:45678',
-    });
-    expect(seeded).toBe(true);
-    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
-    const p = settings['llm-pi-ai'].providers['opencode-free'];
-    expect(p.displayName).toBe('OpenCode No-Auth');
-    expect(p.api).toBe('openai-completions');
-    expect(p.baseURL).toBe('http://127.0.0.1:45678/v1');
-    expect(p.apiKeyEnv).toBe('FREECODE_PUBLIC_KEY');
-    expect(p.defaultInput).toEqual(['text']);
-    // Non-empty fallback so the upstream validator accepts the route; the
-    // model-refresher replaces it with the live anonymous-eligible catalog.
-    expect(p.models).toEqual([
-      { id: 'deepseek-v4-flash-free', reasoningEfforts: reasoningEffortsForModel('deepseek-v4-flash-free') },
-    ]);
-    expect(Object.keys(settings['llm-pi-ai'].providers)).toEqual(['deepseek-free', 'opencode-free']);
-    rmSync(home, { recursive: true, force: true });
-  });
-
-  it('removes the managed opencode-free route when the sidecar is down', () => {
+  it('removes the managed opencode-free duplicate lane (single-lane consolidation)', () => {
     const home = tmpHome();
     const path = join(home, 'settings.yaml');
     writeFileSync(path, `
@@ -282,18 +259,19 @@ llm-pi-ai:
     rmSync(home, { recursive: true, force: true });
   });
 
-  it('preserves the user-chosen opencode-free model instead of forcing deepseek-free', () => {
+  it('migrates an opencode-free default to deepseek-free keeping the served model', () => {
     const home = tmpHome();
     const path = join(home, 'settings.yaml');
     writeFileSync(path, `
 llm-pi-ai:
   providers:
     deepseek-free:
-      displayName: FreeLLMPool
+      displayName: OpenCode Free
       api: openai-completions
       baseURL: ${LB}/v1
       models:
         - id: x-preview-f
+        - id: some-anon-model
     opencode-free:
       displayName: OpenCode No-Auth
       api: openai-completions
@@ -304,14 +282,12 @@ agent-default-model:
   provider: opencode-free
   model: some-anon-model
 `);
-    const { seeded } = seedProviders({
-      homeDir: home,
-      lbBaseUrl: `${LB}/v1`,
-      opencodeBaseUrl: 'http://127.0.0.1:45678',
-    });
+    seedProviders({ homeDir: home, lbBaseUrl: `${LB}/v1` });
     const settings = loadYaml(readFileSync(path, 'utf8')) as any;
+    // Duplicate lane removed, same model id preserved under the single lane.
+    expect(settings['llm-pi-ai'].providers['opencode-free']).toBeUndefined();
     expect(settings['agent-default-model']).toEqual({
-      provider: 'opencode-free',
+      provider: 'deepseek-free',
       model: 'some-anon-model',
     });
     rmSync(home, { recursive: true, force: true });
@@ -324,7 +300,7 @@ agent-default-model:
 llm-pi-ai:
   providers:
     deepseek-free:
-      displayName: FreeLLMPool
+      displayName: OpenCode Free
       api: openai-completions
       baseURL: ${LB}/v1
       models:
@@ -350,7 +326,7 @@ agent-default-model:
 llm-pi-ai:
   providers:
     deepseek-free:
-      displayName: FreeLLMPool
+      displayName: OpenCode Free
       api: openai-completions
       baseURL: ${LB}/v1
       models:
@@ -359,7 +335,7 @@ agent-default-model:
   provider: opencode-free
   model: vanished-model
 `);
-    // No opencodeBaseUrl: sidecar down, managed opencode-free route removed.
+    // Duplicate opencode-free lane consolidated: default migrates to deepseek-free.
     seedProviders({ homeDir: home, lbBaseUrl: `${LB}/v1` });
     const settings = loadYaml(readFileSync(path, 'utf8')) as any;
     expect(settings['agent-default-model']).toEqual({

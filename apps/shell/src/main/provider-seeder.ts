@@ -26,9 +26,6 @@ export interface SeederConfig {
   homeDir: string; // DSH_HOME
   lbBaseUrl: string; // http://127.0.0.1:<PUERTO_LB>/v1
   apiKeyEnv?: string; // default FREECODE_PUBLIC_KEY
-  /** Root URL of the opencode2api no-auth sidecar (no /v1). When set the
-   *  `opencode-free` provider is seeded; when absent it is removed. */
-  opencodeBaseUrl?: string;
 }
 
 interface ProviderEntry {
@@ -54,21 +51,19 @@ interface SettingsShape {
 
 const DEFAULT_PROVIDER = 'deepseek-free';
 const DEFAULT_API_KEY_ENV = 'FREECODE_PUBLIC_KEY';
-const FREE_PROVIDER_DISPLAY_NAME = 'FreeLLMPool';
+const FREE_PROVIDER_DISPLAY_NAME = 'OpenCode Free';
 const LEGACY_FREE_PROVIDER_DISPLAY_NAMES = new Set([
   'DeepSeek Free (pool)',
   'DeepSeek Free Pool',
   'OpenCode Free Pool',
+  'FreeLLMPool',
 ]);
-/** Second lane — the opencode2api anonymous-Zen gateway. Seeded only while
- *  the sidecar is up; removed when it is not (avoids a dead route).
- *  The model-refresher syncs the live anonymous-eligible catalog; the fallback
- *  below exists only so the section passes the non-empty validator. */
+/** Removed duplicate lane — `opencode-free` pointed at the same opencode2api
+ *  gateway as `deepseek-free` and doubled every model in the selector.
+ *  Only the app-managed duplicate (displayName `OpenCode No-Auth`) is removed;
+ *  a user-owned provider reusing the key stays untouched. */
 const OPENCODE_PROVIDER = 'opencode-free';
 const OPENCODE_DISPLAY_NAME = 'OpenCode No-Auth';
-const OPENCODE_FALLBACK_MODELS = [
-  { id: 'deepseek-v4-flash-free', reasoningEfforts: reasoningEffortsForModel('deepseek-v4-flash-free') },
-];
 /** Seed model — the model-refresher replaces this with the live catalog. */
 const FALLBACK_MODELS = [{ id: 'x-preview-f', reasoningEfforts: reasoningEffortsForModel('x-preview-f') }];
 const LEGACY_PERPLEXITY_PROVIDER = 'perplexity-free';
@@ -148,43 +143,9 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
     seeded = true;
   }
 
-  // OpenCode No-Auth lane (opencode2api anonymous-Zen gateway). Present only
-  // while the sidecar is running: seed it when up, remove the app-managed
-  // route when down so the selector never shows a dead entry.
-  if (cfg.opencodeBaseUrl) {
-    const baseURL = `${cfg.opencodeBaseUrl}/v1`;
-    const oc = providers[OPENCODE_PROVIDER];
-    if (oc) {
-      if (oc.displayName !== OPENCODE_DISPLAY_NAME) {
-        oc.displayName = OPENCODE_DISPLAY_NAME;
-        seeded = true;
-      }
-      if (oc.baseURL !== baseURL) {
-        oc.baseURL = baseURL;
-        seeded = true;
-      }
-      if (oc.apiKeyEnv !== (cfg.apiKeyEnv ?? DEFAULT_API_KEY_ENV)) {
-        oc.apiKeyEnv = cfg.apiKeyEnv ?? DEFAULT_API_KEY_ENV;
-        seeded = true;
-      }
-      if (!Array.isArray(oc.models) || oc.models.length === 0) {
-        oc.models = OPENCODE_FALLBACK_MODELS.map((entry) => ({ ...entry }));
-        seeded = true;
-      }
-    } else {
-      providers[OPENCODE_PROVIDER] = {
-        displayName: OPENCODE_DISPLAY_NAME,
-        api: 'openai-completions',
-        baseURL,
-        apiKeyEnv: cfg.apiKeyEnv ?? DEFAULT_API_KEY_ENV,
-        defaultInput: ['text'],
-        models: OPENCODE_FALLBACK_MODELS.map((entry) => ({ ...entry })),
-        // NOTE: no thinkingFormat compat here — the refresher sets per-model
-        // reasoningEfforts for the anonymous-eligible catalog.
-      };
-      seeded = true;
-    }
-  } else if (providers[OPENCODE_PROVIDER]?.displayName === OPENCODE_DISPLAY_NAME) {
+  // Drop the consolidated opencode-free duplicate lane so each gateway model
+  // appears exactly once in the selector, under deepseek-free.
+  if (providers[OPENCODE_PROVIDER]?.displayName === OPENCODE_DISPLAY_NAME) {
     delete providers[OPENCODE_PROVIDER];
     seeded = true;
   }
@@ -193,14 +154,14 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
   // WITHOUT clobbering the user's chosen provider/model on every boot.
   // Rules (in order):
   //  1. Missing/invalid default -> seed deepseek-free + first served model.
-  //  2. Default pointing at a removed route (gemini-web, perplexity-free) ->
-  //     migrate to deepseek-free first served model.
-  //  3. Default pointing at a managed lane (deepseek-free, opencode-free) with
-  //     that model still listed -> KEEP the user's choice (only strip a stale
-  //     reasoningEffort when the model is not a DeepSeek reasoning model).
-  //  4. Default pointing at a managed lane whose model is gone (e.g. strict
-  //     200-only lane erased it, or the opencode sidecar is down and its route
-  //     was removed) -> fall back to deepseek-free first served model.
+  //  2. Default pointing at a removed route (gemini-web, perplexity-free, or
+  //     the consolidated opencode-free duplicate) -> migrate to deepseek-free,
+  //     keeping the same model id when the single lane still serves it.
+  //  3. Default pointing at deepseek-free with that model still listed ->
+  //     KEEP the user's choice (only strip a stale reasoningEffort when the
+  //     model is not a DeepSeek reasoning model).
+  //  4. Default pointing at deepseek-free whose model is gone -> fall back to
+  //     deepseek-free first served model.
   //  5. Default pointing at an unrelated user provider -> never touch.
   const defaultModel = settings['agent-default-model'] as
     | { provider?: string; model?: string; reasoningEffort?: string }
@@ -235,19 +196,26 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
       model: firstModel,
     };
     seeded = true;
-  } else if (defaultModel.provider === REMOVED_GEMINI_PROVIDER || defaultModel.provider === LEGACY_PERPLEXITY_PROVIDER) {
+  } else if (
+    defaultModel.provider === REMOVED_GEMINI_PROVIDER
+    || defaultModel.provider === LEGACY_PERPLEXITY_PROVIDER
+    || defaultModel.provider === OPENCODE_PROVIDER
+  ) {
+    // Migrate removed routes to the single lane, preserving the model id when
+    // the consolidated lane still serves it.
+    const servedIds = modelIdsOf(DEFAULT_PROVIDER);
+    const migrated = servedIds.has(defaultModel.model) ? defaultModel.model : firstModel;
     settings['agent-default-model'] = {
       provider: DEFAULT_PROVIDER,
-      model: firstModel,
+      model: migrated,
     };
     seeded = true;
-  } else if (defaultModel.provider === DEFAULT_PROVIDER || defaultModel.provider === OPENCODE_PROVIDER) {
-    if (modelIdsOf(defaultModel.provider).has(defaultModel.model)) {
-      // User's chosen lane + model still served: keep it, clean stale effort only.
+  } else if (defaultModel.provider === DEFAULT_PROVIDER) {
+    if (modelIdsOf(DEFAULT_PROVIDER).has(defaultModel.model)) {
+      // User's chosen model still served: keep it, clean stale effort only.
       if (stripStaleEffort(defaultModel)) seeded = true;
     } else {
-      // Chosen model no longer served (or its lane was removed while down):
-      // fall back to the free pool's first served model.
+      // Chosen model no longer served: fall back to first served model.
       settings['agent-default-model'] = {
         provider: DEFAULT_PROVIDER,
         model: firstModel,
