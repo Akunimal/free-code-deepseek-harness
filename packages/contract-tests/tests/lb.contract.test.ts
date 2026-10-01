@@ -33,15 +33,14 @@ describe('contract: opencode2api CLI flags', () => {
     .map((r) => join(r, binaryName))
     .find((b) => existsSync(b));
   beforeAll(() => expect(bin, 'missing Windows opencode2api binary; build/package the runtime before contract tests').toBeDefined());
-  it('binary exposes -port/-password/-config (Go flag style)', () => {
+  it('binary exposes -config/-listen/-web-listen (jasonxu114514/opencode2api Go flag style)', () => {
     const r = spawnSync(bin!, ['--help'], { encoding: 'utf8', timeout: 15_000 });
     expect(r.status).toBe(0);
     const help = r.stdout + r.stderr;
-    // NB: opencode2api uses Go stdlib flags (single dash) — this is the
-    // contract our pool spawns against.
-    expect(help).toContain('-port');
-    expect(help).toContain('-password');
+    // jasonxu114514/opencode2api uses Go stdlib flags (-config, -listen, -web-listen)
     expect(help).toContain('-config');
+    expect(help).toContain('-listen');
+    expect(help).toContain('-web-listen');
   });
 });
 
