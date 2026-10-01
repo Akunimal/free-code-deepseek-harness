@@ -1,5 +1,63 @@
 # Changelog
 
+## 0.9.0 — 2026-10-01
+
+### Added / Agregado
+
+- **Bundled single-instance Tor** — `resources/freecode/tor/` ships `tor.exe`,
+  `geoip`, `geoip6` with a hardened fast-node `torrc` (`FastFirstHopPK`,
+  `CircuitBuildTimeout 5`, `NumEntryGuards 3`, EU exit preference,
+  `IsolateSOCKSAuth`). One daemon managed by the shell (SOCKS `127.0.0.1:9050`,
+  control `127.0.0.1:9051`), replacing the Cloudflare WARP dependency. /
+  **Tor único empaquetado** — `tor.exe` + `geoip`/`geoip6` con `torrc`
+  endurecido; un solo daemon gestionado por el shell que reemplaza la
+  dependencia de Cloudflare WARP.
+- **Tor resilience IPC + overlay UI** — `tor:status` / `tor:rotate` channels,
+  preload `window.freecode.tor`, and a "Resiliencia Tor" block in the status
+  overlay with a `NEWNYM` button to rotate the circuit on demand. / IPC de
+  resiliencia Tor + bloque en el overlay con botón `NEWNYM`.
+- **Tor failover for opencode2api** — The gateway is launched with
+  `proxies: ['direct', 'socks5://127.0.0.1:9050']`, started before the runtime
+  and stopped on `before-quit`, so model traffic can fail over through Tor when
+  direct egress is blocked. / **Failover Tor para opencode2api** — el gateway
+  se lanza con los proxies direct+SOCKS; el tráfico de modelos puede fallar vía
+  Tor cuando el egress directo está bloqueado.
+
+### Changed / Cambiado
+
+- **Single model lane (duplicates gone)** — The `opencode-free` duplicate lane
+  (same opencode2api gateway as `deepseek-free`) is consolidated into one
+  `deepseek-free` provider labeled *OpenCode Free*; every model appears exactly
+  once in the selector. Legacy labels (`FreeLLMPool`, `DeepSeek Free (pool)`)
+  migrate automatically and a default still pointing at `opencode-free` moves
+  to `deepseek-free` keeping the same model id when served. /
+  **Lane único de modelos** — el lane duplicado `opencode-free` se consolidó en
+  `deepseek-free` (*OpenCode Free*); cada modelo aparece una sola vez.
+- **Seeder preserves user model choice** — Boot no longer clobbers a
+  user-selected `agent-default-model`; it only falls back when the default is
+  missing, points at a removed route, or its model vanished. Custom user
+  providers are untouched. / **El seeder respeta el modelo elegido** — el
+  arranque ya no sobreescribe el `agent-default-model` del usuario.
+- **opencode2api upstream confirmed** — Correct upstream is
+  `jasonxu114514/opencode2api` (binary flags `-config`, `-listen`,
+  `-web-listen`); `NOTICE` and contract tests updated. / Upstream correcto:
+  `jasonxu114514/opencode2api`.
+- **Dead-code cleanup** — Removed `warfleet.ts`, `torfleet.ts` and their IPC,
+  dead `warp.auto.*` i18n keys (ES/EN/ZH), unused runtime config fields
+  (`pythonPath`, `lbAuthHeader`, `onAllWorkersRateLimited`) and stale
+  freellmpool comments. / **Limpieza de código muerto** — sin `warfleet`/
+  `torfleet`, sin claves i18n WARP, sin campos runtime muertos.
+- **Version 0.9.0** — Bumped in both `package.json` files; locale and release
+  contract tests aligned. / Versión 0.9.0 en ambos `package.json`.
+
+### Platform support / Plataformas
+
+- Tested: Windows 10/11 x64 ONLY (clean install, `harness ready`, Tor
+  listening, single lane, shutdown). / Probado: solo Windows 10/11 x64.
+- NOT tested, NOT supported: Windows ARM64, Linux, macOS. No artifacts
+  published. / NO probado, NO soportado: Windows ARM64, Linux, macOS. Sin
+  artefactos publicados.
+
 ## 0.8.0 — 2026-09-27
 
 ### Added / Agregado

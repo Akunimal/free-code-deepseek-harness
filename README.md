@@ -8,16 +8,16 @@ calls.
 
 ## English
 
-## Current status: 0.8.0 released (Windows x64)
+## Current status: 0.9.0 released (Windows x64)
 
-0.8.0 is published for Windows x64 with:
+0.9.0 is published for Windows x64 with:
 
-- an NSIS installer (~286 MB);
-- a portable Windows executable (~286 MB).
+- an NSIS installer (~304 MB);
+- a portable Windows executable (~304 MB).
 
 **Platform support: tested on Windows 10/11 x64 ONLY** (clean install,
-launch, `harness ready`, model lane populated, graceful shutdown).
-**NOT tested and NOT supported**: Windows ARM64, Linux (any
+launch, `harness ready`, Tor listening, single model lane, graceful
+shutdown). **NOT tested and NOT supported**: Windows ARM64, Linux (any
 distribution/architecture), macOS (any architecture). No artifacts are
 published for these platforms; contributor builds exist but were not tested
 by the maintainer and must not be treated as usable releases. Builds are
@@ -33,11 +33,21 @@ not the source of truth and may not contain the fixes in this worktree.
   automatically when the binary is detected; falls back to `standard` otherwise.
   A bounded `gentle-ai:*` IPC bridge (`status`, `doctor`, `run`) with Zod
   contract is exposed to the renderer via `window.freecode.gentleAi`.
-- **OpenCode No-Auth lane** (`opencode-free`) served by the bundled
-  opencode2api gateway — anonymous free models, no keys. This is the sole
-  model gateway: the freellmpool dependency was removed in 0.8.0. Only models
-  that answer a real 200 probe reach the selector; dead models are hidden and
-  the lane self-heals after quota recovery.
+- **Single model lane** (`deepseek-free`, labeled *OpenCode Free*) served by
+  the bundled opencode2api gateway — anonymous free models, no keys. This is
+  the sole model gateway: freellmpool was removed in 0.8.0 and the
+  duplicated `opencode-free` lane was consolidated into it in 0.9.0, so
+  every model appears exactly once in the selector. Only models that answer
+  a real 200 probe reach the selector; dead models are hidden and the lane
+  self-heals after quota recovery.
+- **Bundled Tor for egress failover** — a single `tor.exe` instance
+  (`resources/freecode/tor/`, hardened fast-node `torrc`) runs on
+  `127.0.0.1:9050` (SOCKS) and `:9051` (control). opencode2api is launched
+  with `[direct, socks5://127.0.0.1:9050]` so model traffic can fail over
+  through Tor when direct egress is blocked. The status overlay exposes a
+  **Resiliencia Tor** block with a `NEWNYM` button to rotate the circuit on
+  demand. It replaces the old Cloudflare WARP dependency; there is no WARP
+  service, no `warfleet` and no `torfleet` sidecar.
 - The upstream DeepSeek Harness web UI, sessions, workspaces, permissions and
   file tools.
 - A single Electron shell and a single `dsh` child generation.
@@ -54,7 +64,7 @@ not the source of truth and may not contain the fixes in this worktree.
   shell schema; it is a no-op when its optional executable is absent.
 - RTK and Caveman settings are exposed separately and are never claimed to be
   active when their executable is missing. Both remain optional PATH-resolved
-  helpers in 0.8.0; they are not bundled binaries.
+  helpers in 0.9.0; they are not bundled binaries.
 - Bundled Windows Tesseract OCR for text-only image workflows.
 - A persistent embedded browser only when the user explicitly opens it.
 - About/version from the packaged app version, an update button shaped like
@@ -70,18 +80,18 @@ semantic memory surface.
 ## Install and first run
 
 1. Download the Windows setup or portable artifact from the
-   [0.8.0 GitHub release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.8.0).
+   [0.9.0 GitHub release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.0).
 2. Install or unpack it and launch the real shortcut/executable.
 3. Select a project directory in the picker.
 4. Ask the model to inspect or change the project.
 
-The 0.8.0 installer includes the Electron runtime, upstream Harness runtime,
-opencode2api gateway binary, native dependencies and Tesseract (~286 MB
-download, ~69,000 files, about 10 minutes to unpack — this is normal, not a
-hang). Managed MCP servers still resolve `uvx` (vendored, with user-PATH and
-pinned-download fallbacks). If an incomplete install is detected, the
-diagnostic points to the app log and recommends reinstalling from the
-official 0.8.0 release.
+The 0.9.0 installer includes the Electron runtime, upstream Harness runtime,
+opencode2api gateway binary, the bundled Tor binaries, native dependencies
+and Tesseract (~304 MB download, ~69,000 files, about 10 minutes to unpack —
+this is normal, not a hang). Managed MCP servers still resolve `uvx`
+(vendored, with user-PATH and pinned-download fallbacks). If an incomplete
+install is detected, the diagnostic points to the app log and recommends
+reinstalling from the official 0.9.0 release.
 
 The Windows bootstrap silently reuses a user-installed `uvx.exe`, or downloads
 the pinned official uv ZIP into a per-user tools directory after HTTPS and
@@ -173,7 +183,7 @@ errors; FreeCode never substitutes `[image omitted...]` silently.
 Settings → Plugins → plugin configuration → Shell exposes independent RTK and
 Caveman toggles. Their schema defaults are on. The executable probes are
 cached; if a binary is not installed, the corresponding feature is an explicit
-no-op. RTK and Caveman are optional PATH-resolved helpers in 0.8.0, not
+no-op. RTK and Caveman are optional PATH-resolved helpers in 0.9.0, not
 bundled binaries. Only safe, plain commands are eligible for wrapping;
 pipes, redirects, substitutions and other compound syntax are preserved.
 
@@ -183,11 +193,11 @@ distinguishes permission failures from tool/MCP failures.
 
 ## Updater and versioning
 
-About reads `app.getVersion()`, so the packaged 0.8.0 binary says 0.8.0.
+About reads `app.getVersion()`, so the packaged 0.9.0 binary says 0.9.0.
 The app checks for updates at startup and every six hours. The update control
 is the same circular primary button as Send, with the arrow pointing down.
 When downloading, the tray tooltip/menu and a native notification say so; the
-install/restart phase is also visible. The 0.8.0 gate keeps the startup path
+install/restart phase is also visible. The 0.9.0 gate keeps the startup path
 green and does not require an upgrade from 0.4.3.
 
 ## Root cause of the previous regressions and 0.7.0 closure
@@ -233,7 +243,7 @@ update/fetch vendor/deepseek-harness upstream
 Product changes must become small sorted patches in `patches/upstream/`, with a
 focused contract test. The patch applier is idempotent, vendor-scoped and
 fail-closed. Do not leave an unrepresented feature as a permanent direct edit
-inside `vendor/deepseek-harness`. For 0.8.0 the required order is:
+inside `vendor/deepseek-harness`. For 0.9.0 the required order is:
 
 ```text
 freeze evidence → fetch/update upstream → replay ordered patches
@@ -245,7 +255,7 @@ Every product feature must have an owner file, a modular patch or shell-layer
 implementation, a contract test and a replay/idempotence check. See
 [docs/UPSTREAM-PATCHING.md](docs/UPSTREAM-PATCHING.md).
 
-## Windows local release gate: 0.8.0 as released
+## Windows local release gate: 0.9.0 as released
 
 Run from PowerShell on the maintainer Windows machine:
 
@@ -261,21 +271,23 @@ pnpm --filter @freecode/shell package
 pnpm --filter @freecode/shell smoke:nsis
 ```
 
-This gate passed for 0.8.0 with typecheck clean, the shell suite passing,
-all prepackage verifiers green (NSIS hooks, vendor freshness, runtime
-manifest, native ABI), a clean install, `harness ready`, the opencode-free
-model lane populated, gentle-ai preset visible, Spanish locale rendering
-correctly, and a graceful shutdown. It still does not require an upgrade from
-0.4.3; only clean installation and launch are release gates.
+This gate passed for 0.9.0 with typecheck clean, the shell suite passing
+(165/165), all contract tests green (107/107), all prepackage verifiers
+green (NSIS hooks, vendor freshness, runtime manifest, native ABI), a clean
+install, `harness ready`, Tor listening on 9050/9051, the single
+`deepseek-free` lane populated without duplicates, gentle-ai preset visible,
+Spanish locale rendering correctly, and a graceful shutdown. It still does
+not require an upgrade from 0.4.3; only clean installation and launch are
+release gates.
 
-Tag `v0.8.0` and the GitHub release (setup, portable, blockmap, `latest.yml`,
+Tag `v0.9.0` and the GitHub release (setup, portable, blockmap, `latest.yml`,
 harness runtime tarball) were published from these artifacts.
 
 Expected artifacts are under `apps/shell/release/`.
 
 ## Manual contributor builds for other operating systems
 
-Linux and macOS are not release targets for 0.8.0, and Windows ARM64 is not
+Linux and macOS are not release targets for 0.9.0, and Windows ARM64 is not
 tested either. A contributor may work on a native host with its own Node,
 pnpm, Git, Electron build tools and native dependencies:
 
@@ -315,6 +327,7 @@ hardening y release local en ambos idiomas.
 ## Documentation index
 
 - [Upstream feature inventory](docs/UPSTREAM-FEATURES.md)
+- [0.9.0 release notes](release-notes-v0.9.0.md)
 - [0.8.0 release notes](release-notes-v0.8.0.md)
 - [0.7.0 release notes](release-notes-v0.7.0.md)
 - [0.7.0 state ledger](docs/STATE-0.7.0.md)

@@ -8,16 +8,16 @@ servidores MCP y llamadas al modelo.
 
 ## Español
 
-## Estado actual: 0.8.0 publicado (Windows x64)
+## Estado actual: 0.9.0 publicado (Windows x64)
 
-0.8.0 está publicado para Windows x64 con:
+0.9.0 está publicado para Windows x64 con:
 
-- un instalador NSIS (~286 MB);
-- un ejecutable portable de Windows (~286 MB).
+- un instalador NSIS (~304 MB);
+- un ejecutable portable de Windows (~304 MB).
 
 **Soporte de plataformas: probado solo en Windows 10/11 x64**
-(instalación limpia, arranque, `harness ready`, lane con modelos,
-apagado limpio). **NO probado y NO soportado**: Windows ARM64, Linux
+(instalación limpia, arranque, `harness ready`, Tor escuchando, lane único de
+modelos, apagado limpio). **NO probado y NO soportado**: Windows ARM64, Linux
 (cualquier distribución/arquitectura), macOS (cualquier arquitectura). No se
 publican artefactos para estas plataformas; los builds de contribuidores
 existen pero no fueron probados por el mantenedor y no deben tratarse como
@@ -34,11 +34,21 @@ fuente de verdad y puede no contener los fixes de este worktree.
   automáticamente cuando se detecta el binario; si no, usa `standard`. Un bridge
   IPC acotado `gentle-ai:*` (`status`, `doctor`, `run`) con contrato Zod queda
   expuesto al renderer mediante `window.freecode.gentleAi`.
-- **Lane OpenCode No-Auth** (`opencode-free`) servido por el gateway opencode2api
-  incluido — modelos gratuitos anónimos, sin keys. Este es el único gateway de
-  modelos: la dependencia freellmpool fue eliminada en 0.8.0. Solo los modelos
-  que responden un 200 real llegan al selector; los muertos se ocultan y el lane
+- **Lane único de modelos** (`deepseek-free`, etiquetado *OpenCode Free*)
+  servido por el gateway opencode2api incluido — modelos gratuitos anónimos,
+  sin keys. Este es el único gateway de modelos: freellmpool se eliminó en
+  0.8.0 y el lane duplicado `opencode-free` se consolidó en 0.9.0, de modo
+  que cada modelo aparece una sola vez en el selector. Solo los modelos que
+  responden un 200 real llegan al selector; los muertos se ocultan y el lane
   se recupera solo cuando vuelve la cuota.
+- **Tor incluido para failover de egress** — una sola instancia `tor.exe`
+  (`resources/freecode/tor/`, `torrc` endurecido de nodos rápidos) corre en
+  `127.0.0.1:9050` (SOCKS) y `:9051` (control). opencode2api se lanza con
+  `[direct, socks5://127.0.0.1:9050]` para que el tráfico de modelos pueda
+  fallar vía Tor cuando el egress directo está bloqueado. El overlay de
+  estado expone un bloque **Resiliencia Tor** con botón `NEWNYM` para rotar
+  el circuito bajo demanda. Reemplaza la vieja dependencia de Cloudflare
+  WARP; no hay servicio WARP, ni `warfleet`, ni sidecar `torfleet`.
 - La UI upstream de DeepSeek Harness, sesiones, workspaces, permisos y
   herramientas de archivos.
 - Una sola shell Electron y una sola generación del proceso `dsh` como objetivo
@@ -55,7 +65,7 @@ fuente de verdad y puede no contener los fixes de este worktree.
 - Configuración de Caveman en la tarjeta Shell, activada por defecto en el
   schema del shell; si falta el ejecutable queda como no-op explícito.
 - Toggles separados para RTK y Caveman. Ambos siguen como helpers opcionales
-  por PATH en 0.8.0, no son binarios empaquetados.
+  por PATH en 0.9.0, no son binarios empaquetados.
 - Tesseract incluido en Windows para los flujos de imágenes de modelos
   text-only.
 - Navegador embebido solamente cuando el usuario lo abre explícitamente.
@@ -73,18 +83,18 @@ superficie de memoria semántica.
 ## Instalación y primer uso
 
 1. Descargá el setup o portable de Windows de la
-   [release 0.8.0 en GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.8.0).
+   [release 0.9.0 en GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.0).
 2. Instalalo o descomprimilo y abrí el acceso directo/ejecutable real.
 3. Elegí la carpeta de tu proyecto en el picker.
 4. Pedile al modelo que inspeccione o modifique el proyecto.
 
-El instalador de 0.8.0 incluye Electron, el runtime upstream del Harness, el
-binario del gateway opencode2api, dependencias nativas y Tesseract (~286 MB
-de descarga, ~69.000 archivos, unos 10 minutos para desempaquetar — es
-normal, no es un cuelgue). Los MCP administrados todavía resuelven `uvx`
-(incluido, con fallbacks a PATH del usuario y descarga fijada). Si detecta
-una instalación incompleta, muestra el log y recomienda reinstalar desde la
-release oficial 0.8.0.
+El instalador de 0.9.0 incluye Electron, el runtime upstream del Harness, el
+binario del gateway opencode2api, los binarios de Tor incluidos, dependencias
+nativas y Tesseract (~304 MB de descarga, ~69.000 archivos, unos 10 minutos
+para desempaquetar — es normal, no es un cuelgue). Los MCP administrados
+todavía resuelven `uvx` (incluido, con fallbacks a PATH del usuario y
+descarga fijada). Si detecta una instalación incompleta, muestra el log y
+recomienda reinstalar desde la release oficial 0.9.0.
 
 El bootstrap de Windows reutiliza silenciosamente un `uvx.exe` ya instalado o
 descarga el ZIP oficial fijado de uv en una carpeta de herramientas por usuario,
@@ -176,7 +186,7 @@ reemplaza silenciosamente por `[image omitted...]`.
 Configuración → Plugins → configuración de plugins → Shell muestra toggles
 independientes para RTK y Caveman. Los defaults del schema están activados. Si
 falta el binario, la feature correspondiente no opera y no se presenta como
-activa. RTK y Caveman son helpers opcionales por PATH en 0.8.0, no binarios
+activa. RTK y Caveman son helpers opcionales por PATH en 0.9.0, no binarios
 empaquetados. Sólo se envuelven comandos simples y seguros;
 pipes, redirecciones, sustituciones y sintaxis compuesta se conservan.
 
@@ -186,7 +196,7 @@ distingue un fallo de permisos de uno de herramienta/MCP.
 
 ## Updater y versión
 
-About usa `app.getVersion()`, por lo que el binario empaquetado dice 0.8.0.
+About usa `app.getVersion()`, por lo que el binario empaquetado dice 0.9.0.
 La app chequea updates al iniciar y cada seis horas. El control de actualizar
 es exactamente el botón circular primario de Enviar, con la flecha apuntando
 hacia abajo. Al descargar, tooltip/menú de tray y notificación nativa lo
@@ -242,7 +252,7 @@ limitado a vendor y fail-closed. No dejes una feature permanente como edición
 directa de `vendor/deepseek-harness`. Ver
 [docs/UPSTREAM-PATCHING.md](docs/UPSTREAM-PATCHING.md).
 
-## Gate local de Windows: 0.8.0 publicado
+## Gate local de Windows: 0.9.0 publicado
 
 Ejecutá desde PowerShell en la workstation mantenedora:
 
@@ -258,21 +268,23 @@ pnpm --filter @freecode/shell package
 pnpm --filter @freecode/shell smoke:nsis
 ```
 
-Este gate pasó para 0.8.0 con typecheck limpio, suite del shell en verde,
-todos los verificadores prepackage en verde (hooks NSIS, frescura de vendor,
-manifiesto de runtime, ABI nativa), instalación limpia, `harness ready`, el
-lane opencode-free con modelos, preset gentle-ai visible, locale español
-renderizando correctamente y apagado limpio. Sigue sin exigir upgrade desde
-0.4.3: sólo instalación limpia y apertura correcta.
+Este gate pasó para 0.9.0 con typecheck limpio, suite del shell en verde
+(165/165), todos los tests de contrato en verde (107/107), todos los
+verificadores prepackage en verde (hooks NSIS, frescura de vendor, manifiesto
+de runtime, ABI nativa), instalación limpia, `harness ready`, Tor escuchando
+en 9050/9051, el lane único `deepseek-free` poblado sin duplicados, preset
+gentle-ai visible, locale español renderizando correctamente y apagado
+limpio. Sigue sin exigir upgrade desde 0.4.3: sólo instalación limpia y
+apertura correcta.
 
-El tag `v0.8.0` y la release de GitHub (setup, portable, blockmap,
+El tag `v0.9.0` y la release de GitHub (setup, portable, blockmap,
 `latest.yml`, tarball del runtime) se publicaron desde estos artefactos.
 
 Los artefactos quedan en `apps/shell/release/`.
 
 ## Builds manuales de otros sistemas
 
-Linux y macOS no son targets de release de 0.8.0, y Windows ARM64 tampoco
+Linux y macOS no son targets de release de 0.9.0, y Windows ARM64 tampoco
 está probado. Un contribuidor puede trabajar en un host nativo con Node,
 pnpm, Git, herramientas de build de Electron y dependencias nativas del
 sistema:
@@ -314,6 +326,7 @@ local en ambos idiomas.
 ## Índice de documentación
 
 - [Inventario de features upstream](docs/UPSTREAM-FEATURES.md)
+- [Notas de la release 0.9.0](release-notes-v0.9.0.md)
 - [Notas de la release 0.8.0](release-notes-v0.8.0.md)
 - [Notas de la release 0.7.0](release-notes-v0.7.0.md)
 - [Estado de 0.7.0](docs/STATE-0.7.0.md)

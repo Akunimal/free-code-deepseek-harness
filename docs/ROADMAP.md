@@ -1,9 +1,15 @@
 # Roadmap / Hoja de ruta
 
-Última revisión / Last reviewed: 2026-09-27
-Baseline: `v0.8.0`
+Última revisión / Last reviewed: 2026-10-01
+Baseline: `v0.9.0`
 Estado / Status: objetivos sujetos a validación; no son fechas ni promesas de release.
 
+> **0.9.0** — Resiliencia Tor (instancia única `tor.exe` empaquetada, `NEWNYM`,
+> failover para opencode2api), lane único de modelos sin duplicados, seeder que
+> respeta el modelo del usuario, integración con `jasonxu114514/opencode2api`,
+> WARP/`warfleet`/`torfleet` eliminados. Ver [CHANGELOG.md](../CHANGELOG.md) y
+> [release-notes-v0.9.0.md](../release-notes-v0.9.0.md).
+>
 > **0.8.0** — Gentle AI integrado, freellmpool eliminado, Engram como tercera fila MCP, Serena removida del catálogo, locale español completamente funcional (parche `141-*`, 30 archivos). Ver [CHANGELOG.md](../CHANGELOG.md) y [release-notes-v0.8.0.md](../release-notes-v0.8.0.md).
 
 FreeCode mantiene los workflows de publicación manuales para no consumir cuota gratuita de GitHub. Cada versión se publica sólo después de pasar sus contratos, pruebas relevantes y una revisión del instalador.
@@ -22,6 +28,26 @@ RTK y Caveman no están habilitados juntos por defecto: pueden ser complementari
 RTK and Caveman are not enabled together by default: they may complement each other, but double compression can remove useful information or make debugging harder.
 
 ## Completado / Completed
+
+### `v0.9.0` — Tor resilience + single model lane / Resiliencia Tor + lane único
+
+**Estado / Status:** completado y publicado / completed and released.
+
+1. **Tor único empaquetado** — `tor.exe` + `geoip`/`geoip6` en
+   `resources/freecode/tor/`, `torrc` de nodos rápidos, SOCKS 9050 / control
+   9051 en loopback, rotación `NEWNYM` desde el overlay. Reemplaza a
+   Cloudflare WARP; `warfleet` y `torfleet` eliminados.
+2. **Failover para opencode2api** — el gateway se lanza con
+   `[direct, socks5://127.0.0.1:9050]`, iniciado antes del runtime y detenido
+   en `before-quit`.
+3. **Lane único** — el duplicado `opencode-free` se consolidó en
+   `deepseek-free` (*OpenCode Free*); sin modelos repetidos en el selector.
+4. **Seeder respeta al usuario** — no sobreescribe más el
+   `agent-default-model` válido en cada arranque.
+5. **Upstream correcto** — integración confirmada con
+   `jasonxu114514/opencode2api` (`NOTICE` + tests de contrato).
+6. **Limpieza** — claves i18n WARP, campos runtime muertos y comentarios
+   obsoletos de freellmpool fuera del árbol.
 
 ### `v0.4.0` — Updater Fix + Caveman evaluation
 

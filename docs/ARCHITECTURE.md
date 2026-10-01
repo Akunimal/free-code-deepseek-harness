@@ -11,10 +11,12 @@ flowchart LR
   UI[DSH web conversation UI] -->|HTTP / API RPC| DSH[dsh web child]
   DSH -->|OPENCODE2API_URL| GW[opencode2api gateway]
   GW --> O[OpenCode Free providers]
+  GW -->|failover proxy| TOR[tor.exe SOCKS 9050]
   DSH -->|stdio MCP| ENGRAM[Engram]
   DSH -->|stdio MCP| SEARCH[free-search]
   SHELL[Electron main + preload] --> DSH
   SHELL --> GW
+  SHELL --> TOR
   SHELL --> VAULT[secret store]
   SHELL --> DATA[userData / dsh-home / logs]
   SHELL --> GAI[gentle-ai binary]
@@ -23,21 +25,25 @@ flowchart LR
 ## Runtime sequence
 
 1. Electron resolves development resources or packaged `resources/freecode`.
-2. The shell starts the opencode2api gateway (sole model gateway — freellmpool
-   was removed in 0.8.0).
-3. The supervisor starts `dsh web --host 127.0.0.1 --port 0 --no-open` with a
+2. The shell starts the single bundled Tor instance (`tor-manager.ts`) on
+   loopback (SOCKS `9050`, control `9051`) and waits for its bootstrap.
+3. The shell starts the opencode2api gateway (sole model gateway — freellmpool
+   was removed in 0.8.0) with `proxies: [direct, socks5://127.0.0.1:9050]` so
+   model traffic can fail over through Tor when direct egress is blocked.
+4. The supervisor starts `dsh web --host 127.0.0.1 --port 0 --no-open` with a
    whitelisted environment and waits for its authenticated readiness URL.
-4. The shell opens one hardened `BrowserWindow` with context isolation, no Node
+5. The shell opens one hardened `BrowserWindow` with context isolation, no Node
    integration, renderer sandboxing and the preload bridge.
-5. Provider seeding maintains the OpenCode Free route via opencode2api and
+6. Provider seeding maintains the single OpenCode Free route (`deepseek-free`
+   via opencode2api), consolidates the legacy `opencode-free` duplicate and
    removes only the managed legacy `gemini-web` route. Gemini2API is not
-   started, packaged or exposed. freellmpool was removed in 0.8.0.
-6. The managed MCP catalog is materialized under `dsh-home/mcp/servers.json`.
+   started, packaged or exposed.
+7. The managed MCP catalog is materialized under `dsh-home/mcp/servers.json`.
    Standard mounts Engram (on by default) and free-search (disabled until its
    binary is vendored) only when their persisted flags are enabled. The bridge
    reports a server ready only after
    `initialize → tools/list → schema validation → registration`.
-7. The Gentle AI binary is resolved from `resources/gentle-ai/gentle-ai.exe`
+8. The Gentle AI binary is resolved from `resources/gentle-ai/gentle-ai.exe`
    with a PATH fallback. The `gentle-ai:status`, `gentle-ai:doctor`, and
    `gentle-ai:run` IPC channels are registered with Zod validation and exposed
    to the renderer via `window.freecode.gentleAi`. The `gentle-ai` preset
@@ -49,6 +55,11 @@ flowchart LR
   menus, notifications, updater and logging.
 - `apps/shell/src/main/runtime.ts`: composition of opencode2api gateway,
   supervisor and live MCP status projection.
+- `apps/shell/src/main/tor-manager.ts`: single bundled `tor.exe` daemon —
+  bootstrap wait, SOCKS/control ports, `SIGNAL NEWNYM` identity rotation,
+  graceful stop on `before-quit`.
+- `apps/shell/src/main/opencode2api.ts`: gateway config generator
+  (`-config`/`-listen`) including the `proxies` array.
 - `apps/shell/src/main/harness-supervisor.ts`: readiness, generations, restart
   budget, tree termination and no-window child spawning.
 - `apps/shell/src/main/gentle-ai.ts`: bounded IPC wrapper for gentle-ai binary
@@ -109,6 +120,9 @@ the helper is unavailable or returns empty/invalid output.
 ```text
 resources/freecode/
   opencode2api/<windows-binary>
+  tor/tor.exe
+  tor/geoip
+  tor/geoip6
   gentle-ai/gentle-ai.exe
   tesseract/tesseract.exe
   tesseract/*.dll
@@ -128,7 +142,8 @@ per-user Windows application data path.
 - The renderer receives only `window.freecode` from the isolated preload.
 - Secrets are read from the host vault and injected into child environments;
   they are not copied into global `process.env`.
-- Local services bind to loopback.
+- Local services bind to loopback. Tor binds SOCKS `9050` and control `9051`
+  to `127.0.0.1` only; the control port is never exposed off-host.
 - MCP server arguments are arrays, not shell strings, and their stderr is
   bounded. Tool-call logs omit arguments and image data.
 - OCR validates paths, size and output and does not log sensitive content.
@@ -157,7 +172,7 @@ edits are temporary working changes until represented by a patch. See
 
 ## Windows release scope
 
-0.8.0 publishes only Windows x64 NSIS and portable artifacts. Linux/macOS are
+0.9.0 publishes only Windows x64 NSIS and portable artifacts. Linux/macOS are
 contributor-only manual builds and have no release gate, no binary upload and
 no claim of parity. The final local gate is documented in
 [`docs/RELEASE.md`](RELEASE.md).
