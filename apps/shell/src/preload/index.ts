@@ -5,7 +5,6 @@ import type {
   ModelCatalog,
   DetectedRoute,
   WorkerHandle,
-  WarpFleetStatus,
   OcrResult,
   EmbeddedMcpState,
   McpRuntimeStatus,
@@ -27,8 +26,6 @@ const IpcChannels = {
   mcpOpenConfig: 'mcp:openConfig',
   mcpStatus: 'mcp:status',
   harnessRestart: 'harness:restart',
-  warpfleetEnable: 'warpfleet:enable',
-  warpfleetStatus: 'warpfleet:status',
   localeSet: 'locale:set',
   ocrExtract: 'ocr:extract',
   ocrStatus: 'ocr:status',
@@ -82,18 +79,6 @@ const api: FreeCodeApi = {
       return () => ipcRenderer.removeListener(IpcChannels.mcpStatus, listener);
     },
   },
-  warpfleet: {
-    enable: (on: boolean): Promise<void> =>
-      ipcRenderer.invoke(IpcChannels.warpfleetEnable, { enabled: on }),
-    onStatus(cb: (payload: IpcPayloads[typeof IpcChannels.warpfleetStatus]) => void): () => void {
-      const listener = (
-        _e: unknown,
-        payload: IpcPayloads[typeof IpcChannels.warpfleetStatus],
-      ): void => cb(payload);
-      ipcRenderer.on(IpcChannels.warpfleetStatus, listener);
-      return () => ipcRenderer.removeListener(IpcChannels.warpfleetStatus, listener);
-    },
-  },
   locale: {
     set: (locale: 'zh' | 'en' | 'es'): Promise<void> =>
       ipcRenderer.invoke(IpcChannels.localeSet, { locale }),
@@ -116,4 +101,4 @@ const api: FreeCodeApi = {
 
 contextBridge.exposeInMainWorld('freecode', api);
 
-export type { FreeCodeApi, IpcPayloads, ModelCatalog, DetectedRoute, WorkerHandle, WarpFleetStatus, OcrResult, EmbeddedMcpState, McpRuntimeStatus };
+export type { FreeCodeApi, IpcPayloads, ModelCatalog, DetectedRoute, WorkerHandle, OcrResult, EmbeddedMcpState, McpRuntimeStatus };

@@ -25,11 +25,6 @@ import {
   acquireSingletonLock,
   requestElectronSingleInstance,
 } from './lifecycle-manager.js';
-import {
-  WarpFleet,
-  loadWarpFleetState,
-  saveWarpFleetState,
-} from './warfleet.js';
 
 /**
  * Electron main — wires the runtime (pool -> LB -> harness), the native
@@ -147,10 +142,6 @@ async function bootstrap(): Promise<ShellRuntime> {
     extraEnv: buildHarnessExtraEnv(dialogBridge),
     uvxCommand,
     browserBridge: embeddedBrowser ? { endpoint: embeddedBrowser.endpoint, token: embeddedBrowser.token } : undefined,
-    // The LB fires this once when every ready worker is rate-limited. The
-    // concrete handler is assigned after enableWarpFleet is defined; a 429
-    // storm cannot arrive before the harness is running, well after that.
-    onAllWorkersRateLimited: () => autoEnableWarpHandler?.(),
     log: (level, msg, meta) => {
       const fn = level === 'error' || level === 'warn' ? level : 'info';
       appLogger?.logger[fn]?.(meta ?? {}, msg);
@@ -197,7 +188,6 @@ let updateService: UpdateService | null = null;
 let updateTimer: NodeJS.Timeout | null = null;
 let overlayOpen = false;
 let localUpdateRunning = false;
-let warpFleet: WarpFleet | null = null;
 let embeddedBrowser: EmbeddedBrowser | null = null;
 let dialogBridge: DialogBridge | null = null;
 let updateIndicatorView: WebContentsView | null = null;
@@ -208,14 +198,6 @@ const UPDATE_INDICATOR_WIDTH = 34;
 const UPDATE_INDICATOR_HEIGHT = 34;
 type UpdateActivity = 'idle' | 'downloading' | 'installing';
 let updateActivity: UpdateActivity = 'idle';
-let warpFleetEnabled = false;
-/** Assigned once enableWarpFleet exists; the LB's rate-limit callback delegates
- *  here to auto-enable WARP with a user warning. */
-let autoEnableWarpHandler: (() => void) | null = null;
-/** After the user dismisses/declines an auto-WARP prompt, suppress re-prompting
- *  for this long so a sustained 429 storm does not nag on every request. */
-const WARP_AUTOPROMPT_COOLDOWN_MS = 10 * 60 * 1_000;
-let warpAutoPromptSuppressedUntil = 0;
 let shuttingDown = false;
 let lifecycleMgr: LifecycleManager | null = null;
 let refreshIntervalId: NodeJS.Timeout | null = null;
@@ -592,17 +574,6 @@ input[type=range]{width:100%;margin:8px 0}
 <input id="pool-size" type="range" min="1" max="16" step="1" value="${poolSize}" oninput="document.getElementById('pool-size-value').value=this.value" onchange="window.freecode.pool.resize(Number(this.value))">
 <p style="font-size:12px;color:#9da4b3">${t('overlay.workersNote')}</p>
 <table><thead><tr><th>id</th><th>status</th><th>addr</th><th>pid</th><th>restarts</th></tr></thead><tbody id="pool-rows">${rows}</tbody></table>
-<hr style="border-color:#2a2f3a;margin:16px 0">
-<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-  <label style="font-weight:600;font-size:14px">WARP</label>
-  <label style="position:relative;display:inline-block;width:44px;height:24px;cursor:pointer;-webkit-app-region:no-drag">
-    <input id="warp-toggle" type="checkbox" ${warpFleetEnabled ? 'checked' : ''} style="opacity:0;width:0;height:0" onchange="window.freecode.warpfleet.enable(this.checked)">
-    <span style="position:absolute;inset:0;background:${warpFleetEnabled ? '#ff7a00' : '#2a2f3a'};border-radius:12px;transition:.3s"></span>
-    <span style="position:absolute;top:2px;left:${warpFleetEnabled ? '22px' : '2px'};width:20px;height:20px;background:#fff;border-radius:50%;transition:.3s"></span>
-  </label>
-  <span id="warp-status-label" style="font-size:12px;color:#9da4b3">${warpFleetEnabled ? 'ON' : 'OFF'}</span>
-</div>
-<table id="warp-table" style="display:${warpFleetEnabled ? 'table' : 'none'}"><thead><tr><th>status</th><th>rotating</th><th>last error</th></tr></thead><tbody id="warp-rows"></tbody></table>
 <script>
 window.freecode.pool.onStatus(function(payload) {
   var tbody = document.getElementById('pool-rows');
@@ -614,23 +585,6 @@ window.freecode.pool.onStatus(function(payload) {
   if (payload.workers.length !== Number(slider.value)) {
     slider.value = payload.workers.length;
     output.value = payload.workers.length;
-  }
-});
-window.freecode.warpfleet.onStatus(function(payload) {
-  var toggle = document.getElementById('warp-toggle');
-  var label = document.getElementById('warp-status-label');
-  var table = document.getElementById('warp-table');
-  var track = toggle.nextElementSibling;
-  var knob = track.nextElementSibling;
-  toggle.checked = payload.enabled;
-  label.textContent = payload.enabled ? 'ON' : 'OFF';
-  track.style.background = payload.enabled ? '#ff7a00' : '#2a2f3a';
-  knob.style.left = payload.enabled ? '22px' : '2px';
-  table.style.display = payload.enabled ? 'table' : 'none';
-  if (payload.status) {
-    var tbody = document.getElementById('warp-rows');
-    var s = payload.status;
-    tbody.innerHTML = '<tr><td>'+(s.active ? 'connected' : 'disconnected')+'</td><td>'+(s.rotating ? 'yes' : 'no')+'</td><td>'+(s.lastError || '-')+'</td></tr>';
   }
 });
 </script>
@@ -1205,70 +1159,6 @@ app.whenReady().then(async () => {
   refreshIntervalId = setInterval(() => void doRefresh(), REFRESH_INTERVAL_MS);
   refreshIntervalId.unref();
 
-  // WarpFleet — Cloudflare WARP tunnel for pool 429 mitigation.
-  // WARP operates at the OS network layer; no per-worker proxy config needed.
-  const wfState = loadWarpFleetState(userDataDir);
-  warpFleetEnabled = wfState.enabled;
-
-  const enableWarpFleet = async (on: boolean): Promise<void> => {
-    warpFleetEnabled = on;
-    saveWarpFleetState(userDataDir, { enabled: on });
-    if (on) {
-      if (!warpFleet) {
-        warpFleet = new WarpFleet();
-      }
-      if (!warpFleet.isAvailable()) {
-        appLogger?.logger.warn({}, 'warp-cli not found; WARP fallback unavailable');
-        warpFleetEnabled = false;
-        saveWarpFleetState(userDataDir, { enabled: false });
-        return;
-      }
-      await warpFleet.enable();
-    } else {
-      if (warpFleet) {
-        await warpFleet.disable();
-        warpFleet = null;
-      }
-    }
-  };
-
-  if (warpFleetEnabled) {
-    void enableWarpFleet(true);
-  }
-
-  // Auto-enable WARP when the whole pool is rate-limited. The LB detects
-  // the condition and fires onAllWorkersRateLimited, which delegates here.
-  // WARP is enabled immediately (system-level tunnel rotation) and the user
-  // is informed. If WARP is already on, we rotate the exit IP instead.
-  autoEnableWarpHandler = (): void => {
-    if (warpFleetEnabled) {
-      // Already on — rotate IP for a fresh exit
-      if (warpFleet) {
-        void warpFleet.rotateIP().catch((err) =>
-          appLogger?.logger.error({ err }, 'WARP IP rotation failed'));
-      }
-      return;
-    }
-    if (Date.now() < warpAutoPromptSuppressedUntil) return; // recently dismissed
-    appLogger?.logger.warn({}, 'all workers rate-limited; auto-enabling WARP');
-    void (async () => {
-      await enableWarpFleet(true);
-      const choice = await dialog.showMessageBox({
-        type: 'info',
-        title: t('warp.auto.title'),
-        message: t('warp.auto.message'),
-        detail: t('warp.auto.detail'),
-        buttons: [t('warp.auto.keep'), t('warp.auto.disable')],
-        defaultId: 0,
-        cancelId: 0,
-      });
-      if (choice.response === 1) {
-        await enableWarpFleet(false);
-        warpAutoPromptSuppressedUntil = Date.now() + WARP_AUTOPROMPT_COOLDOWN_MS;
-      }
-    })().catch((err) => appLogger?.logger.error({ err }, 'auto-enable WARP failed'));
-  };
-
   // FASE 10: IPC contract.
   registerIpc({
     runtime,
@@ -1276,11 +1166,6 @@ app.whenReady().then(async () => {
     homeDir: join(userDataDir, 'dsh-home'),
     lbBaseUrl: opencodeUrl,
     catalogStore: { get: () => catalog },
-    warpFleet: {
-      get instance() { return warpFleet; },
-      enable: enableWarpFleet,
-      isEnabled: () => warpFleetEnabled,
-    },
     reportModelRefreshFailure,
     triggerRefresh: async () => { await doRefresh(); return catalog!; },
     setLocale: applyNativeLocale,
@@ -1352,11 +1237,6 @@ app.on('before-quit', async (e) => {
       if (updateTimer) { clearInterval(updateTimer); updateTimer = null; }
       if (refreshRetryTimer) { clearTimeout(refreshRetryTimer); refreshRetryTimer = null; }
       if (refreshIntervalId) { clearInterval(refreshIntervalId); refreshIntervalId = null; }
-      // Stop WarpFleet once (guarded against double-stop)
-      if (warpFleet) {
-        try { await warpFleet.disable(); } catch { /* best effort */ }
-        warpFleet = null;
-      }
       await embeddedBrowser?.close();
       embeddedBrowser = null;
       await dialogBridge?.close();

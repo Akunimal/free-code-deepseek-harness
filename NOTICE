@@ -7,11 +7,10 @@ All upstream code lives under vendor/ (git subtrees, read-only unless synced).
    https://github.com/deepseek-ai/deepseek-harness
    Core agent runtime + official web GUI consumed as a subtree at vendor/deepseek-harness.
 
-2. 6Kmfi6HP/opencode2api — MIT (verify at sync)
-   https://github.com/6Kmfi6HP/opencode2api
-   OpenAI/Anthropic-compatible proxy over OpenCode, consumed as a subtree at
-   vendor/opencode2api. The application bundles per-platform standalone binaries
-   built from this source (see scripts/build-opencode2api.sh).
+2. jasonxu114514/opencode2api — MIT
+   https://github.com/jasonxu114514/opencode2api
+   OpenAI/Anthropic-compatible proxy over OpenCode, consumed as a sidecar.
+   The application bundles per-platform standalone binaries built from this source.
 
 3. Sophomoresty/gemini-web2api — MIT
    https://github.com/Sophomoresty/gemini-web2api
