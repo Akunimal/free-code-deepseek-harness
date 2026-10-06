@@ -8,6 +8,7 @@ import type {
   OcrResult,
   EmbeddedMcpState,
   McpRuntimeStatus,
+  TorStatus,
   GentleAiStatus,
   GentleAiDoctor,
   GentleAiRunResponse,
@@ -28,6 +29,7 @@ const IpcChannels = {
   harnessRestart: 'harness:restart',
   torStatus: 'tor:status',
   torRotate: 'tor:rotate',
+  torGetStatus: 'tor:getStatus',
   localeSet: 'locale:set',
   ocrExtract: 'ocr:extract',
   ocrStatus: 'ocr:status',
@@ -83,8 +85,9 @@ const api: FreeCodeApi = {
   },
   tor: {
     rotate: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.torRotate),
-    onStatus(cb: (status: any) => void): () => void {
-      const listener = (_e: unknown, status: any): void => cb(status);
+    getStatus: (): Promise<TorStatus | null> => ipcRenderer.invoke(IpcChannels.torGetStatus),
+    onStatus(cb: (status: TorStatus) => void): () => void {
+      const listener = (_e: unknown, status: TorStatus): void => cb(status);
       ipcRenderer.on(IpcChannels.torStatus, listener);
       return () => ipcRenderer.removeListener(IpcChannels.torStatus, listener);
     },

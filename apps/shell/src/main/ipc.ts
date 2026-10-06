@@ -202,6 +202,13 @@ export function registerIpc(deps: IpcDeps): () => void {
     return deps.torManager.rotateIdentity();
   });
 
+  // tor:getStatus — snapshot for surfaces opened after the last push
+  // (e.g. the pool overlay). Returns null when Tor is not configured.
+  ipcMain.handle(IpcChannels.torGetStatus, () => {
+    if (!deps.torManager) return null;
+    return deps.torManager.getStatus();
+  });
+
   const emitTorStatus = (): void => {
     if (!deps.torManager) return;
     const status = deps.torManager.getStatus();
@@ -225,6 +232,7 @@ export function registerIpc(deps: IpcDeps): () => void {
     ipcMain.removeHandler(IpcChannels.mcpSetEnabled);
     ipcMain.removeHandler(IpcChannels.mcpOpenConfig);
     ipcMain.removeHandler(IpcChannels.torRotate);
+    ipcMain.removeHandler(IpcChannels.torGetStatus);
     ipcMain.removeHandler(IpcChannels.localeSet);
     ipcMain.removeHandler(IpcChannels.ocrExtract);
     ipcMain.removeHandler(IpcChannels.ocrStatus);

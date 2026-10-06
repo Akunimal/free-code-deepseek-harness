@@ -23,6 +23,30 @@ describe('native shell locale', () => {
     expect(locale()).toBe('en');
   });
 
+  it('covers the Tor overlay block in all three locales', () => {
+    const keys = [
+      'overlay.torTitle',
+      'overlay.torRotate',
+      'overlay.torRotating',
+      'overlay.torLoading',
+      'overlay.torRotated',
+      'overlay.torRotateFailed',
+      'overlay.directOnly',
+      'tor.status.ready',
+      'tor.status.failed',
+      'stuck.timeout.message',
+      'stuck.timeout.detail',
+    ] as const;
+    for (const locale of ['es', 'en', 'zh'] as const) {
+      setLocale(locale);
+      for (const key of keys) {
+        const text = t(key);
+        expect(text.length, `${locale}:${key}`).toBeGreaterThan(0);
+        expect(text, `${locale}:${key}`).not.toBe(key);
+      }
+    }
+  });
+
   it('points incomplete-install recovery at the official installer (no pinned old version)', () => {
     setLocale('es');
     const esHint = t('preflight.reinstallHint');
