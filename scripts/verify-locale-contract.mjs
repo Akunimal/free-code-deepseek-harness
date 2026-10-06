@@ -116,15 +116,27 @@ logCheck(
   'About dialog must use app.getVersion()',
 );
 
-// ── CHECK 7: Version is 0.8.0 ──────────────────────────────────────
+// ── CHECK 7: Shell version matches root version ──────────────────────
 
 const shellPkgPath = join(APPS, 'package.json');
 const shellPkgSrc = readFileSafe(shellPkgPath);
+const rootPkgSrc = readFileSafe(join(REPO_ROOT, 'package.json'));
+
+let versionsMatch = false;
+let versionDetail = 'unreadable package.json';
+try {
+  const shellVer = JSON.parse(shellPkgSrc ?? '').version;
+  const rootVer = JSON.parse(rootPkgSrc ?? '').version;
+  versionsMatch = typeof shellVer === 'string' && shellVer === rootVer;
+  versionDetail = `shell=${shellVer} root=${rootVer}`;
+} catch {
+  versionsMatch = false;
+}
 
 logCheck(
-  'version-is-080',
-  shellPkgSrc !== null && shellPkgSrc.includes('"0.8.0"'),
-  'Shell package.json version must be 0.8.0',
+  'version-matches-root',
+  shellPkgSrc !== null && versionsMatch,
+  `Shell package.json version must match root (${versionDetail})`,
 );
 
 // ── CHECK 8: Reasoning policy hides for non-supporting models ───────

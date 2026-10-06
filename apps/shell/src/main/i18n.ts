@@ -196,8 +196,8 @@ const strings = {
   // Startup preflight failure — installer bug or corrupted install
   'preflight.title': { es: 'Instalación incompleta', en: 'Install incomplete' },
   'preflight.reinstallHint': {
-    es: 'Reinstalá FreeCode desde el instalador oficial (v0.4.3, la última versión estable, o posterior).',
-    en: 'Reinstall FreeCode from the official installer (v0.4.3, the last stable release, or later).',
+    es: 'Reinstala FreeCode desde el instalador oficial más reciente.',
+    en: 'Reinstall FreeCode from the latest official installer.',
   },
 
   // Version label
@@ -303,7 +303,7 @@ const zhStrings = {
   'portable.stale.message': '检测到更新的安装版本 ($1)。此 Portable ($2) 可能存在已修复的问题。请更新或移除此 Portable。',
   'dialog.selectWorkspace': '选择工作目录',
   'preflight.title': '安装不完整',
-  'preflight.reinstallHint': '请从官方安装程序重新安装 FreeCode（v0.4.3，最后一个稳定版本，或更高版本）。',
+  'preflight.reinstallHint': '请从最新的官方安装程序重新安装 FreeCode。',
   'version.new': '新版本',
   'version.unknown': '未知',
   'update.installing.title': 'FreeCode 正在更新',

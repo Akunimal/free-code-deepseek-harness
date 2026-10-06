@@ -23,12 +23,20 @@ describe('native shell locale', () => {
     expect(locale()).toBe('en');
   });
 
-  it('points incomplete-install recovery at the last known-good stable release', () => {
+  it('points incomplete-install recovery at the official installer (no pinned old version)', () => {
     setLocale('es');
-    expect(t('preflight.reinstallHint')).toContain('v0.4.3');
+    const esHint = t('preflight.reinstallHint');
+    expect(esHint).toContain('oficial');
+    expect(esHint).not.toContain('v0.4.3');
+
     setLocale('en');
-    expect(t('preflight.reinstallHint')).toContain('v0.4.3');
+    const enHint = t('preflight.reinstallHint');
+    expect(enHint).toContain('official');
+    expect(enHint).not.toContain('v0.4.3');
+
     setLocale('zh');
-    expect(t('preflight.reinstallHint')).toContain('v0.4.3');
+    const zhHint = t('preflight.reinstallHint');
+    expect(zhHint.length).toBeGreaterThan(10);
+    expect(zhHint).not.toContain('v0.4.3');
   });
 });
