@@ -39,6 +39,16 @@ describe('TorManager', () => {
     expect(status.lastError).toContain('tor.exe binary missing');
   });
 
+  it('refuses identity rotation while stopped', async () => {
+    const manager = new TorManager({
+      torBinaryPath: join(tmpDir, 'tor.exe'),
+      dataDir: tmpDir,
+      geoipDir: tmpDir,
+    });
+
+    await expect(manager.rotateIdentity()).resolves.toBe(false);
+  });
+
   it('reports initial stopped status before start', () => {
     const manager = new TorManager({
       torBinaryPath: join(tmpDir, 'tor.exe'),

@@ -127,7 +127,10 @@ export class TorManager {
         'CircuitBuildTimeout 5',
         'LearnCircuitBuildTimeout 0',
         'NumEntryGuards 3',
-        'MaxCircuitDirtiness 30',
+        // Stable circuits for long model streams (Tor default is 600s).
+        // A 30s rotation used to change exits mid-stream; on-demand
+        // rotation stays available via SIGNAL NEWNYM (overlay/tray).
+        'MaxCircuitDirtiness 600',
         'ExitNodes {ch},{de},{nl},{se},{fr},{at},{is}',
         'StrictNodes 0',
         'ExcludeExitNodes {cn},{ru},{ir},{sy},{kp}',
