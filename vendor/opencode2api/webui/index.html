@@ -548,6 +548,43 @@
             <div class="section">
               <div class="section-head">
                 <div>
+                  <h2>Thinking 强度</h2>
+                  <div class="section-caption">
+                    仅在客户端没有明确指定时生效；按模型覆盖默认值。选择“关闭”会移除未明确请求的
+                    reasoning。
+                  </div>
+                </div>
+              </div>
+              <div class="form-grid">
+                <div class="field">
+                  <label>默认强度</label
+                  ><select id="c-reasoning-effort">
+                    <option value="">跟随客户端</option>
+                    <option value="minimal">minimal</option>
+                    <option value="low">low</option>
+                    <option value="medium">medium</option>
+                    <option value="high">high</option>
+                    <option value="xhigh">xhigh</option>
+                    <option value="max">max</option>
+                    <option value="none">关闭</option>
+                  </select>
+                </div>
+                <div class="field full">
+                  <label>按模型覆盖（JSON）</label
+                  ><textarea
+                    id="c-reasoning-by-model"
+                    spellcheck="false"
+                    placeholder='{"model-id":"high"}'
+                  ></textarea>
+                  <div class="section-caption">
+                    值可为 minimal、low、medium、high、xhigh、max 或 none；空对象表示不覆盖。
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="section">
+              <div class="section-head">
+                <div>
                   <h2>性能与日志</h2>
                   <div class="section-caption">热重载会保留进程内监控累计。</div>
                 </div>

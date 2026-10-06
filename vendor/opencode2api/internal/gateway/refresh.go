@@ -218,16 +218,14 @@ func (g *Gateway) refreshAnonymousTier(ctx context.Context, base string) []strin
 			break
 		}
 		refreshCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		models, _, err := modelcatalog.FetchModels(refreshCtx, node.proxy.client, base, anonymousZenKey)
+		models, status, err := modelcatalog.FetchModels(refreshCtx, node.proxy.client, base, anonymousZenKey)
+		g.syncProxyResult(refreshCtx, node.proxy, status, err)
 		cancel()
 		if err == nil {
 			g.anonymous.MarkSuccess(node)
 			return models
 		}
-		// Model discovery is auxiliary. A transient DNS, IPv6, or upstream
-		// catalog failure must not cool the only direct anonymous route before
-		// a real generation request gets a chance to use it. Generation traffic
-		// still updates anonymous cooldowns through observeAnonymousResult.
+		g.anonymous.MarkFailure(node, nil, err)
 		g.logger.Debug("anonymous model catalog refresh attempt failed", "component", "models", "event", "anonymous_refresh_attempt_failed", "upstream", config.RedactURL(base), "attempt", attempt, "proxy", config.RedactURL(node.proxy.name), "error", err)
 	}
 	g.logger.Warn("anonymous model catalog refresh failed", "component", "models", "event", "anonymous_refresh_failed", "upstream", config.RedactURL(base))

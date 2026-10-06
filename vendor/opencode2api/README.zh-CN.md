@@ -218,19 +218,49 @@ Key 初始化时均衡分配到代理。真实流量可以触发代理检查、K
 
 ### Key、监听地址与路由
 
-| 字段                     | 默认值或要求                              |
-| ------------------------ | ----------------------------------------- |
-| `listen`                 | `127.0.0.1:8080`。                        |
-| `server_keys`            | 至少一个本地 Key。                        |
-| `zen_keys`、`go_keys`    | 未启用匿名模式时，至少需要一个上游 Key。  |
-| `anonymous`              | `false`。                                 |
-| `prefer`                 | `go`；可选 `go`、`zen`。                  |
-| `upstream.zen`           | `https://opencode.ai/zen`。               |
-| `upstream.go`            | `https://opencode.ai/zen/go`。            |
-| `proxies`                | 两个代理来源都为空时，使用 `["direct"]`。 |
-| `proxyfile`              | 可选；相对路径基于配置文件所在目录解析。  |
-| `models.refresh_seconds` | `300`；最小为 1。                         |
-| `models.protocols`       | `{}`；按模型 ID 覆盖原生协议。            |
+| 字段                        | 默认值或要求                                                                  |
+| --------------------------- | ----------------------------------------------------------------------------- |
+| `listen`                    | `127.0.0.1:8080`。                                                            |
+| `server_keys`               | 至少一个本地 Key。                                                            |
+| `zen_keys`、`go_keys`       | 未启用匿名模式时，至少需要一个上游 Key。                                      |
+| `anonymous`                 | `false`。                                                                     |
+| `prefer`                    | `go`；可选 `go`、`zen`。                                                      |
+| `upstream.zen`              | `https://opencode.ai/zen`。                                                   |
+| `upstream.go`               | `https://opencode.ai/zen/go`。                                                |
+| `proxies`                   | 两个代理来源都为空时，使用 `["direct"]`。                                     |
+| `proxyfile`                 | 可选；相对路径基于配置文件所在目录解析。                                      |
+| `models.refresh_seconds`    | `300`；最小为 1。                                                             |
+| `models.protocols`          | `{}`；按模型 ID 覆盖原生协议。                                                |
+| `reasoning.effort`          | 空（关闭）；可选 `minimal`、`low`、`medium`、`high`、`xhigh`、`max`、`none`。 |
+| `reasoning.effort_by_model` | `{}`；按模型 ID 覆盖 `reasoning.effort`。                                     |
+
+### 强制思考强度
+
+`reasoning.effort` 在请求自身没有指定思考强度时，指定发往上游的强度；
+`reasoning.effort_by_model` 按模型 ID 覆盖它。它对三种协议、两个转换方向都生效，
+对跨协议请求尤其重要：Anthropic 的 `thinking.budget_tokens` 只能被 Chat 与
+Responses 近似表达，而强制指定的强度可以到达单独靠预算表达不出的档位。
+
+```json
+{
+  "reasoning": {
+    "effort": "high",
+    "effort_by_model": { "claude-opus-5": "max" }
+  }
+}
+```
+
+客户端显式指定的强度始终优先，因此它只替换无人指定的强度：完全未设置，
+或由 `thinking.budget_tokens` 推断出来的强度。设为 `"none"` 可为未请求思考的
+请求移除思考配置。
+
+两个方向的强度都会如实保留：显式的 `output_config.effort` 不会再被 `thinking`
+块遮蔽，`budget_tokens` 保持其档位（`8192` 为 `high`，`32000` 为 `xhigh`，
+两者可区分），发往 Responses 时强度会以 `reasoning.effort` 形式传递而不再丢失。
+
+WebUI 的配置中心也提供默认强度和按模型覆盖。管理 API 的 `GET /api/config`
+会返回 `reasoning`，`PUT /api/config` 接受同名对象；省略该字段会保留现有值，
+发送空对象则会清除它。
 
 代理支持 `direct`、`http://`、`https://`、`socks5://` 和 `socks5h://`，URL 可包含认证信息。配置内代理先加载，再追加 `proxyfile` 内容，并按首次出现的顺序去重。
 

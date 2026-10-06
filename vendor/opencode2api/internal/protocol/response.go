@@ -3,6 +3,7 @@ package protocol
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"opencode2api/internal/identity"
@@ -142,6 +143,18 @@ func decodeBridgeResponse(protocol Protocol, input map[string]any) (bridgeRespon
 func encodeBridgeResponse(protocol Protocol, response bridgeResponse) map[string]any {
 	if response.ID == "" {
 		response.ID = identity.RandomID("resp", 12)
+	}
+	if isToolStop(response.Stop) {
+		response.Tools = usableToolBlocks(response.Tools)
+		if len(response.Tools) == 0 {
+			// The turn ended as a tool call upstream, but no usable tool block
+			// was ever assembled (for example, the name was missing). A
+			// tool_use stop reason with no usable tool blocks makes strict
+			// clients end the turn running nothing and reporting no error.
+			// Demote to a plain stop so the client treats it as text
+			// end-of-turn and continues.
+			response.Stop = "stop"
+		}
 	}
 	switch protocol {
 	case Chat:
@@ -373,6 +386,34 @@ func canonicalAnthropicStop(stop string) string {
 	default:
 		return "stop"
 	}
+}
+
+// isToolStop reports whether a canonical bridge stop reason promises tool
+// calls downstream.
+func isToolStop(stop string) bool {
+	switch stop {
+	case "tool_calls", "tool_use", "function_call":
+		return true
+	default:
+		return false
+	}
+}
+
+// usableToolBlocks drops phantom tool blocks that cannot be executed by a
+// downstream client. Empty arguments are valid, so the tool name is the
+// minimum required signal here; the streaming emitter uses the same rule.
+func usableToolBlocks(tools []bridgeBlock) []bridgeBlock {
+	if len(tools) == 0 {
+		return nil
+	}
+	usable := tools[:0]
+	for _, tool := range tools {
+		if strings.TrimSpace(tool.Name) == "" {
+			continue
+		}
+		usable = append(usable, tool)
+	}
+	return usable
 }
 
 func canonicalResponsesIncomplete(reason string) string {

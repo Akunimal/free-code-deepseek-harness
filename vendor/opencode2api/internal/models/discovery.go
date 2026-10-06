@@ -21,7 +21,7 @@ const (
 	GoDocsURL       = "https://raw.githubusercontent.com/anomalyco/opencode/dev/packages/web/src/content/docs/go.mdx"
 )
 
-var protocolDocEndpointPattern = regexp.MustCompile("\\|[^|]+\\|\\s*`?([^|`\\s]+)`?\\s*\\|\\s*`[^`]+/v1/(chat/completions|responses|messages)`")
+var protocolDocEndpointPattern = regexp.MustCompile("\\|[^|]+\\|\\s*`?([^|`\\s]+)`?\\s*\\|\\s*`[^`]+/v1/(chat/completions|responses|messages|systemone)`")
 
 type Capabilities struct {
 	Protocols   map[config.Tier]map[string]wire.Protocol
@@ -210,6 +210,8 @@ func FetchProtocolDocs(ctx context.Context, client *http.Client, endpoint string
 			protocol = wire.Responses
 		case "messages":
 			protocol = wire.Anthropic
+		case "systemone":
+			protocol = wire.SystemOne
 		}
 		if protocol != "" {
 			result[modelID] = protocol

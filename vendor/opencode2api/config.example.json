@@ -4,9 +4,8 @@
   "zen_keys": ["sk-your-zen-key"],
   "go_keys": [],
   "anonymous": false,
-  "prefer": "go",
-  "proxyfile": "",
   "proxies": ["direct"],
+  "proxyfile": "",
   "upstream": {
     "zen": "https://opencode.ai/zen",
     "go": "https://opencode.ai/zen/go"
@@ -39,5 +38,10 @@
     "username": "admin",
     "password": "change-this-admin-password",
     "session_ttl_minutes": 720
+  },
+  "prefer": "go",
+  "reasoning": {
+    "effort": "high",
+    "effort_by_model": {}
   }
 }

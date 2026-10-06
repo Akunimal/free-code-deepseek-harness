@@ -30,8 +30,26 @@ type Config struct {
 	Logging     LoggingConfig     `json:"logging"`
 	WebUI       WebUIConfig       `json:"webui"`
 	Prefer      Tier              `json:"prefer"`
+	// Reasoning configures a forced thinking level. Both fields are optional
+	// and empty by default, so an existing configuration keeps the client's own
+	// level untouched.
+	Reasoning ReasoningConfig `json:"reasoning"`
 
 	effectiveProxies []string
+}
+
+// ReasoningConfig forces a thinking level for requests that do not state one.
+//
+// Effort is the default for every model; EffortByModel overrides it for the
+// model IDs it names. A level a client sends explicitly (Anthropic's
+// output_config.effort / top-level effort, or Chat's reasoning_effort) always
+// wins, so a forced level only replaces a value that would otherwise have been
+// derived from thinking.budget_tokens or left unset.
+type ReasoningConfig struct {
+	// omitempty keeps a saved configuration free of the fields the operator
+	// never set, matching how the rest of the optional surface is persisted.
+	Effort        string            `json:"effort,omitempty"`
+	EffortByModel map[string]string `json:"effort_by_model,omitempty"`
 }
 
 type UpstreamConfig struct {
@@ -218,7 +236,65 @@ func Normalize(path string, cfg Config) (Config, error) {
 			return Config{}, fmt.Errorf("models.protocols contains invalid mapping %q: %q", model, protocol)
 		}
 	}
+	if err := normalizeReasoning(&cfg); err != nil {
+		return Config{}, err
+	}
 	return cfg, nil
+}
+
+// normalizeReasoning validates and canonicalizes the forced thinking level.
+//
+// Levels are stored lowercased so the hot path can compare them without
+// allocating. An empty value means "not forced", which is the default and keeps
+// the feature absent for existing configurations.
+func normalizeReasoning(cfg *Config) error {
+	cfg.Reasoning.Effort = strings.ToLower(strings.TrimSpace(cfg.Reasoning.Effort))
+	if err := validateEffort("reasoning.effort", cfg.Reasoning.Effort); err != nil {
+		return err
+	}
+	if cfg.Reasoning.EffortByModel == nil {
+		return nil
+	}
+	// An empty map is the same as an absent one, and writing nil back keeps a
+	// saved configuration free of a field the user never set.
+	if len(cfg.Reasoning.EffortByModel) == 0 {
+		cfg.Reasoning.EffortByModel = nil
+		return nil
+	}
+	normalized := make(map[string]string, len(cfg.Reasoning.EffortByModel))
+	for model, effort := range cfg.Reasoning.EffortByModel {
+		key := strings.TrimSpace(model)
+		if key == "" {
+			return errors.New("reasoning.effort_by_model must not contain an empty model ID")
+		}
+		level := strings.ToLower(strings.TrimSpace(effort))
+		if err := validateEffort(fmt.Sprintf("reasoning.effort_by_model[%q]", key), level); err != nil {
+			return err
+		}
+		normalized[key] = level
+	}
+	cfg.Reasoning.EffortByModel = normalized
+	return nil
+}
+
+// validateEffort accepts the levels the OpenAI and Anthropic surfaces define
+// plus an empty string, which means "not forced".
+func validateEffort(name, value string) error {
+	switch value {
+	case "", "minimal", "low", "medium", "high", "xhigh", "max", "none":
+		return nil
+	default:
+		return fmt.Errorf("%s must be one of minimal, low, medium, high, xhigh, max, none, or empty to disable the override", name)
+	}
+}
+
+// ForcedEffort returns the level the operator forced for a model, or an empty
+// string when none applies. A stored level is already lowercase.
+func (cfg Config) ForcedEffort(model string) string {
+	if effort, ok := cfg.Reasoning.EffortByModel[model]; ok {
+		return effort
+	}
+	return cfg.Reasoning.Effort
 }
 
 // RuntimeProxies returns the resolved proxy list, including proxyfile entries.
@@ -252,6 +328,13 @@ func Clone(cfg Config) Config {
 			protocols[key] = value
 		}
 		cfg.Models.Protocols = protocols
+	}
+	if cfg.Reasoning.EffortByModel != nil {
+		efforts := make(map[string]string, len(cfg.Reasoning.EffortByModel))
+		for model, effort := range cfg.Reasoning.EffortByModel {
+			efforts[model] = effort
+		}
+		cfg.Reasoning.EffortByModel = efforts
 	}
 	return cfg
 }

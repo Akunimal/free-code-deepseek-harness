@@ -88,6 +88,10 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
       authHeader: cfg.authHeader,
       alwaysExposedModels: ALWAYS_EXPOSED_MODELS,
       fallbackModels: ['x-preview-f'],
+      // 0.9.1: the anonymous lane exposes ONLY 200 responders. With zero
+      // responders the synced list is erased (never stale/dead models in
+      // the selector); bounded refresh retries repopulate it on recovery.
+      strictResponders: true,
     },
     ...(cfg.providers ?? []).filter((target) => target.provider !== FREE_PROVIDER),
   ];

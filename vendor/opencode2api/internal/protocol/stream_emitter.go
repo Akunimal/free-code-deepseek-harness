@@ -200,6 +200,18 @@ func (emitter *bridgeStreamEmitter) tool(key string) *bridgeStreamTool {
 	return tool
 }
 
+// anyToolStarted reports whether at least one tool block was actually opened
+// downstream. Tools stuck without a name never start; their stop promise must
+// not be advertised as a tool stop.
+func (emitter *bridgeStreamEmitter) anyToolStarted() bool {
+	for _, key := range emitter.order {
+		if tool := emitter.tools[key]; tool != nil && tool.Started {
+			return true
+		}
+	}
+	return false
+}
+
 func (emitter *bridgeStreamEmitter) start() error {
 	if emitter.started {
 		return nil
@@ -473,6 +485,12 @@ func (emitter *bridgeStreamEmitter) Finish() error {
 		} else {
 			emitter.stop = "stop"
 		}
+	}
+	if isToolStop(emitter.stop) && !emitter.anyToolStarted() {
+		// Same phantom-tool-call guard as encodeBridgeResponse, for the
+		// streaming path: a tool_use stop reason with zero tool_use
+		// content blocks ends the client turn silently.
+		emitter.stop = "stop"
 	}
 	if err := emitter.finishReasoning(); err != nil {
 		return err

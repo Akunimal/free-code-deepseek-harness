@@ -218,19 +218,54 @@ See [config.example.json](config.example.json) for a complete starting configura
 
 ### Keys, listeners, and routing
 
-| Field                    | Default / requirement                                                     |
-| ------------------------ | ------------------------------------------------------------------------- |
-| `listen`                 | `127.0.0.1:8080`.                                                         |
-| `server_keys`            | At least one local key is required.                                       |
-| `zen_keys`, `go_keys`    | At least one upstream key is required unless anonymous access is enabled. |
-| `anonymous`              | `false`.                                                                  |
-| `prefer`                 | `go`; accepts `go` or `zen`.                                              |
-| `upstream.zen`           | `https://opencode.ai/zen`.                                                |
-| `upstream.go`            | `https://opencode.ai/zen/go`.                                             |
-| `proxies`                | Falls back to `["direct"]` when both proxy sources are empty.             |
-| `proxyfile`              | Optional; relative paths resolve beside the configuration file.           |
-| `models.refresh_seconds` | `300`; minimum 1.                                                         |
-| `models.protocols`       | `{}`; per-model native protocol overrides.                                |
+| Field                       | Default / requirement                                                       |
+| --------------------------- | --------------------------------------------------------------------------- |
+| `listen`                    | `127.0.0.1:8080`.                                                           |
+| `server_keys`               | At least one local key is required.                                         |
+| `zen_keys`, `go_keys`       | At least one upstream key is required unless anonymous access is enabled.   |
+| `anonymous`                 | `false`.                                                                    |
+| `prefer`                    | `go`; accepts `go` or `zen`.                                                |
+| `upstream.zen`              | `https://opencode.ai/zen`.                                                  |
+| `upstream.go`               | `https://opencode.ai/zen/go`.                                               |
+| `proxies`                   | Falls back to `["direct"]` when both proxy sources are empty.               |
+| `proxyfile`                 | Optional; relative paths resolve beside the configuration file.             |
+| `models.refresh_seconds`    | `300`; minimum 1.                                                           |
+| `models.protocols`          | `{}`; per-model native protocol overrides.                                  |
+| `reasoning.effort`          | Empty (off); `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, or `none`. |
+| `reasoning.effort_by_model` | `{}`; per-model overrides of `reasoning.effort`.                            |
+
+### Forced thinking level
+
+`reasoning.effort` sets the thinking level used upstream when a request does not
+state one of its own, and `reasoning.effort_by_model` overrides it for the model
+IDs it names. It applies to all three protocols, in either direction of
+conversion, and matters most for cross-protocol traffic: an Anthropic
+`thinking.budget_tokens` can only be approximated by the Chat and Responses
+surfaces, so a forced level reaches a rung that the budget alone cannot express.
+
+```json
+{
+  "reasoning": {
+    "effort": "high",
+    "effort_by_model": { "claude-opus-5": "max" }
+  }
+}
+```
+
+A level a client states explicitly always wins, so this only replaces a level
+nobody asked for: an absent one, or one derived from `thinking.budget_tokens`.
+Use `"none"` to remove reasoning from requests that do not ask for it.
+
+Levels are reported faithfully in both directions. An explicit
+`output_config.effort` survives conversion instead of being shadowed by a
+`thinking` block, `budget_tokens` keeps its rung (`8192` is `high`, `32000` is
+`xhigh`, so the two stay distinguishable), and the Responses target carries the
+level as `reasoning.effort` rather than dropping it.
+
+The WebUI Configuration Center exposes the same default and per-model fields.
+The management API returns them as `reasoning` from `GET /api/config` and accepts
+the object in `PUT /api/config`; clients that omit the field keep the existing
+value, while sending an empty object clears it.
 
 Proxy entries accept `direct`, `http://`, `https://`, `socks5://`, and `socks5h://`, including URL credentials. The inline list is merged with `proxyfile` and deduplicated in order.
 

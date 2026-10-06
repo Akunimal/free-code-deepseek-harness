@@ -77,15 +77,15 @@ func (p *anonymousPool) CursorFor(affinity string) anonymousCursor {
 	if p == nil || len(p.nodes) == 0 {
 		return anonymousCursor{pool: p}
 	}
-	start := 0
-	if affinity == "" {
-		start = int((p.next.Add(1) - 1) % uint64(len(p.nodes)))
-	} else {
-		hash := fnv.New64a()
-		_, _ = hash.Write([]byte(affinity))
-		start = int(hash.Sum64() % uint64(len(p.nodes)))
-	}
-	return anonymousCursor{pool: p, start: start}
+	// FreeCode direct-first policy (0.9.1): the shell always configures
+	// 'direct' as proxies[0] with Tor as failover. Every anonymous request
+	// starts on direct; any non-2xx advances to the next proxy (Tor) inside
+	// doAnonymousUpstream, and MarkFailure cools a sick proxy so later
+	// requests skip it until recovery. Session-hash/round-robin starts are
+	// intentionally disabled: ~half the sessions would otherwise start on
+	// Tor and pay exit latency on healthy direct egress.
+	_ = affinity
+	return anonymousCursor{pool: p, start: 0}
 }
 
 // Next visits each healthy, non-cooling proxy at most once per cursor.
@@ -160,21 +160,13 @@ func newTransportPool(proxies []string, cfg config.PerformanceConfig, responseHe
 		transport.IdleConnTimeout = time.Duration(cfg.IdleConnTimeoutSeconds) * time.Second
 		transport.ResponseHeaderTimeout = responseHeaderTimeout
 		transport.ForceAttemptHTTP2 = true
-		dialer := &net.Dialer{
+		transport.DialContext = (&net.Dialer{
 			Timeout:   time.Duration(cfg.ConnectTimeoutSeconds) * time.Second,
 			KeepAlive: 30 * time.Second,
-		}
+		}).DialContext
 		if raw == "direct" {
 			transport.Proxy = nil
-			// The Windows hosts used by the private launcher can resolve the
-			// upstream to IPv6 while the active route rejects that address. Keep
-			// direct mode direct, but prefer the working IPv4 route instead of
-			// cooling the only anonymous node after a false transport failure.
-			transport.DialContext = func(ctx context.Context, _ string, address string) (net.Conn, error) {
-				return dialer.DialContext(ctx, "tcp4", address)
-			}
 		} else {
-			transport.DialContext = dialer.DialContext
 			u, err := url.Parse(raw)
 			if err != nil {
 				return nil, fmt.Errorf("parse proxy %s: %w", config.RedactURL(raw), err)

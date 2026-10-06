@@ -128,6 +128,9 @@ function fillConfig(value) {
   $("#c-timeout").value = value.retry.timeout_seconds;
   $("#c-refresh").value = value.models.refresh_seconds;
   $("#c-protocols").value = JSON.stringify(value.models.protocols || {}, null, 2);
+  const reasoning = value.reasoning || {};
+  $("#c-reasoning-effort").value = reasoning.effort || "";
+  $("#c-reasoning-by-model").value = JSON.stringify(reasoning.effort_by_model || {}, null, 2);
   $("#c-idle").value = value.performance.max_idle_conns;
   $("#c-idle-host").value = value.performance.max_idle_conns_per_host;
   $("#c-max-host").value = value.performance.max_conns_per_host;
@@ -190,6 +193,10 @@ $("#config-form").addEventListener("submit", async (event) => {
       models: {
         refresh_seconds: number("#c-refresh"),
         protocols: JSON.parse($("#c-protocols").value || "{}"),
+      },
+      reasoning: {
+        effort: $("#c-reasoning-effort").value,
+        effort_by_model: JSON.parse($("#c-reasoning-by-model").value || "{}"),
       },
       performance: {
         max_idle_conns: number("#c-idle"),

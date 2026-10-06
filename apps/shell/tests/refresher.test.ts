@@ -274,7 +274,7 @@ describe('model-refresher', () => {
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
-  it('keeps the last known-good settings when every catalog probe is degraded', async () => {
+  it('erases the anonymous lane when no model answers 200 (strict 200-only)', async () => {
     const { home, data } = tmpDirs();
     const { mkdirSync, writeFileSync } = await import('node:fs');
     mkdirSync(home, { recursive: true });
@@ -287,10 +287,10 @@ describe('model-refresher', () => {
     const catalog = await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
     expect(catalog.availability).toBe('degraded');
     const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
-    expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([
-      { id: 'last-known-good' },
-      { id: 'x-preview-f', reasoningEfforts: false },
-    ]);
+    // 0.9.1: stale entries are erased instead of kept as last-known-good,
+    // so the selector never offers dead models. Bounded refresh retries
+    // repopulate the lane on upstream recovery.
+    expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([]);
     rmSync(dirname(home), { recursive: true, force: true });
   });
 });

@@ -108,6 +108,7 @@ type ConfigView struct {
 	Performance config.PerformanceConfig `json:"performance"`
 	Logging     config.LoggingConfig     `json:"logging"`
 	Prefer      config.Tier              `json:"prefer"`
+	Reasoning   config.ReasoningConfig   `json:"reasoning"`
 	WebUI       WebUIView                `json:"webui"`
 	Effective   EffectiveView            `json:"effective"`
 	Restart     []string                 `json:"restart_required_fields,omitempty"`
@@ -145,7 +146,10 @@ type ConfigUpdate struct {
 	Performance config.PerformanceConfig `json:"performance"`
 	Logging     config.LoggingConfig     `json:"logging"`
 	Prefer      config.Tier              `json:"prefer"`
-	WebUI       WebUIView                `json:"webui"`
+	// A pointer distinguishes an omitted field (legacy clients should keep the
+	// current reasoning configuration) from an explicit empty object (clear it).
+	Reasoning *config.ReasoningConfig `json:"reasoning,omitempty"`
+	WebUI     WebUIView               `json:"webui"`
 }
 
 func (a *Server) handleGetConfig(w http.ResponseWriter, _ *http.Request) {
@@ -180,10 +184,15 @@ func (a *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 		writeAdminError(w, http.StatusBadRequest, "invalid_proxies", err.Error())
 		return
 	}
+	reasoning := current.Reasoning
+	if update.Reasoning != nil {
+		reasoning = *update.Reasoning
+	}
 	candidate := config.Config{
 		Listen: update.Listen, ServerKeys: serverKeys, ZenKeys: zenKeys, GoKeys: goKeys, Anonymous: update.Anonymous, Proxies: proxies, ProxyFile: update.ProxyFile,
 		Upstream: update.Upstream, Retry: update.Retry, Models: update.Models, Performance: update.Performance, Logging: update.Logging, Prefer: update.Prefer,
-		WebUI: config.WebUIConfig{Enabled: update.WebUI.Enabled, Listen: update.WebUI.Listen, Username: current.WebUI.Username, PasswordHash: current.WebUI.PasswordHash, SessionTTLMinutes: update.WebUI.SessionTTLMinutes},
+		Reasoning: reasoning,
+		WebUI:     config.WebUIConfig{Enabled: update.WebUI.Enabled, Listen: update.WebUI.Listen, Username: current.WebUI.Username, PasswordHash: current.WebUI.PasswordHash, SessionTTLMinutes: update.WebUI.SessionTTLMinutes},
 	}
 	result, err := a.manager.Apply(candidate, true)
 	if err != nil {
@@ -308,7 +317,7 @@ func (a *Server) configView() ConfigView {
 	return ConfigView{
 		Listen: cfg.Listen, ServerKeys: maskSecrets(cfg.ServerKeys, false), ZenKeys: maskSecrets(cfg.ZenKeys, false), GoKeys: maskSecrets(cfg.GoKeys, false), Anonymous: cfg.Anonymous,
 		Proxies: maskSecrets(cfg.Proxies, true), ProxyFile: cfg.ProxyFile, Upstream: cfg.Upstream, Retry: cfg.Retry, Models: cfg.Models,
-		Performance: cfg.Performance, Logging: cfg.Logging, Prefer: cfg.Prefer,
+		Performance: cfg.Performance, Logging: cfg.Logging, Prefer: cfg.Prefer, Reasoning: cfg.Reasoning,
 		WebUI:     WebUIView{Enabled: cfg.WebUI.Enabled, Listen: cfg.WebUI.Listen, Username: cfg.WebUI.Username, SessionTTLMinutes: cfg.WebUI.SessionTTLMinutes},
 		Effective: EffectiveView{Listen: effective.API, WebUIListen: effective.WebUI, WebUIEnabled: effective.WebUIEnabled},
 		Restart:   restart,

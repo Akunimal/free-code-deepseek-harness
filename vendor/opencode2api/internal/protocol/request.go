@@ -23,6 +23,127 @@ func PrepareRequest(from, to Protocol, input map[string]any, upstreamURL string)
 	return output, nil
 }
 
+// ForcedEffort applies an operator-configured thinking level to a prepared
+// upstream body, so a client can be served at a fixed level without the client
+// cooperating.
+//
+// A level the client stated explicitly always wins. That is what the "forced"
+// level is for: replacing a level nobody actually asked for, either because the
+// request said nothing about reasoning or because the conversion had to derive
+// one from thinking.budget_tokens. It is applied to the finished upstream body
+// rather than to the bridge value because the same-protocol path never goes
+// through the bridge, and only there can the client's own body be seen.
+func ForcedEffort(protocol Protocol, body map[string]any, effort string) {
+	if body == nil {
+		return
+	}
+	effort = strings.ToLower(strings.TrimSpace(effort))
+	if !validForcedEffort(effort) {
+		return
+	}
+	disable := effort == "none"
+	switch protocol {
+	case Chat:
+		if clientEffortExplicit(protocol, body) {
+			return
+		}
+		if disable {
+			delete(body, "reasoning_effort")
+			return
+		}
+		body["reasoning_effort"] = effort
+	case Anthropic:
+		if clientEffortExplicit(protocol, body) {
+			return
+		}
+		applyAnthropicForcedEffort(body, effort, disable)
+	case Responses:
+		if clientEffortExplicit(protocol, body) {
+			return
+		}
+		if disable {
+			delete(body, "reasoning")
+			return
+		}
+		reasoning, _ := body["reasoning"].(map[string]any)
+		if reasoning == nil {
+			reasoning = map[string]any{}
+			body["reasoning"] = reasoning
+		}
+		reasoning["effort"] = effort
+	}
+}
+
+// clientEffortExplicit reports whether an upstream body already carries a level
+// the client stated, as opposed to one the gateway derived from a budget.
+//
+// The shapes differ per protocol, and each one mirrors how that protocol
+// expressed the level natively: Anthropic states it in output_config.effort (or
+// a top-level effort), Chat in a bare reasoning_effort string, and Responses in
+// reasoning.effort. Anything else in those slots is a structural value the
+// conversion produced, which a forced level is allowed to replace.
+func clientEffortExplicit(protocol Protocol, body map[string]any) bool {
+	switch protocol {
+	case Chat:
+		_, ok := body["reasoning_effort"].(string)
+		return ok
+	case Anthropic:
+		if effort, ok := jsonutil.AnyAt(body, "output_config", "effort").(string); ok && strings.TrimSpace(effort) != "" {
+			return true
+		}
+		effort, ok := body["effort"].(string)
+		return ok && strings.TrimSpace(effort) != ""
+	case Responses:
+		_, ok := jsonutil.AnyAt(body, "reasoning", "effort").(string)
+		return ok
+	default:
+		return false
+	}
+}
+
+// applyAnthropicForcedEffort writes a forced level into an Anthropic body and
+// keeps the thinking block and max_tokens consistent with it.
+//
+// Anthropic represents a level as output_config.effort, but also requires a
+// thinking block to carry a budget and requires max_tokens to exceed that
+// budget. Forcing a level therefore has to move all three together, or the
+// upstream rejects the request it was just told to run at a higher level.
+func applyAnthropicForcedEffort(body map[string]any, effort string, disable bool) {
+	if disable {
+		delete(body, "thinking")
+		delete(body, "output_config")
+		return
+	}
+	if outputConfig, _ := body["output_config"].(map[string]any); outputConfig == nil {
+		body["output_config"] = map[string]any{"effort": effort}
+	} else {
+		outputConfig["effort"] = effort
+	}
+	budget := budgetForEffort(effort)
+	if thinking, ok := body["thinking"].(map[string]any); ok {
+		thinking["type"] = "enabled"
+		thinking["budget_tokens"] = float64(budget)
+	} else {
+		body["thinking"] = map[string]any{"type": "enabled", "budget_tokens": float64(budget)}
+	}
+	// max_tokens must stay strictly greater than the thinking budget, otherwise
+	// Anthropic rejects the payload regardless of the requested effort.
+	if current := jsonutil.IntAt(body, "max_tokens"); current > 0 && current <= budget {
+		body["max_tokens"] = budget + 4096
+	}
+}
+
+// validForcedEffort accepts the levels the configuration can force. "none" is
+// the escape hatch that removes reasoning again.
+func validForcedEffort(effort string) bool {
+	switch effort {
+	case "minimal", "low", "medium", "high", "xhigh", "max", "none":
+		return true
+	default:
+		return false
+	}
+}
+
 // normalizeToolReasoningHistory applies only to endpoints that are known to
 // require reasoning replay, or to requests that explicitly enable reasoning.
 // Normalizing the target shape makes the behavior independent of the client
@@ -193,6 +314,35 @@ func anthropicContentHasType(content []any, kind string) bool {
 	return false
 }
 
+// anthropicReasoning decodes the reasoning controls of an Anthropic Messages
+// request into a single bridge-level value.
+//
+// An effort the client states explicitly outranks a thinking block's budget.
+// Choosing input["thinking"] first (as this used to) shadowed
+// output_config.effort and a top-level effort entirely, so `thinking:
+// {adaptive}` plus `output_config: {effort: "max"}` decoded as the thinking
+// block and was reported downstream as the budget bucket "high".
+func anthropicReasoning(input map[string]any) any {
+	stated := jsonutil.FirstAny(jsonutil.AnyAt(input, "output_config", "effort"), input["effort"])
+	if effort, ok := normalizeEffortValue(stated); ok {
+		// The explicit effort survives next to the thinking block's budget so
+		// nothing the client said is lost on the way to the bridge.
+		if effort == nil {
+			return nil
+		}
+		if thinking, ok := input["thinking"].(map[string]any); ok {
+			merged := make(map[string]any, len(thinking)+1)
+			for key, value := range thinking {
+				merged[key] = value
+			}
+			merged["effort"] = effort
+			return merged
+		}
+		return effort
+	}
+	return input["thinking"]
+}
+
 func decodeBridgeRequest(protocol Protocol, input map[string]any) (bridgeRequest, error) {
 	request := bridgeRequest{
 		Model:       jsonutil.StringAt(input, "model"),
@@ -218,6 +368,12 @@ func decodeBridgeRequest(protocol Protocol, input map[string]any) (bridgeRequest
 			}
 			if role == "assistant" {
 				blocks = append(decodeChatReasoning(message), blocks...)
+				// A budget the gateway carried out on the assistant message is
+				// read back next to the effort, so both directions agree on the
+				// level the client originally named.
+				if budget := jsonutil.IntAt(message, "reasoning_budget_tokens"); budget > 0 {
+					request.Reasoning = withReasoningBudget(request.Reasoning, budget)
+				}
 			}
 			for j, rawCall := range jsonutil.SliceAt(message, "tool_calls") {
 				call, ok := rawCall.(map[string]any)
@@ -268,6 +424,10 @@ func decodeBridgeRequest(protocol Protocol, input map[string]any) (bridgeRequest
 		request.FrequencyPenalty = input["frequency_penalty"]
 		request.PresencePenalty = input["presence_penalty"]
 		request.Seed = input["seed"]
+		request.PromptCacheKey = input["prompt_cache_key"]
+		request.SafetyIdentifier = input["safety_identifier"]
+		request.ServiceTier = input["service_tier"]
+		request.Store = input["store"]
 
 	case Responses:
 		request.MaxTokens = input["max_output_tokens"]
@@ -340,11 +500,15 @@ func decodeBridgeRequest(protocol Protocol, input map[string]any) (bridgeRequest
 		request.ToolChoice = decodeResponsesToolChoice(input["tool_choice"])
 		request.ResponseFormat = jsonutil.MapAt(input, "text", "format")
 		request.ParallelToolCalls = input["parallel_tool_calls"]
+		request.PromptCacheKey = input["prompt_cache_key"]
+		request.SafetyIdentifier = input["safety_identifier"]
+		request.ServiceTier = input["service_tier"]
+		request.Store = input["store"]
 
 	case Anthropic:
 		request.MaxTokens = input["max_tokens"]
 		request.Stop = input["stop_sequences"]
-		request.Reasoning = jsonutil.FirstAny(input["thinking"], jsonutil.AnyAt(input, "output_config", "effort"), input["effort"])
+		request.Reasoning = anthropicReasoning(input)
 		blocks, err := decodeAnthropicBlocksChecked(input["system"])
 		if err != nil {
 			return request, fmt.Errorf("system: %w", err)
@@ -478,6 +642,10 @@ func encodeChatRequest(request bridgeRequest) (map[string]any, error) {
 	jsonutil.Put(output, "frequency_penalty", request.FrequencyPenalty)
 	jsonutil.Put(output, "presence_penalty", request.PresencePenalty)
 	jsonutil.Put(output, "seed", request.Seed)
+	jsonutil.Put(output, "prompt_cache_key", request.PromptCacheKey)
+	jsonutil.Put(output, "safety_identifier", request.SafetyIdentifier)
+	jsonutil.Put(output, "service_tier", request.ServiceTier)
+	jsonutil.Put(output, "store", request.Store)
 	if request.Stream {
 		output["stream_options"] = map[string]any{"include_usage": true}
 	}
@@ -493,6 +661,21 @@ func encodeChatRequest(request bridgeRequest) (map[string]any, error) {
 	pendingResults := make(map[string]bridgeBlock)
 	var pendingOrder []string
 	var deferred [][]bridgeBlock
+	// Anthropic's reasoning controls belong to a whole conversation, but Chat
+	// carries a single reasoning_effort for the request. The budget the client
+	// named is emitted once, on the first assistant message, so that decoding
+	// this Chat body back into Anthropic can restore the level exactly instead
+	// of re-deriving it from a bucket (32000 used to come back as 8192).
+	budgetCarried := false
+	carryBudget := func(encoded map[string]any) {
+		if budgetCarried {
+			return
+		}
+		if budget := reasoningBudget(request.Reasoning); budget > 0 {
+			encoded["reasoning_budget_tokens"] = budget
+			budgetCarried = true
+		}
+	}
 	flushDeferred := func() {
 		for _, blocks := range deferred {
 			if len(blocks) > 0 {
@@ -500,6 +683,24 @@ func encodeChatRequest(request bridgeRequest) (map[string]any, error) {
 			}
 		}
 		deferred = nil
+	}
+	// A conversation can end before any assistant turn exists to carry the
+	// budget. Attaching it to an empty assistant message keeps it on the wire
+	// without inventing visible output; Chat clients treat the empty turn as an
+	// assistant prefill.
+	carryBudgetOnly := func() {
+		if budgetCarried {
+			return
+		}
+		if budget := reasoningBudget(request.Reasoning); budget <= 0 {
+			return
+		}
+		encoded := map[string]any{"role": "assistant", "content": nil}
+		carryBudget(encoded)
+		if encoded["reasoning_budget_tokens"] == nil {
+			return
+		}
+		messages = append(messages, encoded)
 	}
 
 	for i, message := range request.Messages {
@@ -524,6 +725,7 @@ func encodeChatRequest(request bridgeRequest) (map[string]any, error) {
 				return nil, fmt.Errorf("messages[%d]: assistant message contains tool results", i)
 			}
 			encoded := map[string]any{"role": "assistant", "content": nil}
+			carryBudget(encoded)
 			if value, ok := bridgeReasoningText(reasoning); ok {
 				encoded["reasoning_content"] = value
 			}
@@ -554,6 +756,7 @@ func encodeChatRequest(request bridgeRequest) (map[string]any, error) {
 			}
 			if len(content) > 0 || len(reasoning) > 0 || len(calls) > 0 {
 				messages = append(messages, encoded)
+				budgetCarried = true
 			}
 			continue
 		}
@@ -596,6 +799,7 @@ func encodeChatRequest(request bridgeRequest) (map[string]any, error) {
 		return nil, fmt.Errorf("tool calls are missing results for %s", strings.Join(missingToolIDs(pendingOrder, pending), ", "))
 	}
 	flushDeferred()
+	carryBudgetOnly()
 	output["messages"] = messages
 
 	if len(request.Tools) > 0 {
@@ -645,6 +849,49 @@ func missingToolIDs(order []string, pending map[string]bool) []string {
 	return missing
 }
 
+// responsesReasoning builds the Responses "reasoning" object.
+//
+// A bare effort string, or a thinking-style block that carries budget_tokens
+// but no effort, is projected onto "reasoning.effort". Copying such a block
+// through verbatim (the old behavior) forwarded {"type":"adaptive"} and dropped
+// the effort completely, so a client asking for "max" reached the upstream with
+// no reasoning configuration at all.
+func responsesReasoning(value any) any {
+	if object, ok := value.(map[string]any); ok {
+		if jsonutil.StringAt(object, "type") == "disabled" {
+			return object
+		}
+		// "effort" is authoritative here for the same reason as in
+		// encodeChatRequest: it either came from the client verbatim or was
+		// derived from the budget by reasoningEffort.
+		if effort := reasoningEffort(object); effort != nil {
+			switch typed := effort.(type) {
+			case string:
+				return map[string]any{"effort": typed}
+			case map[string]any:
+				return typed
+			default:
+				return map[string]any{"effort": typed}
+			}
+		}
+		return object
+	}
+	switch typed := value.(type) {
+	case string:
+		if effort, ok := normalizeEffortValue(typed); ok {
+			if effort == nil {
+				return nil
+			}
+			return map[string]any{"effort": effort}
+		}
+		return map[string]any{"effort": typed}
+	case map[string]any:
+		return typed
+	default:
+		return value
+	}
+}
+
 func encodeResponsesRequest(request bridgeRequest) map[string]any {
 	output := map[string]any{"model": request.Model, "stream": request.Stream}
 	jsonutil.Put(output, "temperature", request.Temperature)
@@ -656,17 +903,20 @@ func encodeResponsesRequest(request bridgeRequest) map[string]any {
 		output["instructions"] = bridgeBlocksText(request.System)
 	}
 	if request.Reasoning != nil {
-		switch value := request.Reasoning.(type) {
-		case string:
-			output["reasoning"] = map[string]any{"effort": value}
-		default:
-			output["reasoning"] = value
+		if reasoning := responsesReasoning(request.Reasoning); reasoning != nil {
+			output["reasoning"] = reasoning
 		}
 	}
 	if format := responsesTextFormat(request.ResponseFormat); format != nil {
 		output["text"] = map[string]any{"format": format}
 	}
 	jsonutil.Put(output, "parallel_tool_calls", request.ParallelToolCalls)
+	// ponytail: native-fidelity knobs. Omit-when-absent: clients that never
+	// send them see zero behavior change; opencode turns ride cache affinity.
+	jsonutil.Put(output, "prompt_cache_key", request.PromptCacheKey)
+	jsonutil.Put(output, "safety_identifier", request.SafetyIdentifier)
+	jsonutil.Put(output, "service_tier", request.ServiceTier)
+	jsonutil.Put(output, "store", request.Store)
 
 	items := make([]any, 0, len(request.Messages)+1)
 	if len(request.Developer) > 0 {

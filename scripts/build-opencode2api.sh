@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
 # Builds opencode2api standalone binaries for all release platforms.
-# Source of truth: vendor/opencode2api (upstream v1.3.2 lineage with the
+# Source of truth: vendor/opencode2api (upstream v1.3.5 lineage with the
 # anonymous Zen free lane: canonical ses_ sessions, agent-shaped bodies and
 # the exact upstream header contract). The historical free-code patches
 # (host-flag, developer-role, public-model-fallback) targeted the retired
-# pre-v1 fork and are obsolete: v1.3.2 binds loopback via config `listen`,
+# pre-v1 fork and are obsolete: v1.3.2+ binds loopback via config `listen`,
 # and its pricing/name-based fallback subsumes the public-model patch.
+#
+# FreeCode vendor tweak (kept across upstream updates, see pool.go CursorFor):
+# the anonymous lane always starts on proxies[0] ('direct'); any non-2xx
+# advances to Tor in-request. Re-apply and rebuild after every vendor refresh.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SRC="$ROOT/vendor/opencode2api"
 OUT_DIR="$ROOT/apps/shell/resources/opencode2api"
-VERSION="v1.3.2"
+VERSION="v1.3.5"
 
 # Locate go: PATH first, then common dev SDK location used on this machine
 if command -v go >/dev/null 2>&1; then

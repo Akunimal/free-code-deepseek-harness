@@ -317,6 +317,15 @@ func (c *Catalog) anonymousDecision(model string) AnonymousDecision {
 	return AnonymousDecision{Allowed: isFreeModel(model), Source: "name_fallback_metadata_pending"}
 }
 
+// IsFreeModel reports whether the catalog considers the model free-tier
+// (pricing metadata, falling back to the -free name convention). Key-tier
+// shaping uses it so free models without "free" in the name are covered.
+func (c *Catalog) IsFreeModel(model string) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.anonymousDecision(model).Allowed
+}
+
 func (c *Catalog) Diagnostic(model string, requested wire.Protocol, hasZenKeys, hasGoKeys, hasAnonymous bool) RouteDiagnostic {
 	c.mu.RLock()
 	configured, explicit := c.protocols[model]

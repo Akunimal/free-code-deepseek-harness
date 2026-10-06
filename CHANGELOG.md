@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.9.1 — unreleased
+
+### Changed / Cambiado
+
+- **opencode2api v1.3.2 → v1.3.5** — vendored source refreshed (16 commits:
+  phantom `tool_use` demotion, agent-shaped free-tier bodies, prompt-cache
+  affinity knobs, configurable reasoning effort, SystemOne models endpoint);
+  all four platform binaries rebuilt from source. / Fuente actualizada y
+  los cuatro binarios reconstruidos desde el vendor.
+- **Direct-first Tor failover** — the anonymous lane always starts on
+  `direct`; any non-2xx advances to Tor inside the same gateway request,
+  and a 401/403/429/5xx cools the sick proxy until recovery. Local vendor
+  tweak documented in `vendor/opencode2api/internal/gateway/pool.go`
+  (re-apply after every upstream refresh). / El lane anónimo siempre
+  arranca por directo; cualquier no-2xx pasa a Tor en el mismo request.
+- **Strict 200-only selector** — `deepseek-free` syncs only probed
+  responders; with zero responders the list is erased instead of keeping
+  stale models, and bounded refresh retries repopulate it on recovery. /
+  El selector solo muestra modelos que responden 200.
+- **License honesty** — upstream declares no license (no LICENSE file in
+  v1.3.5); `NOTICE` and `runtime-deps.json` no longer claim MIT. /
+  Se corrigió la atribución de licencia a su estado real.
+
+### Fixed / Corregido
+
+- Tor overlay fully localized (ES/EN/ZH) with initial status snapshot,
+  rotate cooldown/feedback and HTML escaping; Tor status + rotate in the
+  tray and Pool menu; pool worker slider disabled (automatic routing);
+  neutral Spanish register; translated startup watchdog. / Overlay Tor
+  traducido con estado inicial, cooldown y escape; Tor en tray y menú.
+
 ## 0.9.0 — 2026-10-01
 
 ### Added / Agregado
