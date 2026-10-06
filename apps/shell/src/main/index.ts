@@ -1216,8 +1216,8 @@ app.whenReady().then(async () => {
       void dialog.showMessageBox({
         type: 'error',
         title: t('stuck.title'),
-        message: 'The application failed to start within the expected time.',
-        detail: `The harness web server did not become ready.\n\nSupervisor status: ${runtime?.supervisor.statusValue ?? 'unknown'}\n\nCheck the log for details:\n${logPath}`,
+        message: t('stuck.timeout.message'),
+        detail: t('stuck.timeout.detail', runtime?.supervisor.statusValue ?? t('version.unknown'), logPath),
         buttons: [t('stuck.close')],
       });
     }
