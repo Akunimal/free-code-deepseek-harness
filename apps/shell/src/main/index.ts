@@ -231,6 +231,11 @@ function mcpTraySummary(): string | null {
   return t('tray.mcpStatus', ready, enabled.length);
 }
 
+function torTraySummary(): string | null {
+  if (!torManager) return null;
+  return torManager.isReady ? t('tray.torReady') : t('tray.torDown');
+}
+
 function reportMcpStatus(status: McpRuntimeStatus): void {
   const previous = mcpLastStates.get(status.serverId);
   mcpLastStates.set(status.serverId, status.state);
@@ -876,6 +881,11 @@ function buildMenu(): void {
           label: t('menu.restartHarness'),
           click: () => void runtime?.supervisor.restart(),
         },
+        {
+          label: t('menu.rotateTor'),
+          enabled: torManager?.isReady ?? false,
+          click: () => void torManager?.rotateIdentity(),
+        },
         { type: 'separator' },
         { role: 'quit', label: t('menu.quit') },
       ],
@@ -914,20 +924,28 @@ function updateTrayMenu(): void {
       ? t('tray.updateInstalling')
       : null;
   const mcpSummary = mcpTraySummary();
-  tray?.setToolTip([activityLabel, mcpSummary].filter((value): value is string => value !== null).join(' · ') || t('tray.tooltip'));
+  const torSummary = torTraySummary();
+  tray?.setToolTip([activityLabel, mcpSummary, torSummary].filter((value): value is string => value !== null).join(' · ') || t('tray.tooltip'));
   const activityItems: Electron.MenuItemConstructorOptions[] = activityLabel
     ? [{ label: activityLabel, enabled: false }, { type: 'separator' }]
     : [];
   const mcpItem = mcpSummary === null ? [] : [{ label: mcpSummary, enabled: false } satisfies Electron.MenuItemConstructorOptions, { type: 'separator' as const }];
+  const torItem = torSummary === null ? [] : [{ label: torSummary, enabled: false } satisfies Electron.MenuItemConstructorOptions];
   tray?.setContextMenu(
     Menu.buildFromTemplate([
       ...activityItems,
       ...mcpItem,
+      ...torItem,
       { label: t('tray.show'), click: () => showMainWindowFromTray() },
       { label: t('menu.poolStatus'), click: () => openOverlay() },
       {
         label: t('menu.restartHarness'),
         click: () => void runtime?.supervisor.restart(),
+      },
+      {
+        label: t('menu.rotateTor'),
+        enabled: torManager?.isReady ?? false,
+        click: () => void torManager?.rotateIdentity(),
       },
       { type: 'separator' },
       { label: t('menu.quit'), click: () => app.quit() },
@@ -969,6 +987,10 @@ function createTray(): void {
     ? nativeImage.createFromPath(iconPath)
     : nativeImage.createEmpty();
   tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
+  torManager?.onChange(() => {
+    updateTrayMenu();
+    buildMenu();
+  });
   updateTrayMenu();
   // Windows fires 'click' for single-click and 'double-click' for double;
   // both should restore. macOS uses tray-click on the menu bar icon. All
