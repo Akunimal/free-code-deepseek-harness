@@ -47,9 +47,16 @@ export const ENV_OVERRIDES = {
  * garbles non-ASCII output; pwsh 7 defaults to UTF-8 and is unaffected. The
  * statements ride on line 1 after `; ` separators so PowerShell error line
  * numbers stay accurate.
+ *
+ * FreeCode: also default Start-Process grandchildren to a hidden window. A
+ * model-issued `Start-Process powershell.exe ... -NoNewWindow` spawns its
+ * child from a console-less parent, so Windows allocates a NEW VISIBLE
+ * console that flashes for the duration of the child. Defaulting
+ * WindowStyle to Hidden keeps those grandchildren headless; an explicit
+ * -WindowStyle still wins, and -Wait/-PassThru/redirects are unaffected.
  */
 export const ENCODING_PREAMBLE =
-  '[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); $OutputEncoding = [System.Text.UTF8Encoding]::new($false); '
+  '[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); $OutputEncoding = [System.Text.UTF8Encoding]::new($false); $PSDefaultParameterValues["Start-Process:WindowStyle"]="Hidden"; '
 
 /** Default SIGTERM→SIGKILL grace period (the `graceMs` config). */
 const DEFAULT_GRACE_MS = 3_000

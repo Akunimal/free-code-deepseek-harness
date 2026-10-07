@@ -184,7 +184,7 @@
   "vendor/deepseek-harness/packages/settings/settings-file": "925ae388ed049ee6e5a5d7f6c53f15904a9d8c91ef50cd21863a671a4521d2d9",
   "vendor/deepseek-harness/packages/shell/bash-local": "fe6de457581397190ab47a875c7664b27bd0037f5910dd9fe4d77e1bc36ebf50",
   "vendor/deepseek-harness/packages/shell/bash-sandbox": "16959286ec35d20c5f2c9877634098e096e980f1281c34b80f2e4d9adfa8f35b",
-  "vendor/deepseek-harness/packages/shell/pwsh-local": "4264b38e20a686fa878cd5de5655546cd26194a477d44431b0e8ee0e66372263",
+  "vendor/deepseek-harness/packages/shell/pwsh-local": "e3f3d852286f1a536a749f3cc88ba54aa87e09e031b5c98477c73f0ead3bf569",
   "vendor/deepseek-harness/packages/shell/pwsh-sandbox": "13e01b5402f066f8e84ea09b0eaf470aefaf3673154f77f83eeabafbfd9e9914",
   "vendor/deepseek-harness/packages/shell/shell": "f529a47c42e86259433826cbb048e68245a5527bca2b00313e9d48851572eef1",
   "vendor/deepseek-harness/packages/shell/shell-env": "e9099b658b19d441a131faf5fd2d506f514dea45b2ed72c47a52f18a1f12ad76",

@@ -176,7 +176,11 @@ export async function healthProbe(
   url: string,
   timeoutMs = 5_000,
 ): Promise<HealthProbeResult> {
-  const start = Date.now()
+  // performance.now() has sub-millisecond resolution: Date.now() truncates
+  // an instant refusal (same tick) to durationMs 0 and breaks the
+  // greater-than-zero contract on fast loopback stacks.
+  const start = performance.now()
+  const elapsed = (): number => Math.max(1, Math.round(performance.now() - start))
   try {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), timeoutMs)
@@ -188,12 +192,12 @@ export async function healthProbe(
     clearTimeout(timer)
     return {
       healthy: response.ok || response.status === 401, // 401 is OK — auth gate is working
-      durationMs: Date.now() - start,
+      durationMs: elapsed(),
     }
   } catch (err) {
     return {
       healthy: false,
-      durationMs: Date.now() - start,
+      durationMs: elapsed(),
       error: err instanceof Error ? err.message : String(err),
     }
   }

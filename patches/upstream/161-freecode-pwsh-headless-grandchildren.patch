@@ -1,7 +1,7 @@
 diff --git a/vendor/deepseek-harness/packages/shell/pwsh-local/src/index.ts b/vendor/deepseek-harness/packages/shell/pwsh-local/src/index.ts
 --- a/vendor/deepseek-harness/packages/shell/pwsh-local/src/index.ts
 +++ b/vendor/deepseek-harness/packages/shell/pwsh-local/src/index.ts
-@@ -44,8 +44,15 @@ export const ENV_OVERRIDES = {
+@@ -44,10 +44,17 @@ export const ENV_OVERRIDES = {
   * UTF-8 output pinning prepended to every command. The subprocess collector
   * decodes output bytes as UTF-8, but Windows PowerShell 5.1 (the last-resort
   * executable fallback) writes the console/OEM code page by default, which
@@ -19,3 +19,5 @@ diff --git a/vendor/deepseek-harness/packages/shell/pwsh-local/src/index.ts b/ve
  export const ENCODING_PREAMBLE =
 -  '[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); $OutputEncoding = [System.Text.UTF8Encoding]::new($false); '
 +  '[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); $OutputEncoding = [System.Text.UTF8Encoding]::new($false); $PSDefaultParameterValues["Start-Process:WindowStyle"]="Hidden"; '
+
+/** Default SIGTERM→SIGKILL grace period (the `graceMs` config). */
