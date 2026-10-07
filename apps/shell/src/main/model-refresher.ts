@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync, renameSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { load as loadYaml, dump as dumpYaml } from 'js-yaml';
-import { compatForModel, reasoningEffortsForModel } from './reasoning-policy.js';
+import { compatForModel, reasoningEffortsForModelWithHint } from './reasoning-policy.js';
 
 /**
  * Model refresher — probes OpenAI-compatible provider routes, persists a
@@ -127,8 +127,9 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
   const settings = readSettings(settingsPath);
   const section = settings['llm-pi-ai'] ?? (settings['llm-pi-ai'] = {});
   const providers = section.providers ?? (section.providers = {});
+  const reasoningHints = loadGatewayReasoningFlags(cfg.userDataDir);
   for (const { target, entries } of results) {
-    syncProviderModels(providers, target, entries);
+    syncProviderModels(providers, target, entries, reasoningHints);
   }
   writeSettings(settingsPath, settings);
 
@@ -200,10 +201,40 @@ async function probeModels(
   }));
 }
 
+/**
+ * Best-effort read of the gateway-advertised per-model `reasoning` flags.
+ * The opencode2api gateway persists its served-model metadata next to its
+ * config (`<userDataDir>/opencode2api/config.json.models.catalog.json`,
+ * `metadata.zen` / `metadata.go` maps). Absent/unparseable files yield null
+ * and the name-only policy applies. Never throws.
+ */
+export function loadGatewayReasoningFlags(userDataDir: string): Map<string, boolean> | null {
+  try {
+    const raw = readFileSync(join(userDataDir, 'opencode2api', 'config.json.models.catalog.json'), 'utf8');
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const metadata = (parsed as { metadata?: unknown }).metadata;
+    if (!metadata || typeof metadata !== 'object') return null;
+    const out = new Map<string, boolean>();
+    for (const lane of Object.values(metadata as Record<string, unknown>)) {
+      if (!lane || typeof lane !== 'object') continue;
+      for (const [id, info] of Object.entries(lane as Record<string, unknown>)) {
+        if (info && typeof info === 'object' && (info as { reasoning?: unknown }).reasoning === true) {
+          out.set(id, true);
+        }
+      }
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 function syncProviderModels(
   providers: Record<string, Record<string, any>>,
   target: ProviderRefreshTarget,
   entries: CatalogModel[],
+  reasoningHints: Map<string, boolean> | null = null,
 ): void {
   const provider = providers[target.provider] ?? (providers[target.provider] = {
     api: 'openai-completions',
@@ -235,7 +266,7 @@ function syncProviderModels(
   if (responders.length > 0) {
     const responderIds = new Set(responders.map((model) => model.id));
     provider.models = [...responders, ...advertisedFallbacks.filter((model) => !responderIds.has(model.id))]
-      .map((model) => modelSettingsForModel(model.id));
+      .map((model) => modelSettingsForModel(model.id, reasoningHints?.get(model.id)));
     return;
   }
 
@@ -258,28 +289,28 @@ function syncProviderModels(
     .filter((id) => !appendedIds.has(id))
     .map((id) => {
       appendedIds.add(id);
-      return modelSettingsForModel(id);
+      return modelSettingsForModel(id, reasoningHints?.get(id));
     });
   const fallbackAdvertised = advertisedFallbacks
     .filter((model) => !appendedIds.has(model.id))
     .map((model) => {
       appendedIds.add(model.id);
-      return modelSettingsForModel(model.id);
+      return modelSettingsForModel(model.id, reasoningHints?.get(model.id));
     });
   if (fallbackEntries.length > 0 || fallbackAdvertised.length > 0) {
     provider.models = [...current, ...fallbackEntries, ...fallbackAdvertised];
   }
 }
 
-function modelSettingsForModel(id: string): {
+function modelSettingsForModel(id: string, gatewayReasoning?: boolean): {
   id: string;
-  reasoningEfforts: ReturnType<typeof reasoningEffortsForModel>;
+  reasoningEfforts: ReturnType<typeof reasoningEffortsForModelWithHint>;
   compat?: { thinkingFormat: 'deepseek'; supportsReasoningEffort: false };
 } {
   const compat = compatForModel(id);
   return {
     id,
-    reasoningEfforts: reasoningEffortsForModel(id),
+    reasoningEfforts: reasoningEffortsForModelWithHint(id, gatewayReasoning),
     ...(compat === undefined ? {} : { compat }),
   };
 }

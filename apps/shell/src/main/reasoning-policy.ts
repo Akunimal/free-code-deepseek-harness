@@ -33,6 +33,17 @@ const MIMO_REASONING_EFFORTS: Exclude<ModelReasoningEfforts, false> = {
   high: 'high',
 };
 
+/** Generic graduated thinking for models whose gateway metadata advertises
+ *  reasoning but whose wire dialect is not DeepSeek/MiMo-specific.
+ *  Verified live against the opencode2api lane: reasoning_effort passes
+ *  through and is honored (200 + reasoning_content observed). Effort only
+ *  reaches the wire when the user selects a non-off level. */
+const GENERIC_REASONING_EFFORTS: Exclude<ModelReasoningEfforts, false> = {
+  off: null,
+  low: 'low',
+  high: 'high',
+};
+
 /** Models that support extended thinking but are NOT DeepSeek.
  *  These use a reduced vocabulary (off/low/high — no max tier). */
 const THINKING_CAPABLE_MODELS: readonly RegExp[] = [
@@ -50,11 +61,25 @@ function isThinkingCapableModel(modelId: string): boolean {
 
 /** Return the exact reasoning declaration safe for one pool model id. */
 export function reasoningEffortsForModel(modelId: string): ModelReasoningEfforts {
+  return reasoningEffortsForModelWithHint(modelId, undefined);
+}
+
+/**
+ * Name policy plus live gateway evidence. `gatewayReasoning` is the
+ * per-model `reasoning` flag from the gateway catalog metadata (true when
+ * the serving lane advertises thinking for the id). Unknown/absent evidence
+ * keeps the conservative name-only verdict.
+ */
+export function reasoningEffortsForModelWithHint(
+  modelId: string,
+  gatewayReasoning: boolean | undefined,
+): ModelReasoningEfforts {
   if (isDeepSeekModel(modelId)) return { ...DEEPSEEK_REASONING_EFFORTS };
   if (isMimoModel(modelId)) return { ...MIMO_REASONING_EFFORTS };
   if (isThinkingCapableModel(modelId)) {
     return { off: null, low: 'low', high: 'high' };
   }
+  if (gatewayReasoning === true) return { ...GENERIC_REASONING_EFFORTS };
   return false;
 }
 

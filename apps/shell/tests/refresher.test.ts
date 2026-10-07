@@ -274,6 +274,36 @@ describe('model-refresher', () => {
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
+  it('offers generic effort to gateway-advertised reasoning models', async () => {
+    mockFetchWithModels(['space-bunny-free', 'jev-1.13-free'], ['space-bunny-free', 'jev-1.13-free']);
+    const { home, data } = tmpDirs();
+    const { mkdirSync, writeFileSync } = await import('node:fs');
+    mkdirSync(join(data, 'opencode2api'), { recursive: true });
+    writeFileSync(
+      join(data, 'opencode2api', 'config.json.models.catalog.json'),
+      JSON.stringify({
+        metadata: { zen: { 'space-bunny-free': { reasoning: true }, 'jev-1.13-free': {} } },
+      }),
+    );
+    await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
+    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+    const models = settings['llm-pi-ai'].providers['deepseek-free'].models;
+    expect(models).toContainEqual({ id: 'space-bunny-free', reasoningEfforts: { off: null, low: 'low', high: 'high' } });
+    expect(models).toContainEqual({ id: 'jev-1.13-free', reasoningEfforts: false });
+    rmSync(dirname(home), { recursive: true, force: true });
+  });
+
+  it('falls back to name policy when gateway metadata is absent', async () => {
+    mockFetchWithModels(['space-bunny-free'], ['space-bunny-free']);
+    const { home, data } = tmpDirs();
+    await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
+    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+    expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([
+      { id: 'space-bunny-free', reasoningEfforts: false },
+    ]);
+    rmSync(dirname(home), { recursive: true, force: true });
+  });
+
   it('erases the anonymous lane when no model answers 200 (strict 200-only)', async () => {
     const { home, data } = tmpDirs();
     const { mkdirSync, writeFileSync } = await import('node:fs');
