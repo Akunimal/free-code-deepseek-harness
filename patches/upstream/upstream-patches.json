@@ -199,6 +199,17 @@
         "packages/contract-tests/tests/release.contract.test.ts"
       ],
       "vendorOnly": true
+    },
+    {
+      "file": "161-freecode-pwsh-headless-grandchildren.patch",
+      "order": 161,
+      "owner": "freecode",
+      "description": "Default Start-Process grandchildren to a hidden window in one-shot pwsh commands; explicit -WindowStyle still wins",
+      "seam": "packages/shell/pwsh-local",
+      "contractTests": [
+        "packages/contract-tests/tests/release.contract.test.ts"
+      ],
+      "vendorOnly": true
     }
   ]
 }

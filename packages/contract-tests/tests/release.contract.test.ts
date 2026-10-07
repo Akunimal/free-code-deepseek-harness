@@ -260,6 +260,18 @@ describe('release and runtime packaging contracts', () => {
     expect(preflight).not.toContain("require('node:fs')");
   });
 
+  it('keeps one-shot pwsh grandchildren headless', () => {
+    // A model-issued Start-Process spawns from a console-less parent, so
+    // Windows allocates a visible console. The pwsh preamble must default
+    // grandchildren to Hidden (explicit -WindowStyle still wins).
+    const pwshLocal = readFileSync(
+      join(ROOT, 'vendor/deepseek-harness/packages/shell/pwsh-local/src/index.ts'),
+      'utf8',
+    );
+    expect(pwshLocal).toContain('Start-Process:WindowStyle');
+    expect(pwshLocal).toContain('"Hidden"');
+  });
+
   it('keeps the node-pty ConPTY cleanup agent headless', () => {
     // child_process.fork defaults to windowsHide:false, so the console
     // cleanup agent flashes a visible window every time a PTY session

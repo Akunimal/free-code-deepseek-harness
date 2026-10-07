@@ -1,0 +1,21 @@
+diff --git a/vendor/deepseek-harness/packages/shell/pwsh-local/src/index.ts b/vendor/deepseek-harness/packages/shell/pwsh-local/src/index.ts
+--- a/vendor/deepseek-harness/packages/shell/pwsh-local/src/index.ts
++++ b/vendor/deepseek-harness/packages/shell/pwsh-local/src/index.ts
+@@ -44,8 +44,15 @@ export const ENV_OVERRIDES = {
+  * UTF-8 output pinning prepended to every command. The subprocess collector
+  * decodes output bytes as UTF-8, but Windows PowerShell 5.1 (the last-resort
+  * executable fallback) writes the console/OEM code page by default, which
+  * garbles non-ASCII output; pwsh 7 defaults to UTF-8 and is unaffected. The
+  * statements ride on line 1 after `; ` separators so PowerShell error line
+  * numbers stay accurate.
++ *
++ * FreeCode: also default Start-Process grandchildren to a hidden window. A
++ * model-issued `Start-Process powershell.exe ... -NoNewWindow` spawns its
++ * child from a console-less parent, so Windows allocates a NEW VISIBLE
++ * console that flashes for the duration of the child. Defaulting
++ * WindowStyle to Hidden keeps those grandchildren headless; an explicit
++ * -WindowStyle still wins, and -Wait/-PassThru/redirects are unaffected.
+  */
+ export const ENCODING_PREAMBLE =
+-  '[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); $OutputEncoding = [System.Text.UTF8Encoding]::new($false); '
++  '[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); $OutputEncoding = [System.Text.UTF8Encoding]::new($false); $PSDefaultParameterValues["Start-Process:WindowStyle"]="Hidden"; '
