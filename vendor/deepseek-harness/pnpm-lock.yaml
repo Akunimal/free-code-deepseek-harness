@@ -10,7 +10,7 @@ overrides:
 
 patchedDependencies:
   '@yao-pkg/pkg@6.21.0': 28edd2180c36691c481522ef81f6f6614505f45e491aad542ac4663d4e6b3ff8
-  node-pty@1.2.0-beta.15: b40ae545608897914bd25fb009c97eeac478c34e8a910298ddcb01b746534bb0
+  node-pty@1.2.0-beta.15: 471b22cde81c7a04e9d89a1274a3d87c66fd8d420ed02c9b3e68bf435e803ccf
 
 importers:
 
@@ -8885,7 +8885,7 @@ importers:
         version: 3.1.1
       node-pty:
         specifier: 1.2.0-beta.15
-        version: 1.2.0-beta.15(patch_hash=b40ae545608897914bd25fb009c97eeac478c34e8a910298ddcb01b746534bb0)
+        version: 1.2.0-beta.15(patch_hash=471b22cde81c7a04e9d89a1274a3d87c66fd8d420ed02c9b3e68bf435e803ccf)
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^
@@ -21111,7 +21111,7 @@ snapshots:
 
   node-int64@0.4.0: {}
 
-  node-pty@1.2.0-beta.15(patch_hash=b40ae545608897914bd25fb009c97eeac478c34e8a910298ddcb01b746534bb0):
+  node-pty@1.2.0-beta.15(patch_hash=471b22cde81c7a04e9d89a1274a3d87c66fd8d420ed02c9b3e68bf435e803ccf):
     dependencies:
       node-addon-api: 7.1.1
 

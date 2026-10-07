@@ -188,6 +188,17 @@
         "packages/contract-tests/tests/gentle-ai-preset.contract.test.ts"
       ],
       "vendorOnly": true
+    },
+    {
+      "file": "160-freecode-nodepty-conceal-agent.patch",
+      "order": 160,
+      "owner": "freecode",
+      "description": "Conceal node-pty ConPTY cleanup agent console on Windows (silent piped stdio, hidden window); extends the vendored node-pty patch",
+      "seam": "patches/node-pty@1.2.0-beta.15.patch",
+      "contractTests": [
+        "packages/contract-tests/tests/release.contract.test.ts"
+      ],
+      "vendorOnly": true
     }
   ]
 }

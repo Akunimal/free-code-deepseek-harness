@@ -37,6 +37,12 @@
   (`patchInstDirSanitize`); absolute /D paths are preserved. /
   El instalador corrige un InstallLocation relativo obsoleto al default;
   sin esto la instalación silenciosa no escribía nada con exit 0.
+- No more ~1s console flash when a persistent terminal session closes:
+  node-pty's ConPTY cleanup agent is forked hidden with piped stdio
+  (new `160-*` upstream patch extending the vendored node-pty patch).
+  The previous conceal fix had been lost from the repo, so repackaged
+  0.9.x builds regressed to pristine node-pty. / Sin más flash de
+  consola al cerrar terminales persistentes.
 
 ## 0.9.0 — 2026-10-01
 

@@ -259,4 +259,17 @@ describe('release and runtime packaging contracts', () => {
     expect(preflight).toContain("import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';");
     expect(preflight).not.toContain("require('node:fs')");
   });
+
+  it('keeps the node-pty ConPTY cleanup agent headless', () => {
+    // child_process.fork defaults to windowsHide:false, so the console
+    // cleanup agent flashes a visible window every time a PTY session
+    // closes. The vendored node-pty patch must keep the conceal hunk.
+    const nodePtyPatch = readFileSync(
+      join(ROOT, 'vendor/deepseek-harness/patches/node-pty@1.2.0-beta.15.patch'),
+      'utf8',
+    );
+    expect(nodePtyPatch).toContain('conpty_console_list_agent');
+    expect(nodePtyPatch).toContain('windowsHide: true');
+    expect(nodePtyPatch).toContain('silent: true');
+  });
 });

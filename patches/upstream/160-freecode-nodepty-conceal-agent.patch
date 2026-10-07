@@ -1,0 +1,25 @@
+diff --git a/vendor/deepseek-harness/patches/node-pty@1.2.0-beta.15.patch b/vendor/deepseek-harness/patches/node-pty@1.2.0-beta.15.patch
+--- a/vendor/deepseek-harness/patches/node-pty@1.2.0-beta.15.patch
++++ b/vendor/deepseek-harness/patches/node-pty@1.2.0-beta.15.patch
+@@ -1,5 +1,21 @@
++diff --git a/lib/windowsPtyAgent.js b/lib/windowsPtyAgent.js
++--- a/lib/windowsPtyAgent.js
+++++ b/lib/windowsPtyAgent.js
++@@ -219,7 +219,11 @@
++         }
++         return new Promise(function (resolve) {
++-            var agent = (0, child_process_1.fork)(path.join(__dirname, 'conpty_console_list_agent'), [_this._innerPid.toString()]);
+++            // FreeCode: conceal the cleanup agent console on Windows. fork()
+++            // defaults to windowsHide:false, so node.exe (a console app)
+++            // flashes a visible window every time a PTY session closes.
+++            // silent:true keeps stdio piped; IPC (process.send) is unaffected.
+++            var agent = (0, child_process_1.fork)(path.join(__dirname, 'conpty_console_list_agent'), [_this._innerPid.toString()], { silent: true, windowsHide: true });
++             agent.on('message', function (message) {
++                 clearTimeout(timeout);
++                 resolve(message.consoleProcessList);
++             });
+ diff --git a/lib/unixTerminal.js b/lib/unixTerminal.js
+ index 6966d24..18f1d25 100644
+ --- a/lib/unixTerminal.js
+ +++ b/lib/unixTerminal.js
+ @@ -28,10 +28,23 @@ var terminal_1 = require("./terminal");
