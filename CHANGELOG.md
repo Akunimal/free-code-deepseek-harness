@@ -30,6 +30,13 @@
   tray and Pool menu; pool worker slider disabled (automatic routing);
   neutral Spanish register; translated startup watchdog. / Overlay Tor
   traducido con estado inicial, cooldown y escape; Tor en tray y menú.
+- Installer sanitizes a stale drive-relative InstallLocation (e.g. `D:dir`)
+  back to the default (`%LOCALAPPDATA%\Programs\@freecodeshell`); without
+  it the silent install landed nowhere with exit code 0. The beforePack
+  patch inserts the check into installSection.nsh
+  (`patchInstDirSanitize`); absolute /D paths are preserved. /
+  El instalador corrige un InstallLocation relativo obsoleto al default;
+  sin esto la instalación silenciosa no escribía nada con exit 0.
 
 ## 0.9.0 — 2026-10-01
 

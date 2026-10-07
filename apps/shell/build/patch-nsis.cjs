@@ -192,6 +192,67 @@ function patchInstallSection() {
   console.log('[patch-nsis] installSection.nsh patched — skip stale old uninstaller and clean payload before extraction');
 }
 
+function patchInstDirSanitize() {
+  const installSectionPath = findNsisTemplate('installSection.nsh');
+  if (!installSectionPath) {
+    throw new Error('[patch-nsis] installSection.nsh not found — refusing to build an unsafe installer');
+  }
+
+  let content = fs.readFileSync(installSectionPath, 'utf8');
+  if (content.includes('_freecodeInstDirBad')) {
+    console.log('[patch-nsis] installSection.nsh already sanitizes $INSTDIR');
+    return;
+  }
+
+  // $INSTDIR arrives from /D or from the InstallLocation registry value.
+  // A stale drive-relative value (e.g. `D:dir` from an interrupted run)
+  // makes the whole install silently land nowhere with exit code 0.
+  // Reset non-absolute paths to the default BEFORE $appExe is derived and
+  // the payload is extracted. Legit absolute /D paths pass untouched.
+  // (A customInit macro cannot do this: installer.nsi evaluates
+  // `!ifmacrodef customInit` before this file is ever parsed.)
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+    .split('')
+    .map((ch) => `  StrCmp $R9 "${ch}" _freecodeInstDirOk`)
+    .join('\n');
+  const block = [
+    '  ; PATCHED (FreeCode): reset non-absolute $INSTDIR to the default.',
+    '  Push $R9',
+    '  Push $R8',
+    '  Push $R7',
+    '  Push $R6',
+    '  StrCpy $R9 $INSTDIR 1',
+    '  StrCpy $R8 $INSTDIR 1 1',
+    '  StrCpy $R7 $INSTDIR 1 2',
+    '  StrCpy $R6 $INSTDIR 2',
+    '  StrCmp $R6 "\\\\" _freecodeInstDirOk _freecodeNotUnc',
+    '  _freecodeNotUnc:',
+    '  StrCmp $R8 ":" _freecodeHasColon _freecodeInstDirBad',
+    '  _freecodeHasColon:',
+    '  StrCmp $R7 "\\" _freecodeCheckLetter _freecodeCheckSlash2',
+    '  _freecodeCheckSlash2:',
+    '  StrCmp $R7 "/" _freecodeCheckLetter _freecodeInstDirBad',
+    '  _freecodeCheckLetter:',
+    letters,
+    '  Goto _freecodeInstDirBad',
+    '  _freecodeInstDirBad:',
+    '  StrCpy $INSTDIR "$LocalAppData\\Programs\\${APP_FILENAME}"',
+    '  _freecodeInstDirOk:',
+    '  Pop $R6',
+    '  Pop $R7',
+    '  Pop $R8',
+    '  Pop $R9',
+  ].join('\n');
+
+  const anchor = 'StrCpy $appExe "$INSTDIR\\${APP_EXECUTABLE_FILENAME}"';
+  if (!content.includes(anchor)) {
+    throw new Error('[patch-nsis] installSection.nsh changed; $appExe anchor was not found');
+  }
+  content = content.replace(anchor, block + '\n' + anchor);
+  fs.writeFileSync(installSectionPath, content, 'utf8');
+  console.log('[patch-nsis] installSection.nsh patched — non-absolute $INSTDIR resets to default');
+}
+
 function patchExtractAppPackage() {
   // Keep electron-builder's native extraction fallback. Its LogicLib block
   // changed between builder releases; replacing it here can remove an
@@ -205,6 +266,7 @@ module.exports.default = async function (context) {
   patchMultiUser();
   patchAppRunningCheck();
   patchInstallSection();
+  patchInstDirSanitize();
   removeUnusedUninstallResultHelper();
   patchExtractAppPackage();
 };

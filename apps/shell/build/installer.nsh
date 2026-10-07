@@ -12,15 +12,26 @@
   Sleep 1000
 !macroend
 
-; electron-builder 25.1.8 does not invoke a customInit macro. The supported
-; customInstall hook runs AFTER installApplicationFiles and must never delete
-; runtime directories there. The beforePack hook replaces the old-version
-; uninstaller calls with this macro, so upgrades cannot run a stale NSIS
-; uninstaller asynchronously against the new payload.
-; User data in %APPDATA% is never touched.
+; The beforePack hook replaces the old-version uninstaller calls with this
+; macro, so upgrades cannot run a stale NSIS uninstaller asynchronously
+; against the new payload. Only the shipped resources/freecode tree is
+; removed; the installer then extracts it fresh. User data in %APPDATA%
+; is never touched.
 !macro freecodePrepareInstall
   RMDir /r "$INSTDIR\resources\freecode"
 !macroend
+
+; NOTE: there is intentionally NO customInit macro here. installer.nsi
+; evaluates `!ifmacrodef customInit` inside .onInit BEFORE installSection.nsh
+; (which `!include`s this file) is ever parsed, so the macro would be
+; defined too late to run; verify-nsis-hooks.mjs rejects it outright.
+; $INSTDIR sanitizing therefore lives in the beforePack patch
+; (patch-nsis.cjs `patchInstDirSanitize`), inserted as raw section
+; instructions right after `StrCpy $appExe`, i.e. before setLinkVars,
+; CHECK_APP_RUNNING, freecodePrepareInstall and payload extraction.
+; Rationale: a stale drive-relative InstallLocation (e.g. `D:dir` left by
+; an interrupted run) would otherwise make the whole install silently land
+; nowhere with exit code 0. Legit absolute /D paths are preserved.
 
 ; The previous uninstaller can return a non-zero code after it has already
 ; removed the old files. Treat that result as non-fatal so the new payload and

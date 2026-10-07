@@ -66,6 +66,15 @@ if (!source.includes('!macro freecodePrepareInstall') || !source.includes('RMDir
   process.exit(1);
 }
 
+// The $INSTDIR sanitize routine lives in the beforePack patch
+// (patch-nsis.cjs `patchInstDirSanitize`): a stale drive-relative
+// InstallLocation would otherwise make silent installs land nowhere.
+const patchHook = readFileSync(resolve(REPO_ROOT, 'apps/shell/build/patch-nsis.cjs'), 'utf8');
+if (!patchHook.includes('patchInstDirSanitize') || !patchHook.includes('_freecodeInstDirBad')) {
+  console.error('verify-nsis-hooks: $INSTDIR sanitize routine missing from patch-nsis.cjs.');
+  process.exit(1);
+}
+
 const shortcutContract = [
   /!macro\s+customInstall\b/i,
   /CreateShortCut\s+"\$newStartMenuLink"/i,
