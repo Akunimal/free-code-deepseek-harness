@@ -30,6 +30,8 @@ const IpcChannels = {
   torStatus: 'tor:status',
   torRotate: 'tor:rotate',
   torGetStatus: 'tor:getStatus',
+  torStart: 'tor:start',
+  torStop: 'tor:stop',
   localeSet: 'locale:set',
   ocrExtract: 'ocr:extract',
   ocrStatus: 'ocr:status',
@@ -86,6 +88,8 @@ const api: FreeCodeApi = {
   tor: {
     rotate: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.torRotate),
     getStatus: (): Promise<TorStatus | null> => ipcRenderer.invoke(IpcChannels.torGetStatus),
+    start: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.torStart),
+    stop: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.torStop),
     onStatus(cb: (status: TorStatus) => void): () => void {
       const listener = (_e: unknown, status: TorStatus): void => cb(status);
       ipcRenderer.on(IpcChannels.torStatus, listener);

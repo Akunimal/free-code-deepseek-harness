@@ -43,6 +43,21 @@
   The previous conceal fix had been lost from the repo, so repackaged
   0.9.x builds regressed to pristine node-pty. / Sin más flash de
   consola al cerrar terminales persistentes.
+- Model-issued `Start-Process` no longer flashes a console: one-shot pwsh
+  commands default grandchildren to `WindowStyle Hidden` (new `161-*`
+  patch on the pwsh-local preamble; explicit `-WindowStyle` still wins).
+  / `Start-Process` del modelo ya no abre ventanas.
+- Effort/thinking selector for every advertised thinking model: the
+  refresher reads the gateway `reasoning` metadata and offers generic
+  off/low/high where advertised (verified live: current responders
+  answer 200 with `reasoning_effort` honored); unknown models stay
+  conservative. / Selector de esfuerzo para todos los modelos con
+  thinking anunciado.
+- Pool overlay rebuilt around Tor: fleet-era pool controls removed; a
+  persistent DIRECT/TOR route pill plus an always-visible green-glow
+  Tor on/off button, rotate with cooldown, and live details. New
+  `tor:start`/`tor:stop` IPC; stopping only drops the failover leg. /
+  Overlay centrado en Tor con indicador e interruptor siempre visible.
 
 ## 0.9.0 — 2026-10-01
 

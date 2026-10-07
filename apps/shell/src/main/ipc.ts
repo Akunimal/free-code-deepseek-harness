@@ -209,6 +209,21 @@ export function registerIpc(deps: IpcDeps): () => void {
     return deps.torManager.getStatus();
   });
 
+  // tor:start / tor:stop — manual Tor daemon control from the overlay.
+  // Stopping only removes the failover leg: the gateway keeps serving
+  // direct, and its proxy health tracking steers around the dead SOCKS
+  // leg until a restart recovers it.
+  ipcMain.handle(IpcChannels.torStart, async () => {
+    if (!deps.torManager) return false;
+    await deps.torManager.start();
+    return deps.torManager.isReady;
+  });
+  ipcMain.handle(IpcChannels.torStop, async () => {
+    if (!deps.torManager) return false;
+    await deps.torManager.stop();
+    return true;
+  });
+
   const emitTorStatus = (): void => {
     if (!deps.torManager) return;
     const status = deps.torManager.getStatus();
@@ -233,6 +248,8 @@ export function registerIpc(deps: IpcDeps): () => void {
     ipcMain.removeHandler(IpcChannels.mcpOpenConfig);
     ipcMain.removeHandler(IpcChannels.torRotate);
     ipcMain.removeHandler(IpcChannels.torGetStatus);
+    ipcMain.removeHandler(IpcChannels.torStart);
+    ipcMain.removeHandler(IpcChannels.torStop);
     ipcMain.removeHandler(IpcChannels.localeSet);
     ipcMain.removeHandler(IpcChannels.ocrExtract);
     ipcMain.removeHandler(IpcChannels.ocrStatus);

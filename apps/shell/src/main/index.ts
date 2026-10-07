@@ -578,14 +578,6 @@ function escapeOverlayHtml(value: string | number): string {
 }
 
 function renderOverlayHtml(): string {
-  const workers = runtime?.workers() ?? [];
-  const poolSize = 1; // opencode2api routes internally
-  const rows = workers
-    .map(
-      (w) =>
-        `<tr><td>${escapeOverlayHtml(w.id)}</td><td>${escapeOverlayHtml(w.status)}</td><td>127.0.0.1:${w.port}</td><td>${w.pid}</td><td>${w.restarts}</td></tr>`,
-    )
-    .join('');
   const torStatusLabels = {
     stopped: t('tor.status.stopped'),
     starting: t('tor.status.starting'),
@@ -597,7 +589,7 @@ function renderOverlayHtml(): string {
 <style>
 *{box-sizing:border-box}
 body{font-family:system-ui;background:#0f1117;color:#d7dae2;padding:16px;margin:0;-webkit-app-region:drag;user-select:none}
-table,input,button,label{-webkit-app-region:no-drag}
+table,button,label{-webkit-app-region:no-drag}
 table{width:100%;border-collapse:collapse}
 td,th{border:1px solid #2a2f3a;padding:6px 8px;font-size:12px;text-align:left}
 th{background:#1a1e27}
@@ -605,25 +597,29 @@ button{background:#ff7a00;border:0;color:#000;padding:8px 12px;border-radius:6px
 button:disabled{opacity:.55;cursor:default}
 .close-btn{position:fixed;top:8px;right:8px;background:transparent;color:#9da4b3;font-size:18px;padding:4px 10px;border-radius:4px;-webkit-app-region:no-drag}
 .close-btn:hover{background:#2a2f3a;color:#fff}
-input[type=range]{width:100%;margin:8px 0}
+.route-pill{display:inline-block;padding:6px 18px;border-radius:999px;font-weight:700;font-size:15px;letter-spacing:1px;border:1px solid #22c55e;box-shadow:0 0 14px rgba(34,197,94,.75),inset 0 0 8px rgba(34,197,94,.25);color:#bbf7d0;background:#052e16}
+.tor-toggle{border:1px solid #22c55e !important;box-shadow:0 0 14px rgba(34,197,94,.75) !important;background:#052e16 !important;color:#bbf7d0 !important;padding:8px 14px !important;font-size:13px !important}
 .tor-msg{font-size:12px;min-height:16px;margin:6px 0;color:#9da4b3}
 .tor-direct{font-size:12px;margin:6px 0;color:#e5a50a;display:none}
+.tor-card{border:1px solid #2a2f3a;border-radius:10px;padding:12px;margin-top:12px;background:#141821}
 </style></head>
 <body>
 <button class="close-btn" onclick="window.close()" title="Close">✕</button>
 <h3 style="margin-top:0">${escapeOverlayHtml(t('overlay.title'))}</h3>
-<label for="pool-size">${escapeOverlayHtml(t('overlay.workersLabel'))} <output id="pool-size-value">${poolSize}</output></label>
-<input id="pool-size" type="range" min="1" max="16" step="1" value="${poolSize}" disabled title="${escapeOverlayHtml(t('overlay.workersNote'))}">
-<p style="font-size:12px;color:#9da4b3">${escapeOverlayHtml(t('overlay.workersNote'))}</p>
-<table><thead><tr><th>id</th><th>status</th><th>addr</th><th>pid</th><th>restarts</th></tr></thead><tbody id="pool-rows">${rows}</tbody></table>
-<hr style="border-color:#2a2f3a;margin:16px 0">
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+<div class="tor-card">
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
   <label style="font-weight:600;font-size:14px">${escapeOverlayHtml(t('overlay.torTitle'))}</label>
-  <button id="tor-rotate-btn" style="padding:4px 8px;font-size:11px" onclick="window.__torRotate()">${escapeOverlayHtml(t('overlay.torRotate'))}</button>
+  <span id="tor-route" class="route-pill">${escapeOverlayHtml(t('overlay.torLoading'))}</span>
+</div>
+<div style="display:flex;gap:8px;margin-bottom:8px">
+  <button id="tor-toggle-btn" class="tor-toggle" onclick="window.__torToggle()">${escapeOverlayHtml(t('overlay.torDisable'))}</button>
+  <button id="tor-rotate-btn" style="padding:8px 12px;font-size:12px" onclick="window.__torRotate()">${escapeOverlayHtml(t('overlay.torRotate'))}</button>
 </div>
 <div id="tor-direct" class="tor-direct">${escapeOverlayHtml(t('overlay.directOnly'))}</div>
 <div id="tor-msg" class="tor-msg" role="status"></div>
 <table><thead><tr><th>${escapeOverlayHtml(t('overlay.colActive'))}</th><th>${escapeOverlayHtml(t('overlay.colStatus'))}</th><th>${escapeOverlayHtml(t('overlay.colSocks'))}</th><th>${escapeOverlayHtml(t('overlay.colControl'))}</th><th>${escapeOverlayHtml(t('overlay.colPid'))}</th></tr></thead><tbody id="tor-rows"><tr><td colspan="5" style="color:#9da4b3">${escapeOverlayHtml(t('overlay.torLoading'))}</td></tr></tbody></table>
+</div>
+<p style="font-size:12px;color:#9da4b3">${escapeOverlayHtml(t('overlay.workersNote'))}</p>
 <script>
 var torLabels = ${JSON.stringify(torStatusLabels)};
 var torYes = ${JSON.stringify(t('common.yes'))};
@@ -632,6 +628,12 @@ var torRotating = ${JSON.stringify(t('overlay.torRotating'))};
 var torRotated = ${JSON.stringify(t('overlay.torRotated'))};
 var torRotateFailed = ${JSON.stringify(t('overlay.torRotateFailed'))};
 var torRotateLabel = ${JSON.stringify(t('overlay.torRotate'))};
+var torRouteDirect = ${JSON.stringify(t('overlay.routeDirect'))};
+var torRouteTor = ${JSON.stringify(t('overlay.routeTor'))};
+var torEnableLabel = ${JSON.stringify(t('overlay.torEnable'))};
+var torDisableLabel = ${JSON.stringify(t('overlay.torDisable'))};
+var torStartingLabel = ${JSON.stringify(t('overlay.torStarting'))};
+var torStoppingLabel = ${JSON.stringify(t('overlay.torStopping'))};
 var torCooldownUntil = 0;
 function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -640,14 +642,22 @@ function renderTor(s) {
   var tbody = document.getElementById('tor-rows');
   var direct = document.getElementById('tor-direct');
   var btn = document.getElementById('tor-rotate-btn');
+  var toggle = document.getElementById('tor-toggle-btn');
+  var pill = document.getElementById('tor-route');
   if (!tbody) return;
   if (!s) {
     tbody.innerHTML = '<tr><td colspan="5" style="color:#9da4b3">' + esc(torRotateFailed) + '</td></tr>';
     if (direct) direct.style.display = 'block';
     if (btn) btn.disabled = true;
+    if (pill) pill.textContent = torRouteDirect;
+    if (toggle) { toggle.disabled = false; toggle.textContent = torEnableLabel; }
     return;
   }
-  if (direct) direct.style.display = (!s.active && (s.status === 'failed' || s.status === 'stopped')) ? 'block' : 'none';
+  var down = !s.active && (s.status === 'failed' || s.status === 'stopped');
+  if (direct) direct.style.display = down ? 'block' : 'none';
+  if (pill) pill.textContent = s.active ? torRouteTor : torRouteDirect;
+  if (toggle && !toggle.dataset.busy) toggle.textContent = s.active ? torDisableLabel : torEnableLabel;
+  if (btn) btn.disabled = !s.active;
   tbody.innerHTML = '<tr><td>'+(s.active ? esc(torYes) : esc(torNo))+'</td><td>'+esc(torLabels[s.status] || s.status)+'</td><td>127.0.0.1:'+s.socksPort+'</td><td>127.0.0.1:'+s.controlPort+'</td><td>'+s.pid+'</td></tr>';
 }
 window.__torRotate = function() {
@@ -667,12 +677,24 @@ window.__torRotate = function() {
     setTimeout(function() { if (btn) { btn.disabled = false; btn.textContent = torRotateLabel; } }, 10000);
   });
 };
-window.freecode.pool.onStatus(function(payload) {
-  var tbody = document.getElementById('pool-rows');
-  tbody.innerHTML = payload.workers.map(function(w) {
-    return '<tr><td>'+esc(w.id)+'</td><td>'+esc(w.status)+'</td><td>127.0.0.1:'+w.port+'</td><td>'+w.pid+'</td><td>'+w.restarts+'</td></tr>';
-  }).join('');
-});
+window.__torToggle = function() {
+  var toggle = document.getElementById('tor-toggle-btn');
+  var msg = document.getElementById('tor-msg');
+  if (toggle) { toggle.disabled = true; toggle.dataset.busy = '1'; }
+  window.freecode.tor.getStatus().then(function(s) {
+    var turningOff = !!(s && s.active);
+    if (msg) msg.textContent = turningOff ? torStoppingLabel : torStartingLabel;
+    if (toggle) toggle.textContent = turningOff ? torStoppingLabel : torStartingLabel;
+    return (turningOff ? window.freecode.tor.stop() : window.freecode.tor.start()).then(function() {
+      return window.freecode.tor.getStatus().then(renderTor, function() {});
+    });
+  }).catch(function() {
+    if (msg) msg.textContent = torRotateFailed;
+  }).then(function() {
+    if (toggle) { toggle.disabled = false; delete toggle.dataset.busy; }
+    return window.freecode.tor.getStatus().then(renderTor, function() {});
+  });
+};
 window.freecode.tor.onStatus(renderTor);
 window.freecode.tor.getStatus().then(renderTor, function() { renderTor(null); });
 </script>

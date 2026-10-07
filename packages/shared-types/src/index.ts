@@ -67,6 +67,8 @@ export const IpcChannels = {
   torStatus: 'tor:status',
   torRotate: 'tor:rotate',
   torGetStatus: 'tor:getStatus',
+  torStart: 'tor:start',
+  torStop: 'tor:stop',
   localeSet: 'locale:set',
   ocrExtract: 'ocr:extract',
   ocrStatus: 'ocr:status',
@@ -94,6 +96,8 @@ export interface IpcPayloads {
   [IpcChannels.torStatus]: TorStatus;
   [IpcChannels.torRotate]: void;
   [IpcChannels.torGetStatus]: void;
+  [IpcChannels.torStart]: void;
+  [IpcChannels.torStop]: void;
   [IpcChannels.localeSet]: { locale: 'zh' | 'en' | 'es' };
   [IpcChannels.ocrExtract]: { imageBase64: string; lang?: string };
   [IpcChannels.ocrStatus]: { available: boolean; binaryPath: string | null };
@@ -180,6 +184,8 @@ export interface FreeCodeApi {
   tor: {
     rotate(): Promise<boolean>;
     getStatus(): Promise<TorStatus | null>;
+    start(): Promise<boolean>;
+    stop(): Promise<boolean>;
     onStatus(cb: (status: TorStatus) => void): () => void;
   };
   locale: {

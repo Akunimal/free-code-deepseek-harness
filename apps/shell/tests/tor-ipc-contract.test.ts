@@ -6,6 +6,8 @@ describe('Tor IPC contract (0.9.1)', () => {
     expect(IpcChannels.torStatus).toBe('tor:status');
     expect(IpcChannels.torRotate).toBe('tor:rotate');
     expect(IpcChannels.torGetStatus).toBe('tor:getStatus');
+    expect(IpcChannels.torStart).toBe('tor:start');
+    expect(IpcChannels.torStop).toBe('tor:stop');
   });
 
   it('accepts the TorManager status snapshot', () => {
