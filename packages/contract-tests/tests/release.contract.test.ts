@@ -260,6 +260,23 @@ describe('release and runtime packaging contracts', () => {
     expect(preflight).not.toContain("require('node:fs')");
   });
 
+  it('mounts a Tor pill at the composer leading seat', () => {
+    const pill = readFileSync(
+      join(ROOT, 'vendor/deepseek-harness/packages/client/ui-conversation/src/client/input/TorPill.tsx'),
+      'utf8',
+    );
+    expect(pill).toContain('conversation.input.left');
+    expect(pill).toContain('freecode-tor');
+    expect(pill).toContain('window.freecode?.tor');
+    expect(pill).toContain('torPillEntry');
+    const css = readFileSync(
+      join(ROOT, 'vendor/deepseek-harness/packages/client/ui-conversation/src/client/input/TorPill.module.css'),
+      'utf8',
+    );
+    expect(css).toContain('box-shadow');
+    expect(css).toContain('22c55e');
+  });
+
   it('keeps one-shot pwsh grandchildren headless', () => {
     // A model-issued Start-Process spawns from a console-less parent, so
     // Windows allocates a visible console. The pwsh preamble must default

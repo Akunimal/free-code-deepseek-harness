@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, Tray, WebContentsView, nativeImage, Notification, dialog } from 'electron';
+import { app, BrowserWindow, Menu, Tray, WebContentsView, nativeImage, Notification, dialog, screen } from 'electron';
 import { join, resolve } from 'node:path';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { launchHidden, launchHiddenSync } from './freecode-launcher.js'
@@ -370,17 +370,24 @@ function createMainWindow(harnessUrl: string): void {
   });
   // Keep harnessView filling the mainWindow content area when the browser
   // is hidden. When the browser is visible, embedded-browser owns bounds.
-  mainWindow.on('resize', () => {
+  const resyncHarnessBounds = (): void => {
     if (!mainWindow || mainWindow.isDestroyed() || !harnessView) return;
-    // embedded-browser reacts to the same resize event separately; only
-    // touch bounds here when the browser is not managing them.
+    // embedded-browser reacts to resizes separately; only touch bounds
+    // here when the browser is not managing them.
     if (!embeddedBrowserVisible()) {
       const s = mainWindow.getContentSize();
       harnessView.setBounds({ x: 0, y: 0, width: s[0] ?? 1280, height: s[1] ?? 820 });
     }
-  });
+    updateUpdateIndicatorBounds();
+  };
+  mainWindow.on('resize', resyncHarnessBounds);
+  // Display scale/placement changes (multi-monitor moves, DPI switches) do
+  // not always fire resize with fresh content sizes; stale harnessView
+  // bounds then clip web content (e.g. the sidebar foot). Re-sync there too.
+  screen.on('display-metrics-changed', resyncHarnessBounds);
   harnessView.webContents.on('did-finish-load', updateUpdateIndicatorBounds);
   mainWindow.on('closed', () => {
+    screen.removeListener('display-metrics-changed', resyncHarnessBounds);
     updateIndicatorView = null;
     harnessView = null;
     mainWindow = null;

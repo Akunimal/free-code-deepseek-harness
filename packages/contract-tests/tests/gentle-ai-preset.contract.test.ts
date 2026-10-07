@@ -53,11 +53,11 @@ describe('gentle-ai preset — 150 patch composition (RED)', () => {
 });
 
 describe('gentle-ai preset — default resolution (RED)', () => {
-  it('default flips to gentle-ai only when binary+doctor pass', async () => {
+  it('default is standard even when binary+doctor pass (explicit opt-in)', async () => {
     const { resolveDefaultPreset } = await import(
       '../../../apps/shell/src/main/gentle-ai.js'
     );
-    expect(resolveDefaultPreset(null, true, true)).toBe('gentle-ai');
+    expect(resolveDefaultPreset(null, true, true)).toBe('standard');
   });
 
   it('fallback to standard when binary missing or doctor fails', async () => {

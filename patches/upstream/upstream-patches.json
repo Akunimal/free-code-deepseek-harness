@@ -210,6 +210,17 @@
         "packages/contract-tests/tests/release.contract.test.ts"
       ],
       "vendorOnly": true
+    },
+    {
+      "file": "162-freecode-tor-composer-pill.patch",
+      "order": 162,
+      "owner": "freecode",
+      "description": "Tor route pill as first occupant of the composer leading slot (green glow, click toggles daemon, hidden without shell bridge)",
+      "seam": "packages/client/ui-conversation",
+      "contractTests": [
+        "packages/contract-tests/tests/release.contract.test.ts"
+      ],
+      "vendorOnly": true
     }
   ]
 }

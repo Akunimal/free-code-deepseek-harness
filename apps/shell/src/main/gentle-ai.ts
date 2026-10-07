@@ -142,19 +142,15 @@ export async function runGentleAiDoctor(
 // ── Default preset resolution ────────────────────────────────────────
 
 /**
- * Default to gentle-ai only on fresh install (no stored preset) when the
- * binary is detected and doctor passes; otherwise standard. Stored
- * selections are never flipped.
+ * Standard is always the default, including on fresh installs: the user
+ * opts into gentle-ai explicitly. Stored selections are never flipped.
  */
 export function resolveDefaultPreset(
   stored: string | null | undefined,
-  binaryAvailable: boolean,
-  doctorPass: boolean | null,
+  _binaryAvailable: boolean,
+  _doctorPass: boolean | null,
 ): GentleAiPresetId {
   if (stored === 'gentle-ai' || stored === 'standard') return stored
-  if ((stored === null || stored === undefined || stored === '') && binaryAvailable && doctorPass === true) {
-    return 'gentle-ai'
-  }
   return 'standard'
 }
 

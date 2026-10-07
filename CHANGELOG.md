@@ -58,6 +58,14 @@
   Tor on/off button, rotate with cooldown, and live details. New
   `tor:start`/`tor:stop` IPC; stopping only drops the failover leg. /
   Overlay centrado en Tor con indicador e interruptor siempre visible.
+- Tor pill at the composer leading seat (new `162-*` patch): green-glow
+  TOR indicator with click-to-toggle, hidden without the shell bridge. /
+  Pill Tor al inicio de la barra del composer.
+- Standard preset is now always the default (explicit opt-in to Gentle
+  AI); stored selections untouched. / Estándar por defecto siempre.
+- Harness view bounds re-sync on display-metrics changes (multi-monitor
+  moves, DPI switches) so web content is never clipped by stale bounds. /
+  Re-sincronía de bounds ante cambios de display.
 
 ## 0.9.0 — 2026-10-01
 
