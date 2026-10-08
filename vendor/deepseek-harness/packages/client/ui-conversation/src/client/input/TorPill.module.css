@@ -1,5 +1,6 @@
-/* Tor route indicator: bare token, no container. Electric-blue glow while
-   Tor carries failover traffic, flat gray on the direct-only route. */
+/* Tor route indicator: bare token, no container. Electric-blue breathing
+   glow while Tor carries failover traffic, flat gray on the direct-only
+   route. */
 .on,
 .off {
   display: inline-flex;
@@ -16,6 +17,7 @@
   color: #00bfff;
   background: transparent; border: none;
   text-shadow: 0 0 10px rgba(0, 191, 255, 0.9);
+  animation: tor-breathe 2.6s ease-in-out infinite;
 }
 .off {
   color: #9da4b3;
@@ -31,4 +33,13 @@
   height: 7px;
   border-radius: 999px;
   background: currentColor;
+}
+@keyframes tor-breathe {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.65; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .on {
+    animation: none;
+  }
 }

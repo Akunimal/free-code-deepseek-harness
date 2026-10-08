@@ -276,6 +276,8 @@ describe('release and runtime packaging contracts', () => {
     expect(css).toContain('text-shadow');
     expect(css).toContain('00bfff');
     expect(css).toContain('background: transparent; border: none;');
+    expect(css).toContain('tor-breathe');
+    expect(css).toContain('prefers-reduced-motion');
   });
 
   it('keeps one-shot pwsh grandchildren headless', () => {
