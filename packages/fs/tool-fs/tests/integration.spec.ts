@@ -10,7 +10,8 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
+import type { FsVersion } from '@deepseek-ai/dsh-fs'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { TOOL_ABORTED_BEFORE_DISPATCH } from '@deepseek-ai/dsh-tools'
 import { LocalFileSystem } from '@deepseek-ai/dsh-fs-local'
@@ -29,7 +30,7 @@ let callCounter = 0
 function call(name: string, args: unknown) {
   return ctx.tools.execute({
     signal: testToolSignal,
-    callId: CallId(`call-${++callCounter}`),
+    callId: ToolCallId(`call-${++callCounter}`),
     name,
     arguments: args,
     agent: { session } as never,
@@ -38,6 +39,10 @@ function call(name: string, args: unknown) {
 
 function text(result: { content: { type: string; text?: string }[] }): string {
   return result.content.filter(b => b.type === 'text').map(b => b.text).join('')
+}
+
+function notObservedDiagnostic(path: string): string {
+  return `Error: cannot modify "${path}": file has not been read — read the file, then retry`
 }
 
 afterEach(async () => {
@@ -71,9 +76,7 @@ describe('default deployment (with dsh-fs-observation-policy)', () => {
       const result = await call('write', { file_path: 'a.txt', content: 'clobber' })
       expect(result.isError).toBe(true)
       expect(result.error).toMatchObject({ info: { code: 'FS_NOT_OBSERVED' } })
-      // The model-facing text names the remedy, not just the condition.
-      expect(text(result)).toContain('without reading it first')
-      expect(text(result)).toContain('read the file, then retry')
+      expect(text(result)).toBe(notObservedDiagnostic(join(dir, 'a.txt')))
       expect(await readFile(join(dir, 'a.txt'), 'utf8')).toBe('original')
     })
 
@@ -151,9 +154,7 @@ describe('default deployment (with dsh-fs-observation-policy)', () => {
       const result = await call('edit', { file_path: 'a.txt', old_string: 'world', new_string: 'there' })
       expect(result.isError).toBe(true)
       expect(result.error).toMatchObject({ info: { code: 'FS_NOT_OBSERVED' } })
-      // The policy's refusal reaches the model with the read remedy appended.
-      expect(text(result)).toContain('edit requires reading')
-      expect(text(result)).toContain('read the file, then retry')
+      expect(text(result)).toBe(notObservedDiagnostic(join(dir, 'a.txt')))
       expect(await readFile(join(dir, 'a.txt'), 'utf8')).toBe('hello world')
     })
 
@@ -393,7 +394,7 @@ describe('per-session cwd', () => {
   const callIn = (sessionObj: object, name: string, args: unknown) =>
     ctx.tools.execute({
       signal: testToolSignal,
-      callId: CallId(`call-${++callCounter}`),
+      callId: ToolCallId(`call-${++callCounter}`),
       name,
       arguments: args,
       agent: { session: sessionObj } as never,
@@ -436,9 +437,9 @@ describe('signal, concurrency, and the fs/observed contract', () => {
 
   const session = { header: {} }
   const callSig = (signal: AbortSignal, name: string, args: unknown) =>
-    ctx.tools.execute({ callId: CallId(`c-${++callCounter}`), name, arguments: args, agent: { session } as never, signal })
+    ctx.tools.execute({ callId: ToolCallId(`c-${++callCounter}`), name, arguments: args, agent: { session } as never, signal })
   const callOwned = (name: string, args: unknown) =>
-    ctx.tools.execute({ signal: testToolSignal, callId: CallId(`c-${++callCounter}`), name, arguments: args, agent: { session } as never })
+    ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId(`c-${++callCounter}`), name, arguments: args, agent: { session } as never })
 
   it('a pre-aborted registry call skips read/write/edit with ABORTED_BEFORE_DISPATCH', async () => {
     await writeFile(join(dir, 'a.txt'), 'hello')
@@ -462,19 +463,38 @@ describe('signal, concurrency, and the fs/observed contract', () => {
 
   it('two concurrent edits of the same file, same session: one wins, one FS_STALE_VERSION', async () => {
     await writeFile(join(dir, 'a.txt'), 'base value here')
-    // One read establishes the observed version both edits guard against; then
-    // race two edits so both carry the SAME observed version (the barrier).
     expect((await callOwned('read', { file_path: 'a.txt' })).isError).toBe(false)
-    const [one, two] = await Promise.all([
-      callOwned('edit', { file_path: 'a.txt', old_string: 'base', new_string: 'ONE', replaceAll: false }),
-      callOwned('edit', { file_path: 'a.txt', old_string: 'value', new_string: 'TWO', replaceAll: false }),
-    ])
-    const errors = [one, two].filter(r => r.isError)
-    expect(errors).toHaveLength(1)
-    expect(errors[0]?.error).toMatchObject({ info: { code: 'FS_STALE_VERSION' } })
-    // The world is consistent: exactly one edit landed.
-    const onDisk = await readFile(join(dir, 'a.txt'), 'utf8')
-    expect(onDisk === 'ONE value here' || onDisk === 'base TWO here').toBe(true)
+    const captured = Promise.withResolvers<undefined>()
+    const versions: (FsVersion | undefined)[] = []
+    // Both guards must be captured before a successful edit refreshes the session's observed version.
+    const dispose = ctx.on('fs/edit-intent', async (_target, _actor, next) => {
+      const intent = await next()
+      versions.push(intent?.version)
+      if (versions.length === 2) captured.resolve(undefined)
+      await captured.promise
+      return intent
+    }, { prepend: true })
+    // An early tool failure must release any peer already waiting at the barrier.
+    const pending = [
+      callOwned('edit', { file_path: 'a.txt', old_string: 'base', new_string: 'ONE', replace_all: false }),
+      callOwned('edit', { file_path: 'a.txt', old_string: 'value', new_string: 'TWO', replace_all: false }),
+    ].map(pendingCall => pendingCall.finally(() => { captured.resolve(undefined) }))
+    try {
+      const results = await Promise.all(pending)
+      expect(versions).toHaveLength(2)
+      expect(versions[0]).toBeDefined()
+      expect(versions[1]).toBe(versions[0])
+      const errors = results.filter(r => r.isError)
+      expect(errors).toHaveLength(1)
+      expect(errors[0]?.error).toMatchObject({ info: { code: 'FS_STALE_VERSION' } })
+      // The world is consistent: exactly one edit landed.
+      const onDisk = await readFile(join(dir, 'a.txt'), 'utf8')
+      expect(onDisk === 'ONE value here' || onDisk === 'base TWO here').toBe(true)
+    } finally {
+      captured.resolve(undefined)
+      await Promise.allSettled(pending)
+      dispose()
+    }
   })
 
   it('a stale observed version from an older read fails closed at edit CAS', async () => {

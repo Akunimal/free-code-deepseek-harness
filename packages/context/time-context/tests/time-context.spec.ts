@@ -1,15 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
-import { createUserMessage, CallId, LlmAdapter } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, ToolCallId, LlmAdapter } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
+import type { ContextFormed } from '@deepseek-ai/dsh-llm'
 import { Session, SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
-import AgentRegistry, { agentEvents, Inbox, type Agent } from '@deepseek-ai/dsh-agent'
+import AgentRegistry, { agentEvents, type Agent } from '@deepseek-ai/dsh-agent'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
-import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
+import { unsupportedInbox, mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import * as timeContext from '@deepseek-ai/dsh-time-context'
 import type { Config } from '@deepseek-ai/dsh-time-context'
+
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    'compaction-basic': { kind: 'compaction-basic' } & ContextFormed
+    'time-context-test': { kind: 'time-context-test' } & ContextFormed
+  }
+}
 
 const BASE = Date.parse('2026-07-14T00:00:00.000Z')
 const ORIGINAL_TIME_ZONE = process.env['TZ']
@@ -30,17 +39,18 @@ afterEach(() => {
 
 async function mount(config: Config = {}) {
   const ctx = new Context()
+  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(AgentRegistry)
   const fiber = await ctx.plugin(timeContext, config)
   return { ctx, fiber }
 }
 
 function sessionAgent(session: Session, id = 'agent'): Agent {
-  return {
+  const agent: Agent = {
     id: SessionId(id),
     options: {},
     session,
-    inbox: new Inbox(session, { inserted: () => {}, discarded: () => {}, claimed: () => {} }),
+    inbox: unsupportedInbox(),
     status: 'running',
     ctx: new Context(),
     send: () => {},
@@ -51,6 +61,7 @@ function sessionAgent(session: Session, id = 'agent'): Agent {
     runMaintenance: task => task(new AbortController().signal),
     whenIdle: () => Promise.resolve(),
   }
+  return agent
 }
 
 function openMessageTurn(session: Session, turn: number, clientTimeZone?: string): void {
@@ -65,10 +76,9 @@ function openMessageTurn(session: Session, turn: number, clientTimeZone?: string
 
 function contextTexts(session: Session): string[] {
   const texts: string[] = []
-  for (const event of session.events) {
+  for (const event of session.snapshotEvents()) {
     if (event.type === 'user/message'
-      && event.data.source.kind === 'plugin'
-      && event.data.source.plugin === 'time-context') {
+      && event.data.source.kind === 'time-context') {
       texts.push(event.data.content.find(block => block.type === 'text')?.text ?? '')
     }
   }
@@ -84,7 +94,7 @@ async function fire(
 ): Promise<void> {
   const proposed = createUserMessage({
     content: [{ type: 'text', text: 'request proposal' }],
-    source: { kind: 'plugin', plugin: 'time-context-test' },
+    source: { kind: 'time-context-test' },
   })
   const decision = await agentEvents(ctx, agent).waterfall(
     'agent/pre-step',
@@ -113,7 +123,7 @@ function toolCallResponse(): StreamChunk[] {
     {
       type: 'block-end',
       index: 0,
-      block: { type: 'tool-call', id: CallId('tick-1'), name: 'tick', arguments: '{}' },
+      block: { type: 'tool-call', id: ToolCallId('tick-1'), name: 'tick', arguments: '{}' },
     },
     { type: 'finish', reason: { kind: 'tool-calls' } },
   ]
@@ -165,15 +175,14 @@ describe('durable step context', () => {
       + 'Browser time zone for this request: Asia/Shanghai. Interpret otherwise-unqualified dates and times in this zone.\n'
       + 'Elapsed since the preceding model-visible message: 1d 1h 1m 1s.',
     ])
-    const event = session.events.at(-1)
+    const event = session.snapshotEvents().at(-1)
     expect(event?.type).toBe('user/message')
     if (event?.type !== 'user/message') throw new Error('missing time context')
     // The reading is a `snapshot`-form context: one named contribution whose
     // text is exactly what the model read, so a consumer attributes it without
     // re-splitting prose.
     expect(event.data.source).toEqual({
-      kind: 'plugin',
-      plugin: 'time-context',
+      kind: 'time-context',
       form: 'snapshot',
       sections: [{
         name: 'time-context',
@@ -197,11 +206,8 @@ describe('durable step context', () => {
     )
   })
 
-  it.each([
-    ['omitted interval', {}],
-    ['zero interval', { refreshIntervalMs: 0 }],
-  ] as const)('uses the preceding durable step-context timestamp after step one with %s', async (_label, config) => {
-    const { ctx } = await mount(config)
+  it('uses the preceding durable step-context timestamp after step one with zero interval', async () => {
+    const { ctx } = await mount({ refreshIntervalMs: 0 })
     const session = Session.create(SessionId('later-step'))
     const agent = sessionAgent(session)
     openMessageTurn(session, 3)
@@ -283,36 +289,39 @@ describe('durable step context', () => {
     expect(contextTexts(session)[1]).toContain('Elapsed since the preceding step context: 0s.')
   })
 
-  it('uses a shadowed durable injection after resume and injects at the exact threshold', async () => {
-    const { ctx } = await mount({ refreshIntervalMs: 1_000 })
+  it.each([
+    ['default interval', {}, 600_000],
+    ['explicit interval', { refreshIntervalMs: 1_000 }, 1_000],
+  ] as const)('uses a shadowed durable injection after resume at the exact %s threshold', async (_label, config, interval) => {
+    const { ctx } = await mount(config)
     const original = Session.create(SessionId('seed-source'))
     openMessageTurn(original, 1)
     await fire(ctx, sessionAgent(original), 1, 1)
-    const user = original.events.find(event => event.type === 'user/message' && event.data.source.kind === 'user')
-    const reading = original.events.find(event => event.type === 'user/message' && event.data.source.kind === 'plugin')
+    const user = original.snapshotEvents().find(event => event.type === 'user/message' && event.data.source.kind === 'user')
+    const reading = original.snapshotEvents().find(event => event.type === 'user/message' && event.data.source.kind === 'time-context')
     if (user === undefined || reading === undefined) throw new Error('missing source surface events')
     original.append('user/message', createUserMessage({
       content: [{ type: 'text', text: 'compacted history' }],
-      source: { kind: 'plugin', plugin: 'compaction-basic' },
+      source: { kind: 'compaction-basic' },
     }), {
-      surfaceOp: { op: 'replace', start: user.seq, end: reading.seq },
+      surfaceOp: { op: 'replace', startSeq: user.seq, endSeq: reading.seq },
       sourceEventSeqs: [user.seq, reading.seq],
     })
     original.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
     expect(JSON.stringify(original.deriveMessages())).not.toContain('Time sampled while preparing')
 
-    const resumed = Session.create(SessionId('resumed'), [...original.events])
+    const resumed = Session.create(SessionId('resumed'), original.snapshotEvents())
     const resumedAgent = sessionAgent(resumed)
-    vi.setSystemTime(BASE + 999)
+    vi.setSystemTime(BASE + interval - 1)
     openMessageTurn(resumed, 2)
-    const beforeSkip = resumed.events.length
+    const beforeSkip = resumed.snapshotEvents().length
 
     await fire(ctx, resumedAgent, 2, 1)
 
-    expect(resumed.events).toHaveLength(beforeSkip)
+    expect(resumed.snapshotEvents()).toHaveLength(beforeSkip)
     expect(contextTexts(resumed)).toHaveLength(1)
 
-    vi.setSystemTime(BASE + 1_000)
+    vi.setSystemTime(BASE + interval)
     await fire(ctx, resumedAgent, 2, 2)
 
     expect(contextTexts(resumed)).toHaveLength(2)
@@ -331,14 +340,14 @@ describe('durable step context', () => {
 
     vi.setSystemTime(BASE + 500)
     openMessageTurn(first, 2)
-    const beforeSkip = first.events.length
+    const beforeSkip = first.snapshotEvents().length
     await fire(ctx, firstAgent, 2, 1)
 
     const independent = Session.create(SessionId('interval-independent'))
     openMessageTurn(independent, 1)
     await fire(ctx, sessionAgent(independent, 'independent-agent'), 1, 1)
 
-    expect(first.events).toHaveLength(beforeSkip)
+    expect(first.snapshotEvents()).toHaveLength(beforeSkip)
     expect(contextTexts(first)).toHaveLength(1)
     expect(contextTexts(independent)).toHaveLength(1)
   })
@@ -373,6 +382,7 @@ describe('configuration and lifecycle', () => {
 
   it('fails loud for an invalid explicit zone or an unavailable process zone', async () => {
     const invalid = new Context()
+    await invalid.plugin(SessionProjectionRegistry)
     await invalid.plugin(AgentRegistry)
     await expect(invalid.plugin(timeContext, { timeZone: 'Not/A_Real_Zone' })).rejects.toThrow(
       /invalid IANA timeZone/,
@@ -382,6 +392,7 @@ describe('configuration and lifecycle', () => {
       throw new RangeError('system zone unavailable')
     })
     const unresolved = new Context()
+    await unresolved.plugin(SessionProjectionRegistry)
     await unresolved.plugin(AgentRegistry)
     await expect(unresolved.plugin(timeContext, {})).rejects.toThrow(/failed to resolve the system time zone/)
   })
@@ -409,6 +420,33 @@ describe('configuration and lifecycle', () => {
   })
 })
 
+describe('time-context projection fold edges', () => {
+  it('clears the open-turn injection time at the next turn start', async () => {
+    const { ctx } = await mount()
+    const session = Session.create(SessionId('same-turn'))
+    session.append('turn/start', { turn: 1 })
+    session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: 'reading' }],
+      source: { kind: 'time-context' },
+    }), { surfaceOp: 'append' })
+    expect(typeof ctx.sessionProjections.stateOf(session, 'timeContext')?.lastTurnInjectionTime).toBe('number')
+    session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+    session.append('turn/start', { turn: 2 })
+    expect(ctx.sessionProjections.stateOf(session, 'timeContext')).toMatchObject({
+      lastTurnInjectionTime: null,
+    })
+  })
+
+  it('keeps the open-turn injection time null when turn/end arrives first', async () => {
+    const { ctx } = await mount()
+    const session = Session.create(SessionId('end-without-start'))
+    session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+    expect(ctx.sessionProjections.stateOf(session, 'timeContext')).toMatchObject({
+      lastTurnInjectionTime: null,
+    })
+  })
+})
+
 describe('real agent-loop request history', () => {
   it.each([
     ['throws'],
@@ -421,20 +459,20 @@ describe('real agent-loop request history', () => {
       subject.cancel({ kind: 'user' })
       return next()
     })
-    const agent = ctx.agentLoop.create(SessionId(`late-${mode}`), { provider: 'mock', model: 'mock' })
+    const agent = await ctx.agentLoop.create(SessionId(`late-${mode}`), { provider: 'mock', model: 'mock' })
 
     agent.followup(createUserMessage({ content: [{ type: 'text', text: 'start' }], source: { kind: 'user' } }))
     await agent.whenIdle()
 
     expect(contextTexts(agent.session)).toHaveLength(0)
     expect(adapter.requests).toHaveLength(0)
-    expect(agent.session.events.some(event => event.type === 'step/start')).toBe(false)
+    expect(agent.session.snapshotEvents().some(event => event.type === 'step/start')).toBe(false)
     await ctx.fiber.dispose()
   })
 
   it('persists one ordered context per request, accumulates readings, and leaves system headers unchanged', async () => {
     const adapter = new ScriptedAdapter([toolCallResponse(), textResponse('done')])
-    const ctx = await loopHarness(adapter)
+    const ctx = await loopHarness(adapter, { refreshIntervalMs: 0 })
     ctx.tools.register(defineContentToolFixture({
       name: 'tick',
       description: 'advance fake time',
@@ -444,22 +482,21 @@ describe('real agent-loop request history', () => {
         return [{ type: 'text' as const, text: 'advanced' }]
       },
     }))
-    const agent = ctx.agentLoop.create(SessionId('loop'), { provider: 'mock', model: 'mock' })
+    const agent = await ctx.agentLoop.create(SessionId('loop'), { provider: 'mock', model: 'mock' })
 
     agent.followup(createUserMessage({ content: [{ type: 'text', text: 'start' }], source: { kind: 'user' } }))
     await agent.whenIdle()
 
     expect(adapter.requests).toHaveLength(2)
-    const contexts = agent.session.events.filter(
-      (event): event is SessionEvent<'user/message'> => event.type === 'user/message' && event.data.source.kind === 'plugin')
-    const starts = agent.session.events.filter(event => event.type === 'step/start')
+    const contexts = agent.session.snapshotEvents().filter(
+      (event): event is SessionEvent<'user/message'> => event.type === 'user/message' && event.data.source.kind !== 'user')
+    const starts = agent.session.snapshotEvents().filter(event => event.type === 'step/start')
     expect(contexts).toHaveLength(adapter.requests.length)
     expect(starts).toHaveLength(adapter.requests.length)
     for (let index = 0; index < contexts.length; index += 1) {
       expect(contexts[index]!.seq).toBeGreaterThan(starts[index]!.seq)
     }
-    expect(contexts.every(event => event.data.source.kind === 'plugin'
-      && event.data.source.plugin === 'time-context'
+    expect(contexts.every(event => event.data.source.kind === 'time-context'
       && event.surfaceOp === 'append')).toBe(true)
 
     const firstRequestText = requestText(adapter.requests[0]!)
@@ -471,9 +508,13 @@ describe('real agent-loop request history', () => {
     expect(secondRequestText).toContain('Time sampled while preparing turn 1, step 2:')
     expect(secondRequestText).toContain('Elapsed since the preceding step context: 1m 1s.')
 
-    for (const request of adapter.requests) expect(request.system).not.toContain('Time sampled while preparing')
-    const headers = agent.session.events.filter(event => event.type === 'request/header')
-    expect(JSON.stringify(headers)).not.toContain('Time sampled while preparing')
+    for (const request of adapter.requests) {
+      expect(request.system).toBeUndefined()
+      expect(request.messages[0]?.role).toBe('system')
+      expect(JSON.stringify(request.messages[0])).not.toContain('Time sampled while preparing')
+    }
+    const systemNodes = agent.session.snapshotEvents().filter(event => event.type === 'system/message')
+    expect(JSON.stringify(systemNodes)).not.toContain('Time sampled while preparing')
     await ctx.fiber.dispose()
   })
 })
@@ -485,11 +526,12 @@ describe('real Loader export path', () => {
     const unwrapped = loader.unwrapExports(timeContext) as Record<string, unknown>
     expect(unwrapped).toBe(timeContext)
     expect(unwrapped.name).toBe('time-context')
-    expect(unwrapped.inject).toEqual(['agents'])
+    expect(unwrapped.inject).toEqual(['agents', 'sessionProjections'])
     expect(unwrapped.Config).toBeDefined()
     expect(typeof unwrapped.apply).toBe('function')
 
     const ctx = new Context()
+    await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(AgentRegistry)
     const plugin = loader.unwrapExports(timeContext) as Parameters<Context['plugin']>[0]
     await ctx.plugin(plugin)

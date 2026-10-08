@@ -21,7 +21,13 @@
       "path": "../../util/brand"
     },
     {
-      "path": "../../runtime-diagnostics/invariants"
+      "path": "../../util/values"
+    },
+    {
+      "path": "../../boot/config-editor"
+    },
+    {
+      "path": "../../../vendor/loader"
     }
   ]
 }

@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import type {} from '@deepseek-ai/dsh-skill'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import type {} from '@deepseek-ai/dsh-agent-presets'
+import type {} from '@deepseek-ai/dsh-agent-preset-registry'
 import { launchWebScaffold, type WebScaffold } from './scaffold.ts'
 
 async function writeSkill(root: string, name: string): Promise<void> {
@@ -42,7 +42,7 @@ it('isolates replay skill discovery from every ambient host root', async () => {
     const ctx = scaffold.ctx
     // Local skill discovery belongs to the agent's preset LAYER of the host
     // registry, so the roots under test are only reachable through a composed
-    // agent's view — the same scope the gateway's `skill.list` resolves for a
+    // agent's view — the same scope the `skills/list` Remote resolves for a
     // browser request about a session.
     const handle = await ctx.agents.create({
       sessionId: SessionId('hermetic-skills'),

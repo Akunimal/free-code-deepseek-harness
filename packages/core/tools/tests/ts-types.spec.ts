@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { jsonSchemaToTs, renderToolsSdk } from '@deepseek-ai/dsh-tools/src/ts-types.ts'
 import type { ToolSdkSchema } from '@deepseek-ai/dsh-tools/src/ts-types.ts'
+import type { JsonSchemaNode } from '@deepseek-ai/dsh-tools/src/json-schema.ts'
 import { parameterSchemaSpecToJsonSchema } from '@deepseek-ai/dsh-tools'
 
 describe('jsonSchemaToTs', () => {
@@ -110,7 +111,10 @@ describe('renderToolsSdk', () => {
   const bash: ToolSdkSchema = {
     name: 'bash',
     description: 'Run a shell command.',
-    parameters: parameterSchemaSpecToJsonSchema({ command: { type: 'string', required: true } }) as unknown as Record<string, unknown>,
+    parameters: parameterSchemaSpecToJsonSchema({
+      command: { type: 'string', required: true },
+      description: { type: 'string', required: true },
+    }) as unknown as Record<string, unknown>,
     output: {
       type: 'object',
       additionalProperties: false,
@@ -148,13 +152,66 @@ describe('renderToolsSdk', () => {
     expect(text).toContain('lossless JSON')
   })
 
-  it('names both required call arguments, not just the program', () => {
-    // The schema requires `code` AND `description`; instructions that mention
-    // only the program let a model emit `{code}` alone and fail INVALID_ARGS.
+  it('lists the required description before the program', () => {
     const text = renderToolsSdk([bash])
     expect(text).toContain('`code`')
     expect(text).toContain('`description`')
-    expect(text).toContain('two required arguments')
+    expect(text).toContain('two required arguments: `description`, a short summary of what the program does, and `code`')
+  })
+
+  it('keeps generated bindings inside a run_code program', () => {
+    const text = renderToolsSdk([bash])
+    expect(text).toContain('A declaration does not make its name a directly callable tool')
+    expect(text).toContain('only names supplied as separate tool schemas may be called directly')
+    expect(text).toContain('`run_code({ description: "Show current directory", code: "return await tools.bash({ description: \'Show current directory\', command: \'pwd\' })" })`')
+    expect(text).toContain('Program-only SDK bindings:')
+    expect(text).not.toContain('The available tools:')
+  })
+
+  it('only shows a bash example accepted by the declared binding', () => {
+    expect(renderToolsSdk([exotic])).not.toContain('tools.bash(')
+
+    const commandOnly = {
+      ...bash,
+      parameters: parameterSchemaSpecToJsonSchema({
+        command: { type: 'string', required: true },
+      }) as unknown as Record<string, unknown>,
+    }
+    expect(renderToolsSdk([commandOnly]))
+      .toContain('tools.bash({ command: \'pwd\' })')
+
+    const incompatible = {
+      ...bash,
+      parameters: parameterSchemaSpecToJsonSchema({
+        command: { type: 'string', required: true },
+        cwd: { type: 'string', required: true },
+      }) as unknown as Record<string, unknown>,
+    }
+    expect(renderToolsSdk([incompatible])).not.toContain('tools.bash(')
+
+    const parameters = (value: JsonSchemaNode): ToolSdkSchema => ({
+      ...bash,
+      parameters: value as Record<string, unknown>,
+    })
+    const rejected: JsonSchemaNode[] = [
+      { type: 'string' },
+      { type: 'object', properties: {} },
+      { type: 'object', properties: { command: { type: 'number' } } },
+      { type: 'object', properties: { command: { type: 'string', const: 'date' } } },
+      { type: 'object', properties: { command: { type: 'string', enum: ['date'] } } },
+      {
+        type: 'object',
+        properties: { command: { type: 'string' }, description: { type: 'number' } },
+        required: ['command', 'description'],
+      },
+    ]
+    for (const schema of rejected) expect(renderToolsSdk([parameters(schema)])).not.toContain('tools.bash(')
+
+    const constrained = parameters({
+      type: 'object',
+      properties: { command: { type: 'string', const: 'pwd', enum: ['pwd'] } },
+    })
+    expect(renderToolsSdk([constrained])).toContain('tools.bash({ command: \'pwd\' })')
   })
 
   it('is deterministic: same tool set, byte-identical text regardless of input order', () => {

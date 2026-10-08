@@ -4,6 +4,20 @@
  * @module @deepseek-ai/dsh-subagent/projection-types
  */
 
+import type { SessionId, SessionSeq } from '@deepseek-ai/dsh-session/types'
+
+/** One current direct-child discovery row materialized from parent facts. */
+export type SubagentCatalogEntry =
+  & {
+    readonly id: SessionId
+    readonly createdAt: number
+  }
+  & (
+    | { readonly mode: 'one-shot'; readonly label?: string }
+    | { readonly mode: 'continuable'; readonly label: string }
+    | { readonly mode: 'unknown'; readonly label?: string }
+  )
+
 /** Durable active-turn timing for one descriptor-backed child session. */
 export interface SubagentTimingProjection {
   /** Milliseconds accumulated across completed turns after the child's own descriptor. */
@@ -15,6 +29,11 @@ export interface SubagentTimingProjection {
     /** Latest event time folded into this projection cut. */
     through: number
   }
+  /**
+   * Whether the latest closed turn after the child's own descriptor completed
+   * normally; absent while a turn is open or before one closes.
+   */
+  lastTurnCompleted?: boolean
 }
 
 /**
@@ -31,11 +50,11 @@ export type SubagentIdentityProjection =
     label?: string
     /**
      * Seq of the `subagent/descriptor` event this identity was folded from.
-     * `seq >= header.seedLength` proves the identity comes from the child's
+     * `session.isOwnSeq(seq)` proves the identity comes from the child's
      * OWN log suffix — where a descriptor is immutable once appended — and
      * not from a fork seed's replayed ancestor descriptor.
      */
-    seq: number
+    seq: SessionSeq
   }
   | {
     /** A resumable conversation. */
@@ -43,12 +62,14 @@ export type SubagentIdentityProjection =
     /** Durable creation label from the child's descriptor. */
     label: string
     /** Seq of the folded descriptor event; see the one-shot arm for the own-suffix proof. */
-    seq: number
+    seq: SessionSeq
   }
 
 declare module '@deepseek-ai/dsh-session-projection/types' {
   interface SessionProjectionMap {
-    /** Active-turn duration for a descriptor-backed subagent session. */
+    /** Direct children in parent catalog event order, excluding fork-inherited facts. */
+    subagentCatalog: SubagentCatalogEntry[]
+    /** Active-turn duration and latest closed-turn completion for a descriptor-backed subagent session. */
     subagentTiming: SubagentTimingProjection
     /**
      * Identity of a descriptor-backed subagent session. `null` ⟺ no valid

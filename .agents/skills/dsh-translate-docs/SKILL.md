@@ -25,7 +25,7 @@ Frozen Agent Notes under `.agents/notes/archived/` are not translation work. The
 
 ## The update path (briefing-driven)
 
-The briefing-driven path matches guidance-corpus quality at a fraction of the cost; the [briefed-updates Agent Note](../../notes/implemented/process/2026-07-26-briefed-minimal-translation-updates.md) owns the benchmark evidence.
+The briefing-driven path matches guidance-corpus quality at a fraction of the cost; the archived [briefed-updates Agent Note](../../notes/archived/process/2026-07-26-briefed-minimal-translation-updates.md) records the benchmark evidence.
 
 1. **Generate the briefing**: `pnpm run gen-translation-brief <any file of the pair>` (no arguments briefs every out-of-sync pair). The briefing maps the change at the narrowest safely aligned granularity — changed Markdown units (paragraph, table row, list item, heading), then whole heading sections, then whole document — and contains the authored side's diff since the last confirmed-consistent state, each changed unit's last-confirmed source, current source, and current counterpart text (with line numbers), the terminology rows the change touches, first-occurrence movement notes, and a digest of the binding update rules.
 2. **Mechanical-only diff? `--apply` it.** When every change lies inside code fences that the pair shares byte-identically, the briefing says so; `pnpm run gen-translation-brief --apply <pair>` splices the edited fences into the counterpart and structure-validates the result before writing — no subagent, no hand-editing.
@@ -39,7 +39,7 @@ When translations need to be written from scratch, the orchestrating agent does 
 
 ### Sources of truth (read, don't re-summarize)
 
-- **[docs/i18n/README.md](../../../docs/i18n/README.md)** — the pairing contract: the three-file pair (`foo.md`, `foo.zh.md`, `foo.i18n.yaml`), the consistency record's both-side blob hashes, the language-switcher lines, scope, and exclusions.
+- **[docs/i18n/README.md](../../../docs/i18n/README.md)** — the pairing contract: the three-file pair (`foo.md`, `foo.zh.md`, `foo.i18n.yaml`), the consistency record's per-section hashes, the language-switcher lines, scope, and exclusions.
 - **[docs/i18n/translation-rules.md](../../../docs/i18n/translation-rules.md)** — how to translate: faithfulness, structure preservation, terminology discipline, typography (MUST/SHOULD levels).
 - **[docs/i18n/terminology.md](../../../docs/i18n/terminology.md)** — the terminology table, binding in both directions. Load it BEFORE translating, not when a term feels uncertain; the terms you don't notice are the ones that drift.
 - **[docs/i18n/translation-prompt.md](../../../docs/i18n/translation-prompt.md)** — the automated pipeline's calibrated machine-consumed template. Agents using this skill do not render it; the terminology table is the only repository file the automated renderer injects, while this skill and `translation-rules.md` remain binding for agent-authored translations.
@@ -52,8 +52,8 @@ When translations need to be written from scratch, the orchestrating agent does 
 - **Read the completed counterpart alone.** After the source comparison, read the translated file without the source beside it and rewrite phrasing whose awkwardness only becomes visible in isolation.
 - Write only the final text to the file, never drafts or notes.
 - Every term in [terminology.md](../../../docs/i18n/terminology.md) renders exactly as specified. For a Chinese target, use the Chinese and first-occurrence columns; an unlisted term needs a citable Chinese OSS/vendor precedent or stays English under 「待定术语」. For an English target, use the English column and an established English technical term; preserve an ambiguous source term with a short gloss and list it as pending. Never invent a rendering inline.
-- Code blocks are byte-identical across the pair, comments included. Relative links keep their `.md` targets; only the switcher line links `.zh.md`.
-- The pairing gate checks heading depths, fenced blocks, table row and column counts, list kinds, ordered-list starts, list item counts, and link targets. In Pass 2, manually verify list and table order, noncanonical list numbering, inline code, emphasis, meaning, terminology, and tone.
+- Code blocks are byte-identical across the pair, comments included. Repository-relative document links keep the same semantic target and exact query/fragment suffix: targets in the active bilingual corpus use `.md` on the English side and `.zh.md` on the Chinese side, a missing in-scope counterpart is an error, targets outside the corpus keep their authored path, and the switcher remains the cross-locale exception.
+- The pairing gate checks heading depths, fenced blocks, table row and column counts, list kinds, ordered-list starts, list item counts, link locale, and semantic targets. In Pass 2, manually verify list and table order, noncanonical list numbering, inline code, emphasis, meaning, terminology, and tone.
 
 ## Find the work
 
@@ -64,7 +64,7 @@ When translations need to be written from scratch, the orchestrating agent does 
 ## Finish the pair
 
 1. Switcher: `[English](foo.md) | 中文` immediately after the Chinese file's H1, `English | [中文](foo.zh.md)` after the English file's H1 — add both if this is a new pair, except that a generator-owned English source stays byte-identical to generator output and omits its switcher while the Chinese counterpart still links back.
-2. Record consistency: `pnpm run verify-translation-pairing --write <pair>` recomputes and records both sides' full blob hashes in `foo.i18n.yaml`. The yaml diff in your PR is the reviewable statement "I confirmed these two say the same thing" — only run it after you actually have.
+2. Record consistency: `pnpm run verify-translation-pairing --write <pair>` recomputes and records the per-section hashes in `foo.i18n.yaml`. The yaml diff in your PR is the reviewable statement "I confirmed these two say the same thing" — only run it after you actually have.
 3. No manifest entry is needed for an ordinary document: every in-scope source requires a pair. Change [scripts/translation-pairing.manifest.json](../../../scripts/translation-pairing.manifest.json) only when the owning policy documents a genuine generated, instructional, or bilingual-by-construction exclusion.
 4. Before the PR: the touched pairs are green under the scoped check; `pnpm run doc-sync` (which includes the corpus-wide pairing check plus `verify-md-wrap`/`verify-md-links`) runs once at PR level per [dsh-pre-push-checks](../dsh-pre-push-checks/SKILL.md), not inside each translation task.
 5. Keep the PR reviewable: state which pairs are new versus minimally updated and list 「待定术语」 prominently.

@@ -1,23 +1,17 @@
-// todo_write toolview: plan-flavored summary row replacing the generic
-// "Tool call" card, registered into the keyed 'tool.call.toolview'
-// hole like the bash sample (a product registration, not a sample). The row
-// composes ToolRow (chrome, running sweep, whole-row expand) and swaps in a
-// summary of the written list (counts + active items) from the call args, with
-// the parallel-active count riding ToolRow's non-shrinking summary suffix so a
-// narrow row never clips it; the durable list itself renders in the TodoPanel
-// above the composer, so the row stays one line until expanded.
-
-import { IconChecklistOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { useMemo } from 'react'
+import { IconChecklistOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { Context } from '@deepseek-ai/cordis'
-import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
+import type { HostObservable, InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallViewProps } from '../../contract/slots.ts'
+import { registerTodoHistory, type TodoHistory } from '../models/todo-history.ts'
+import { todoDiffModel } from '../models/todo-diff-model.ts'
 import { toolRowModel } from '../models/tool-call-model.ts'
 import { ToolRow } from '../components/ToolRow.tsx'
 import { CONVERSATION_NS as NS } from '../../locale.ts'
 import { planSummary, type PlanItemLike } from './plan-summary.ts'
 
-/** Todo row props: the toolview runtime share plus the standard locale seat. */
-type TodoRowProps = ToolCallViewProps & PropsLocale<'conversation'>
+type TodoHistoryInjected = { hooks: { todoHistory: HostObservable<TodoHistory | undefined> } }
+type TodoRowProps = ToolCallViewProps & PropsLocale<'conversation'> & InjectFace<TodoHistoryInjected>
 
 function isItem(value: unknown): value is PlanItemLike {
   return typeof value === 'object' && value !== null
@@ -33,7 +27,8 @@ interface RowSummary {
   extra: number
 }
 
-function summarize(argsRaw: string, t: TodoRowProps['t']): RowSummary | null {
+function summarize(argsRaw: string | null, t: TodoRowProps['t']): RowSummary | null {
+  if (argsRaw === null) return null
   let parsed: unknown
   try {
     parsed = JSON.parse(argsRaw)
@@ -54,25 +49,27 @@ function summarize(argsRaw: string, t: TodoRowProps['t']): RowSummary | null {
   }
 }
 
-/** One-line plan update row (the whole row toggles the call's Input/Output
- *  sections, ToolRow's unified expand). Non-ok execution states keep the
- *  shared row's dot semantics — a cancelled call wrote no todo/write, so it
- *  must not read as a completed update. */
-export function TodoRow({ toolName, block, inspect, t }: TodoRowProps) {
+/** Summarizes a plan update without presenting a cancelled call as completed. */
+export function TodoRow({ toolName, block, inspect, useDisclosure, useTodoHistory, useSession, t }: TodoRowProps) {
+  const baseline = useTodoHistory(snapshot => snapshot?.get(block.callId))
+  const hasMore = useSession(snapshot => snapshot.hasMore)
+  const diff = useMemo(() => todoDiffModel(block, baseline, hasMore, t), [block, baseline, hasMore, t])
   const model = toolRowModel(toolName, block)
-  const argsRaw = ('kind' in block ? block.call?.argsRaw : block.argsRaw) ?? ''
-  const summary = summarize(argsRaw, t) ?? { text: model.summary, extra: 0 }
+  const summary = summarize(model.bodyRaw, t) ?? { text: model.summary, extra: 0 }
   return (
     <ToolRow
+      useDisclosure={useDisclosure}
       t={t}
       variant={model.variant}
       toolName={toolName}
-      icon={<IconChecklistOutline14 />}
-      title={t('todo.rowTitle')}
+      icon={<IconChecklistOutlineRegular />}
+      title={t(model.titleKey)}
       summary={summary.text}
-      summarySuffix={summary.extra > 0 ? `+${summary.extra}` : null}
-      body={model.body}
+      summarySuffix={[diff?.summary, summary.extra > 0 ? `+${summary.extra}` : null]
+        .filter((part): part is string => part !== null && part !== undefined).join(' · ') || null}
+      bodyRaw={model.bodyRaw}
       output={model.output}
+      details={diff?.details}
       errorSummary={model.errorSummary}
       state={model.state}
       inspect={inspect}
@@ -80,19 +77,18 @@ export function TodoRow({ toolName, block, inspect, t }: TodoRowProps) {
   )
 }
 
-/**
- * The todo row as a plain registrant plugin following the atomic Tool-view
- * declaration across independent activation and reload lifetimes.
- */
+/** Registers the todo conversation row. */
 export const todoToolview = {
   name: 'todo-toolview',
-  inject: ['slots'],
-  /**
-   * Register the todo row into the Tool-owned keyed view slot.
-   * @param ctx - registrant context (disposal rides ctx.effect inside slots.register).
-   */
+  inject: ['slots', 'uiConversation'],
   apply(ctx: Context): void {
+    registerTodoHistory(ctx)
     ctx.slots.inject('tool.call.toolview', () =>
-      ctx.slots.register({ name: 'tool.call.toolview', key: 'todo_write', locale: NS }, TodoRow))
+      ctx.slots.register({
+        name: 'tool.call.toolview', key: 'todo_write', locale: NS,
+        inject: (sessionId): TodoHistoryInjected => ({
+          hooks: { todoHistory: ctx.uiConversation.binding(sessionId).target('tool-todo-history') },
+        }),
+      }, TodoRow))
   },
 }

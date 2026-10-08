@@ -4,15 +4,21 @@ import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import { AssistantOutputFold, finalAssistantOutput } from '../src/assistant-output.ts'
 
 function message(content: ContentBlock[]): SessionEvent {
-  return { type: 'assistant/message', data: { message: { content } } } as SessionEvent
+  return { type: 'assistant/message', data: { stream: [], message: { content } } } as unknown as SessionEvent
 }
 
 function textDelta(text: string): SessionEvent {
-  return { type: 'assistant/chunk', data: { chunk: { type: 'text-delta', text } } } as SessionEvent
+  return {
+    type: 'assistant/attempt',
+    data: { stream: [{ type: 'text-chunks', time0: 0, index: 0, dt: [], texts: [text] }] },
+  } as unknown as SessionEvent
 }
 
 function reasoningDelta(text: string): SessionEvent {
-  return { type: 'assistant/chunk', data: { chunk: { type: 'reasoning-delta', text } } } as SessionEvent
+  return {
+    type: 'assistant/attempt',
+    data: { stream: [{ type: 'reasoning-chunks', time0: 0, index: 0, dt: [], texts: [text] }] },
+  } as unknown as SessionEvent
 }
 
 function toolResult(text: string): SessionEvent {
@@ -20,15 +26,13 @@ function toolResult(text: string): SessionEvent {
     type: 'tool/result',
     data: {
       message: {
-        content: [{
-          type: 'tool-result',
-          toolCallId: 'call-1',
-          content: [{ type: 'text', text }],
-          isError: false,
-        }],
+        role: 'tool',
+        toolCallId: 'call-1',
+        content: [{ type: 'text', text }],
+        isError: false,
       },
     },
-  } as SessionEvent
+  } as unknown as SessionEvent
 }
 
 describe('finalAssistantOutput', () => {

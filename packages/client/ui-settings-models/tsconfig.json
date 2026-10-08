@@ -9,34 +9,37 @@
   ],
   "references": [
     {
+      "path": "../../host/webserver"
+    },
+    {
+      "path": "../../../vendor/schemastery"
+    },
+    {
       "path": "../../../vendor/cordis"
     },
     {
       "path": "../ui-slots"
     },
     {
-      "path": "../runtime"
-    },
-    {
-      "path": "../schema-form"
+      "path": "../store"
     },
     {
       "path": "../ui-primitives"
     },
     {
-      "path": "../web-react"
+      "path": "../ui-renderer"
     },
     {
-      "path": "../ui-settings"
+      "path": "../ui-settings/tsconfig.client.json"
     },
     {
-      "path": "../locale"
-    },
-    {
-      "path": "../../runtime-diagnostics/invariants"
+      "path": "../locale/tsconfig.client.json"
     },
     {
       "path": "../../api/remotes/tsconfig.client.json"
+    },
+    {
+      "path": "../product-analytics/tsconfig.client.json"
     }
   ]
 }

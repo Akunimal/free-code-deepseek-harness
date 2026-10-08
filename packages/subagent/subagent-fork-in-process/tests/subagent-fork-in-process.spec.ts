@@ -6,24 +6,14 @@ import AgentRegistry from '@deepseek-ai/dsh-agent'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
-import InvariantRegistry from '@deepseek-ai/dsh-invariants'
-import * as SessionInvariant from '@deepseek-ai/dsh-session/invariant'
-import * as AgentInvariant from '@deepseek-ai/dsh-agent/invariant'
-import * as AgentLoopInvariant from '@deepseek-ai/dsh-agent-loop/invariant'
 import SubagentRuntime, { type SubagentStartRequest } from '@deepseek-ai/dsh-subagent'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import type { StreamChunk } from '@deepseek-ai/dsh-llm'
 import * as fork from '../src/index.ts'
 import { STRUCTURED_OUTPUT_TOOL } from '@deepseek-ai/dsh-subagent-in-process-driver'
 
 type Script = ConstructorParameters<typeof MockAdapter>[0]
-
-async function mountInvariants(ctx: Context): Promise<void> {
-  await ctx.plugin(InvariantRegistry)
-  await ctx.plugin(SessionInvariant)
-  await ctx.plugin(AgentInvariant)
-  await ctx.plugin(AgentLoopInvariant)
-}
 
 function start(ctx: Context, provider: string, request: Omit<SubagentStartRequest, 'signal'> & { signal?: AbortSignal }) {
   return ctx.subagents.start(provider, { signal: request.signal ?? new AbortController().signal, ...request })
@@ -34,24 +24,20 @@ function start(ctx: Context, provider: string, request: Omit<SubagentStartReques
 const emptyStop: StreamChunk[] = [{ type: 'finish', reason: { kind: 'stop' } }]
 
 /**
- * Drives the REAL fork backend with a real loop + scripted mock MODEL + the
- * real invariant service and package companions. The session contribution replays a seeded child log on
- * `session/created`, so a malformed (unbalanced) fork seed makes these tests
- * THROW — that is the regression guard for the completed-turn-prefix boundary.
+ * Drives the REAL fork backend with a real loop + scripted mock MODEL.
  */
 async function setup(script: Script) {
   const ctx = new Context()
   await mountAgentLoopTestDependencies(ctx)
-  await mountInvariants(ctx)
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(SubagentRuntime)
   await ctx.plugin(fork, { providerName: 'fork' })
   ctx.llm.registerAdapter(['mock'], new MockAdapter(script))
-  const parent = ctx.agentLoop.create(SessionId('parent'), { provider: 'mock', model: 'mock' })
+  const parent = await ctx.agentLoop.create(SessionId('parent'), { provider: 'mock', model: 'mock' })
   return { ctx, parent }
 }
 
-function text(blocks: { type: string; text?: string }[]): string {
+function text(blocks: readonly { type: string; text?: string }[]): string {
   return blocks.filter(b => b.type === 'text').map(b => b.text).join('')
 }
 
@@ -83,8 +69,9 @@ describe('dsh-subagent-fork-in-process', () => {
     expect(text(result.output)).toBe('fresh child')
     const child = ctx.agents.get(run.id)!
     // Only the child's own turn — no seeded parent turns.
-    expect(child.session.events.filter(e => e.type === 'turn/end')).toHaveLength(1)
-    expect(child.session.header.seedLength).toBeUndefined()
+    expect(child.session.snapshotEvents().filter(e => e.type === 'turn/end')).toHaveLength(1)
+    expect(child.session.header.isSeeded).toBe(false)
+    expect(child.session.inheritedEventCount).toBe(0)
     await run.dispose()
   })
 
@@ -94,14 +81,15 @@ describe('dsh-subagent-fork-in-process', () => {
     await parent.whenIdle()
     parent.followup(createUserMessage({ content: [{ type: 'text', text: 'q2' }], source: { kind: 'user' } }))
     await parent.whenIdle()
-    const parentPrefixLen = parent.session.events.length
+    const parentPrefixLen = parent.session.snapshotEvents().length
 
     const run = await start(ctx, 'fork', { prompt: [{ type: 'text', text: 'child q' }], parent })
     await run.result
     const child = ctx.agents.get(run.id)!
-    expect(child.session.header.seedLength).toBe(parentPrefixLen)
-    expect(child.session.events.slice(0, parentPrefixLen).at(-1)?.type).toBe('turn/end')
-    expect(child.session.events.slice(0, parentPrefixLen).filter(e => e.type === 'turn/end')).toHaveLength(2)
+    expect(child.session.header.isSeeded).toBe(true)
+    expect(child.session.inheritedEventCount).toBe(parentPrefixLen)
+    expect(child.session.snapshotEvents().slice(0, parentPrefixLen).at(-1)?.type).toBe('turn/end')
+    expect(child.session.snapshotEvents().slice(0, parentPrefixLen).filter(e => e.type === 'turn/end')).toHaveLength(2)
     await run.dispose()
   })
 
@@ -109,7 +97,7 @@ describe('dsh-subagent-fork-in-process', () => {
     const { ctx, parent } = await setup([textResponse('parent answer'), textResponse('child answer')])
     parent.followup(createUserMessage({ content: [{ type: 'text', text: 'parent question' }], source: { kind: 'user' } }))
     await parent.whenIdle()
-    const parentPrefixLen = parent.session.events.length
+    const parentPrefixLen = parent.session.snapshotEvents().length
 
     const run = await start(ctx, 'fork', { prompt: [{ type: 'text', text: 'child question' }], parent })
     const result = await run.result
@@ -118,23 +106,23 @@ describe('dsh-subagent-fork-in-process', () => {
 
     const child = ctx.agents.get(run.id)!
     // The child's log STARTS with the parent's prefix (seeded), then its own turn.
-    expect(child.session.events.length).toBeGreaterThan(parentPrefixLen)
+    expect(child.session.snapshotEvents().length).toBeGreaterThan(parentPrefixLen)
     // The seeded prefix carried the parent's user message.
-    const seededUser = child.session.events.slice(0, parentPrefixLen).find(e => e.type === 'user/message')
+    const seededUser = child.session.snapshotEvents().slice(0, parentPrefixLen).find(e => e.type === 'user/message')
     expect(seededUser).toBeDefined()
     // Lineage stamped.
     expect(child.session.header.parentSession).toBe(parent.session.header.id)
-    // The seed boundary is recorded on the header (= the seeded prefix length),
-    // so a reload / replay harness can tell the inherited prefix from the
-    // child's own events.
-    expect(child.session.header.seedLength).toBe(parentPrefixLen)
+    // Logical metadata records lineage while Session state retains the exact
+    // inherited cut for reload and replay.
+    expect(child.session.header.isSeeded).toBe(true)
+    expect(child.session.inheritedEventCount).toBe(parentPrefixLen)
     await run.dispose()
   })
 
-  it('produces an invariant-CLEAN seed: forking mid-turn excludes the open turn', async () => {
+  it('produces a balanced seed: forking mid-turn excludes the open turn', async () => {
     // Drive the parent so it has one completed turn, then start a SECOND turn that is still
     // open (a hanging model call), and fork while it's in flight. The seed must stop after the
-    // balanced first turn; including the open turn would fail invariant replay during start.
+    // balanced first turn.
     const { ctx, parent } = await setup([textResponse('done'), 'hang', textResponse('child')])
     parent.followup(createUserMessage({ content: [{ type: 'text', text: 'q1' }], source: { kind: 'user' } }))
     await parent.whenIdle()
@@ -150,7 +138,7 @@ describe('dsh-subagent-fork-in-process', () => {
 
     const child = ctx.agents.get(run.id)!
     // The child's seed has exactly the ONE completed parent turn (the open one excluded).
-    const seedTurnEnds = child.session.events.filter(e => e.type === 'turn/end')
+    const seedTurnEnds = child.session.snapshotEvents().filter(e => e.type === 'turn/end')
     // 1 from the seeded parent turn + 1 from the child's own completed turn.
     expect(seedTurnEnds.length).toBe(2)
 
@@ -173,7 +161,6 @@ describe('dsh-subagent-fork-in-process', () => {
     const result = await run.result
     expect(result.stopReason).toBe('completed')
     expect(result.structured).toEqual({ answer: 9 })
-    // Run-scoped runtime: nothing stays registered after the settle.
     expect(ctx.tools.get(STRUCTURED_OUTPUT_TOOL)).toBeUndefined()
     await run.dispose()
   })
@@ -194,13 +181,20 @@ describe('dsh-subagent-fork-in-process', () => {
     await run.dispose()
   })
 
-  it('advertises every start-time capability (depthLimit, outputSchema, toolFilter, persona)', async () => {
+  it('advertises every start-time capability', async () => {
     const { ctx } = await setup([])
-    expect(ctx.subagents.getProvider('fork')!.capabilities).toEqual({ outputSchema: true, depthLimit: true, toolFilter: true, persona: true })
+    expect(ctx.subagents.getProvider('fork')!.capabilities).toEqual({
+      agentOptions: true,
+      outputSchema: true,
+      depthLimit: true,
+      toolFilter: true,
+      persona: true,
+    })
   })
 
   it('unregisters the provider when its fiber is disposed (HMR safety)', async () => {
     const ctx = new Context()
+    await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(SubagentRuntime)
     await ctx.plugin(AgentRegistry)
     const fiber = await ctx.plugin(fork, { providerName: 'fork' })

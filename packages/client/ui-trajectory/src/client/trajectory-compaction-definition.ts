@@ -1,7 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type {
   ConversationMatch, ConversationNodeDefinition, RequestView,
-} from '@deepseek-ai/dsh-client-runtime/client'
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-compaction/types'
 import { trajectoryNode } from './trajectory-definition-common.ts'
 
@@ -16,12 +16,12 @@ function checkpointId(
   event: Parameters<ConversationNodeDefinition['match']>[0],
 ): string | undefined {
   if (event.type !== 'user/message') return undefined
-  const source = event.data.source as unknown as {
+  const source = event.data.source as {
     readonly kind?: unknown
     readonly plugin?: unknown
     readonly compactionId?: unknown
   }
-  return source.kind === 'plugin' && source.plugin === 'compact'
+  return source.kind === 'compact-checkpoint'
     && typeof source.compactionId === 'string' && source.compactionId !== ''
     ? source.compactionId
     : undefined
@@ -64,7 +64,7 @@ function requestFromState(
         resultSeq: summary.seq,
         summary: summary.data.summary,
         ...(summary.data.rawOutput === undefined ? {} : { rawOutput: summary.data.rawOutput }),
-        provenance: { provider: summary.data.provider, model: summary.data.model },
+        providerMetadata: { provider: summary.data.provider, model: summary.data.model },
         requestConfig: {
           provider: summary.data.provider,
           model: summary.data.model,
@@ -138,6 +138,6 @@ const trajectorySessionEndDefinition: ConversationNodeDefinition<SessionEndState
  * @param ctx - Plugin context receiving the Definitions.
  */
 export function registerTrajectoryCompactionDefinitions(ctx: Context): void {
-  ctx.conversationEvents.register(trajectoryCompactionDefinition)
-  ctx.conversationEvents.register(trajectorySessionEndDefinition)
+  ctx.uiConversation.events.register(trajectoryCompactionDefinition)
+  ctx.uiConversation.events.register(trajectorySessionEndDefinition)
 }

@@ -18,13 +18,13 @@
       "path": "../../util/brand"
     },
     {
+      "path": "../../util/values"
+    },
+    {
       "path": "../../llm/llm"
     },
     {
       "path": "../../core/scope"
-    },
-    {
-      "path": "../../runtime-diagnostics/invariants"
     },
     {
       "path": "../../typert/protocol"

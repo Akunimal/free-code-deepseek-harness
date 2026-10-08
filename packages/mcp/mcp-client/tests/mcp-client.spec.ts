@@ -1,14 +1,14 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
 import { Context } from '@deepseek-ai/cordis'
 import AttachmentStore, { AttachmentError, AttachmentId } from '@deepseek-ai/dsh-attachment'
 import type { ImageAttachmentLimits, ImageAttachmentRef, SaveImageAttachment, StoredImageAttachment } from '@deepseek-ai/dsh-attachment'
-import { CallId, LlmAdapter, LlmRuntime } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, LlmAdapter, LlmRuntime } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, LlmResolvedModelInfo, StreamChunk } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
-import ToolRuntime, { type JsonValue } from '@deepseek-ai/dsh-tools'
+import ToolRuntime from '@deepseek-ai/dsh-tools'
+import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { PostToolDecision } from '@deepseek-ai/dsh-tools'
 import { publicToolName, syncTools, type ToolBridgeOptions } from '@deepseek-ai/dsh-mcp-client/src/tools.ts'
 import { createTransport } from '@deepseek-ai/dsh-mcp-client/src/transport.ts'
@@ -38,21 +38,12 @@ function createMockClient(tools: MockTool[], callResult: MockCallResult = { cont
   ): Promise<{ tools: MockTool[]; nextCursor: string | undefined }> => ({ tools, nextCursor: undefined }))
   const callTool = vi.fn(async (
     _params?: Record<string, unknown>,
-    _compatibilitySchema?: unknown,
     _options?: unknown,
   ): Promise<Record<string, unknown>> => ({ ...callResult }))
   return {
     listTools,
     callTool,
-    request: vi.fn(async (
-      request: { method: string; params?: Record<string, unknown> },
-      _schema: unknown,
-      options?: unknown,
-    ): Promise<unknown> => {
-      if (request.method === 'tools/list') return listTools(request.params)
-      if (request.method === 'tools/call') return callTool(request.params, undefined, options)
-      throw new Error(`unexpected MCP request: ${request.method}`)
-    }),
+    getServerCapabilities: (): object => ({ tools: {} }),
     setNotificationHandler: vi.fn(),
     connect: vi.fn().mockResolvedValue(undefined),
     close: vi.fn().mockResolvedValue(undefined),
@@ -73,6 +64,7 @@ const IMAGE_LIMITS: ImageAttachmentLimits = {
   maxImagesPerMessage: 4,
   maxMessageImageBytes: 2048,
   maxImagePixels: 1024,
+  maxImageDimension: 2000,
   mediaTypes: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'],
 }
 
@@ -88,13 +80,14 @@ class RecordingAttachmentStore extends AttachmentStore {
   saveImage(input: SaveImageAttachment): Promise<ImageAttachmentRef> {
     this.saved.push(input)
     const marker = input.data[0] ?? 0
-    return Promise.resolve({
+    const ref: ImageAttachmentRef = {
       attachmentId: AttachmentId(`sha256:${marker.toString(16).padStart(64, '0')}`),
       mediaType: input.mediaType,
       bytes: input.data.byteLength,
       width: 1,
       height: 1,
-    })
+    }
+    return Promise.resolve(ref)
   }
 
   readImage(_ref: ImageAttachmentRef): Promise<StoredImageAttachment> {
@@ -226,7 +219,7 @@ describe('syncTools', () => {
 
     expect(ctx.tools.get('search')).toBeDefined()
     expect(ctx.tools.get('mcp__srv__search')).toBeDefined()
-    const result = await ctx.tools.execute({ signal: testToolSignal, callId: CallId('c1'), name: 'search', arguments: {} })
+    const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c1'), name: 'search', arguments: {} })
     expect(result.content[0]).toEqual({ type: 'text', text: 'native' })
   })
 
@@ -293,20 +286,7 @@ describe('syncTools', () => {
     expect(secondDisposers.size).toBe(1)
   })
 
-  it('drains paginated listTools responses', async () => {
-    const client = createMockClient([])
-    client.listTools
-      .mockResolvedValueOnce({ tools: [{ name: 'page1', inputSchema: { type: 'object' } }], nextCursor: 'cursor1' })
-      .mockResolvedValueOnce({ tools: [{ name: 'page2', inputSchema: { type: 'object' } }], nextCursor: undefined })
-
-    const disposers = await syncTools(client as never, ctx, defaultOpts, new Map())
-
-    expect(disposers.size).toBe(2)
-    expect(ctx.tools.get('mcp__srv__page1')).toBeDefined()
-    expect(ctx.tools.get('mcp__srv__page2')).toBeDefined()
-  })
-
-  it('owns output validation independently of the SDK per-page cache', async () => {
+  it('validates outputs with the complete SDK definition after paginated discovery', async () => {
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
     serverTransport.onmessage = (message) => {
       if (!('id' in message) || !('method' in message)) return
@@ -348,7 +328,7 @@ describe('syncTools', () => {
         const name = params && 'name' in params ? params.name : undefined
         result = name === 'supported'
           ? { content: [{ type: 'text', text: 'missing structured content' }] }
-          : { content: [42, null], structuredContent: ['kept', { nested: true }] }
+          : { content: [{ type: 'text', text: 'kept' }], structuredContent: { 'x-value': 'kept' } }
       } else {
         result = {}
       }
@@ -363,19 +343,18 @@ describe('syncTools', () => {
 
       const missing = await ctx.tools.execute({
         signal: testToolSignal,
-        callId: CallId('missing'), name: 'mcp__srv__supported', arguments: {},
+        callId: ToolCallId('missing'), name: 'mcp__srv__supported', arguments: {},
       })
-      expect(missing.error).toMatchObject({ info: { code: 'INVALID_TOOL_OUTPUT' } })
-      expect(missing.error?.message).toContain('structuredContent')
+      expect(missing.error?.message).toContain('structured content')
 
       const fallback = await ctx.tools.execute({
         signal: testToolSignal,
-        callId: CallId('fallback'), name: 'mcp__srv__future-schema', arguments: {},
+        callId: ToolCallId('fallback'), name: 'mcp__srv__future-schema', arguments: {},
       })
       if (fallback.isError) throw new Error('unsupported schema must use the bridge fallback')
       expect(fallback.value).toEqual({
-        content: [42, null],
-        structuredContent: ['kept', { nested: true }],
+        content: [{ type: 'text', text: 'kept' }],
+        structuredContent: { 'x-value': 'kept' },
       })
     } finally {
       await client.close()
@@ -397,7 +376,7 @@ describe('tool execution', () => {
     )
 
     await syncTools(client as never, ctx, defaultOpts, new Map())
-    const result = await ctx.tools.execute({ signal: testToolSignal, callId: CallId('c1'), name: 'mcp__srv__echo', arguments: { msg: 'hi' } })
+    const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c1'), name: 'mcp__srv__echo', arguments: { msg: 'hi' } })
 
     expect(result.isError).toBe(false)
     expect(result.content).toEqual([{ type: 'text', text: 'hello world' }])
@@ -406,7 +385,6 @@ describe('tool execution', () => {
     // The wire sees the raw MCP name, never the public name.
     expect(client.callTool).toHaveBeenCalledWith(
       { name: 'echo', arguments: { msg: 'hi' } },
-      undefined,
       expect.objectContaining({ timeout: 60_000 }),
     )
   })
@@ -419,12 +397,11 @@ describe('tool execution', () => {
 
     await syncTools(client as never, ctx, defaultOpts, new Map())
     const publicName = publicToolName('srv', 'admin.reset')
-    const result = await ctx.tools.execute({ signal: testToolSignal, callId: CallId('c1'), name: publicName, arguments: {} })
+    const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c1'), name: publicName, arguments: {} })
 
     expect(result.isError).toBe(false)
     expect(client.callTool).toHaveBeenCalledWith(
       { name: 'admin.reset', arguments: {} },
-      undefined,
       expect.anything(),
     )
   })
@@ -436,7 +413,7 @@ describe('tool execution', () => {
     )
 
     await syncTools(client as never, ctx, defaultOpts, new Map())
-    const result = await ctx.tools.execute({ signal: testToolSignal, callId: CallId('c1'), name: 'mcp__srv__multi', arguments: {} })
+    const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c1'), name: 'mcp__srv__multi', arguments: {} })
 
     expect(result.content).toEqual([{ type: 'text', text: 'line1\nline2' }])
   })
@@ -458,7 +435,7 @@ describe('tool execution', () => {
     await syncTools(client as never, rich.ctx, defaultOpts, new Map())
     const result = await rich.ctx.tools.execute({
       signal: testToolSignal,
-      callId: CallId('c1'),
+      callId: ToolCallId('c1'),
       name: 'mcp__srv__img',
       arguments: {},
       agent: agentOn() as never,
@@ -492,7 +469,7 @@ describe('tool execution', () => {
     await syncTools(client as never, ctx, defaultOpts, new Map())
     const result = await ctx.tools.execute({
       signal: testToolSignal,
-      callId: CallId('no-store'),
+      callId: ToolCallId('no-store'),
       name: 'mcp__srv__img',
       arguments: {},
       agent: agentOn() as never,
@@ -510,7 +487,7 @@ describe('tool execution', () => {
     const rich = await mountRichRegistry()
     const blocks = [
       { type: 'image', mimeType: 'image/png', data: 'AQ==' },
-      { type: 'image', mimeType: 'image/png', data: 'not base64' },
+      { type: 'image', mimeType: 'image/png', data: 'AQ' },
     ] satisfies JsonValue[]
     const client = createMockClient(
       [{ name: 'img', inputSchema: { type: 'object' } }],
@@ -520,7 +497,7 @@ describe('tool execution', () => {
     await syncTools(client as never, rich.ctx, defaultOpts, new Map())
     const result = await rich.ctx.tools.execute({
       signal: testToolSignal,
-      callId: CallId('bad-batch'),
+      callId: ToolCallId('bad-batch'),
       name: 'mcp__srv__img',
       arguments: {},
       agent: agentOn() as never,
@@ -532,21 +509,21 @@ describe('tool execution', () => {
     expect(textAt(result.content, 1)).toContain('not canonical base64')
   })
 
-  it('rejects non-canonical and incomplete image blocks as one atomic batch', async () => {
+  it('rejects unsupported media and base64 aliases as one atomic batch', async () => {
     const rich = await mountRichRegistry()
     const client = createMockClient(
       [{ name: 'img', inputSchema: { type: 'object' } }],
       { content: [
         { type: 'image', mimeType: 'image/tiff', data: 'AQ==' },
         { type: 'image', mimeType: 'image/png', data: 'AB==' },
-        { type: 'image', mimeType: 'image/png' },
+        { type: 'image', mimeType: 'image/png', data: 'AQ' },
       ] },
     )
 
     await syncTools(client as never, rich.ctx, defaultOpts, new Map())
     const result = await rich.ctx.tools.execute({
       signal: testToolSignal,
-      callId: CallId('strict-batch'),
+      callId: ToolCallId('strict-batch'),
       name: 'mcp__srv__img',
       arguments: {},
       agent: agentOn() as never,
@@ -569,7 +546,7 @@ describe('tool execution', () => {
     await syncTools(client as never, rich.ctx, defaultOpts, new Map())
     const result = await rich.ctx.tools.execute({
       signal: testToolSignal,
-      callId: CallId('text-route'),
+      callId: ToolCallId('text-route'),
       name: 'mcp__srv__img',
       arguments: {},
       agent: agentOn('text') as never,
@@ -589,7 +566,7 @@ describe('tool execution', () => {
 
     const noProvider = await rich.ctx.tools.execute({
       signal: testToolSignal,
-      callId: CallId('no-provider'),
+      callId: ToolCallId('no-provider'),
       name: 'mcp__srv__img',
       arguments: {},
       agent: { options: { model: 'vision' }, session: { requestHeader: () => undefined } } as never,
@@ -598,7 +575,7 @@ describe('tool execution', () => {
 
     const noModel = await rich.ctx.tools.execute({
       signal: testToolSignal,
-      callId: CallId('no-model'),
+      callId: ToolCallId('no-model'),
       name: 'mcp__srv__img',
       arguments: {},
       agent: { options: { provider: 'visual' }, session: { requestHeader: () => undefined } } as never,
@@ -610,7 +587,7 @@ describe('tool execution', () => {
     await syncTools(client as never, noLlmCtx, defaultOpts, new Map())
     const noLlm = await noLlmCtx.tools.execute({
       signal: testToolSignal,
-      callId: CallId('no-llm'),
+      callId: ToolCallId('no-llm'),
       name: 'mcp__srv__img',
       arguments: {},
       agent: agentOn() as never,
@@ -620,7 +597,7 @@ describe('tool execution', () => {
     vi.spyOn(rich.ctx.llm, 'resolveModelInfo').mockRejectedValueOnce(new Error('catalog down'))
     const unverified = await rich.ctx.tools.execute({
       signal: testToolSignal,
-      callId: CallId('unverified'),
+      callId: ToolCallId('unverified'),
       name: 'mcp__srv__img',
       arguments: {},
       agent: agentOn() as never,
@@ -632,7 +609,7 @@ describe('tool execution', () => {
     })
     const unknown = await rich.ctx.tools.execute({
       signal: testToolSignal,
-      callId: CallId('unknown-modalities'),
+      callId: ToolCallId('unknown-modalities'),
       name: 'mcp__srv__img',
       arguments: {},
       agent: agentOn() as never,
@@ -646,7 +623,7 @@ describe('tool execution', () => {
     })
     const canceled = await rich.ctx.tools.execute({
       signal: controller.signal,
-      callId: CallId('canceled'),
+      callId: ToolCallId('canceled'),
       name: 'mcp__srv__img',
       arguments: {},
       agent: agentOn() as never,
@@ -667,7 +644,7 @@ describe('tool execution', () => {
     await syncTools(client as never, rich.ctx, defaultOpts, new Map())
     const result = await rich.ctx.tools.execute({
       signal: testToolSignal,
-      callId: CallId('store-rejected'),
+      callId: ToolCallId('store-rejected'),
       name: 'mcp__srv__img',
       arguments: {},
       agent: agentOn() as never,
@@ -689,7 +666,7 @@ describe('tool execution', () => {
     await syncTools(client as never, rich.ctx, defaultOpts, new Map())
     const result = await rich.ctx.tools.execute({
       signal: testToolSignal,
-      callId: CallId('policy-rejected'),
+      callId: ToolCallId('policy-rejected'),
       name: 'mcp__srv__img',
       arguments: {},
       agent: agentOn() as never,
@@ -697,6 +674,70 @@ describe('tool execution', () => {
 
     expect(textAt(result.content)).toContain('image admission rejected the result: too many images')
     expect(textAt(result.content)).not.toContain('storage rejected')
+  })
+
+  it('keeps admitted images when post-execute shortens only the text', async () => {
+    const rich = await mountRichRegistry()
+    const blocks = [
+      { type: 'text', text: 'long text'.repeat(1000) },
+      { type: 'image', mimeType: 'image/png', data: 'AQ==' },
+    ] satisfies JsonValue[]
+    const client = createMockClient([{ name: 'img', inputSchema: { type: 'object' } }], { content: blocks })
+    rich.ctx.on('tools/post-execute', async (_exec, result, next): Promise<PostToolDecision> => {
+      await next()
+      expect(result.content.map(block => block.type)).toEqual(['text', 'image'])
+      return { kind: 'accept', content: result.content.map(block => block.type === 'text'
+        ? { type: 'text', text: block.text.slice(0, 20) }
+        : block) }
+    })
+    try {
+      await syncTools(client as never, rich.ctx, defaultOpts, new Map())
+      const result = await rich.ctx.tools.execute({
+        signal: testToolSignal, callId: ToolCallId('shortened'), name: 'mcp__srv__img',
+        arguments: {}, agent: agentOn() as never,
+      })
+      expect(result.isError).toBe(false)
+      expect(result.content.map(block => block.type)).toEqual(['text', 'image'])
+      expect(textAt(result.content)).toBe('long text'.repeat(1000).slice(0, 20))
+      if (result.isError) throw new Error('expected MCP success')
+      expect(result.value).toEqual({ content: blocks })
+    } finally {
+      await rich.ctx.fiber.dispose()
+    }
+  })
+
+  it.each(['value', 'renderer'] as const)('keeps a dispatch %s replacement instead of prepared images', async (replacement) => {
+    const rich = await mountRichRegistry()
+    try {
+      const client = createMockClient(
+        [{ name: 'img', inputSchema: { type: 'object' } }],
+        { content: [{ type: 'image', mimeType: 'image/png', data: 'AQ==' }] },
+      )
+      const registrations = await syncTools(client as never, rich.ctx, defaultOpts, new Map())
+      rich.ctx.on('tools/execute', async (_exec, next) => {
+        const result = await next()
+        if (result.isError) throw new Error('expected MCP success before dispatch replacement')
+        if (replacement === 'value') {
+          return { ...result, value: { content: [{ type: 'text', text: 'dispatch replacement' }] } }
+        }
+        const definition = rich.ctx.tools.get('mcp__srv__img')!
+        registrations.get('mcp__srv__img')!()
+        rich.ctx.tools.register({
+          ...definition,
+          output: { ...definition.output, render: () => [{ type: 'text', text: 'dispatch replacement' }] },
+        })
+        return { ...result }
+      })
+      const result = await rich.ctx.tools.execute({
+        signal: testToolSignal, callId: ToolCallId(`dispatch-${replacement}`), name: 'mcp__srv__img',
+        arguments: {}, agent: agentOn() as never,
+      })
+      expect(result.isError).toBe(false)
+      expect(rich.attachments.saved).toHaveLength(1)
+      expect(result.content).toEqual([{ type: 'text', text: 'dispatch replacement' }])
+    } finally {
+      await rich.ctx.fiber.dispose()
+    }
   })
 
   it('lets post-execute replacement win over a prepared image projection', async () => {
@@ -713,7 +754,7 @@ describe('tool execution', () => {
     await syncTools(client as never, rich.ctx, defaultOpts, new Map())
     const result = await rich.ctx.tools.execute({
       signal: testToolSignal,
-      callId: CallId('replaced'),
+      callId: ToolCallId('replaced'),
       name: 'mcp__srv__img',
       arguments: {},
       agent: agentOn() as never,
@@ -736,7 +777,7 @@ describe('tool execution', () => {
     await syncTools(valueClient as never, valueRich.ctx, defaultOpts, new Map())
     const replaced = await valueRich.ctx.tools.execute({
       signal: testToolSignal,
-      callId: CallId('value-replaced'),
+      callId: ToolCallId('value-replaced'),
       name: 'mcp__srv__img',
       arguments: {},
       agent: agentOn() as never,
@@ -755,7 +796,7 @@ describe('tool execution', () => {
     await syncTools(blockedClient as never, blockedRich.ctx, defaultOpts, new Map())
     const blocked = await blockedRich.ctx.tools.execute({
       signal: testToolSignal,
-      callId: CallId('blocked'),
+      callId: ToolCallId('blocked'),
       name: 'mcp__srv__img',
       arguments: {},
       agent: agentOn() as never,
@@ -764,24 +805,25 @@ describe('tool execution', () => {
     expect(blocked.content).toEqual([{ type: 'text', text: 'blocked by policy' }])
   })
 
-  it('preserves primitive JSON MCP blocks while Native rendering marks them unsupported', async () => {
+  it('marks primitive blocks from canonical-value replacement unsupported', async () => {
     const blocks = [42, null, ['nested']] satisfies JsonValue[]
+    ctx.on('tools/post-execute', async (): Promise<PostToolDecision> => ({ kind: 'accept', value: { content: blocks } }))
     const client = createMockClient(
       [{ name: 'primitive-blocks', inputSchema: { type: 'object' } }],
-      { content: blocks },
+      { content: [] },
     )
 
     await syncTools(client as never, ctx, defaultOpts, new Map())
     const result = await ctx.tools.execute({
       signal: testToolSignal,
-      callId: CallId('primitive'), name: 'mcp__srv__primitive-blocks', arguments: {},
+      callId: ToolCallId('primitive'), name: 'mcp__srv__primitive-blocks', arguments: {},
     })
 
     expect(result.content[0]).toEqual({
       type: 'text',
       text: '[unsupported MCP content block: expected an object]\n[unsupported MCP content block: expected an object]\n[unsupported MCP content block: expected an object]',
     })
-    if (result.isError) throw new Error('expected primitive MCP blocks to remain a successful JSON value')
+    if (result.isError) throw new Error('expected canonical-value replacement to remain a successful JSON value')
     expect(result.value).toEqual({ content: blocks })
   })
 
@@ -797,7 +839,7 @@ describe('tool execution', () => {
       { content: [{ type: 'text', text: '42' }], structuredContent: { answer: 42 } },
     )
     await syncTools(valid as never, ctx, defaultOpts, new Map())
-    const success = await ctx.tools.execute({ signal: testToolSignal, callId: CallId('valid'), name: 'mcp__srv__structured', arguments: {} })
+    const success = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('valid'), name: 'mcp__srv__structured', arguments: {} })
     if (success.isError) throw new Error('expected supported structuredContent to validate')
     expect(success.value).toEqual({ content: [{ type: 'text', text: '42' }], structuredContent: { answer: 42 } })
 
@@ -807,7 +849,7 @@ describe('tool execution', () => {
       { content: [{ type: 'text', text: 'wrong' }], structuredContent: { answer: 'forty-two' } },
     )
     await syncTools(invalid as never, invalidCtx, defaultOpts, new Map())
-    const failure = await invalidCtx.tools.execute({ signal: testToolSignal, callId: CallId('invalid'), name: 'mcp__srv__structured', arguments: {} })
+    const failure = await invalidCtx.tools.execute({ signal: testToolSignal, callId: ToolCallId('invalid'), name: 'mcp__srv__structured', arguments: {} })
     expect(failure.error).toMatchObject({ info: { code: 'INVALID_TOOL_OUTPUT' } })
     expect(failure.content[0]?.type === 'text' ? failure.content[0].text : '')
       .toContain('value.structuredContent.answer')
@@ -823,7 +865,7 @@ describe('tool execution', () => {
       { content: [], structuredContent: ['kept', { nested: true }] },
     )
     await syncTools(client as never, ctx, defaultOpts, new Map())
-    const result = await ctx.tools.execute({ signal: testToolSignal, callId: CallId('fallback'), name: 'mcp__srv__future-schema', arguments: {} })
+    const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('fallback'), name: 'mcp__srv__future-schema', arguments: {} })
     if (result.isError) throw new Error('unsupported MCP output schemas must fall back')
     expect(result.value).toEqual({ content: [], structuredContent: ['kept', { nested: true }] })
   })
@@ -835,7 +877,7 @@ describe('tool execution', () => {
     )
 
     await syncTools(client as never, ctx, defaultOpts, new Map())
-    const result = await ctx.tools.execute({ signal: testToolSignal, callId: CallId('c1'), name: 'mcp__srv__fail', arguments: {} })
+    const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c1'), name: 'mcp__srv__fail', arguments: {} })
 
     expect(result.isError).toBe(true)
     expect(result.content[0]).toEqual({ type: 'text', text: 'Error: something went wrong' })
@@ -850,7 +892,7 @@ describe('tool execution', () => {
     await syncTools(client as never, ctx, defaultOpts, new Map())
     const result = await ctx.tools.execute({
       signal: testToolSignal,
-      callId: CallId('task-only'), name: 'mcp__srv__task-only', arguments: {},
+      callId: ToolCallId('task-only'), name: 'mcp__srv__task-only', arguments: {},
     })
 
     expect(result.isError).toBe(true)
@@ -866,78 +908,22 @@ describe('tool execution', () => {
     )
 
     await syncTools(client as never, ctx, defaultOpts, new Map())
-    await ctx.tools.execute({ callId: CallId('c1'), name: 'mcp__srv__slow', arguments: {}, signal: controller.signal })
+    await ctx.tools.execute({ callId: ToolCallId('c1'), name: 'mcp__srv__slow', arguments: {}, signal: controller.signal })
 
     expect(client.callTool).toHaveBeenCalledWith(
       expect.anything(),
-      undefined,
       expect.objectContaining({ signal: controller.signal }),
     )
-  })
-
-  it('handles legacy toolResult shape', async () => {
-    const client = createMockClient(
-      [{ name: 'legacy', inputSchema: { type: 'object' } }],
-    )
-    client.callTool.mockResolvedValue({ toolResult: { key: 'value' } })
-
-    await syncTools(client as never, ctx, defaultOpts, new Map())
-    const result = await ctx.tools.execute({ signal: testToolSignal, callId: CallId('c1'), name: 'mcp__srv__legacy', arguments: {} })
-
-    expect(result.isError).toBe(false)
-    expect(result.content[0]).toEqual({ type: 'text', text: '{"key":"value"}' })
-  })
-
-  it('preserves structuredContent on a successful legacy result', async () => {
-    const client = createMockClient([{ name: 'legacy-structured', inputSchema: { type: 'object' } }])
-    client.callTool.mockResolvedValue({
-      toolResult: 'legacy',
-      structuredContent: { answer: 42 },
-    })
-
-    await syncTools(client as never, ctx, defaultOpts, new Map())
-    const result = await ctx.tools.execute({
-      signal: testToolSignal,
-      callId: CallId('legacy-structured'), name: 'mcp__srv__legacy-structured', arguments: {},
-    })
-
-    if (result.isError) throw new Error('expected legacy structured result success')
-    expect(result.value).toEqual({
-      content: [{ type: 'text', text: '"legacy"' }],
-      structuredContent: { answer: 42 },
-    })
-  })
-
-  it('maps a legacy isError reply to failure', async () => {
-    const client = createMockClient([{ name: 'legacy-error', inputSchema: { type: 'object' } }])
-    client.callTool.mockResolvedValue({ toolResult: { reason: 'nope' }, isError: true })
-
-    await syncTools(client as never, ctx, defaultOpts, new Map())
-    const result = await ctx.tools.execute({
-      signal: testToolSignal,
-      callId: CallId('legacy-error'), name: 'mcp__srv__legacy-error', arguments: {},
-    })
-
-    expect(result.isError).toBe(true)
-    expect(result.error?.message).toBe('{"reason":"nope"}')
-  })
-})
-
-describe('tool execution edge cases', () => {
-  let ctx: Context
-
-  beforeEach(async () => {
-    ctx = await mountRegistry()
   })
 
   it('reports unsupported audio without claiming the raw block was discarded', async () => {
     const client = createMockClient(
       [{ name: 'audio_tool', inputSchema: { type: 'object' } }],
-      { content: [{ type: 'audio', mimeType: 'audio/mp3' }] },
+      { content: [{ type: 'audio', mimeType: 'audio/mp3', data: 'AQ==' }] },
     )
 
     await syncTools(client as never, ctx, defaultOpts, new Map())
-    const result = await ctx.tools.execute({ signal: testToolSignal, callId: CallId('c1'), name: 'mcp__srv__audio_tool', arguments: {} })
+    const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c1'), name: 'mcp__srv__audio_tool', arguments: {} })
 
     expect(result.content[0]).toEqual({
       type: 'text',
@@ -948,11 +934,11 @@ describe('tool execution edge cases', () => {
   it('reports unsupported embedded resources without discarding the raw block', async () => {
     const client = createMockClient(
       [{ name: 'res_tool', inputSchema: { type: 'object' } }],
-      { content: [{ type: 'resource' }] },
+      { content: [{ type: 'resource', resource: { uri: 'memory://document', text: 'Recorded text.' } }] },
     )
 
     await syncTools(client as never, ctx, defaultOpts, new Map())
-    const result = await ctx.tools.execute({ signal: testToolSignal, callId: CallId('c1'), name: 'mcp__srv__res_tool', arguments: {} })
+    const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c1'), name: 'mcp__srv__res_tool', arguments: {} })
 
     expect(result.content[0]).toEqual({
       type: 'text',
@@ -967,60 +953,66 @@ describe('tool execution edge cases', () => {
     )
 
     await syncTools(client as never, ctx, defaultOpts, new Map())
-    const result = await ctx.tools.execute({ signal: testToolSignal, callId: CallId('c1'), name: 'mcp__srv__link_tool', arguments: {} })
+    const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c1'), name: 'mcp__srv__link_tool', arguments: {} })
 
     expect(result.content[0]).toEqual({ type: 'text', text: 'Resource link: Design (https://example.test/design)' })
   })
 
-  it('diagnoses an incomplete resource link', async () => {
+  it('diagnoses an incomplete resource link from canonical-value replacement', async () => {
+    ctx.on('tools/post-execute', async (): Promise<PostToolDecision> => ({
+      kind: 'accept', value: { content: [{ type: 'resource_link', name: 'Missing URI' }] },
+    }))
     const client = createMockClient(
       [{ name: 'link_tool', inputSchema: { type: 'object' } }],
-      { content: [{ type: 'resource_link', name: 'Missing URI' }] },
+      { content: [] },
     )
 
     await syncTools(client as never, ctx, defaultOpts, new Map())
-    const result = await ctx.tools.execute({ signal: testToolSignal, callId: CallId('missing-link'), name: 'mcp__srv__link_tool', arguments: {} })
+    const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('missing-link'), name: 'mcp__srv__link_tool', arguments: {} })
 
     expect(result.content[0]).toEqual({
       type: 'text', text: '[resource link unavailable: the MCP block is missing its name or URI]',
     })
   })
 
-  it('handles unknown content types', async () => {
+  it('diagnoses unknown content types from canonical-value replacement', async () => {
+    ctx.on('tools/post-execute', async (): Promise<PostToolDecision> => ({ kind: 'accept', value: { content: [{ type: 'video' }] } }))
     const client = createMockClient(
       [{ name: 'unknown_tool', inputSchema: { type: 'object' } }],
-      { content: [{ type: 'video' }] },
+      { content: [] },
     )
 
     await syncTools(client as never, ctx, defaultOpts, new Map())
-    const result = await ctx.tools.execute({ signal: testToolSignal, callId: CallId('c1'), name: 'mcp__srv__unknown_tool', arguments: {} })
+    const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c1'), name: 'mcp__srv__unknown_tool', arguments: {} })
 
     expect(result.content[0]).toEqual({ type: 'text', text: '[unsupported MCP content type: video]' })
   })
 
-  it('handles image with missing mimeType (buggy server)', async () => {
+  it('diagnoses an image without media type from canonical-value replacement', async () => {
+    ctx.on('tools/post-execute', async (): Promise<PostToolDecision> => ({ kind: 'accept', value: { content: [{ type: 'image' }] } }))
     const client = createMockClient(
       [{ name: 'img2', inputSchema: { type: 'object' } }],
-      { content: [{ type: 'image' }] },
+      { content: [] },
     )
 
     await syncTools(client as never, ctx, defaultOpts, new Map())
-    const result = await ctx.tools.execute({ signal: testToolSignal, callId: CallId('c1'), name: 'mcp__srv__img2', arguments: {} })
+    const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c1'), name: 'mcp__srv__img2', arguments: {} })
 
     expect(result.content[0]).toEqual({
       type: 'text',
-      text: '[image unavailable: unknown media type; the declared media type is not PNG, JPEG, WebP, or GIF; raw image data remains available to programmatic callers]',
+      text: '[image unavailable: unknown media type; this result was not admitted to durable model context; raw image data remains available to programmatic callers]',
     })
   })
 
-  it('handles audio with missing mimeType (buggy server)', async () => {
+  it('diagnoses audio without media type from canonical-value replacement', async () => {
+    ctx.on('tools/post-execute', async (): Promise<PostToolDecision> => ({ kind: 'accept', value: { content: [{ type: 'audio' }] } }))
     const client = createMockClient(
       [{ name: 'audio_no_mime', inputSchema: { type: 'object' } }],
-      { content: [{ type: 'audio' }] },
+      { content: [] },
     )
 
     await syncTools(client as never, ctx, defaultOpts, new Map())
-    const result = await ctx.tools.execute({ signal: testToolSignal, callId: CallId('c1'), name: 'mcp__srv__audio_no_mime', arguments: {} })
+    const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c1'), name: 'mcp__srv__audio_no_mime', arguments: {} })
 
     expect(result.content[0]).toEqual({
       type: 'text',
@@ -1028,14 +1020,15 @@ describe('tool execution edge cases', () => {
     })
   })
 
-  it('handles text block with missing text (buggy server)', async () => {
+  it('diagnoses missing text from canonical-value replacement', async () => {
+    ctx.on('tools/post-execute', async (): Promise<PostToolDecision> => ({ kind: 'accept', value: { content: [{ type: 'text' }] } }))
     const client = createMockClient(
       [{ name: 'notext', inputSchema: { type: 'object' } }],
-      { content: [{ type: 'text' }] },
+      { content: [] },
     )
 
     await syncTools(client as never, ctx, defaultOpts, new Map())
-    const result = await ctx.tools.execute({ signal: testToolSignal, callId: CallId('c1'), name: 'mcp__srv__notext', arguments: {} })
+    const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c1'), name: 'mcp__srv__notext', arguments: {} })
 
     expect(result.content[0]).toEqual({ type: 'text', text: '(notext returned no model-visible content)' })
   })
@@ -1047,44 +1040,20 @@ describe('tool execution edge cases', () => {
     )
 
     await syncTools(client as never, ctx, defaultOpts, new Map())
-    const result = await ctx.tools.execute({ signal: testToolSignal, callId: CallId('c1'), name: 'mcp__srv__empty_tool', arguments: {} })
+    const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c1'), name: 'mcp__srv__empty_tool', arguments: {} })
 
     expect(result.content[0]).toEqual({ type: 'text', text: '(empty_tool returned no model-visible content)' })
   })
 
 
-  it('handles legacy toolResult with undefined value', async () => {
-    const client = createMockClient(
-      [{ name: 'legacy2', inputSchema: { type: 'object' } }],
-    )
-    client.callTool.mockResolvedValue({ toolResult: undefined, structuredContent: undefined })
-
-    await syncTools(client as never, ctx, defaultOpts, new Map())
-    const result = await ctx.tools.execute({ signal: testToolSignal, callId: CallId('c1'), name: 'mcp__srv__legacy2', arguments: {} })
-
-    expect(result.content[0]).toEqual({ type: 'text', text: '(no output)' })
-  })
-
-  it('handles a legacy result with neither content nor toolResult', async () => {
-    const client = createMockClient(
-      [{ name: 'legacy-empty', inputSchema: { type: 'object' } }],
-    )
-    client.callTool.mockResolvedValue({})
-
-    await syncTools(client as never, ctx, defaultOpts, new Map())
-    const result = await ctx.tools.execute({ signal: testToolSignal, callId: CallId('legacy-empty'), name: 'mcp__srv__legacy-empty', arguments: {} })
-
-    expect(result.content[0]).toEqual({ type: 'text', text: '(no output)' })
-  })
-
   it('handles isError with non-text content (fallback error message)', async () => {
     const client = createMockClient(
       [{ name: 'err_notext', inputSchema: { type: 'object' } }],
-      { content: [{ type: 'image', mimeType: 'image/png' }], isError: true },
+      { content: [{ type: 'image', mimeType: 'image/png', data: 'AQ==' }], isError: true },
     )
 
     await syncTools(client as never, ctx, defaultOpts, new Map())
-    const result = await ctx.tools.execute({ signal: testToolSignal, callId: CallId('c1'), name: 'mcp__srv__err_notext', arguments: {} })
+    const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c1'), name: 'mcp__srv__err_notext', arguments: {} })
 
     expect(result.isError).toBe(true)
     expect(result.content[0]).toEqual({
@@ -1226,11 +1195,10 @@ describe('tool execution — non-object args fallback', () => {
     )
 
     await syncTools(client as never, ctx, defaultOpts, new Map())
-    await ctx.tools.execute({ signal: testToolSignal, callId: CallId('c1'), name: 'mcp__srv__coerce', arguments: null })
+    await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c1'), name: 'mcp__srv__coerce', arguments: null })
 
     expect(client.callTool).toHaveBeenCalledWith(
       { name: 'coerce', arguments: {} },
-      undefined,
       expect.anything(),
     )
   })
@@ -1242,11 +1210,10 @@ describe('tool execution — non-object args fallback', () => {
     )
 
     await syncTools(client as never, ctx, defaultOpts, new Map())
-    await ctx.tools.execute({ signal: testToolSignal, callId: CallId('c1'), name: 'mcp__srv__coerce2', arguments: 'bad' })
+    await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c1'), name: 'mcp__srv__coerce2', arguments: 'bad' })
 
     expect(client.callTool).toHaveBeenCalledWith(
       { name: 'coerce2', arguments: {} },
-      undefined,
       expect.anything(),
     )
   })

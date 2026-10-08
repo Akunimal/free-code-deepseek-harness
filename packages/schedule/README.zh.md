@@ -1,13 +1,52 @@
-# schedule/：仅限 Session 内的提醒
+---
+description: "schedule 包组：Host 拥有的定时提醒与任务管理。"
+kind: "package-group"
+---
+
+# schedule/ — Host 拥有的提醒
 
 [English](README.md) | 中文
 
-Schedule 家族负责管理提醒，其持久状态保存在原 Session 日志中。进程内 owner 只会在该 Session 拥有 live 根 Agent 时等待；cold Session 再次 live 后会恢复逾期工作，但这不意味着存在外部通知渠道。
+## 概述
 
-| 包 | 职责 | ctx 键 |
-|---|---|---|
-| `schedule/` | 版本化 Schedule 事件与 fold、面向模型的创建／列出／删除工具，以及 live 根 Agent timer owner | 无 |
+为对话创建一次性、固定速率、每日、每周或 cron 提醒，并在 Host 重启后保留它们。无需打开原 Session，即可查看活动和已结束任务。使用 Schedule 创建和投递提醒，使用自动化任务页面跨 Session 查看任务并确认删除。到期提醒作为普通 follow-up 消息进入原对话，而不是电子邮件、短信或推送通知。
 
-本包有意不公开 Schedule service 或可变数据库。工具与 runtime 向 Session stream 追加事件；到期工作通过 Agent 的普通 follow-up 队列进入同一对话。
+## 目录
 
-有关持久记录、转换、视图与交付约定，请参阅[仅限 Session 内的 Schedule](../../docs/subsystems/schedule.md)。
+- [包](#packages)
+- [相关文档](#related-documentation)
+- [开发备注](#dev-note)
+
+-----
+
+<a id="packages"></a>
+## 包
+
+选择此包进行持久提醒管理。
+
+| 包 | 职责 |
+|---|---|
+| [`schedule/`](schedule/README.zh.md) | Host 拥有的提醒持久化、调度、查询与显式删除 |
+| [`tool-schedule/`](tool-schedule/README.zh.md) | 基于宿主 `ctx.schedule` 服务的 preset 级 `schedule_create`、`schedule_list`、`schedule_update` 和 `schedule_delete` 工具 |
+
+-----
+
+<a id="related-documentation"></a>
+## 相关文档
+
+- [Schedule 子系统](../../docs/subsystems/schedule.zh.md)——任务记录、最近一次回执、时间与投递约定。
+- [生成的工具目录](../../docs/tool-catalog.zh.md#deepseek-aidsh-tool-schedule)——挂载 preset 所贡献的 `schedule_create`／`schedule_list`／`schedule_update`／`schedule_delete` schema。
+- [Schedule 用户指南](../../docs/user/guide/schedule.zh.md)——创建提醒并查看活动或已结束任务。
+- [Web 任务页面与提醒目录](../client/ui-schedule/README.zh.md)——在浏览器中查询任务并确认删除。
+
+-----
+
+<a id="dev-note"></a>
+## 开发备注
+
+<details>
+<summary>维护者的工作上下文——点击展开</summary>
+
+无。
+
+</details>

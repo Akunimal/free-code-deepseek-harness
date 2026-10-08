@@ -1,20 +1,21 @@
 /**
  * SessionTelemetryBackend Service Definition for the DeepSeek Harness.
  *
- * This package owns the CAPTURE side of session-event reporting — which records
- * exist (the chunk projection), what they carry (the logical record), when
+ * This package owns the CAPTURE side of session-event reporting — the complete
+ * one-record-per-event ledger mirror, what records carry, when
  * they are captured (adoption, the per-append firehose, lifecycle
  * forwarding), live versus on-demand canonical-log capture, and the HMR
  * cursor. Everything downstream of
  * {@link SessionTelemetryBackend.emit} — batching, retry, queueing, and loss policy — is the
- * reporting SDK's territory and is deliberately not modelled here. The
- * design and its trade-offs are pinned in
- * .agents/notes/implemented/feature/2026-07-23-session-telemetry-otel-revival.md.
+ * backend's responsibility and is deliberately not modelled here. Capture and
+ * backend responsibilities are documented in the
+ * [Session telemetry reference](../README.md#understand-the-implementation).
  *
  * @module @deepseek-ai/dsh-session-telemetry
  */
 
 import { Context, Service } from '@deepseek-ai/cordis'
+import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -47,7 +48,7 @@ declare module '@deepseek-ai/cordis' {
 /**
  * Severity of a telemetry record, pre-mapped at capture so a receiver can
  * alert with zero configuration: `error` for events whose own outcome flag
- * says so (the tool-result block's `isError`, `turn/end` error reasons) and for
+ * says so (the tool message's `isError`, `turn/end` error reasons) and for
  * `agent-error` operational records. Captured events otherwise default to
  * `info`; `warn` remains available to `session-telemetry/record` policies and
  * backends.
@@ -62,6 +63,8 @@ export type SessionTelemetrySeverity = 'info' | 'warn' | 'error'
  * identity so they can never be mistaken for ledger rows.
  */
 export interface SessionTelemetryRecord {
+  /** Canonical envelope without data; body carries the separately redacted payload. Absent for operational records. */
+  sourceEvent?: { sessionId: SessionId; envelope: Omit<SessionEvent, 'data'> }
   /** Ledger (session-log mirror) or ops (operational signal) channel; backends keep the two under separate instrumentation scopes. */
   channel: 'ledger' | 'ops'
   /** Unix epoch milliseconds — the source event's append time for ledger records, the emission time for ops records. */
@@ -70,8 +73,9 @@ export interface SessionTelemetryRecord {
   severity: SessionTelemetrySeverity
   /**
    * Identity attributes, deliberately minimal: ledger records carry
-   * `session.id`, `event.type`, `event.seq`, plus `session.cwd` /
-   * `session.parent_id` / `session.seed_length` when the header has them;
+   * `session.id`, `session.format_version`, `event.type`, `event.seq`, plus optional
+   * `session.cwd` / `session.parent_id`; a seeded Session also carries
+   * `session.seed_length` from its exact inherited event count;
    * ops records carry `telemetry.op`, `session.id`, and (for `agent-error`)
    * `agent.id`, `turn`, `step`, `error.name`. Anything recoverable from the
    * body is intentionally NOT duplicated here.
@@ -131,11 +135,7 @@ export interface SessionTelemetrySink {
 }
 
 /**
- * Deployment-selected session-sharing policy disclosed by a mounted
- * {@link SessionTelemetryBackend} backend to human-facing acknowledgement surfaces (the
- * `/feedback` command's confirmation text). The seam owns the vocabulary so
- * any backend can disclose a policy without depending on the OTel package;
- * the values mirror the OTel backend's serialized `SessionTelemetryMode` choices.
+ * Deployment-selected session-sharing mode, not confirmation of SDK delivery.
  */
 export type SessionTelemetrySharingStatus = 'full' | 'feedback-only' | 'disabled'
 
@@ -151,11 +151,7 @@ export abstract class SessionTelemetryBackend extends Service implements Session
   }
 
   /**
-   * Deployment-selected session-sharing policy, disclosed for acknowledgement
-   * surfaces that report whether recorded feedback leaves the process. Every
-   * backend must disclose its policy; a consumer renders "not configured" only
-   * when no telemetry service is mounted. The seam owns this vocabulary so the
-   * disclosure is backend-independent.
+   * Deployment-selected sharing mode, independent of SDK delivery.
    */
   abstract readonly sharing: SessionTelemetrySharingStatus
 
@@ -175,4 +171,4 @@ export abstract class SessionTelemetryBackend extends Service implements Session
   abstract shutdown(): Promise<void>
 }
 
-export { SessionTelemetryCoordinator, type SessionTelemetryCapture } from './coordinator.ts'
+export { SessionTelemetryCoordinator, type SessionTelemetryCapture, type SessionTelemetryCaptureOptions } from './coordinator.ts'

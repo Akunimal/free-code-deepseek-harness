@@ -166,13 +166,11 @@ describe('renderToolsSdkPy', () => {
     expect(text).toContain('tools: Tools')
   })
 
-  it('names both required call arguments, not just the program', () => {
-    // The schema requires `code` AND `description`; instructions that mention
-    // only the program let a model emit `{code}` alone and fail INVALID_ARGS.
+  it('lists the required description before the program', () => {
     const text = renderToolsSdkPy([bash])
     expect(text).toContain('`code`')
     expect(text).toContain('`description`')
-    expect(text).toContain('two required arguments')
+    expect(text).toContain('two required arguments: `description`, a short summary of what the program does, and `code`')
   })
 
   it('renders required as plain fields and optional as NotRequired, with per-field description comments', () => {
@@ -428,7 +426,7 @@ describe('renderToolsSdkPy', () => {
     // `路径` satisfies `xid_start xid_continue*`, so CPython accepts it as an
     // attribute and as the `TypedDict` key. Rejecting it would degrade the
     // whole object, dropping every SIBLING field's name, requiredness and type
-    // too — and under `mode: 'code'` the native schemas are omitted, so
+    // too — and under `mode: 'ptc'` the native schemas are omitted, so
     // nothing else carries them. The nested class name is from the field, so
     // `camelCase` has to pass the same characters through instead of splitting
     // on them.
@@ -1037,7 +1035,7 @@ describe('renderToolsSdkPy', () => {
     // `__debug__` is a legal identifier and dunder-form, so it clears both the
     // identifier rule and the name-mangling rule, but CPython rejects the
     // annotation at COMPILE time (`SyntaxError: cannot assign to __debug__`) —
-    // and this block is Code Mode's only SDK, so it must always parse.
+    // and this block is PTC mode's only SDK, so it must always parse.
     const t: ToolSdkSchema = {
       name: 'debugger',
       description: '',
@@ -1111,7 +1109,7 @@ describe('renderToolsSdkPy', () => {
     // `compile()` raises `SyntaxError: source code string cannot contain null
     // bytes` for a NUL ANYWHERE in the source text, including inside a string
     // literal or a comment, so a NUL that survives normalization into a
-    // docstring or a `#` field comment stops this block — Code Mode's only SDK —
+    // docstring or a `#` field comment stops this block — PTC mode's only SDK —
     // from parsing at all. The whitespace collapse does not remove it (a NUL is
     // not whitespace). Rendering it as a visible escape keeps the source
     // parseable and still shows the model what the schema said.
@@ -1156,7 +1154,7 @@ describe('renderToolsSdkPy', () => {
     // This is the NUL case, not the invisible-character case: Python source
     // must be UTF-8-encodable, and `compile()` raises `UnicodeEncodeError:
     // surrogates not allowed` for a lone surrogate in a string literal and in a
-    // `#` comment alike, so one would stop this block — Code Mode's only SDK —
+    // `#` comment alike, so one would stop this block — PTC mode's only SDK —
     // from parsing. A wire description reaches it: `JSON.parse` on a `"\ud800"`
     // escape yields exactly this code point.
     const high = renderToolsSdkPy([described('a\ud800b')])

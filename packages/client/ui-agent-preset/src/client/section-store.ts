@@ -1,348 +1,122 @@
-/**
- * Agent-preset management controller: the roster as a list, a copy dialog as
- * the only way a preset is created, and a read-only viewer over the shipped
- * compositions.
- *
- * The browser edits no composition text. A new preset is a host-side copy of
- * an existing one (`{ from, id, name? }` is all that crosses the wire), and
- * everything after creation happens in the preset's own files — which is why
- * the page's other job is getting the user TO those files: open the directory
- * where the host has a desktop, show its path where it does not.
- *
- * The host stays the single fact source. Every mutation writes through the
- * wire and the page re-reads the roster afterwards, because a copy changes
- * more than the row it targeted.
- */
+/** Preset roster, the new-task default and the read-only composition viewer for the settings section. */
+import type { Context } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
+import type { AgentPresetRow } from '@deepseek-ai/dsh-agent-preset-registry/types'
+import { AGENT_PRESET_SETTINGS_NS, requiresCodingTools, writeDefaultPreset } from './settings-store.ts'
 
-import type { IApiClient } from '@deepseek-ai/dsh-api-remotes/client'
-import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
-import { beginRosterRead, messageOf, writeDefaultPreset } from './settings-store.ts'
-
-/** Ids a preset directory may be named, mirroring the host's own rule. */
-const PRESET_ID = /^[a-z0-9][a-z0-9-]*$/
-
-/** One preset row the page renders. */
-export interface PresetRow {
-  /** Preset id and directory name; the display name falls back to it. */
-  id: string
-  /** Display name the preset published, absent when it published none. */
-  name?: string
-  /** One sentence on what the preset is for. */
-  description?: string
-  /** Whether the preset ships with the deployment or was authored locally. */
-  trust: 'system' | 'user'
-  /** Whether a session that names no preset gets this one. */
-  isDefault: boolean
-  /**
-   * Why the preset cannot compose a session, absent when it can. A broken
-   * row renders marked and unselectable — its directory still occupies the
-   * id, so deleting it (or fixing the files) is the way out, and this page
-   * is where both of those live.
-   */
-  broken?: string
-}
-
-/** The copy dialog: a new id and optional display name over a fixed source. */
-export interface CopyDraft {
-  /** The preset being copied. */
-  from: string
-  /** Display name of the source, for the dialog title. */
-  fromTitle: string
-  /** New preset id being typed; the directory name, so it is required. */
-  id: string
-  /** Display name being typed; empty falls back to the id. */
-  name: string
-  /** Whether the copy is in flight. */
-  saving: boolean
-  /** The last copy failure, cleared by the next edit. */
-  error: string | null
-}
-
-/** The read-only composition viewer over one shipped preset. */
+/** The read-only composition viewer over one preset. */
 export interface PresetView {
-  /** The preset whose composition is shown. */
+  /** The preset being read. */
   id: string
-  /** Display name, for the dialog title. */
+  /** Display name the preset published, or its id. */
   title: string
-  /** Composition text exactly as stored. */
+  /** The declared child plugin list as YAML. */
   content: string
 }
-
-/** Page snapshot. */
+/** Settings page state. */
 export interface AgentPresetSectionState {
-  status: 'idle' | 'loading' | 'ready' | 'unavailable' | 'error'
-  /** Whole-load failure text; a copy failure stays on the dialog. */
+  status: 'idle' | 'loading' | 'ready' | 'error'
   error: string | null
-  /** Whether the deployment configures a root new presets can be written to. */
-  authorable: boolean
-  /** Whether the host can open a preset directory on a native desktop. */
-  hasDocument: boolean
-  /** Every preset the deployment currently supplies. */
-  rows: readonly PresetRow[]
-  /** The open copy dialog, or null. */
-  copy: CopyDraft | null
-  /** The open read-only viewer, or null. */
+  saving: boolean
+  rows: readonly AgentPresetRow[]
+  /** The open viewer, or null. */
   view: PresetView | null
-  /** The preset awaiting delete confirmation. */
-  pendingDelete: string | null
-  /** Whether a delete is in flight. */
-  deleting: boolean
-  /**
-   * Preset directories shown as text because the host has no desktop opener
-   * — the answer `openDocument` gives instead of opening.
-   */
-  revealedPaths: Readonly<Record<string, string>>
 }
+const INITIAL: AgentPresetSectionState = { status: 'idle', error: null, saving: false, rows: [], view: null }
+const message = (error: unknown): string => error instanceof Error ? error.message : String(error)
 
-const INITIAL: AgentPresetSectionState = {
-  status: 'idle',
-  error: null,
-  authorable: false,
-  hasDocument: false,
-  rows: [],
-  copy: null,
-  view: null,
-  pendingDelete: null,
-  deleting: false,
-  revealedPaths: {},
-}
-
-/**
- * Why this copy cannot be submitted yet, as a locale key, or undefined when
- * it can. Client-side only: the host re-checks the id and its answer is what
- * the dialog reports on failure.
- * @param draft - the open copy dialog.
- * @param rows - the roster, for the collision check.
- * @returns the blocking reason's locale key, or undefined when submittable.
- */
-export function draftBlocker(
-  draft: CopyDraft,
-  rows: readonly PresetRow[],
-): 'idRequired' | 'idInvalid' | 'idTaken' | undefined {
-  if (draft.id === '') return 'idRequired'
-  if (!PRESET_ID.test(draft.id)) return 'idInvalid'
-  // A copy never overwrites: landing on a name already in use would replace
-  // something the user did not open.
-  if (rows.some(row => row.id === draft.id)) return 'idTaken'
-  return undefined
-}
-
-/** Reads the roster and drives the copy dialog, viewer, and location reveals. */
+/** Loads the roster, writes the default, and reads one composition at a time. */
 export class AgentPresetSectionController {
-  /** Page snapshot the renderer subscribes to. */
+  /** Observable roster, selection and viewer state. */
   readonly store: SnapshotStore<AgentPresetSectionState> = createSnapshotStore(INITIAL)
+  private loading: Promise<void> | undefined
+  private pendingSave: Promise<void> | undefined
+  private viewRequest = 0
+  constructor(private readonly ctx: Context) {}
 
-  constructor(
-    private readonly api: Pick<IApiClient, 'agentPresets' | 'settings'>,
-    /**
-     * Called after this page changes the roster DIRECTORY, so the other
-     * surfaces reading the same roster re-read it. A settings field moving is
-     * already announced by the host through the forwarded
-     * `settings/document-updated`; a directory copied or deleted here is not,
-     * and the new-session chip has no other way to learn a preset it should
-     * offer now exists.
-     */
-    private readonly rosterChanged: () => void = () => {},
-  ) {}
+  private set(patch: Partial<AgentPresetSectionState>): void { this.store.set({ ...this.store.getSnapshot(), ...patch }) }
 
-  private set(patch: Partial<AgentPresetSectionState>): void {
-    this.store.set({ ...this.store.getSnapshot(), ...patch })
-  }
-
-  private patchCopy(patch: Partial<CopyDraft>): void {
-    const { copy } = this.store.getSnapshot()
-    if (copy === null) return
-    this.set({ copy: { ...copy, ...patch } })
-  }
-
-  /**
-   * Load the roster. An empty roster means the deployment composes no
-   * presets, which is a valid deployment rather than a failure — the section
-   * reports `unavailable` and renders nothing.
-   * @returns once the snapshot reflects the host.
+  /** Refresh the roster; concurrent calls share one read.
+   * @returns Once the roster read settles.
    */
-  async load(): Promise<void> {
-    const roster = await beginRosterRead(this.api, this.store)
-    if (roster === undefined) return
-    const { presets, authorable, hasDocument } = roster
-    if (presets.length === 0) {
-      // Nothing to manage leaves nothing to keep a dialog open over.
-      this.set({ status: 'unavailable', rows: [], authorable, hasDocument, copy: null, view: null })
-      return
-    }
-    // A reveal outlives a reload but not its preset: a path for a row the
-    // roster no longer lists would be a claim about a directory that is gone.
-    const revealed = this.store.getSnapshot().revealedPaths
-    const kept = Object.fromEntries(
-      Object.entries(revealed).filter(([id]) => presets.some(preset => preset.id === id)))
-    this.set({
-      status: 'ready',
-      error: null,
-      authorable,
-      hasDocument,
-      rows: presets.map(preset => ({ ...preset })),
-      revealedPaths: kept,
-    })
+  load(): Promise<void> {
+    return this.loading ??= this.readRoster().finally(() => { this.loading = undefined })
+  }
+  private async readRoster(): Promise<void> {
+    try {
+      const result = await this.ctx.remote.agentPresets.list()
+      if (!result.ok) throw new Error(result.error.message)
+      this.set({ status: 'ready', error: null, rows: result.value.presets })
+    } catch (error) { this.set({ status: 'error', error: message(error) }) }
   }
 
-  /**
-   * Open one shipped preset's composition in the read-only viewer.
-   * @param id - the preset to view.
-   * @returns once the composition loaded or the failure is on the page.
+  /** Open one preset's declared composition in the viewer.
+   * @param id Preset to read.
+   * @returns Once the read settles; a current failure lands in `error`, while a read superseded by close or another read is ignored.
    */
   async view(id: string): Promise<void> {
-    this.set({ error: null })
+    const request = ++this.viewRequest
+    this.set({ error: null, view: null })
     try {
-      const response = await this.api.agentPresets.read({ agentPreset: id })
-      if (!response.result.ok) {
-        this.set({ error: response.result.error.message })
-        return
-      }
-      const { name, content } = response.result.value
+      const result = await this.ctx.remote.agentPresets.read(id)
+      if (request !== this.viewRequest) return
+      if (!result.ok) throw new Error(result.error.message)
+      const { name, content } = result.value
       this.set({ view: { id, title: name ?? id, content } })
-    } catch (error) {
-      this.set({ error: messageOf(error) })
-    }
+    } catch (error) { if (request === this.viewRequest) this.set({ error: message(error) }) }
   }
+  /** Close the viewer. */
+  closeView(): void { this.viewRequest++; this.set({ view: null }) }
 
-  /** Close the read-only viewer. */
-  closeView(): void {
-    this.set({ view: null })
-  }
-
-  /**
-   * Open the copy dialog over one preset.
-   * @param from - the preset the copy will start from.
+  /** Set the default and synchronize the current blank task when supplied.
+   * @param id Selected default.
+   * @param sync Blank-session synchronization callback.
+   * @returns Once saved and refreshed.
    */
-  beginCopy(from: string): void {
-    const row = this.store.getSnapshot().rows.find(candidate => candidate.id === from)
-    this.set({
-      error: null,
-      copy: { from, fromTitle: row?.name ?? from, id: '', name: '', saving: false, error: null },
-    })
+  async makeDefault(id: string, sync?: (id: string) => Promise<string | undefined>): Promise<void> {
+    await this.save(() => writeDefaultPreset(this.ctx, id), sync)
   }
 
-  /** Close the copy dialog, discarding whatever was typed. */
-  cancelCopy(): void {
-    this.set({ copy: null })
-  }
-
-  /**
-   * Name the preset the copy creates.
-   * @param id - the id typed into the dialog.
+  /** Replace a hidden built-in default after accepted Coding Tools changes.
+   * @param shouldReset Rechecked after waiting; false when tools are enabled or this owner is disposed.
+   * @returns Once the conditional save settles; errors remain visible in the section.
    */
-  setCopyId(id: string): void {
-    this.patchCopy({ id, error: null })
-  }
-
-  /**
-   * Name the copy's display name.
-   * @param name - the display name typed into the dialog.
-   */
-  setCopyName(name: string): void {
-    this.patchCopy({ name, error: null })
-  }
-
-  /**
-   * Submit the copy, re-read the roster, then take the user to the new
-   * preset's files — the directory opens where the host has a desktop, and
-   * its path appears on the new row where it does not.
-   * @returns once the copy settled and the page reflects it.
-   */
-  async confirmCopy(): Promise<void> {
-    const draft = this.store.getSnapshot().copy
-    if (draft === null || draft.saving) return
-    if (draftBlocker(draft, this.store.getSnapshot().rows) !== undefined) return
-    this.patchCopy({ saving: true, error: null })
-    try {
-      const name = draft.name.trim()
-      const response = await this.api.agentPresets.copy({
-        from: draft.from,
-        agentPreset: draft.id,
-        ...name === '' ? {} : { name },
-      })
-      if (!response.result.ok) {
-        this.patchCopy({ saving: false, error: response.result.error.message })
-        return
-      }
-      this.set({ copy: null })
-      await this.load()
-      this.rosterChanged()
-      // A preset is its files from here on (the dialog collected nothing
-      // else), so landing in them is the completion, not a follow-up.
-      await this.openLocation(draft.id)
-    } catch (error) {
-      this.patchCopy({ saving: false, error: messageOf(error) })
-    }
-  }
-
-  /**
-   * Open one preset's directory on the host desktop, or reveal its path on
-   * the row where the deployment has no opener to hand it to.
-   * @param id - the preset whose files the user wants.
-   * @returns once the host answered and the page reflects it.
-   */
-  async openLocation(id: string): Promise<void> {
-    try {
-      const response = await this.api.agentPresets.openDocument({ agentPreset: id })
-      if (!response.result.ok) {
-        this.set({ error: response.result.error.message })
-        return
-      }
-      if (response.result.value.opened) return
-      const { path } = response.result.value
-      this.set({ revealedPaths: { ...this.store.getSnapshot().revealedPaths, [id]: path } })
-    } catch (error) {
-      this.set({ error: messageOf(error) })
-    }
-  }
-
-  /**
-   * Ask for confirmation before deleting one preset.
-   * @param id - the preset to delete, or null to dismiss the confirmation.
-   */
-  confirmDelete(id: string | null): void {
-    if (this.store.getSnapshot().deleting) return
-    this.set({ pendingDelete: id })
-  }
-
-  /**
-   * Delete the preset awaiting confirmation, then re-read the roster.
-   *
-   * A session already composed from it keeps running: its composition was
-   * mounted at creation and nothing re-reads the file.
-   * @returns once the delete settled and the page reflects it.
-   */
-  async remove(): Promise<void> {
-    const { pendingDelete, deleting } = this.store.getSnapshot()
-    if (pendingDelete === null || deleting) return
-    this.set({ deleting: true, error: null })
-    try {
-      const response = await this.api.agentPresets.remove({ agentPreset: pendingDelete })
-      if (!response.result.ok) {
-        this.set({ deleting: false, pendingDelete: null, error: response.result.error.message })
-        return
-      }
-      this.set({ deleting: false, pendingDelete: null })
-      await this.load()
-      this.rosterChanged()
-    } catch (error) {
-      this.set({ deleting: false, pendingDelete: null, error: messageOf(error) })
-    }
-  }
-
-  /**
-   * Make one preset the default for sessions created later. Running sessions
-   * keep the composition they began with, so this never disturbs work.
-   * @param id - the preset to make default.
-   * @returns once the write settled and the roster was re-read.
-   */
-  async makeDefault(id: string): Promise<void> {
-    const failure = await writeDefaultPreset(this.api, id)
-    if (failure !== undefined) {
-      this.set({ error: failure })
+  async reconcileCodingTools(shouldReset: () => boolean): Promise<void> {
+    while (this.pendingSave !== undefined) await this.pendingSave
+    if (!shouldReset()) return
+    const settings = this.ctx.configForms.get(AGENT_PRESET_SETTINGS_NS).getSnapshot()
+    if (settings.mode !== 'host' || settings.status !== 'ready' || !settings.writable || settings.revision === undefined) return
+    await this.load()
+    if (!shouldReset() || this.store.getSnapshot().status !== 'ready') return
+    const rows = this.store.getSnapshot().rows
+    if (!requiresCodingTools(rows.find(row => row.isDefault))) return
+    if (!rows.some(row => row.id === 'standard' && row.broken === undefined)) {
+      this.set({ error: this.ctx.locale.bind('settings.agentPreset')('standardUnavailable') })
       return
     }
-    await this.load()
+    await this.save(() => writeDefaultPreset(this.ctx, 'standard', settings.revision))
+  }
+
+  private async save(write: () => Promise<string | undefined>, sync?: (id: string) => Promise<string | undefined>): Promise<void> {
+    if (this.store.getSnapshot().saving) return
+    const completion = Promise.withResolvers<void>()
+    this.pendingSave = completion.promise
+    this.set({ saving: true, error: null })
+    try {
+      const error = await write()
+      await this.load()
+      if (error !== undefined) throw new Error(error)
+      const selected = this.store.getSnapshot().rows.find(row => row.isDefault)
+      if (selected !== undefined) {
+        const error = await sync?.(selected.id)
+        if (error !== undefined) throw new Error(error)
+      }
+    } catch (error) { this.set({ error: message(error) }) }
+    finally {
+      this.pendingSave = undefined
+      this.set({ saving: false })
+      completion.resolve()
+    }
   }
 }

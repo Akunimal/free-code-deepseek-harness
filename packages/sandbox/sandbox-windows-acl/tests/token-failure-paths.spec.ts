@@ -1,6 +1,6 @@
 /**
- * Restricted-token failure-path tests with stub binding tables (the
- * failure-paths.spec.ts pattern): every checked Win32 call in the token
+ * Restricted-token failure-path tests with minimal stub binding tables: every
+ * checked Win32 call in the token
  * pipeline — open, logon-SID scan, well-known SID creation, default-DACL
  * merge, restricted-token creation — has a failing counterpart, and each
  * failure closes or frees what it created before throwing. Pure stubs — no
@@ -8,18 +8,23 @@
  * lives in acl.spec.ts (win32 only).
  */
 
+import { Win32Error } from '@deepseek-ai/dsh-win32-process'
 import { describe, expect, it, vi } from 'vitest'
 import koffi from 'koffi'
 
 import { allocBytes, isNullPtr } from '../src/ffi.ts'
 import type { NativePtr, Win32Bindings } from '../src/ffi.ts'
-import { Win32Error } from '../src/errors.ts'
 import {
-  createRestrictedToken, findLogonSid, makeWellKnownSid, openCurrentProcessToken, setTokenDefaultDaclGrant,
+  createRestrictedToken, findLogonSid, makeWellKnownSid, openCurrentProcessToken, restrictTokenIntegrity, setTokenDefaultDaclGrant,
 } from '../src/token.ts'
 import * as abi from '../src/win32-abi.ts'
 
 const PVOID = koffi.pointer('void')
+
+/** Stub binding table: only the members a test drives, so the rest are never called. */
+function stubBindings(overrides: Partial<Win32Bindings>): Win32Bindings {
+  return overrides as Win32Bindings
+}
 
 describe('openCurrentProcessToken failure paths', () => {
   it('reports when OpenProcess yields no handle', () => {
@@ -368,6 +373,57 @@ describe('setTokenDefaultDaclGrant failure paths', () => {
     ;(api.localFree as unknown as ReturnType<typeof vi.fn>).mockImplementation(localFree)
     setTokenDefaultDaclGrant(api, token, sid)
     expect(localFree).toHaveBeenCalledWith(99n)
+  })
+})
+
+describe('restrictTokenIntegrity', () => {
+  it('sets TokenIntegrityLevel to the Low label SID with SE_GROUP_INTEGRITY', () => {
+    const lowSid = allocBytes(12)
+    const setTokenInformation = vi.fn((
+      _token: unknown, cls: number, info: Buffer, length: number,
+    ) => {
+      expect(cls).toBe(abi.TokenIntegrityLevel)
+      expect(length).toBe(abi.TOKEN_MANDATORY_LABEL_SIZE + 12)
+      expect(info.readBigUInt64LE(0)).toBe(koffi.address(lowSid))
+      expect(info.readUInt32LE(8)).toBe(abi.SE_GROUP_INTEGRITY)
+      return 1
+    })
+    const api = stubBindings({ getLengthSid: vi.fn(() => 12), setTokenInformation })
+    restrictTokenIntegrity(api, 5n as NativePtr, lowSid)
+    expect(setTokenInformation).toHaveBeenCalledTimes(1)
+  })
+
+  it('fails closed when the Low label SID has no length', () => {
+    const api = stubBindings({
+      getLengthSid: vi.fn(() => 0),
+      getLastError: vi.fn(() => 87),
+      formatMessageW: vi.fn(() => 0),
+    })
+    let caught: unknown
+    try {
+      restrictTokenIntegrity(api, 5n as NativePtr, allocBytes(12))
+    } catch (error) {
+      caught = error
+    }
+    expect(caught).toBeInstanceOf(Win32Error)
+    expect((caught as Win32Error).api).toBe('GetLengthSid')
+  })
+
+  it('fails closed when SetTokenInformation rejects the integrity level', () => {
+    const api = stubBindings({
+      getLengthSid: vi.fn(() => 12),
+      setTokenInformation: vi.fn(() => 0),
+      getLastError: vi.fn(() => 5),
+      formatMessageW: vi.fn(() => 0),
+    })
+    let caught: unknown
+    try {
+      restrictTokenIntegrity(api, 5n as NativePtr, allocBytes(12))
+    } catch (error) {
+      caught = error
+    }
+    expect(caught).toBeInstanceOf(Win32Error)
+    expect((caught as Win32Error).api).toBe('SetTokenInformation')
   })
 })
 

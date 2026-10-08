@@ -1,15 +1,13 @@
 /* Cordis definition card: DisclosureRow chrome (leading/chevron/title come from
    that primitive) plus this card's own trailing run switch and source body.
-   No running sweep: `cordis_define` only registers a definition in host memory,
-   so the call settles in the same turn it starts and the state dot carries the
-   whole signal. */
+   No running sweep: `cordis_define` settles in the same turn it starts. */
 
 .card {
   display: flex;
   flex-direction: column;
 }
 
-/* The shared cordis accent (matches ui-tool's [data-tool^='cordis_'] rows). */
+/* Definition cards keep a brand accent to distinguish their editable source. */
 .card .title,
 .card .chevron {
   color: var(--dsw-alias-state-business-primary);
@@ -166,7 +164,7 @@
 .sourceTabs {
   display: flex;
   height: 32px;
-  border-bottom: 1px solid var(--dsw-alias-border-l2);
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
 }
 
 .sourceTab {
@@ -240,7 +238,7 @@
 .output {
   margin: 0;
   padding: 8px 10px;
-  border: 1px solid var(--dsw-alias-border-l1);
+  border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: 8px;
   background: var(--dsw-alias-markdown-code-block);
   white-space: pre-wrap;
@@ -260,8 +258,9 @@
   gap: 4px;
   margin: 4px 0 2px 4px;
   padding: 2px 8px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l4);
   border-radius: 999px;
+  corner-shape: round;
   background: var(--dsw-alias-bg-base);
   color: var(--dsw-alias-label-secondary);
   font-size: 11px;

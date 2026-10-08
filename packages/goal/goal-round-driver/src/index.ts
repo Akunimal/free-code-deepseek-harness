@@ -58,7 +58,7 @@ function sameRound(source: GoalMessageSource, round: RoundIdentity): boolean {
 }
 
 /** Compare the complete queued record to the driver's reservation. */
-function sameQueued(content: ContentBlock[], source: MessageSource, attempt: RoundAttempt): boolean {
+function sameQueued(content: readonly ContentBlock[], source: MessageSource, attempt: RoundAttempt): boolean {
   return isGoalRoundSource(source) && sameRound(source, attempt) && isDeepStrictEqual(content, attempt.content)
 }
 
@@ -248,9 +248,8 @@ export function apply(ctx: Context): void {
       disarm(state)
     })
 
-    ctx.on('agent/created', ({ agent }) => { stateFor(agent) })
     ctx.on('agent/disposed', ({ agent }) => { states.delete(agent) })
-    ctx.on('agent/session-start', ({ agent }) => {
+    ctx.on('agent/created', ({ agent }) => {
       const state = stateFor(agent)
       state.attempt = undefined
       state.competingQueued = false
@@ -262,22 +261,38 @@ export function apply(ctx: Context): void {
         state.competingQueued = false
         const attempt = state.attempt
         const goal = currentGoal(state)
-        if ((attempt?.phase === 'queued' || attempt?.phase === 'claimed' || attempt?.cancelled)
-          && goal?.phase === 'active' && goal.activation === 'armed') {
+        // Fence the pause to the exact dropped attempt's ref. A resume bumps
+        // the revision, so a host pause followed by an immediate resume (before
+        // the aborted turn converges to idle) must not re-pause the resumed goal.
+        const pause = attempt !== undefined
+          && (attempt.phase === 'queued' || attempt.phase === 'claimed' || attempt.cancelled)
+          && goal !== undefined && goal.phase === 'active' && goal.activation === 'armed'
+          && attempt.goalId === goal.id && attempt.revision === goal.revision
+        // A reservation still queued when the agent reaches idle cannot run:
+        // withdraw it so human input queued behind it is not stranded.
+        if (pause || attempt?.phase === 'queued') {
           state.attempt = undefined
           try {
-            ctx.goals.pause(agent, goalRef(goal))
+            if (attempt.phase === 'queued') agent.inbox.remove(attempt.messageId)
+            if (pause) ctx.goals.pause(agent, goalRef(goal))
           } catch (error: unknown) {
-            ctx.logger.warn(`goal-round-driver: could not pause cancelled goal for agent "${agent.id}": ${renderThrown(error)}`)
+            ctx.logger.warn(`goal-round-driver: could not settle cancelled goal round for agent "${agent.id}": ${renderThrown(error)}`)
             disarm(state)
           }
         }
         requestDrive(state)
       }
     })
-    ctx.on('goal/changed', ({ agent }) => {
+    ctx.on('goal/changed', ({ agent, change }) => {
       const state = stateFor(agent)
       state.needsCheckpoint = true
+      // A host-initiated pause stops goal execution: abort the live turn so the
+      // model cannot keep acting or resume in the same turn. A model-initiated
+      // pause (update_goal inside its own turn) finishes normally.
+      if (change.operation === 'pause' && agent.status === 'running'
+        && ctx.agents.currentInitiator() !== agent) {
+        agent.cancel({ kind: 'user' }, { keepInbox: true })
+      }
       requestDrive(state)
     })
 
@@ -333,7 +348,7 @@ export function apply(ctx: Context): void {
     /** Fail closed unless the queued prompt still owns the exact live revision. */
     function validReservation(
       state: DriverState,
-      content: ContentBlock[],
+      content: readonly ContentBlock[],
       source: GoalMessageSource,
     ): boolean {
       const attempt = state.attempt
@@ -410,7 +425,7 @@ export function apply(ctx: Context): void {
         requestDrive(state)
         return { kind: 'reject' }
       }
-      return decision
+      return { ...decision, startsRequestSeries: true }
     })
 
     // Loading a lifecycle driver over existing agents never inherits hidden

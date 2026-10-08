@@ -49,12 +49,12 @@ The repo secret is named `DEEPSEEK_API_KEY_EXTERNAL`; it is mapped to the `DEEPS
 
 - **Step-scoped secret.** `DEEPSEEK_API_KEY` is set in the `env:` of only the preflight and e2e steps, never job-level — so checkout/setup-node/install never see it. A compromised install-time lifecycle script in a dependency cannot read a secret that isn't in its environment.
 - **`permissions: contents: read`.** The job only reads the repo to run tests; it needs no write scopes (no PR comments, no status writes), so the `GITHUB_TOKEN` is dropped to least privilege.
-- **`DEEPSEEK_BASE_URL` pinned** to `https://api.deepseek.com` on the e2e step. The adapter would default to this when unset ([packages/llm/llm-deepseek/src/index.ts](../../../../packages/llm/llm-deepseek/src/index.ts) `PUBLIC_BASE_URL`), but pinning is self-documenting and hermetic — a stray repo-root `.env` (which `vitest.e2e.config.ts` loads if present) cannot silently redirect the run to another endpoint.
+- **`DEEPSEEK_BASE_URL` pinned** to `https://api.deepseek.com/anthropic` on the e2e step. The adapter would default to this when unset ([packages/llm/llm-deepseek/src/index.ts](../../../../packages/llm/llm-deepseek/src/index.ts) `PUBLIC_BASE_URL`), but pinning is self-documenting and hermetic — a stray repo-root `.env` (which `vitest.e2e.config.ts` loads if present) cannot silently redirect the run to another endpoint.
 - **No secret echoed.** The preflight prints only `DEEPSEEK_API_KEY present.` — not the value or its length.
 
 ### Scope, runtime shape
 
-The job runs only `test:e2e` on Node 24; keyless gates and version compatibility belong to the main CI workflow. Tests run unbuilt through the workspace paths map with a bounded configurable worker pool, per-test retries, and a job timeout. Superseded PR runs are cancelled, while push and scheduled runs complete for post-merge signal.
+The job runs only `test:e2e` on Node 24; keyless gates and version compatibility belong to the main CI workflow. Tests run unbuilt through the workspace paths map with a bounded configurable worker pool, per-test retries, and a job timeout. The [superseded-CI cancellation policy](../../../../.github/workflows/e2e.yml) cancels older runs in the same workflow/ref group across PR, push, schedule, and manual triggers; a post-merge or nightly trigger does not guarantee completion.
 
 The DeepSeek native `web_search` probe is registered but skipped. The live Anthropic-compatible endpoint can return a successful response without structured source blocks, so its positive-source assertion is not a reliable merge signal; unit coverage still pins response parsing, but CI does not prove the live source-block wire shape.
 
@@ -62,7 +62,7 @@ The DeepSeek native `web_search` probe is registered but skipped. The live Anthr
 
 The repository's first CI secret requires a recorded threat model because access differs between same-repository, fork, and Dependabot pull requests and changes when the repository becomes public.
 
-### Who can reach the secret today (private repo)
+### Who can reach the secret in a private repository
 
 - **No write access (fork PRs): cannot.** Two independent facts block it. First, the workflow uses `pull_request`, **not** `pull_request_target` — GitHub does not pass repo secrets to fork-PR runs of `pull_request`, so `secrets.DEEPSEEK_API_KEY_EXTERNAL` resolves to empty on a fork runner. Second, the `if:` gate skips fork PRs entirely. The withholding is the real boundary; the gate is defense-in-depth and UX.
 - **Write (push) access: can.** A same-repo branch PR receives secrets, so a write-access author could modify test code (or an install lifecycle script, or the workflow YAML on their branch) to exfiltrate the key. This is **inherent to GitHub Actions, not introduced here**: anyone with push access to any repo can already exfiltrate any of its Actions secrets by authoring a workflow. Write access ⇒ secret access, always. The mitigation lives in who is granted write and in branch protection, not in this file.
@@ -79,7 +79,7 @@ The secret stays protected from the public **through this workflow**: `pull_requ
 
 What gets worse is the *surrounding* model, and these are the things to address before flipping visibility:
 
-- **Logs become world-readable.** A careless secret echo that today leaks to org members would leak to the entire internet and be scraped within minutes. Secret-handling discipline (no value/length echoes — already done) matters far more.
+- **Logs become world-readable.** A careless secret echo that leaks to organization members would leak to the entire internet and be scraped within minutes. Secret-handling discipline (no value/length echoes — already done) matters far more.
 - **The `pull_request_target` footgun becomes catastrophic.** If anyone ever "fixes" PR runs by switching the trigger to `pull_request_target`, the workflow would run untrusted fork code in the base-repo context **with** secrets — a full key-leak vector. This is benign-ish on a private repo and disastrous on a public one. A `SECURITY —` comment on the trigger in e2e.yml forbids the change and points here.
 - **Rotate on flip.** The key lived in a private repo's CI; treat going-public as "assume exposed" and rotate `DEEPSEEK_API_KEY_EXTERNAL` at that moment.
 - **Settle the secret behind controls.** Confirm Settings → Actions → *"Send secrets to workflows from fork pull requests"* stays **off** (the one setting that would actually break the fork boundary), and consider moving the key into a GitHub **Environment** with required reviewers so even merged code uses it only under controlled conditions and rotation has a single home.

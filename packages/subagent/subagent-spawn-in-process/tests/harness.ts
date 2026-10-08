@@ -6,7 +6,7 @@ import { LocalBashExecutor } from '@deepseek-ai/dsh-bash-local'
 import * as BashEnvPlugin from '@deepseek-ai/dsh-shell-env'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import * as ToolBash from '@deepseek-ai/dsh-tool-bash'
-import * as LlmDeepSeek from '@deepseek-ai/dsh-llm-deepseek'
+import * as LlmDeepSeek from '@deepseek-ai/dsh-llm-deepseek-api-key'
 import SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import * as Spawn from '../src/index.ts'
 import * as ToolSubagent from '@deepseek-ai/dsh-tool-subagent'
@@ -25,7 +25,7 @@ export async function spawnHarness(workdir: string): Promise<Context> {
   // delegation nudge lives in the e2e's user prompt and the subagent tool's
   // own description.
   await mountAgentLoopTestDependencies(ctx, {
-    systemPrompt: { persona: 'You are a coding agent. Report only when the requested work is done.' },
+    systemPrompt: { personaPrefix: 'You are a coding agent. Report only when the requested work is done.' },
   })
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(LlmDeepSeek)

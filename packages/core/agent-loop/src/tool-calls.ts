@@ -6,15 +6,16 @@
  * and drains started calls.
  *
  * Abort records synthetic error results for skipped calls so replay stays
- * valid. A terminal scheduler failure preserves already-recorded `tool/call`
- * events without fabricating results.
+ * valid. A terminal scheduler failure rejects after draining; the owning step
+ * records conservative recovery results before closing.
  * @module dsh-agent-loop/tool-calls
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import { assertNever, createToolResultMessage, type ToolCallBlock } from '@deepseek-ai/dsh-llm'
-import type { Session, UserMessage } from '@deepseek-ai/dsh-session'
+import { createToolResultMessage, type ToolCallBlock } from '@deepseek-ai/dsh-llm'
+import type { Session, SessionSeq, UserMessage } from '@deepseek-ai/dsh-session'
 import { TOOL_ABORTED_BEFORE_DISPATCH, TOOL_RUNTIME_SCHEDULER, type ToolExecutionInput, type ToolExecutionMode, type ToolExecutionResult, type ToolRunContext } from '@deepseek-ai/dsh-tools'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 
 /** One tool call after argument parsing, ready to schedule. */
 interface PlannedCall {
@@ -44,8 +45,8 @@ interface GroupOutcome {
  * the signal still aborted after accepting started-call context through the
  * caller-supplied acceptor (the machine stages it in its next-step inbox for the
  * step boundary). An internal scheduler failure stops new dispatches, drains
- * already-started dispatches, and rejects with the first failure without
- * fabricating tool results.
+ * already-started dispatches, and rejects with the first failure. The owning
+ * step supplies error results for requests without a committed outcome.
  * The committed step's AgentLoop driver boundary supplies the initiating Agent
  * that becomes each explicit {@link ToolExecutionInput.agent}.
  *
@@ -115,8 +116,8 @@ function parseArguments(raw: string): unknown {
  * drain and remains for the caller's next barrier. Results and contexts commit
  * in model order. Abort stops starts, drains and commits started calls, accepts
  * their contexts into the owning batch, records results for skipped calls, and
- * returns an aborted outcome. Scheduler failure drains dispatches without
- * committing synthetic recovery results.
+ * returns an aborted outcome. Scheduler failure drains dispatches and rejects
+ * for the owning step to record recovery results.
  */
 async function runGroup(
   ctx: Context,
@@ -128,10 +129,10 @@ async function runGroup(
   acceptContext: (context: UserMessage) => void,
 ): Promise<GroupOutcome> {
   const { session } = ctx.agents.requireInitiator()
-  const { maxParallelToolCalls } = ctx.agentLoop.config
+  const maxParallelToolCalls = ctx.agentLoop.config.maxParallelToolCalls.get()
   const slots: (Slot | undefined)[] = group.map(() => undefined)
   // Started slots retain their `tool/call` seq so the result can cite it.
-  const callSeqs: number[] = group.map(() => -1)
+  const callSeqs: Array<SessionSeq | undefined> = group.map(() => undefined)
   let nextToStart = 0
   let committed = 0
   let started = 0
@@ -259,7 +260,7 @@ function appendSkippedToolCall(session: Session, turn: number, step: number, blo
 }
 
 /** Append a started call and return the event seq that its result must cite. */
-function appendToolCall(session: Session, turn: number, step: number, block: ToolCallBlock): number {
+function appendToolCall(session: Session, turn: number, step: number, block: ToolCallBlock): SessionSeq {
   const event = session.append('tool/call', { turn, step, callId: block.id, name: block.name, arguments: block.arguments })
   return event.seq
 }
@@ -271,7 +272,7 @@ function appendToolResult(
   step: number,
   block: ToolCallBlock,
   result: ToolExecutionResult,
-  callSeq: number,
+  callSeq: SessionSeq,
 ): void {
   const message = createToolResultMessage({
     callId: block.id,

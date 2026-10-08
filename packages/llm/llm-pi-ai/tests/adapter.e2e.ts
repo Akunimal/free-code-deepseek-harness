@@ -1,21 +1,19 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import LlmRuntime, { createUserMessage, CallId, ReasoningEffortId  } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { createToolResultMessage, createUserMessage, ToolCallId, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { Message, ToolSchema } from '@deepseek-ai/dsh-llm'
 import * as LlmPiAi from '@deepseek-ai/dsh-llm-pi-ai'
 import type { PiAiProviderProfile } from '@deepseek-ai/dsh-llm-pi-ai'
-import * as LlmDeepSeek from '@deepseek-ai/dsh-llm-deepseek'
+import * as LlmDeepSeek from '@deepseek-ai/dsh-llm-deepseek-api-key'
 import { assemble, type AssembledResult } from './assemble.ts'
 
 /**
- * Real-API e2e for the pi-ai-backed adapter: V4 Flash + V4 Pro with provider
- * defaults and representative off/high/max reasoning. Mirrors the native
- * adapter's StreamChunk contract and exercises a replayed tool follow-up.
- * Key-gated.
+ * Real-API e2e for the pi-ai-backed adapter: V4 Flash defaults and
+ * off/high/max reasoning. Mirrors the native adapter's StreamChunk contract
+ * and exercises a replayed tool follow-up. Key-gated.
  */
 
-const FLASH = 'deepseek-v4-flash'
-const PRO = 'deepseek-v4-pro'
+const FLASH = 'deepseek-flash'
 const contexts: Context[] = []
 
 async function harness(_model: string, config: Partial<PiAiProviderProfile> = {}) {
@@ -26,7 +24,6 @@ async function harness(_model: string, config: Partial<PiAiProviderProfile> = {}
     providers: {
       deepseek: {
         ...process.env.DEEPSEEK_API_KEY === undefined ? {} : { apiKey: process.env.DEEPSEEK_API_KEY },
-        ...process.env.DEEPSEEK_BASE_URL === undefined ? {} : { baseURL: process.env.DEEPSEEK_BASE_URL },
         ...config,
       },
     },
@@ -41,7 +38,7 @@ afterEach(async () => {
 function ask(text: string): Message[] {
   return [createUserMessage({
     content: [{ type: 'text', text }],
-    source: { kind: 'plugin', plugin: 'test' },
+    source: { kind: 'model', provider: 'deepseek-official', model: 'deepseek-v4-flash' },
   })]
 }
 
@@ -67,10 +64,10 @@ const weatherTool: ToolSchema = {
 }
 
 describe.skipIf(!process.env.DEEPSEEK_API_KEY)('llm-pi-ai e2e (real API)', () => {
-  it.each([FLASH, PRO])('%s + provider-default reasoning: plain text generation', async (model) => {
-    const ctx = await harness(model)
+  it(`${FLASH} + provider-default reasoning: plain text generation`, async () => {
+    const ctx = await harness(FLASH)
     const result = await assemble(ctx,{
-      model,
+      model: FLASH,
       messages: ask('Reply with exactly the word: pong'),
       maxTokens: 50,
     })
@@ -91,10 +88,10 @@ describe.skipIf(!process.env.DEEPSEEK_API_KEY)('llm-pi-ai e2e (real API)', () =>
     expect(textOf(result).toLowerCase()).toContain('pong')
   })
 
-  it.each([FLASH, PRO])('%s + reasoning high: reasoning blocks present', async (model) => {
-    const ctx = await harness(model)
+  it(`${FLASH} + reasoning high: reasoning blocks present`, async () => {
+    const ctx = await harness(FLASH)
     const result = await assemble(ctx,{
-      model,
+      model: FLASH,
       reasoningEffort: ReasoningEffortId('high'),
       messages: ask('Which is larger, 9.11 or 9.8? Answer with just the number.'),
       maxTokens: 2000,
@@ -104,41 +101,44 @@ describe.skipIf(!process.env.DEEPSEEK_API_KEY)('llm-pi-ai e2e (real API)', () =>
     expect(textOf(result)).toContain('9.8')
   })
 
-  it('pro + reasoning max: tool-call round trip', async () => {
-    const ctx = await harness(PRO)
+  it('flash + reasoning max: tool-call round trip', async () => {
+    const ctx = await harness(FLASH)
 
     const first = await assemble(ctx,{
-      model: PRO,
+      model: FLASH,
       reasoningEffort: ReasoningEffortId('max'),
       messages: ask('What is the weather in Paris right now? Use the get_weather tool.'),
       tools: [weatherTool],
       maxTokens: 2000,
     })
-    expect(first.finish.kind).toBe('tool-calls')
+    expect(
+      first.finish.kind,
+      `pi-ai Flash tool-call turn finished as ${JSON.stringify(first.finish)}`,
+    ).toBe('tool-calls')
     const call = first.message.content.find(block => block.type === 'tool-call')
     expect(call).toBeDefined()
     expect(call!.name).toBe('get_weather')
     expect(JSON.parse(call!.arguments)).toMatchObject({ city: expect.stringMatching(/paris/i) as string })
 
     const second = await assemble(ctx,{
-      model: PRO,
+      model: FLASH,
       reasoningEffort: ReasoningEffortId('max'),
       messages: [
         ...ask('What is the weather in Paris right now? Use the get_weather tool.'),
         first.message,
-        createUserMessage({
-          content: [{
-            type: 'tool-result',
-            toolCallId: CallId(call!.id),
-            content: [{ type: 'text', text: 'Sunny, 22°C' }],
-          }],
-          source: { kind: 'plugin', plugin: 'test' },
+        createToolResultMessage({
+          callId: ToolCallId(call!.id),
+          content: [{ type: 'text', text: 'Sunny, 22°C' }],
+          isError: false,
         }),
       ],
       tools: [weatherTool],
       maxTokens: 2000,
     })
-    expect(second.finish.kind).toBe('stop')
+    expect(
+      second.finish.kind,
+      `pi-ai Flash tool-result turn finished as ${JSON.stringify(second.finish)}`,
+    ).toBe('stop')
     expect(textOf(second).toLowerCase()).toMatch(/sunny|22/)
   })
 

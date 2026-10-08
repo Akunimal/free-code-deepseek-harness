@@ -10,7 +10,7 @@
  * @module @deepseek-ai/dsh-subagent/assistant-output
  */
 
-import type { ContentBlock } from '@deepseek-ai/dsh-llm'
+import { joinAssistantStreamText, type ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 
 /**
@@ -20,21 +20,22 @@ import type { SessionEvent } from '@deepseek-ai/dsh-session'
  * text into the same streamed fallback.
  */
 export class AssistantOutputFold {
-  private message: ContentBlock[] | undefined
+  private message: readonly ContentBlock[] | undefined
   private partial: string[] = []
 
   /**
    * Fold one session event: a non-empty assistant message becomes the
-   * candidate final answer, and a `text-delta` chunk extends the streamed
-   * fallback; every other event contributes nothing.
+   * candidate final answer, while its embedded stream and any log-only attempt
+   * extend the streamed fallback; every other event contributes nothing.
    * @param event - the next observed session event.
    */
   push(event: SessionEvent): void {
     if (event.type === 'assistant/message') {
       const content = event.data.message.content
       if (content.length > 0) this.message = content
-    } else if (event.type === 'assistant/chunk' && event.data.chunk.type === 'text-delta') {
-      this.pushText(event.data.chunk.text)
+    }
+    if (event.type === 'assistant/message' || event.type === 'assistant/attempt') {
+      this.pushText(joinAssistantStreamText(event.data.stream))
     }
   }
 
@@ -51,7 +52,7 @@ export class AssistantOutputFold {
    * @returns the last non-empty assistant message, else the accumulated
    *   streamed text, or `undefined` when the child produced neither.
    */
-  collect(): ContentBlock[] | undefined {
+  collect(): readonly ContentBlock[] | undefined {
     if (this.message !== undefined) return this.message
     const text = this.partial.join('')
     return text.length > 0 ? [{ type: 'text', text }] : undefined
@@ -63,7 +64,7 @@ export class AssistantOutputFold {
  * @param events - the child-owned events (after any seed or epoch boundary).
  * @returns the selected output, or `undefined` when the child produced none.
  */
-export function finalAssistantOutput(events: readonly SessionEvent[]): ContentBlock[] | undefined {
+export function finalAssistantOutput(events: readonly SessionEvent[]): readonly ContentBlock[] | undefined {
   // TODO: this folds the complete suffix once per run/epoch settlement. If a
   // long continuable epoch ever profiles hot here, scan backward with early
   // exit for the last non-empty message and fold text deltas only on the

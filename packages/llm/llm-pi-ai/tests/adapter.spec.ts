@@ -1,22 +1,26 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { Context } from '@deepseek-ai/cordis'
-import { AttachmentId, AttachmentStore } from '@deepseek-ai/dsh-attachment'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
+import { Context, Service } from '@deepseek-ai/cordis'
+import { AttachmentId, AttachmentStore, ImageVariantId } from '@deepseek-ai/dsh-attachment'
 import type {
   ImageAttachmentLimits,
   ImageAttachmentRef,
+  ImageRequestTarget,
+  RequestImageAttachment,
   SaveImageAttachment,
   StoredImageAttachment,
 } from '@deepseek-ai/dsh-attachment'
-import LlmRuntime, { createUserMessage, CONTEXT_WINDOW_EXCEEDED_CODE, LlmError, ReasoningEffortId, userAgent } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { createToolResultMessage, createUserMessage, CONTEXT_WINDOW_EXCEEDED_CODE, LlmError, ReasoningEffortId, userAgent } from '@deepseek-ai/dsh-llm'
 import * as LlmPiAi from '@deepseek-ai/dsh-llm-pi-ai'
 import { PiAiAdapter } from '@deepseek-ai/dsh-llm-pi-ai'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { getBuiltinModels } from '@earendil-works/pi-ai/providers/all'
-import { resolveProfiles } from '../src/config.ts'
+import { DEFAULT_MAX_REQUEST_IMAGE_BYTES, resolveProfiles } from '../src/config.ts'
+import { memoryAuth } from './auth-double.ts'
 import { assemble } from './assemble.ts'
 import { closeMockServers, mockServer, textEvents } from './mock-server.ts'
 
 afterEach(async () => {
+  vi.useRealTimers()
   vi.unstubAllEnvs()
   await closeMockServers()
 })
@@ -27,6 +31,18 @@ const IMAGE_REF: ImageAttachmentRef = {
   bytes: 1,
   width: 1,
   height: 1,
+}
+const HOST_IMAGE_PATH = '/host/.dsh/attachments/objects/aa/object'
+const MODEL_IMAGE_PATH = '/model/.dsh/attachments/objects/aa/object'
+
+class MappedFileSystem extends Service {
+  constructor(ctx: Context) {
+    super(ctx, 'fs')
+  }
+
+  processPathFromHostPath(hostPath: string): string | undefined {
+    return hostPath === HOST_IMAGE_PATH ? MODEL_IMAGE_PATH : undefined
+  }
 }
 
 async function harness(baseURL: string, overrides: Record<string, unknown> = {}): Promise<Context> {
@@ -47,6 +63,7 @@ function adapterOf(
   return new PiAiAdapter({
     profiles: () => resolveProfiles(providers),
     resolveApiKey: () => Promise.resolve(apiKey),
+    auth: memoryAuth(),
   })
 }
 
@@ -61,16 +78,40 @@ describe('PiAiAdapter provider routing', () => {
     const server = await mockServer([{ events: textEvents }])
     const ctx = await harness(server.url)
     const result = await assemble(ctx, {
-      model: 'deepseek-v4-flash',
+      model: 'deepseek-flash',
       messages: [createUserMessage({
         content: [{ type: 'text', text: 'hi' }],
-        source: { kind: 'plugin', plugin: 'test' },
+        source: { kind: 'model', provider: 'deepseek-official', model: 'deepseek-v4-flash' },
       })],
     })
     expect(result.message.content).toEqual([{ type: 'text', text: 'hello' }])
     expect(result.finish).toEqual({ kind: 'stop' })
-    expect(result.usage).toEqual({ inputTokens: 3, outputTokens: 1 })
+    expect(result.usage).toEqual({ inputTokens: 3, outputTokens: 1, totalTokens: 4 })
     expect(server.paths).toEqual(['/chat/completions'])
+  })
+
+  it('keeps prepared model metadata and dispatch on one profile snapshot', async () => {
+    const first = await mockServer([{ events: textEvents }])
+    const second = await mockServer([])
+    let providers: Record<string, LlmPiAi.PiAiProviderProfile> = {
+      deepseek: { apiKeyEnv: 'PI_TEST_KEY', baseURL: first.url },
+    }
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    ctx.llm.registerAdapter(['deepseek'], new PiAiAdapter({
+      profiles: () => resolveProfiles(providers),
+      resolveApiKey: () => Promise.resolve('test-key'),
+      auth: memoryAuth(),
+    }))
+
+    const prepared = await ctx.llm.prepareCall({ provider: 'deepseek', model: 'deepseek-flash' })
+    providers = { deepseek: { apiKeyEnv: 'PI_TEST_KEY', baseURL: second.url } }
+    const chunks: unknown[] = []
+    for await (const chunk of prepared.stream({ ...prepared.config, messages: [] })) chunks.push(chunk)
+
+    expect(chunks.length).toBeGreaterThan(0)
+    expect(first.requests).toHaveLength(1)
+    expect(second.requests).toHaveLength(0)
   })
 
   it('merges profile headers with Harness attribution winning', async () => {
@@ -78,7 +119,7 @@ describe('PiAiAdapter provider routing', () => {
     const ctx = await harness(server.url, {
       headers: { 'x-company': 'private', 'User-Agent': 'wrong' },
     })
-    await assemble(ctx, { model: 'deepseek-v4-flash', messages: [] })
+    await assemble(ctx, { model: 'deepseek-flash', messages: [] })
     expect(server.headers[0]?.['x-company']).toBe('private')
     expect(server.headers[0]?.['user-agent']).toBe(userAgent())
   })
@@ -95,19 +136,21 @@ describe('PiAiAdapter provider routing', () => {
       thinkingBudgets: { high: 2048 },
     })
     await assemble(ctx, {
-      model: 'deepseek-v4-flash',
+      model: 'deepseek-v4-pro',
       messages: [],
       temperature: 0.2,
       maxTokens: 77,
       sessionId: 'session-for-pi' as never,
     })
     expect(server.requests[0]).toMatchObject({
-      model: 'deepseek-v4-flash',
+      model: 'deepseek-v4-pro',
       temperature: 0.2,
-      max_completion_tokens: 77,
+      max_tokens: 77,
       thinking: { type: 'enabled' },
       reasoning_effort: 'max',
     })
+    expect(server.requests[0]).not.toHaveProperty('dsh_session_log')
+    expect(server.requests[0]).not.toHaveProperty('dsh_plugin_packages')
   })
 
   it('uses a dynamic request effort and reports unsupported efforts before network I/O', async () => {
@@ -115,14 +158,14 @@ describe('PiAiAdapter provider routing', () => {
     const ctx = await harness(server.url, { reasoning: 'max' })
 
     await assemble(ctx, {
-      model: 'deepseek-v4-flash',
+      model: 'deepseek-flash',
       reasoningEffort: ReasoningEffortId('high'),
       messages: [],
     })
     expect(server.requests[0]).toMatchObject({ reasoning_effort: 'high' })
 
     await assemble(ctx, {
-      model: 'deepseek-v4-flash',
+      model: 'deepseek-flash',
       reasoningEffort: ReasoningEffortId('off'),
       messages: [],
     })
@@ -130,7 +173,7 @@ describe('PiAiAdapter provider routing', () => {
     expect(server.requests[1]).not.toHaveProperty('reasoning_effort')
 
     const unsupported = await assemble(ctx, {
-      model: 'deepseek-v4-flash',
+      model: 'deepseek-flash',
       reasoningEffort: ReasoningEffortId('xhigh'),
       messages: [],
     })
@@ -149,7 +192,7 @@ describe('PiAiAdapter provider routing', () => {
       deepseek: { apiKeyEnv: 'PI_TEST_KEY', baseURL: server.url },
     }))
 
-    const result = await assemble(ctx, { model: 'deepseek-v4-flash', messages: [] })
+    const result = await assemble(ctx, { model: 'deepseek-flash', messages: [] })
 
     expect(result.message.content).toEqual([{ type: 'text', text: 'hello' }])
   })
@@ -173,7 +216,7 @@ describe('PiAiAdapter provider routing', () => {
   it('reports unsupported stop sequences rather than silently ignoring them', async () => {
     const server = await mockServer([])
     const ctx = await harness(server.url)
-    const result = await assemble(ctx, { model: 'deepseek-v4-flash', messages: [], stop: ['END'] })
+    const result = await assemble(ctx, { model: 'deepseek-flash', messages: [], stop: ['END'] })
     expect(result.finish).toMatchObject({ kind: 'error', failure: { code: 'UNSUPPORTED_OPTION' } })
     expect(server.requests).toEqual([])
   })
@@ -198,7 +241,7 @@ describe('PiAiAdapter provider routing', () => {
     expect(server.paths).toEqual(['/v1/responses'])
   })
 
-  it('resolves an attachment service mounted after the adapter when dispatching an image', async () => {
+  it('resolves attachment and filesystem services mounted after the adapter when dispatching an image', async () => {
     const server = await mockServer([{ status: 401, body: JSON.stringify({ error: { message: 'expected mock failure' } }) }])
     const attachmentId = AttachmentId(`sha256:${'a'.repeat(64)}`)
     const ref: ImageAttachmentRef = {
@@ -210,6 +253,24 @@ describe('PiAiAdapter provider routing', () => {
     }
     const readImage = vi.fn((_ref: ImageAttachmentRef): Promise<StoredImageAttachment> =>
       Promise.resolve({ ref, data: Uint8Array.of(1) }))
+    const readImageRequest = vi.fn((
+      value: ImageAttachmentRef,
+      _target: ImageRequestTarget,
+      _signal?: AbortSignal,
+    ): Promise<RequestImageAttachment> => (
+      Promise.resolve({
+        variantId: ImageVariantId(`sha256:${'b'.repeat(64)}`),
+        attachment: value,
+        data: Uint8Array.of(1),
+        mediaType: value.mediaType,
+        bytes: 1,
+        width: value.width,
+        height: value.height,
+        depth: 'uchar',
+        space: 'srgb',
+        hasAlpha: true,
+      })
+    ))
 
     class LateAttachmentStore extends AttachmentStore {
       readonly imageLimits: ImageAttachmentLimits = {
@@ -217,6 +278,7 @@ describe('PiAiAdapter provider routing', () => {
         maxImagesPerMessage: 1,
         maxMessageImageBytes: 1,
         maxImagePixels: 1,
+        maxImageDimension: 2000,
         mediaTypes: ['image/png'],
       }
 
@@ -231,6 +293,18 @@ describe('PiAiAdapter provider routing', () => {
       readImage(value: ImageAttachmentRef): Promise<StoredImageAttachment> {
         return readImage(value)
       }
+
+      override imageHostPath(_ref: ImageAttachmentRef): string {
+        return HOST_IMAGE_PATH
+      }
+
+      override readImageRequest(
+        value: ImageAttachmentRef,
+        policy: ImageRequestTarget,
+        signal?: AbortSignal,
+      ): Promise<RequestImageAttachment> {
+        return readImageRequest(value, policy, signal)
+      }
     }
 
     const ctx = new Context()
@@ -239,18 +313,24 @@ describe('PiAiAdapter provider routing', () => {
       providers: { openai: { apiKeyEnv: 'PI_TEST_KEY', baseURL: `${server.url}/v1` } },
     })
     await ctx.plugin(LateAttachmentStore)
+    await ctx.plugin(MappedFileSystem)
 
     const result = await assemble(ctx, {
       provider: 'openai',
       model: 'gpt-4.1',
       messages: [createUserMessage({
         content: [{ type: 'image', attachment: ref }],
-        source: { kind: 'plugin', plugin: 'test' },
+        source: { kind: 'model', provider: 'deepseek-official', model: 'deepseek-v4-flash' },
       })],
     })
 
     expect(result.finish.kind).toBe('error')
-    expect(readImage).toHaveBeenCalledWith(ref)
+    expect(readImageRequest).toHaveBeenCalledWith(ref, {
+      width: 1,
+      height: 1,
+      maxBytes: 1024 * 1024,
+    }, expect.any(AbortSignal))
+    expect(JSON.stringify(server.requests[0])).toContain(MODEL_IMAGE_PATH)
     expect(server.paths).toEqual(['/v1/responses'])
   })
 
@@ -304,14 +384,14 @@ describe('PiAiAdapter provider routing', () => {
   ] as const)('maps HTTP %s failures to %s', async (status, code) => {
     const server = await mockServer([{ status, body: JSON.stringify({ error: { message: `provider ${status}` } }) }])
     const ctx = await harness(server.url)
-    const result = await assemble(ctx, { model: 'deepseek-v4-flash', messages: [] })
+    const result = await assemble(ctx, { model: 'deepseek-flash', messages: [] })
     expect(result.finish).toMatchObject({ kind: 'error', failure: { code } })
     expect(server.paths).toEqual(['/chat/completions'])
   })
 
   it('uses the resolved catalog context window for usage-based overflow detection', async () => {
-    const model = getBuiltinModels('deepseek').find(candidate => candidate.id === 'deepseek-v4-flash')
-    if (model === undefined) throw new Error('deepseek-v4-flash missing from pi-ai test catalog')
+    const model = getBuiltinModels('deepseek').find(candidate => candidate.id === 'deepseek-flash')
+    if (model === undefined) throw new Error('deepseek-flash missing from pi-ai test catalog')
     const events = [
       '{"choices":[{"delta":{"role":"assistant","content":""},"index":0,"finish_reason":null}]}',
       JSON.stringify({
@@ -335,17 +415,24 @@ describe('PiAiAdapter provider routing', () => {
   })
 
   it('stops the SDK request when the adapter idle watchdog expires', async () => {
-    const server = await mockServer([{ events: textEvents, delayMs: 200 }])
+    const server = await mockServer([{ holdOpen: true }])
     const ctx = await harness(server.url, { streamIdleTimeoutMs: 20 })
+    const controller = new AbortController()
+    onTestFinished(async () => {
+      controller.abort()
+      await ctx.fiber.dispose()
+    })
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
 
-    const result = await assemble(ctx, { model: 'deepseek-v4-flash', messages: [] })
+    const pending = assemble(ctx, { model: 'deepseek-flash', messages: [], signal: controller.signal })
+    await server.requestReceived
+    expect(server.closedResponses).toBe(0)
+    await vi.advanceTimersByTimeAsync(20)
+    vi.useRealTimers()
+
+    const result = await pending
     expect(result.finish).toMatchObject({ kind: 'error', failure: { code: 'TIMEOUT' } })
-    await Promise.race([
-      server.responseClosed,
-      new Promise<never>((_resolve, reject) => {
-        setTimeout(() => { reject(new Error('SDK request did not close after idle timeout')) }, 1_000)
-      }),
-    ])
+    await server.responseClosed
 
     expect(server.paths).toEqual(['/chat/completions'])
     expect(server.closedResponses).toBe(1)
@@ -391,7 +478,7 @@ describe('provider profile lifecycle', () => {
     })
     expect(ctx.llm.providerRetryPolicy('anthropic')).toMatchObject({
       mode: 'normal',
-      maxRetries: 2,
+      maxRetries: 5,
     })
     await fiber.dispose()
     expect(ctx.llm.listProviders()).toEqual([])
@@ -418,11 +505,12 @@ describe('provider profile lifecycle', () => {
       providers: { deepseek: {}, openai: {} },
     })
 
-    await expect(ctx.llm.resolveModelInfo('deepseek', 'deepseek-v4-flash'))
+    await expect(ctx.llm.resolveModelInfo('deepseek', 'deepseek-flash'))
       .resolves.toMatchObject({
         reasoning: {
           efforts: [
             { id: ReasoningEffortId('off'), name: 'Off' },
+            { id: ReasoningEffortId('low'), name: 'Low' },
             { id: ReasoningEffortId('high'), name: 'High' },
             { id: ReasoningEffortId('max'), name: 'Max' },
           ],
@@ -450,7 +538,7 @@ describe('provider profile lifecycle', () => {
     await supported.plugin(LlmPiAi, {
       providers: { deepseek: { reasoning: 'max' } },
     })
-    await expect(supported.llm.resolveModelInfo('deepseek', 'deepseek-v4-flash'))
+    await expect(supported.llm.resolveModelInfo('deepseek', 'deepseek-flash'))
       .resolves.toMatchObject({ reasoning: { defaultEffort: ReasoningEffortId('max') } })
 
     // A profile level this model cannot take DESCRIBES as no default rather
@@ -463,11 +551,11 @@ describe('provider profile lifecycle', () => {
     await unsupported.plugin(LlmPiAi, {
       providers: { deepseek: { reasoning: 'medium' } },
     })
-    const described = await unsupported.llm.resolveModelInfo('deepseek', 'deepseek-v4-flash')
+    const described = await unsupported.llm.resolveModelInfo('deepseek', 'deepseek-flash')
     expect(described.reasoning?.defaultEffort).toBeUndefined()
     expect(described.reasoning?.efforts.length).toBeGreaterThan(0)
     await expect(assemble(unsupported, {
-      provider: 'deepseek', model: 'deepseek-v4-flash', messages: [],
+      provider: 'deepseek', model: 'deepseek-flash', messages: [],
     })).resolves.toMatchObject({
       finish: { kind: 'error', failure: { code: 'UNSUPPORTED_REASONING_EFFORT' } },
     })
@@ -477,7 +565,7 @@ describe('provider profile lifecycle', () => {
     await disabled.plugin(LlmPiAi, {
       providers: { deepseek: { reasoning: 'off' } },
     })
-    await expect(disabled.llm.resolveModelInfo('deepseek', 'deepseek-v4-flash'))
+    await expect(disabled.llm.resolveModelInfo('deepseek', 'deepseek-flash'))
       .resolves.toMatchObject({ reasoning: { defaultEffort: ReasoningEffortId('off') } })
   })
 
@@ -596,6 +684,46 @@ describe('provider profile lifecycle', () => {
     expect(server.requests[1]).not.toHaveProperty('reasoning_effort')
   })
 
+  it('keeps the system role on a declared route whose gateway rejects the developer one', async () => {
+    vi.stubEnv('PI_TEST_KEY', 'test-key')
+    const server = await mockServer([{ events: textEvents }, { events: textEvents }])
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    await ctx.plugin(LlmPiAi, {
+      providers: {
+        'acme-gateway': {
+          apiKeyEnv: 'PI_TEST_KEY',
+          api: 'openai-completions',
+          baseURL: `${server.url}/v1`,
+          models: [
+            // pi-ai sends the system prompt as `developer` to a reasoning
+            // model whenever its URL detection says the endpoint is OpenAI —
+            // which is what an unrecognized private URL resolves to. Most
+            // OpenAI-compatible gateways reject that role.
+            { id: 'acme-think', reasoningEfforts: { off: null, high: 'high' }, compat: { supportsDeveloperRole: false } },
+            { id: 'acme-guess', reasoningEfforts: { off: null, high: 'high' } },
+          ],
+        },
+      },
+    })
+    const roles = async (model: string): Promise<string[]> => {
+      await assemble(ctx, {
+        provider: 'acme-gateway',
+        model,
+        reasoningEffort: ReasoningEffortId('high'),
+        system: 'you are a harness',
+        messages: [],
+      })
+      const request = server.requests.at(-1) as { messages: { role: string }[] }
+      return request.messages.map(message => message.role)
+    }
+
+    expect(await roles('acme-think')).toEqual(['system'])
+    // The switch is the only thing that changes it: the same route, same
+    // endpoint, same reasoning declaration still gets pi-ai's guess.
+    expect(await roles('acme-guess')).toEqual(['developer'])
+  })
+
   it('sends a declared off value as the effort parameter instead of omitting it', async () => {
     vi.stubEnv('PI_TEST_KEY', 'test-key')
     const server = await mockServer([{ events: textEvents }])
@@ -666,7 +794,7 @@ describe('provider profile lifecycle', () => {
     // A profile that names no reference at all is the one case that defers to
     // pi-ai's own provider-native discovery.
     const ctx = await harness(server.url, { apiKeyEnv: undefined })
-    await assemble(ctx, { model: 'deepseek-v4-flash', messages: [] })
+    await assemble(ctx, { model: 'deepseek-flash', messages: [] })
     expect(server.headers[0]?.authorization).toBe('Bearer ambient-key')
   })
 
@@ -674,7 +802,7 @@ describe('provider profile lifecycle', () => {
     vi.stubEnv('PI_CUSTOM_REF_KEY', 'custom-ref-key')
     const server = await mockServer([{ events: textEvents }])
     const ctx = await harness(server.url, { apiKey: undefined, apiKeyEnv: 'PI_CUSTOM_REF_KEY' })
-    await assemble(ctx, { model: 'deepseek-v4-flash', messages: [] })
+    await assemble(ctx, { model: 'deepseek-flash', messages: [] })
     expect(server.headers[0]?.authorization).toBe('Bearer custom-ref-key')
   })
 
@@ -686,9 +814,9 @@ describe('provider profile lifecycle', () => {
     vi.stubEnv('DEEPSEEK_API_KEY', 'ambient-key')
     const server = await mockServer([{ events: textEvents }])
     const ctx = await harness(server.url, { apiKey: undefined, apiKeyEnv: 'PI_CUSTOM_REF_KEY' })
-    const first = await assemble(ctx, { model: 'deepseek-v4-flash', messages: [] })
+    const first = await assemble(ctx, { model: 'deepseek-flash', messages: [] })
     expect(first.finish).toMatchObject({ kind: 'error', failure: { code: 'MISSING_CREDENTIAL' } })
-    const second = await assemble(ctx, { model: 'deepseek-v4-flash', messages: [] })
+    const second = await assemble(ctx, { model: 'deepseek-flash', messages: [] })
     expect(second.finish.kind).toBe('error')
     if (second.finish.kind !== 'error') throw new Error('expected an error finish')
     expect(second.finish.failure.message).toMatch(/provider route "deepseek".*PI_CUSTOM_REF_KEY/s)
@@ -696,6 +824,7 @@ describe('provider profile lifecycle', () => {
   })
 
   it('validates empty, underspecified, legacy-shaped, and explicitly blank profiles', () => {
+    expect(DEFAULT_MAX_REQUEST_IMAGE_BYTES).toBe(20 * 1024 * 1024)
     // Empty and omitted dicts are the dormant zero-route posture, not errors.
     expect(resolveProfiles({}).size).toBe(0)
     expect(resolveProfiles(undefined).size).toBe(0)
@@ -709,6 +838,20 @@ describe('provider profile lifecycle', () => {
     expect(() => resolveProfiles({ openai: { provider: 'openai' } as never })).toThrow(/moved to the providers dict key/)
     expect(() => resolveProfiles({ openai: { baseURL: '' } })).toThrow(/empty baseURL/)
     expect(() => resolveProfiles({ openai: { apiKeyEnv: 'not-a-var!' } })).toThrow(/must match/)
+    expect(() => resolveProfiles({ openai: { maxRequestImageBytes: 0 } })).toThrow(/maxRequestImageBytes/)
+    expect(resolveProfiles({ openai: {} }).get('openai')?.maxRequestImageBytes)
+      .toBe(DEFAULT_MAX_REQUEST_IMAGE_BYTES)
+    expect(resolveProfiles({ openai: { maxRequestImageBytes: 1024 } }).get('openai')?.maxRequestImageBytes)
+      .toBe(1024)
+  })
+
+  it.each([
+    ['bad header name', 'value'],
+    ['x-company', 'line\nbreak'],
+    ['x-company', '部署'],
+  ])('rejects provider header %j when Fetch cannot represent the entry', (name, value) => {
+    expect(() => resolveProfiles({ openai: { headers: { [name]: value } } }))
+      .toThrow(`provider "openai" header "${name}" is not valid for Fetch`)
   })
 
   it.each(['maxRetries', 'maxRetryDelayMs'] as const)(
@@ -730,6 +873,9 @@ describe('provider profile lifecycle', () => {
       { streamIdleTimeoutMs: 0 },
       { streamIdleTimeoutMs: Number.NaN },
       { streamIdleTimeoutMs: MAX_TIMER_DELAY_MS + 1 },
+      { maxRequestImageBytes: 0 },
+      { maxRequestImageBytes: 1.5 },
+      { maxRequestImageBytes: Number.NaN },
     ]
     for (const entry of invalid) {
       const ctx = new Context()
@@ -773,34 +919,30 @@ describe('provider profile lifecycle', () => {
 
     await expect(drain({
       provider: 'deepseek',
-      model: 'deepseek-v4-flash',
+      model: 'deepseek-v4-pro',
       messages: [createUserMessage({
         content: [{ type: 'image', attachment: IMAGE_REF }],
-        source: { kind: 'plugin', plugin: 'test' },
+        source: { kind: 'model', provider: 'deepseek-official', model: 'deepseek-v4-flash' },
       })],
-    })).rejects.toMatchObject({ code: 'UNSUPPORTED_CONTENT' })
+    })).rejects.toMatchObject({
+      code: 'UNSUPPORTED_CONTENT',
+      message: 'pi-ai model "deepseek-v4-pro" does not support image input',
+    })
     await expect(drain({
       provider: 'openai',
       model: 'gpt-4.1',
       messages: [createUserMessage({
         content: [{ type: 'image', attachment: IMAGE_REF }],
-        source: { kind: 'plugin', plugin: 'test' },
+        source: { kind: 'model', provider: 'deepseek-official', model: 'deepseek-v4-flash' },
       })],
     })).rejects.toMatchObject({ code: 'UNSUPPORTED_CONTENT' })
     await expect(drain({
       provider: 'openai',
       model: 'gpt-4.1',
-      messages: [createUserMessage({
-        content: [{
-          type: 'tool-result',
-          toolCallId: 'call-outer' as never,
-          content: [{
-            type: 'tool-result',
-            toolCallId: 'call-inner' as never,
-            content: [{ type: 'image', attachment: IMAGE_REF }],
-          }],
-        }],
-        source: { kind: 'plugin', plugin: 'test' },
+      messages: [createToolResultMessage({
+        callId: 'call-outer' as never,
+        content: [{ type: 'image', attachment: IMAGE_REF }],
+        isError: false,
       })],
     })).rejects.toMatchObject({ code: 'UNSUPPORTED_CONTENT' })
   })
@@ -825,7 +967,7 @@ describe('abort wiring', () => {
     const drain = async (): Promise<void> => {
       for await (const _chunk of adapter.stream({
         provider: 'deepseek',
-        model: 'deepseek-v4-flash',
+        model: 'deepseek-flash',
         messages: [message as never],
       })) { /* drain */ }
     }
@@ -846,7 +988,7 @@ describe('abort wiring', () => {
     const drain = async (): Promise<void> => {
       for await (const _chunk of adapter.stream({
         provider: 'deepseek',
-        model: 'deepseek-v4-flash',
+        model: 'deepseek-flash',
         messages: [message as never],
         signal: controller.signal,
       })) { /* drain */ }
@@ -862,11 +1004,14 @@ describe('abort wiring', () => {
     const chunks = []
     for await (const chunk of adapter.stream({
       provider: 'deepseek',
-      model: 'deepseek-v4-flash',
+      model: 'deepseek-flash',
       messages: [],
       signal: controller.signal,
     })) chunks.push(chunk)
-    expect(chunks.at(-1)).toMatchObject({ type: 'finish', reason: { kind: 'aborted' } })
+    expect(chunks.at(-1)).toMatchObject({
+      type: 'finish',
+      reason: { kind: 'aborted', failure: { code: 'ABORTED' } },
+    })
   })
 
   it('honors a pre-aborted caller signal', async () => {
@@ -874,7 +1019,7 @@ describe('abort wiring', () => {
     const ctx = await harness(server.url)
     const controller = new AbortController()
     controller.abort('already stopped')
-    const result = await assemble(ctx, { model: 'deepseek-v4-flash', messages: [], signal: controller.signal })
+    const result = await assemble(ctx, { model: 'deepseek-flash', messages: [], signal: controller.signal })
     expect(result.finish.kind).toBe('aborted')
   })
 
@@ -883,7 +1028,7 @@ describe('abort wiring', () => {
     const ctx = await harness(server.url)
     const controller = new AbortController()
     const resultPromise = assemble(ctx, {
-      model: 'deepseek-v4-flash', messages: [], signal: controller.signal,
+      model: 'deepseek-flash', messages: [], signal: controller.signal,
     })
     setTimeout(() => { controller.abort('stopped during stream') }, 10)
     const result = await resultPromise
@@ -893,10 +1038,23 @@ describe('abort wiring', () => {
   it('aborts upstream when a consumer stops early', async () => {
     const server = await mockServer([{ events: textEvents, delayMs: 30 }])
     const ctx = await harness(server.url)
-    for await (const chunk of ctx.llm.stream({ provider: 'deepseek', model: 'deepseek-v4-flash', messages: [] })) {
+    for await (const chunk of ctx.llm.stream({ provider: 'deepseek', model: 'deepseek-flash', messages: [] })) {
       if (chunk.type === 'block-start') break
     }
     await new Promise(resolve => setTimeout(resolve, 20))
     expect(server.requests).toHaveLength(1)
   })
+})
+
+it.each([
+  new LlmError('missing credential', 'MISSING_CREDENTIAL'),
+  new LlmError('invalid credential', 'INVALID_CREDENTIAL'),
+  new Error('credential storage failed'),
+])('retains its configured catalog independently of credential failures: $message', async (error) => {
+  const adapter = new PiAiAdapter({
+    profiles: () => resolveProfiles({ deepseek: { apiKeyEnv: 'PI_TEST_KEY' } }),
+    resolveApiKey: () => Promise.reject(error),
+    auth: memoryAuth(),
+  })
+  expect(await adapter.listModels('deepseek')).not.toHaveLength(0)
 })

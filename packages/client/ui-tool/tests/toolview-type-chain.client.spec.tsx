@@ -2,7 +2,7 @@
 // atomic-view props. Generic slot-system duals live in ui-slots tests.
 import { describe, expect, it } from 'vitest'
 import type { ReactNode } from 'react'
-import { SlotRegistry } from '@deepseek-ai/dsh-client-runtime/client'
+import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { ToolCallViewProps } from '../src/client/contract/slots.ts'
 
 describe('toolview type negatives (compile-time; body never runs)', () => {
@@ -22,6 +22,12 @@ describe('toolview type negatives (compile-time; body never runs)', () => {
       }
       void overreaching
       const drifted = (props: ToolCallViewProps): ReactNode => {
+        if (props.phase === 'preparing') {
+          // @ts-expect-error preparation has no complete arguments
+          void props.block.argsRaw
+          // @ts-expect-error preparation has no result content
+          void props.block.content
+        }
         // @ts-expect-error the Tool call union has no pre-parsed args member
         void props.block.argsParsed
         return null

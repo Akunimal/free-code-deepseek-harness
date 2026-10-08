@@ -18,25 +18,40 @@
       "path": "../../feedback/message-feedback"
     },
     {
-      "path": "../../runtime-diagnostics/invariants"
+      "path": "../../core/session"
     },
     {
       "path": "../../typert/protocol"
     },
     {
-      "path": "../locale"
+      "path": "../locale/tsconfig.client.json"
     },
     {
-      "path": "../runtime"
+      "path": "../ui-chat/tsconfig.client.json"
     },
     {
-      "path": "../ui-conversation"
+      "path": "../ui-renderer"
+    },
+    {
+      "path": "../ui-session"
+    },
+    {
+      "path": "../ui-conversation/tsconfig.client.json"
     },
     {
       "path": "../ui-primitives"
     },
     {
       "path": "../ui-slots"
+    },
+    {
+      "path": "../../feedback/command-feedback"
+    },
+    {
+      "path": "../ui-commands"
+    },
+    {
+      "path": "../store"
     }
   ]
 }

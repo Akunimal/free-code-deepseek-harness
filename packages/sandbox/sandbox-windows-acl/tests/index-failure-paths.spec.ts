@@ -11,12 +11,13 @@
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { Win32Error } from '@deepseek-ai/dsh-win32-process'
+import { ERROR_BROKEN_PIPE } from '@deepseek-ai/dsh-win32-process/src/abi.ts'
+import { processInformationType } from '@deepseek-ai/dsh-win32-process/src/ffi.ts'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import koffi from 'koffi'
 
-import { PROCESS_INFORMATION } from '../src/ffi.ts'
 import type { NativePtr, Win32Bindings } from '../src/ffi.ts'
-import { Win32Error } from '../src/errors.ts'
 import { AclSandbox } from '../src/index.ts'
 import * as abi from '../src/win32-abi.ts'
 
@@ -34,6 +35,8 @@ interface HappyStubs {
   createRestrictedToken: MockFn
   createJobObjectW: MockFn
   getNamedSecurityInfoW: MockFn
+  setTokenInformation: MockFn
+  addMandatoryAce: MockFn
 }
 
 const state = vi.hoisted(() => ({ stubs: undefined as HappyStubs | undefined }))
@@ -58,6 +61,11 @@ function scratch(): string {
   return dir
 }
 
+/** Stub binding table: only the members a test drives, so the rest are never called. */
+function stubBindings(overrides: Partial<Win32Bindings>): Win32Bindings {
+  return overrides as Win32Bindings
+}
+
 /**
  * The stub the whole happy pipeline needs: token opening, capability-SID
  * parsing, workspace+temp grants, logon-SID scan, well-known SID, restricted token,
@@ -66,7 +74,7 @@ function scratch(): string {
  */
 function happyStubs(): HappyStubs {
   let next = 0n
-  const fresh = () => ++next
+  const fresh = (): NativePtr => ++next as NativePtr
 
   const openProcess = vi.fn(() => fresh())
   const openProcessToken = vi.fn((_process: unknown, _access: unknown, slot: NativePtr) => {
@@ -85,9 +93,10 @@ function happyStubs(): HappyStubs {
   const createFileW = vi.fn(() => fresh())
   const getNamedSecurityInfoW = vi.fn((
     _path: unknown, _type: unknown, _info: unknown, _owner: unknown, _group: unknown,
-    dacl: NativePtr, _sacl: unknown, descriptor: NativePtr,
+    dacl: NativePtr, sacl: NativePtr, descriptor: NativePtr,
   ) => {
     koffi.encode(dacl, PVOID, 0n)
+    koffi.encode(sacl, PVOID, 0n)
     koffi.encode(descriptor, PVOID, 0n)
     return 0
   })
@@ -96,6 +105,9 @@ function happyStubs(): HappyStubs {
     return 0
   })
   const setNamedSecurityInfoW = vi.fn(() => 0)
+  const localAlloc = vi.fn(() => fresh())
+  const initializeAcl = vi.fn(() => 1)
+  const addMandatoryAce = vi.fn(() => 1)
   const getTokenInformation = vi.fn((_token: unknown, cls: number, info: Buffer | null, _length: number, needed: NativePtr) => {
     if (info === null) {
       koffi.encode(needed, 'uint32', cls === abi.TokenGroups ? 24 : 8)
@@ -132,7 +144,7 @@ function happyStubs(): HappyStubs {
     _token: unknown, _app: unknown, _cmd: unknown, _pa: unknown, _ta: unknown,
     _inherit: unknown, _flags: unknown, _env: unknown, _cwd: unknown, _si: unknown, processInfo: NativePtr,
   ) => {
-    koffi.encode(processInfo, PROCESS_INFORMATION, { hProcess: fresh(), hThread: fresh(), dwProcessId: 1234, dwThreadId: 5678 })
+    koffi.encode(processInfo, processInformationType(), { hProcess: fresh(), hThread: fresh(), dwProcessId: 1234, dwThreadId: 5678 })
     return 1
   })
   const peekNamedPipe = vi.fn(() => 0)
@@ -146,25 +158,28 @@ function happyStubs(): HappyStubs {
   const setInformationJobObject = vi.fn(() => 1)
   const assignProcessToJobObject = vi.fn(() => 1)
   const resumeThread = vi.fn(() => 0)
+  const terminateProcess = vi.fn(() => 1)
   const getStdHandle = vi.fn(() => fresh())
-  const localFree = vi.fn(() => 0n)
+  const localFree = vi.fn(() => 0n as NativePtr)
   const closeHandle = vi.fn(() => 1)
-  const getLastError = vi.fn(() => abi.ERROR_BROKEN_PIPE) // the drains' clean EOF
+  const getLastError = vi.fn(() => ERROR_BROKEN_PIPE) // the drains' clean EOF
   const formatMessageW = vi.fn(() => 0)
 
-  const api = {
+  const api = stubBindings({
     openProcess, openProcessToken, convertStringSidToSidW, getTempPathW, createFileW,
     lockFileEx: vi.fn(() => 1), unlockFileEx: vi.fn(() => 1),
     getNamedSecurityInfoW, setEntriesInAclW, setNamedSecurityInfoW, getTokenInformation,
+    localAlloc, initializeAcl, addMandatoryAce,
     getLengthSid, copySid, createWellKnownSid, isValidSid, createRestrictedToken,
     setTokenInformation, createPipe, setHandleInformation, createProcessAsUserW,
     peekNamedPipe, readFile, waitForSingleObject, getExitCodeProcess, createJobObjectW,
-    setInformationJobObject, assignProcessToJobObject, resumeThread, getStdHandle,
+    setInformationJobObject, assignProcessToJobObject, resumeThread, terminateProcess,
+    getStdHandle,
     localFree, closeHandle, getLastError, formatMessageW,
-  } as unknown as Win32Bindings
+  })
   return {
     api, setNamedSecurityInfoW, convertStringSidToSidW, closeHandle, localFree,
-    createRestrictedToken, createJobObjectW, getNamedSecurityInfoW,
+    createRestrictedToken, createJobObjectW, getNamedSecurityInfoW, setTokenInformation, addMandatoryAce,
   }
 }
 
@@ -335,10 +350,11 @@ describe('AclSandbox init', () => {
     localFree.mockImplementation(() => (inCleanup ? 1n : 0n))
     getNamedSecurityInfoW.mockImplementation((
       _path: unknown, _type: unknown, _info: unknown, _owner: unknown, _group: unknown,
-      dacl: NativePtr, _sacl: unknown, descriptor: NativePtr,
+      dacl: NativePtr, sacl: NativePtr, descriptor: NativePtr,
     ) => {
       if (inCleanup) return 2 // the cleanup's revocation read fails too
       koffi.encode(dacl, PVOID, 0n)
+      koffi.encode(sacl, PVOID, 0n)
       koffi.encode(descriptor, PVOID, 0n)
       return 0
     })
@@ -349,12 +365,30 @@ describe('AclSandbox init', () => {
       tempWriteSid: 'S-1-4-9000-10-1',
       mode: 'workspace-write',
     })
-    await expect(sandbox.init()).rejects.toThrow(/5 cleanup operation\(s\) also failed/u)
+    // Five SID frees/mutations fail plus the Low label SID the init allocated.
+    await expect(sandbox.init()).rejects.toThrow(/6 cleanup operation\(s\) also failed/u)
     expect(sandbox.tempDir).toBeUndefined()
   })
 })
 
 describe('AclSandbox spawn', () => {
+  it('refuses control with piped stdio before starting a restricted process', async () => {
+    const sandbox = new AclSandbox({ writableDirs: [], tempDir: null, mode: 'read-only' })
+    await sandbox.init()
+    expect(() => sandbox.spawn({ command: 'probe.exe', controlFileDescriptor: 7 })).toThrow('control pipe requires inherited stdio')
+    sandbox.dispose()
+  })
+
+  it('forwards the inherited control pipe to the restricted child', async () => {
+    const { api } = state.stubs as HappyStubs
+    Object.assign(api, { uvGetOsfhandle: vi.fn(() => 107n), getFileType: vi.fn(() => 3) })
+    const sandbox = new AclSandbox({ writableDirs: [], tempDir: null, mode: 'read-only' })
+    await sandbox.init()
+    const child = sandbox.spawn({ command: 'probe.exe', stdio: 'inherit', controlFileDescriptor: 7 })
+    await expect(child.wait()).resolves.toEqual({ stdout: Buffer.alloc(0), stderr: Buffer.alloc(0), exitCode: 42 })
+    sandbox.dispose()
+  })
+
   it('refuses to spawn before init', () => {
     const workspace = scratch()
     const sandbox = new AclSandbox({ writableDirs: [workspace], tempDir: null, writeSid: 'S-1-4-9000-11', mode: 'workspace-write' })

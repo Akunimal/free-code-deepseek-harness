@@ -19,7 +19,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { foldConsumedWork } from '@deepseek-ai/dsh-agent'
-import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
+import { SessionLogOffset } from '@deepseek-ai/dsh-session'
+import type { SessionEvent, SessionId, SessionLogOffset as SessionLogOffsetType } from '@deepseek-ai/dsh-session'
 import { finalAssistantOutput } from './assistant-output.ts'
 import { SubagentRunId } from './types.ts'
 import type { SubagentResult, SubagentRun, SubagentRunEndInfo, SubagentRunInfo } from './types.ts'
@@ -32,7 +33,7 @@ export interface ActivationTerminal {
   /** Why this epoch's last ordinary turn ended, or `error` when teardown failed. */
   readonly stopReason: SubagentResult['stopReason']
   /** The epoch's final assistant content, absent when it produced none or failed. */
-  readonly output?: ContentBlock[]
+  readonly output?: readonly ContentBlock[]
 }
 
 /**
@@ -182,7 +183,7 @@ export function createActivationObserver(
   // A cold resume replays earlier turns, so this epoch's telemetry must come
   // from the suffix it actually produced — never the whole session, which
   // would report a previous epoch's answer when this one opened no turn.
-  let boundary = 0
+  let boundary: SessionLogOffsetType = SessionLogOffset(0)
   // Assigned by `capture()`, which the disposal path always runs before
   // `settle()`; a resident epoch therefore always has its facts by then.
   let captured: ActivationTerminal = { stopReason: 'completed' }
@@ -193,11 +194,12 @@ export function createActivationObserver(
     : { stopReason: 'error' }
   return {
     start: (child: Agent): void => {
-      boundary = child.session.events.length
+      boundary = child.session.seq
       emit('subagent/start', identity, parent)
     },
     capture: (child: Agent): void => {
-      const own = child.session.events.slice(boundary)
+      // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
+      const own = child.session.snapshotEvents(boundary)
       const output = finalAssistantOutput(own)
       captured = {
         stopReason: epochStopReason(own),
@@ -251,9 +253,10 @@ function epochStopReason(events: readonly SessionEvent[]): SubagentResult['stopR
     case undefined:
     case 'completed':
       return droppedUnrun ? 'aborted' : 'completed'
-    /* v8 ignore next 3 -- `TurnEndReason` is merge-extensible, so this arm needs a
-     * backend that adds a variant; treating an unnameable reason as success would
-     * report failed work as completed. */
+    /* v8 ignore next 4 -- `forked` appears only in constructor seed history, while
+     * this function reads an epoch-owned suffix. `TurnEndReason` is merge-extensible,
+     * so a backend-added variant cannot be listed; treating an unnameable reason as
+     * success would report failed work as completed. */
     default:
       return 'error'
   }

@@ -9,7 +9,7 @@
   ],
   "references": [
     {
-      "path": "../../runtime-diagnostics/invariants"
+      "path": "../../../vendor/cordis"
     },
     {
       "path": "../ui-slots"
@@ -18,10 +18,13 @@
       "path": "../ui-primitives"
     },
     {
-      "path": "../locale"
+      "path": "../../api/remotes/tsconfig.client.json"
     },
     {
-      "path": "../runtime"
+      "path": "../locale/tsconfig.client.json"
+    },
+    {
+      "path": "../ui-renderer"
     },
     {
       "path": "../ui-workspace"

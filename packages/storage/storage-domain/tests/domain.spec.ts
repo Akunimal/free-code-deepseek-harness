@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { z } from 'zod'
 import Storage, { storageBackendServiceKey } from '@deepseek-ai/dsh-storage'
-import { apply, DomainFacility, defineDomain, domainTable } from '../src/index.ts'
+import { apply, defineDomain, descriptorOf, DomainFacility, domainTable } from '../src/index.ts'
 import type { Config } from '../src/index.ts'
 import type { DomainChanged } from '../src/events.ts'
 import { MemoryMediaPool, MemoryStorageBackend } from './helpers/memory-backend.ts'
@@ -32,8 +32,6 @@ async function harness(options?: { pool?: MemoryMediaPool; config?: Partial<Conf
   const backend = new MemoryStorageBackend(options?.pool)
   ctx.storage.backend.register('memory', backend)
   const facility = new DomainFacility(ctx, { backend: 'memory', routes: {}, ...options?.config })
-  // Mounted, not just constructed: the package invariant resolves the form
-  // through ctx.storage to cross-check every domain/changed emission.
   ctx.storage.mount('domain', facility)
   const changes: DomainChanged[] = []
   ctx.on('domain/changed', (change) => { changes.push(change) })
@@ -56,6 +54,36 @@ describe('defineDomain', () => {
       global: { schema: settingsSchema.nullable(), initial: null },
       tables: {},
     })).toThrow(/must not accept null/)
+  })
+
+  it('validates compatibleVersions entries and projects them onto the descriptor', () => {
+    expect(() => defineDomain({ name: 'ok', version: 2, compatibleVersions: [1.5], tables: {} }))
+      .toThrow(/compatibleVersions/)
+    expect(() => defineDomain({ name: 'ok', version: 2, compatibleVersions: [2], tables: {} }))
+      .toThrow(/below version/)
+    expect(() => defineDomain({ name: 'ok', version: 2, compatibleVersions: [-1], tables: {} }))
+      .toThrow(/compatibleVersions/)
+    expect(descriptorOf(defineDomain({ name: 'ok', version: 2, compatibleVersions: [0, 1], tables: {} })))
+      .toMatchObject({ compatibleVersions: [0, 1] })
+    // An undeclared set is absent from the descriptor.
+    expect(descriptorOf(spec)).not.toHaveProperty('compatibleVersions')
+  })
+
+  it('rejects an unknown invalidRecords policy', () => {
+    expect(() => defineDomain({
+      name: 'ok', version: 1, invalidRecords: 'zap' as 'backup-and-skip', tables: {},
+    })).toThrow(/invalidRecords/)
+  })
+
+  it('rejects an invalid layout and projects the declared one onto the descriptor', () => {
+    // A spec built from config can carry any value; the union type is
+    // compile-time only, so the runtime boundary check must reject it.
+    expect(() => defineDomain({ name: 'ok', version: 1, layout: 'every-record' as 'single', tables: {} }))
+      .toThrow(/layout/)
+    expect(descriptorOf(defineDomain({ name: 'per', version: 1, layout: 'per-record', tables: {} })))
+      .toMatchObject({ name: 'per', layout: 'per-record' })
+    // The default (single) layout is absent from the descriptor.
+    expect(descriptorOf(spec)).not.toHaveProperty('layout')
   })
 })
 
@@ -87,8 +115,7 @@ describe('DomainFacility.open', () => {
 
   it('falls back to the default backend when no route table is configured', async () => {
     // A second, unmounted facility whose config omits `routes` entirely
-    // (exactOptionalPropertyTypes forbids an explicit undefined). Opening
-    // emits no events, so the mounted facility's invariant never consults it.
+    // (exactOptionalPropertyTypes forbids an explicit undefined).
     const { ctx } = await harness()
     const routeless = new DomainFacility(ctx, { backend: 'memory' })
     await expect(routeless.open(bareSpec)).resolves.toBeDefined()
@@ -123,6 +150,28 @@ describe('DomainFacility.open', () => {
     pool.media.get('demo')!.tables.get('items')!.set('bad', { label: 'x', count: 'NaN' })
     const { facility } = await harness({ pool })
     await expect(facility.open(spec)).rejects.toMatchObject({
+      code: 'invalid-record',
+      detail: { table: 'items', key: 'bad' },
+    })
+  })
+
+  it('keeps the rejecting default under backup-and-skip when the backend cannot move documents', async () => {
+    // The memory backend has no backupRecord, so the declared policy cannot
+    // apply and the open falls back to failing loud.
+    const salvageSpec = defineDomain({
+      name: 'salvage',
+      version: 1,
+      invalidRecords: 'backup-and-skip',
+      tables: { items: domainTable<string, Item>(itemSchema) },
+    })
+    const pool = new MemoryMediaPool()
+    {
+      const { facility } = await harness({ pool })
+      await (await facility.open(salvageSpec)).table('items').put('bad', { label: 'x', count: 2 })
+    }
+    pool.media.get('salvage')!.tables.get('items')!.set('bad', { label: 'x', count: 'NaN' })
+    const { facility } = await harness({ pool })
+    await expect(facility.open(salvageSpec)).rejects.toMatchObject({
       code: 'invalid-record',
       detail: { table: 'items', key: 'bad' },
     })

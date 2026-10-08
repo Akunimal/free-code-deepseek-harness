@@ -39,10 +39,7 @@
       "path": "../../core/scope"
     },
     {
-      "path": "../../settings/settings"
-    },
-    {
-      "path": "../../runtime-diagnostics/invariants"
+      "path": "../../session/session-projection"
     }
   ]
 }

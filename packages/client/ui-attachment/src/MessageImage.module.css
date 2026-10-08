@@ -23,8 +23,8 @@
   min-height: 44px;
   padding: 0;
   overflow: hidden;
-  border: 1px solid var(--dsw-alias-border-l2-darkmode-thin);
-  border-radius: 16px;
+  border: 0.5px solid var(--dsw-alias-border-l2-darkmode-thin);
+  border-radius: var(--dsw-radius-xl);
   background: var(--dsw-alias-interactive-bg-hover);
   cursor: zoom-in;
 }
@@ -53,8 +53,8 @@
 .error {
   max-width: 240px;
   padding: 10px 12px;
-  border: 1px solid var(--dsw-alias-border-l2-darkmode-thin);
-  border-radius: 10px;
+  border: 0.5px solid var(--dsw-alias-border-l2-darkmode-thin);
+  border-radius: var(--dsw-radius-md);
   background: var(--dsw-alias-interactive-bg-hover-danger);
   cursor: pointer;
 }
@@ -65,5 +65,43 @@
   height: 64px;
   padding: 4px;
   overflow: hidden;
-  border-radius: 16px;
+  border-radius: var(--dsw-radius-xl);
+}
+
+.frame[data-variant='thumbnail'],
+.error[data-variant='thumbnail'] {
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 2px;
+  overflow: hidden;
+  border-radius: var(--dsw-radius-lg);
+}
+
+.frame[data-variant='thumbnail'] img {
+  object-fit: contain;
+}
+
+.spinner {
+  animation: spinner-rotate 0.9s linear infinite;
+}
+
+@keyframes spinner-rotate {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+
+.frame:focus-visible,
+.error:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 2px;
 }

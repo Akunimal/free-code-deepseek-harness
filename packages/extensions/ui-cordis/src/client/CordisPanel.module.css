@@ -71,6 +71,7 @@
   height: 36px;
   padding: 0;
   border-radius: 50%;
+  corner-shape: round;
 }
 
 .rail .footerButtons {
@@ -82,6 +83,7 @@
    left/bottom offsets are measured from the trigger before paint. */
 .panel {
   position: fixed;
+  isolation: isolate;
   z-index: 30;
   display: flex;
   flex-direction: column;
@@ -89,13 +91,24 @@
   max-width: calc(100vw - 24px);
   max-height: 60vh;
   overflow: hidden;
-  border: 1px solid var(--dsw-alias-border-inverted);
+  border: 0;
   border-radius: 12px;
-  background: var(--dsw-specific-menu);
-  box-shadow: var(--dsw-shadow-lv3);
+  --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
+  box-shadow: var(--dsw-elevation-prominent);
   /* Only `.body` scrolls; the header remains fixed above it. */
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+.panel::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--dsw-specific-menu);
+  backdrop-filter: var(--dsw-menu-backdrop-filter);
+  content: '';
+  pointer-events: none;
 }
 
 .header {
@@ -159,7 +172,7 @@
   flex-direction: column;
   gap: 8px;
   padding: 14px 12px 10px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l4);
   border-radius: 12px;
 }
 
@@ -197,34 +210,11 @@
   flex: none;
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   height: 20px;
-  padding: 0 6px;
-  border-radius: 10px;
-  background: var(--dsw-alias-button-ghost-active-fill);
   font-size: 11px;
   line-height: 20px;
   color: var(--dsw-alias-label-caption);
-}
-
-.row[data-cordis-status='idle'] .rowStatus {
-  background: var(--dsw-alias-button-ghost-active-fill);
-  color: var(--dsw-alias-label-caption);
-}
-
-.row[data-cordis-status='awaiting-approval'] .rowStatus,
-.row[data-cordis-status='client-pending'] .rowStatus {
-  background: var(--dsw-alias-state-warn-tertiary);
-  color: var(--dsw-alias-state-warn-label);
-}
-
-.row[data-cordis-status='failed'] .rowStatus {
-  background: var(--dsw-alias-interactive-bg-hover-danger);
-  color: var(--dsw-alias-state-error-primary);
-}
-
-.row[data-cordis-status='running'] .rowStatus {
-  background: var(--dsw-alias-state-success-tertiary);
-  color: var(--dsw-alias-state-success-primary);
 }
 
 .rowDetail {
@@ -248,7 +238,7 @@
   flex: 1;
   height: 26px;
   padding: 0 8px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l3);
   border-radius: 7px;
   background: transparent;
   color: var(--dsw-alias-label-secondary);
@@ -297,8 +287,9 @@
 
 .transitionActions button {
   padding: 2px 8px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l3);
   border-radius: 999px;
+  corner-shape: round;
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   font: inherit;
@@ -331,6 +322,7 @@
   padding: 0;
   border: none;
   border-radius: 999px;
+  corner-shape: round;
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   cursor: pointer;

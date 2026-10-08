@@ -15,16 +15,25 @@
       "path": "../../../vendor/cordis"
     },
     {
+      "path": "../../../vendor/schemastery"
+    },
+    {
       "path": "../../util/brand"
     },
     {
       "path": "../../attachment/attachment"
     },
     {
-      "path": "../../runtime-diagnostics/invariants"
+      "path": "../../util/timeout"
     },
     {
-      "path": "../../util/timeout"
+      "path": "../../util/crypto"
+    },
+    {
+      "path": "../../util/values"
+    },
+    {
+      "path": "../../typert/protocol"
     }
   ]
 }

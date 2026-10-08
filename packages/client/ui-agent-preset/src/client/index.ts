@@ -1,17 +1,26 @@
 /**
- * Agent-preset surface plugin, browser half — four surfaces over one roster:
- * a General-settings row for the default preset, a chip on the new-session
- * screen for the session about to start, a read-only label in the session
- * header, and a settings section that manages the roster (copy, delete,
- * default, and the way into a preset's own files).
+ * Agent-preset surface plugin, browser half — three surfaces over one roster:
+ * a chip on the new-session screen for the session about to start, a
+ * read-only label in the session header, and a settings section that lists
+ * the roster (selection, the new-task default, a read-only view of each
+ * declared composition, and the way into Creator mode).
  *
  * A running session keeps the composition it began with (the host refuses to
  * adopt an existing session under a different preset). That is what splits
- * the choice from the display: the General row and the hero chip are both
- * before-the-fact, while the header only reports what a session already runs.
+ * the choice from the display: the hero chip is before-the-fact, while the
+ * header only reports what a session already runs. The default preset is
+ * edited where the roster is visible — the settings section's "make default"
+ * — so General settings carries no duplicate control for the same field.
+ *
+ * Coding Tools (General settings) hide PTC and Minimal from the hero menu
+ * and Settings roster when off. Hidden saved defaults fall back to Standard;
+ * the existing gate clears staged choices while existing sessions keep their composition.
  */
 
-import type { ConnectionHandle } from '@deepseek-ai/dsh-api-remotes/client'
+// Type-only: pulls the Session Controller service merge (ctx.sessions).
+import type { SessionBinding } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { WeakMapWithValues } from '@deepseek-ai/dsh-util-values'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: pulls the ctx.remote merge and the forwarded-event key face
@@ -19,75 +28,150 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 // Type-only: pulls the settings shell's SlotMap merge (the 'settings.section' entry).
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+// Type-only: pulls the Workspace UI navigation service merge (ctx.uiWorkspace).
+import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
+import type {} from '@deepseek-ai/dsh-client-ui-plugin-manager/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import { AgentPresetLabel } from './AgentPresetLabel.tsx'
+import { CreatePluginMenuItem } from './CreatePluginMenuItem.tsx'
 import type { AgentPresetLabelInjected } from './AgentPresetLabel.tsx'
-import { AgentPresetRow } from './AgentPresetRow.tsx'
-import type { AgentPresetRowInjected } from './AgentPresetRow.tsx'
 import { AgentPresetSeat } from './AgentPresetSeat.tsx'
 import type { AgentPresetSeatInjected } from './AgentPresetSeat.tsx'
 import { AgentPresetSection } from './AgentPresetSection.tsx'
 import type { AgentPresetSectionInjected } from './AgentPresetSection.tsx'
-import { AgentPresetSeatController } from './seat-store.ts'
-import type { SeatSessionSummary } from './seat-store.ts'
+import { AgentPresetSeatController, type AgentPresetStage } from './seat-store.ts'
 import { AgentPresetSectionController } from './section-store.ts'
-import { en, zh } from './locales.ts'
+import { en, zh, type AgentPresetSettingsKey } from './locales.ts'
 import { AGENT_PRESET_SETTINGS_NS, AgentPresetSettingsController } from './settings-store.ts'
 
+declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface LocaleNamespaceMap {
+    /** Agent-preset surface copy. */
+    'settings.agentPreset': AgentPresetSettingsKey
+  }
+}
+
 export type { AgentPresetLabelInjected, AgentPresetLabelProps } from './AgentPresetLabel.tsx'
-export type { AgentPresetRowInjected, AgentPresetRowProps } from './AgentPresetRow.tsx'
 export type { AgentPresetSeatInjected, AgentPresetSeatProps } from './AgentPresetSeat.tsx'
 export type { AgentPresetSectionInjected, AgentPresetSectionProps } from './AgentPresetSection.tsx'
-export type { AgentPresetSeatState, SeatSessionSummary } from './seat-store.ts'
-export {
-  draftBlocker, type AgentPresetSectionState, type CopyDraft, type PresetRow, type PresetView,
-} from './section-store.ts'
+export type { AgentPresetSeatState } from './seat-store.ts'
+export type { AgentPresetSectionState, PresetView } from './section-store.ts'
 export type { AgentPresetOption, AgentPresetSettingsState } from './settings-store.ts'
 export { AGENT_PRESET_SETTINGS_NS, writeDefaultPreset } from './settings-store.ts'
 
 /** Required services (cordis fiber inject). */
-export const inject = ['slots', 'locale', 'connection', 'remote']
+export const inject = [
+  'slots', 'sessions', 'locale', 'remote', 'remote.agentPresets', 'remote.settings', 'configForms',
+]
 
 /**
- * Mount the General-settings row.
+ * Mount the roster surfaces: hero chip, session-header label, settings section.
  * @param ctx - the browser plugin context.
  */
 export function apply(ctx: ClientContext): void {
-  const { api } = ctx.get('connection') as ConnectionHandle
-  const controller = new AgentPresetSettingsController(api)
-  // One roster, four surfaces. The chip is registered in a later scope, so it
-  // subscribes here rather than being reached from this one.
-  const rosterReaders = new Set<() => void>()
-  const section = new AgentPresetSectionController(api, () => {
-    void controller.load()
-    for (const read of rosterReaders) read()
-  })
+  const toolsSettings = ctx.configForms.get<{ enabled: boolean }>('ui-settings')
+  const presetSettings = ctx.configForms.get(AGENT_PRESET_SETTINGS_NS)
+  let active = true
+  // Host preferences start at false before their first accepted document.
+  const codingToolsDisabled = (): boolean => active && toolsSettings.getSnapshot().mode === 'host'
+    && toolsSettings.getSnapshot().value?.enabled === false
+  const controller = new AgentPresetSettingsController(ctx)
+  const staged: AgentPresetStage = { id: undefined, introduce: false }
+  const seats = new WeakMapWithValues<SessionBinding, AgentPresetSeatController>()
+  const boundSeatDisposers = new Set<() => Promise<void>>()
+  ctx.effect(() => async () => {
+    await Promise.all([...boundSeatDisposers].map(dispose => dispose()))
+  }, 'ui-agent-preset: bound selections')
+  const unboundSeat = new AgentPresetSeatController(ctx, () => undefined, staged)
+  const seatFor = (binding: SessionBinding): AgentPresetSeatController => {
+    const existing = seats.get(binding)
+    if (existing !== undefined) return existing
+    const seat = new AgentPresetSeatController(ctx, () => {
+      if (ctx.sessions.binding(binding.sessionId) !== binding) return undefined
+      const summary = ctx.sessions.list.getSnapshot().byId[binding.sessionId]
+      return summary !== undefined
+        && (ctx.sessions.retainInfo(binding.sessionId).getSnapshot().retainedBy.mainView ?? 0) > 0
+        ? summary
+        : undefined
+    }, staged)
+    seats.set(binding, seat)
+    const dispose = binding.ctx.effect(() => {
+      const stop = ctx.sessions.list.subscribe(() => { void seat.apply() })
+      return () => {
+        stop()
+        seats.delete(binding)
+        boundSeatDisposers.delete(dispose)
+      }
+    }, 'ui-agent-preset: Provider binding')
+    boundSeatDisposers.add(dispose)
+    return seat
+  }
+  const section = new AgentPresetSectionController(ctx)
+  // Turning Developer tools off clears the shared stage before any apply can compose it.
+  const developerTools = ctx.configForms.developerTools.enabled
+  ctx.effect(() => developerTools.subscribe(() => {
+    if (developerTools.getSnapshot()) return
+    staged.id = undefined
+    staged.introduce = false
+    void unboundSeat.apply()
+    for (const seat of seats.values) void seat.apply()
+  }), 'ui-agent-preset: Developer tools gate')
+  const mainBlankSeat = (): AgentPresetSeatController | undefined => {
+    const summary = Object.values(ctx.sessions.list.getSnapshot().byId)
+      .find((session) => {
+        /* v8 ignore next -- retained source counts omit zero-valued entries. */
+        return session.blank && (session.retainedBy.mainView ?? 0) > 0
+      })
+    const binding = summary === undefined ? undefined : ctx.sessions.binding(summary.id)
+    return binding === undefined ? undefined : seatFor(binding)
+  }
 
   ctx.effect(() => ctx.locale.register('settings.agentPreset', { zh, en }), 'ui-agent-preset: settings row dictionaries')
 
-  const injected = (): AgentPresetRowInjected => ({
-    hooks: { agentPreset: controller.store },
-    load: () => controller.load(),
-    select: (id: string) => controller.select(id),
-  })
-
   ctx.effect(() => {
-    // The roster is a live directory and the default is a settings field, so
+    let requested = 0
+    let pending: Promise<void> | undefined
+    // Settings invalidations may land while a correction is waiting on a
+    // person's selection. Recheck once that work settles using the latest values.
+    const reconcile = (): void => {
+      requested++
+      pending ??= Promise.resolve().then(async () => {
+        try {
+          for (;;) {
+            const revision = requested
+            await section.reconcileCodingTools(codingToolsDisabled)
+            if (!active || requested === revision) return
+          }
+        } finally { pending = undefined }
+      })
+    }
+    // The roster reflects live declarations and the default is a settings field, so
     // both an external settings edit and a reconnect can move this row.
     const refresh = (): void => {
       void controller.load()
       // The section reads the same roster and marks the same default, so a
       // change made from either surface converges both.
       if (section.store.getSnapshot().status !== 'idle') void section.load()
+      void unboundSeat.load()
+      for (const seat of seats.values) void seat.load()
+      reconcile()
     }
     const disposers = [
+      toolsSettings.subscribe(reconcile),
+      presetSettings.subscribe(reconcile),
       ctx.remote.$on('settings/document-updated', (ns) => {
         if (ns !== AGENT_PRESET_SETTINGS_NS) return
         refresh()
       }),
-      ctx.on('connection/reset', () => { refresh() }),
+      ctx.on('connection/reset', refresh),
     ]
-    return () => { for (const dispose of disposers) dispose() }
+    reconcile()
+    return async () => {
+      active = false
+      for (const dispose of disposers) dispose()
+      await pending
+    }
   }, 'ui-agent-preset: settings refresh')
 
   // The settings section's conversational authoring entry: stage the
@@ -96,72 +180,33 @@ export function apply(ctx: ClientContext): void {
   // unbound with it, so the section's face reads the current binding per
   // render and simply hides the button while no flow exists.
   let creatorDraft: (() => void) | undefined
-
-  // The new-session chip and the header label: one controller, because the
-  // staged choice belongs to the flow rather than to any one session.
-  ctx.inject(['slots', 'conversation', 'sessions', 'workspaces'], (scope: ClientContext) => {
-    const api = (scope.get('connection') as ConnectionHandle).api
-    const seat = new AgentPresetSeatController(api, (): SeatSessionSummary | undefined => {
-      const state = scope.sessions.list.getSnapshot()
-      const summary = state.current === undefined ? undefined : state.byId[state.current]
-      return summary === undefined
-        ? undefined
-        : {
-          id: summary.id,
-          blank: summary.blank,
-          ...summary.agentPreset === undefined ? {} : { agentPreset: summary.agentPreset },
-        }
-    }, (sessionId, agentPreset) => {
-      scope.sessions.noteAgentPreset(sessionId as never, agentPreset)
-    })
-
-    const seatInjected = (): AgentPresetSeatInjected => ({
-      hooks: { agentPresetSeat: seat.store },
-      load: () => seat.load(),
-      select: (id: string) => seat.select(id),
-      introduced: () => { seat.introduced() },
-    })
+  ctx.inject(['slots', 'conversation', 'sessions', 'uiWorkspace'], (scope: ClientContext) => {
+    const seatInjected = (sessionId: SessionId | undefined): AgentPresetSeatInjected => {
+      const binding = sessionId === undefined ? undefined : ctx.sessions.binding(sessionId)
+      const seat = binding === undefined ? unboundSeat : seatFor(binding)
+      return {
+        hooks: { agentPresetSeat: seat.store, developerTools: ctx.configForms.developerTools.enabled },
+        load: () => seat.load(),
+        select: (id: string) => seat.select(id),
+        dismissRefusal: (error) => { seat.dismissRefusal(error) },
+        introduced: () => { seat.introduced() },
+      }
+    }
 
     const labelInjected = (): AgentPresetLabelInjected => ({
       hooks: { agentPresets: controller.store },
       load: () => controller.load(),
     })
 
+    const startCreatorDraft = () => {
+      const seat = mainBlankSeat() ?? unboundSeat
+      seat.stage('cordis', true)
+      scope.uiWorkspace.startSession()
+      void seat.apply()
+    }
+
     scope.effect(() => {
-      // Connecting a workspace either creates a blank session or reuses one,
-      // and either way the chip's pick predates it — so the stage is applied
-      // when the session arrives, not when it was made.
-      const stop = scope.sessions.list.subscribe(() => { void seat.apply() })
-      // The chip opens on the deployment default, so a default changed from
-      // the settings surface moves it too — otherwise the screen that starts
-      // the next session keeps offering the previous default until a reload,
-      // which is exactly the session the setting claims to govern. A staged
-      // pick survives: `load()` prefers it over the refreshed fallback.
-      const settingsMoved = scope.remote.$on('settings/document-updated', (ns) => {
-        if (ns !== AGENT_PRESET_SETTINGS_NS) return
-        void seat.load()
-      })
-      // Every tab folds the committed preset into the shared session row; the
-      // initiating tab may already have applied the RPC echo, which is idempotent.
-      const presetSelected = scope.remote.$on('agent-preset/selected', (sessionId, agentPreset) => {
-        scope.sessions.noteAgentPreset(sessionId, agentPreset)
-      })
-      // Authoring writes a FILE, not a setting, so nothing on the wire
-      // announces it — without this the screen that starts the next session
-      // keeps offering the roster as it stood when the chip first loaded, and
-      // a preset authored to be used is missing from the one place it is used.
-      const readRoster = (): void => { void seat.load() }
-      rosterReaders.add(readRoster)
-      // Stage WITHOUT applying — the still-current running session would
-      // refuse the swap and drop the stage — then start the session it lands
-      // on: the chip's list-change applier composes the blank session the
-      // workspace connect produces or reuses.
-      creatorDraft = () => {
-        // The introduce cue makes the chip announce the pick the user never
-        // made on this screen — the stage happened back in settings.
-        seat.stage('cordis', true)
-        scope.workspaces.startSession()
-      }
+      creatorDraft = startCreatorDraft
       const chip = scope.slots.register({
         name: 'conversation.hero.agentPreset',
         locale: 'settings.agentPreset',
@@ -176,41 +221,47 @@ export function apply(ctx: ClientContext): void {
         inject: labelInjected,
       }, AgentPresetLabel)
       return () => {
-        stop()
-        settingsMoved()
-        presetSelected()
-        rosterReaders.delete(readRoster)
         creatorDraft = undefined
         chip()
         label()
       }
     }, 'ui-agent-preset: new-session chip and header label')
+
+    scope.slots.inject('plugins.add.actions', () => scope.slots.register({
+      name: 'plugins.add.actions',
+      id: 'create-plugin',
+      locale: 'settings.agentPreset',
+      inject: () => ({
+        hooks: { agentPresets: controller.store },
+        load: () => controller.load(),
+        startCreatorDraft,
+      }),
+    }, CreatePluginMenuItem))
   })
 
+  /** Capture the exact blank Session one Settings action may update. */
+  const captureBlankSessionSync = (): ((id: string) => Promise<string | undefined>) => {
+    const summary = Object.values(ctx.sessions.list.getSnapshot().byId)
+      .find(session => session.blank && (session.retainedBy.mainView ?? 0) > 0)
+    const binding = summary === undefined ? undefined : ctx.sessions.binding(summary.id)
+    const seat = binding === undefined ? undefined : seatFor(binding)
+    const sessionId = seat?.blankSessionId()
+    return async (id: string) => {
+      if (seat === undefined || sessionId === undefined || binding === undefined
+        || seats.get(binding) !== seat) return undefined
+      return await seat.syncBlankSession(sessionId, id)
+    }
+  }
+
   const sectionInjected = (): AgentPresetSectionInjected => ({
-    hooks: { agentPresetSection: section.store },
+    hooks: { agentPresetSection: section.store, developerTools: ctx.configForms.developerTools.enabled },
     load: () => section.load(),
     view: (id: string) => section.view(id),
     closeView: () => { section.closeView() },
-    beginCopy: (from: string) => { section.beginCopy(from) },
-    cancelCopy: () => { section.cancelCopy() },
-    setCopyId: (id: string) => { section.setCopyId(id) },
-    setCopyName: (name: string) => { section.setCopyName(name) },
-    confirmCopy: () => section.confirmCopy(),
-    openLocation: (id: string) => section.openLocation(id),
     ...creatorDraft === undefined ? {} : { startCreatorDraft: creatorDraft },
-    confirmDelete: (id: string | null) => { section.confirmDelete(id) },
-    remove: () => section.remove(),
-    makeDefault: (id: string) => section.makeDefault(id),
+    makeDefault: (id: string) => section.makeDefault(id, captureBlankSessionSync()),
   })
 
-  ctx.slots.inject('settings.general.item', () => ctx.slots.register({
-    name: 'settings.general.item',
-    id: 'agent-preset',
-    order: -25,
-    locale: 'settings.agentPreset',
-    inject: injected,
-  }, AgentPresetRow))
   // Ordered after Models: choosing a model is routine, and composing an
   // agent is the deployment-shaping act behind it.
   ctx.slots.inject('settings.section', () => ctx.slots.register({

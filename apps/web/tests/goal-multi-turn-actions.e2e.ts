@@ -11,15 +11,16 @@ import { parseSessionLog } from '@deepseek-ai/dsh-llm-replay'
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-goal'
 import {
-  assertFixtureInventory, captureStableAria, compareOrRefreshGolden,
+  assertFixtureInventory, captureExpandedTurnProcessAria, captureStableAria, compareOrRefreshGolden,
   launchWebScaffold, recordFixture, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
 import { connectFreshWorkspace, newEnglishPage, saveFailureShot } from './support.ts'
 
-const SNAPSHOT_DIR = fileURLToPath(new URL('./snapshots/goal-multi-turn-actions', import.meta.url))
-const FIXTURE = join(SNAPSHOT_DIR, 'session.jsonl')
+const SNAPSHOT_DIR = fileURLToPath(new URL('../../../snapshots/web/goal-multi-turn-actions', import.meta.url))
+const FIXTURE = join(SNAPSHOT_DIR, 'session.v3.jsonl')
 const OVERRIDE = join(SNAPSHOT_DIR, 'replay.override.json')
 const UI_EXPECTED = join(SNAPSHOT_DIR, 'ui.expected.md')
+const UI_EXPANDED_EXPECTED = join(SNAPSHOT_DIR, 'ui-expanded.expected.md')
 const MODE = webSnapshotMode()
 
 const PROMPT = '做两个turn，每个turn输出随机一个包的文件结构。注意你做完一个turn之后，直接输出内容，停止，我们的系统会帮你再开一个turn，你看着做一个类似的'
@@ -29,7 +30,7 @@ const PACKAGE_FILES: Readonly<Record<string, string>> = {
   'packages/client/ui-conversation/README.md': '# UI conversation\n',
   'packages/client/ui-conversation/package.json': '{"name":"@deepseek-ai/dsh-client-ui-conversation"}\n',
   'packages/client/ui-conversation/src/client.ts': 'export {}\n',
-  'packages/client/ui-conversation/tests/chat-view.client.spec.tsx': 'export {}\n',
+  'packages/client/ui-chat/tests/chat-view.client.spec.tsx': 'export {}\n',
   'packages/context/session-reference/README.md': '# Session reference\n',
   'packages/context/session-reference/package.json': '{"name":"@deepseek-ai/dsh-session-reference"}\n',
   'packages/context/session-reference/src/index.ts': 'export {}\n',
@@ -117,14 +118,14 @@ describe('web e2e: Goal keeps one assistant action row per completed turn', () =
     browser = await chromium.launch()
     page = await newEnglishPage(browser)
     tripwire = watchConsole(page)
-    await page.goto(scaffold.baseUrl, { waitUntil: 'load' })
+    await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
     await connectFreshWorkspace(page, scaffold.workspaceCwd)
   }
 
   /** Submit the Goal command after arming the two-turn barrier. */
   async function runGoal(timeoutMs: number): Promise<SessionId> {
-    const input = page.locator('textarea').first()
+    const input = page.locator('[data-composer-input]').first()
     await input.waitFor({ timeout: 10_000 })
     const settled = whenTurnsSettled(scaffold!, 2, timeoutMs)
     await input.fill(COMMAND)
@@ -151,6 +152,39 @@ describe('web e2e: Goal keeps one assistant action row per completed turn', () =
     expect(sessionEvents.flatMap(event => event.type === 'turn/end' ? [event.data.turn] : []))
       .toEqual([1, 2])
     expect(goalRounds(sessionEvents)).toEqual([1, 2])
+    expect(sessionEvents.flatMap(event =>
+      event.type === 'request/header' ? [event.data.reason] : [])).toEqual(['initial', 'series'])
+    await expect.poll(() => page.locator('[data-turn-process]').count(), { timeout: 15_000 }).toBe(2)
+    const trigger = page.locator('[data-turn-trigger]').first()
+    const process = page.locator('[data-turn-process]').first()
+    const originalFontSize = await page.evaluate(() => document.body.style.getPropertyValue('--dsh-content-font-size'))
+    await process.click()
+    try {
+      for (const fontSize of [10, 14, 22]) {
+        await scaffold!.ctx.settings.update('ui-theme', { fontSize })
+        await expect.poll(() => page.evaluate(() => document.body.style.getPropertyValue('--dsh-content-font-size')))
+          .toBe(`${String(fontSize)}px`)
+        const group = page.locator('[data-process-activity]:visible').first()
+        const groupFontSize = await group.evaluate(element => getComputedStyle(element).fontSize)
+        expect(groupFontSize).toBe(`${String(fontSize)}px`)
+        expect(await process.evaluate(element => getComputedStyle(element).fontSize)).toBe(groupFontSize)
+        expect(await trigger.getByText('Continuing goal', { exact: true })
+          .evaluate(element => getComputedStyle(element).fontSize)).toBe(groupFontSize)
+        expect(await process.evaluate(element => element.getBoundingClientRect().top))
+          .toBe(await trigger.evaluate(element => element.getBoundingClientRect().bottom) + 16)
+        expect(await group.evaluate(element => element.getBoundingClientRect().top))
+          .toBe(await process.evaluate(element => element.getBoundingClientRect().bottom) + 16)
+      }
+    } finally {
+      await scaffold!.ctx.settings.update('ui-theme', { fontSize: Number.parseFloat(originalFontSize) })
+      await expect.poll(() => page.evaluate(() => document.body.style.getPropertyValue('--dsh-content-font-size')))
+        .toBe(originalFontSize)
+      await process.click()
+    }
+    expect(await page.getByRole('button', { name: 'System prompt' }).count()).toBe(0)
+    expect(await page.locator(
+      '[data-chat-flow-kind="system-prompt"]',
+    ).count()).toBe(0)
     const branchButtons = page.getByRole('button', { name: 'Branch into a new conversation' })
     await expect.poll(() => branchButtons.count(), { timeout: 15_000 }).toBe(2)
     expect(await branchButtons.evaluateAll(buttons => buttons.map(button => button.getAttribute('aria-disabled'))))
@@ -158,11 +192,19 @@ describe('web e2e: Goal keeps one assistant action row per completed turn', () =
     await branchButtons.last().focus()
     const snapshot = await captureStableAria(page, '[class*="centerCol"]', scaffold!.workspaceCwd)
     await compareOrRefreshGolden(UI_EXPECTED, snapshot, MODE)
+    const expanded = await captureExpandedTurnProcessAria(
+      page,
+      '[class*="centerCol"]',
+      scaffold!.workspaceCwd,
+    )
+    await compareOrRefreshGolden(UI_EXPANDED_EXPECTED, expanded, MODE)
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
   }, 140_000)
 
   it.skipIf(MODE === 'record')('keeps a closed fixture inventory', async () => {
-    await assertFixtureInventory(SNAPSHOT_DIR, ['replay.override.json', 'session.jsonl', 'ui.expected.md'])
+    await assertFixtureInventory(SNAPSHOT_DIR, [
+      'replay.override.json', 'session.v3.jsonl', 'ui.expected.md', 'ui-expanded.expected.md',
+    ])
   })
 })

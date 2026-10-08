@@ -9,28 +9,34 @@
   ],
   "references": [
     {
+      "path": "../../util/brand"
+    },
+    {
       "path": "../../../vendor/cordis"
     },
     {
-      "path": "../locale"
+      "path": "../locale/tsconfig.client.json"
     },
     {
       "path": "../ui-slots"
     },
     {
-      "path": "../ui-theme"
+      "path": "../ui-theme/tsconfig.client.json"
     },
     {
       "path": "../ui-primitives"
     },
     {
-      "path": "../web-react"
+      "path": "../store"
     },
     {
-      "path": "../runtime"
+      "path": "../ui-renderer"
     },
     {
-      "path": "../../runtime-diagnostics/invariants"
+      "path": "../ui-session"
+    },
+    {
+      "path": "../shortcuts/tsconfig.client.json"
     }
   ]
 }

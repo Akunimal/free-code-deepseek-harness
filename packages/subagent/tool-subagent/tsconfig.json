@@ -21,6 +21,15 @@
       "path": "../../core/agent"
     },
     {
+      "path": "../../core/session"
+    },
+    {
+      "path": "../../session/session-projection"
+    },
+    {
+      "path": "../../core/scope"
+    },
+    {
       "path": "../../llm/llm"
     },
     {
@@ -34,9 +43,6 @@
     },
     {
       "path": "../../jobs/jobs"
-    },
-    {
-      "path": "../../runtime-diagnostics/invariants"
     }
   ]
 }

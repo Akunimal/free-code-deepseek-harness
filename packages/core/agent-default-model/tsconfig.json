@@ -21,10 +21,10 @@
       "path": "../../llm/llm"
     },
     {
-      "path": "../../settings/settings"
+      "path": "../../boot/config-editor"
     },
     {
-      "path": "../../runtime-diagnostics/invariants"
+      "path": "../../settings/settings"
     }
   ]
 }

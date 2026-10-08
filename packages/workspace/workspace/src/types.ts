@@ -6,13 +6,53 @@
  */
 
 import type { Branded } from '@deepseek-ai/dsh-brand'
-import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type {} from '@deepseek-ai/dsh-typert-protocol'
 
 /**
  * Identifies one workspace record. A generated uuid, never the path: path
  * normalization rewrites paths, and a reference anchor must stay stable.
  */
 export type WorkspaceId = Branded<'WorkspaceId'>
+
+declare module '@deepseek-ai/dsh-typert-protocol' {
+  interface RemoteErrorDetailsMap {
+    /** No registration carries that Workspace identity. */
+    'workspace/not-found': { readonly workspaceId: WorkspaceId }
+  }
+}
+
+/**
+ * Activity families a `workspace/session-activity` listener may report. This
+ * package declares none: each provider merges its own key from a module both
+ * its Host and Client faces import, so a consumer that renders the families
+ * sees exactly the keys its program compiled and falls through to a generic
+ * description for any other. The shipped providers merge `turn` (the Agent
+ * registry), `job` (the job registry seam), `subagent` (the Subagent
+ * runtime), and `schedule` (the Schedule plugin).
+ */
+export interface SessionActivityKindMap {}
+
+/** One activity family key. */
+export type SessionActivityKind = keyof SessionActivityKindMap
+
+/** One active item of a family that has per-item identity. */
+export interface SessionActivityItem {
+  /** Family-specific identity: a session id, a job id, or a schedule id. */
+  readonly id: string
+  /** Display label when the family carries one (a job label, a subagent label). */
+  readonly label?: string
+}
+
+/**
+ * One reason a session counts as active for archive admission. Families with
+ * per-item identity list their items so a caller can name what must stop.
+ */
+export interface SessionActivity {
+  readonly kind: SessionActivityKind
+  /** Active items of the family; absent for a family without per-item identity (`turn`). */
+  readonly items?: readonly SessionActivityItem[]
+}
 
 /**
  * One workspace: a stable id over an existing directory, a display title, and
@@ -31,7 +71,7 @@ export interface Workspace {
    */
   readonly path: string
 
-  /** Display title. Defaults to `basename(path)` at create; duplicates are allowed. */
+  /** Display title. Defaults to the final path segment, or a filesystem root's own spelling; duplicates are allowed. */
   readonly title: string
 
   /** ISO-8601 creation instant, stamped at create and never rewritten. */

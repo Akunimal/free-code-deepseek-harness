@@ -6,7 +6,7 @@ English | [中文](2026-06-30-pre-tool-input-rewrite.zh.md)
 
 ## Problem
 
-The [interception extension-points Agent Note](../../implemented/feature/2026-06-30-interception-extension-points.md) defines `tools/pre-execute` as an allow/deny/ask gate over an execution whose identity is already protected and whose arguments are deeply frozen. Claude Code's `PreToolUse` hook also offers `updatedInput`, so a faithful bridge needs an explicit rewrite mechanism. A rewrite cannot be a mutation escape hatch on the existing execution object: it must keep the durable history, audit record, presentation, and executed value consistent.
+The [interception extension-points reference](../../../../packages/core/tools/README.md) defines `tools/pre-execute` as an allow/deny/ask gate over an execution whose identity is already protected and whose arguments are deeply frozen. Claude Code's `PreToolUse` hook also offers `updatedInput`, so a faithful bridge needs an explicit rewrite mechanism. A rewrite cannot be a mutation escape hatch on the existing execution object: it must keep the durable history, audit record, presentation, and executed value consistent.
 
 ## The problem: three readers of pre-execution arguments
 
@@ -16,7 +16,7 @@ In the loop, a tool call's arguments are committed to the log and read by live c
 2. **`tool/call`** is the durable AUDIT record, appended before `ctx.tools.execute()`.
 3. **Human-facing presentation reads `tool/call.arguments`**: UI renderers pass them to `presentResult`; `dsh-tool-bash` derives the card title, the rawInput, the cwd, and the terminal-vs-background treatment from them.
 
-An execution-only rewrite would make the UI show one command while another ran and render the result against the wrong arguments. The registry prevents that failure mode today: it structured-clones and deep-freezes `arguments`, makes the execution identity properties non-writable, and exposes no test shim or listener path that can replace them. The rewrite design must preserve that protected-identity boundary rather than weaken it.
+An execution-only rewrite would make the UI show one command while another ran and render the result against the wrong arguments. The registry prevents that failure mode: it structured-clones and deep-freezes `arguments`, makes the execution identity properties non-writable, and exposes no test shim or listener path that can replace them. The rewrite design must preserve that protected-identity boundary rather than weaken it.
 
 ## Proposal
 

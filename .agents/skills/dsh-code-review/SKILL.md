@@ -13,7 +13,9 @@ description: Use when reviewing a pull request in the deepseek-harness repo — 
 - [docs/defensive-patterns.md](../../../docs/defensive-patterns.md): subprocess, callback, async-state, and disposal bug classes.
 - [docs/AGENTS.md](../../../docs/AGENTS.md): documentation placement and prose discipline.
 - [dsh-prose-standard](../dsh-prose-standard/SKILL.md): required coverage and editorial judgment for comments, docs, prompts, and visible strings.
-- [docs/testing.md](../../../docs/testing.md) and the [quality-gates Agent Note](../../notes/implemented/process/2026-06-11-quality-gates.md): required test tiers and gates.
+- [dsh-ci-test-reliability](../dsh-ci-test-reliability/SKILL.md): isolation and regression-proof rules for resource-owning, asynchronous, or flaky tests and fixtures.
+- [dsh-client-ui-ux](../dsh-client-ui-ux/SKILL.md): feedback-surface choice, overlay safety, platform window adaptation, and visual token discipline for product-user-visible GUI changes.
+- [docs/testing.md](../../../docs/testing.md) and the [quality-gates reference](../../../docs/testing.md): required test tiers and gates.
 - [Agent Notes](../../notes/README.md): design rationale. Treat disagreement with an Agent Note as a design discussion, not an automatic veto.
 - For bilingual changes, read [translation-rules.md](../../../docs/i18n/translation-rules.md) and [terminology.md](../../../docs/i18n/terminology.md); the extended translation skill is outside automatic review and runs only on explicit user invocation.
 
@@ -23,8 +25,8 @@ description: Use when reviewing a pull request in the deepseek-harness repo — 
 2. **Docs match the code.** Config, defaults, errors, wire fields, events, and public behavior update the package README and JSDoc in the same diff. Comments state non-obvious contracts; flag implementation narration, test walkthroughs, review history, and duplicated rationale for deletion or a link to their one home.
 3. **Core type docs match.** Changes to spine or seam vocabulary update the appropriate [subsystems](../../../docs/subsystems/README.md) page and any `type-equiv` entry. Internal types need no catalog entry.
 4. **Registrations clean up.** Verify each new registry contribution passes the disposal tests required by [packages/AGENTS.md](../../../packages/AGENTS.md).
-5. **Invariant companions are semantic.** For every touched `./invariant`, require an owner event-stream or mutable-data relationship at the point where that package can observe it; service or method presence, plugin metadata or effects, and fixed pure examples belong in type, load, or unit tests. Accept an empty installer when its package-specific reason establishes that no plausible runtime relationship exists; do not demand an invented check merely to eliminate emptiness ([repository rule](../../../AGENTS.md#conventions); [package invariant rules](../../../packages/AGENTS.md)).
-6. **Required evidence exists.** Verify the author ran the [relevant local checks](../../../AGENTS.md#run-relevant-checks-locally) for the diff and that CI covers the exhaustive matrix; review the semantic gaps neither can detect.
+5. **Required evidence exists.** Verify the author ran the [relevant local checks](../../../AGENTS.md#run-relevant-checks-locally) for the diff and that CI covers the exhaustive matrix; review the semantic gaps neither can detect.
+6. **Client UI copy is locale-owned.** Reject product text embedded in JSX, templates, helper returns, accessibility attributes, or primitive defaults. Require typed dictionary keys, the standard `t` seat or explicit localized props, `verify-client-ui-i18n`, and behavior evidence in each affected locale; preserve user/model/wire data and code tokens verbatim.
 
 ## Manual checks
 
@@ -39,7 +41,8 @@ description: Use when reviewing a pull request in the deepseek-harness repo — 
 - **Bounds cover the final operation:** locate the owner of the complete emitted or retained result, including wrappers and metadata. Probe tiny and exact limits, oversized single chunks, and multibyte text for byte limits.
 - **Real entry path:** tests exercise the shipped Loader, bin, worker, ACP bridge, or subprocess where relevant. A hand-mounted plugin does not catch invalid Loader exports; a function plugin must named-export its namespace and have no default export.
 - **Test strength:** assertions fail on the intended regression and verify external state, logs, events, or disposal rather than restating the implementation or trusting an agent's report. Coverage is necessary but not evidence that the scenario is correct.
-- **Invariant lifecycle and negative controls:** verify candidate observations are rejected before publication where possible, session-backed checks reconstruct durable history after late loading or HMR, and a deliberately invalid case fails through the real runner for the intended rule.
+- **Test reliability:** for a resource-owning, asynchronous, platform-sensitive, or flaky test, apply [dsh-ci-test-reliability](../dsh-ci-test-reliability/SKILL.md) to the real worker/job topology, resource allocation, global-state restoration, synchronization, timeout budget, and quiescent teardown.
+- **Negative controls:** verify a deliberately invalid case fails through the real runner for each changed acceptance rule.
 - **Implemented Agent Notes match shipped reality:** when a PR implements a proposed Agent Note, move and rewrite it as present-tense shipped state in the same diff, then verify paths, names, and mechanisms against the implementation.
 - **Transcript changes:** editor-visible or model-visible changes update snapshots or explain why no snapshot applies. Review expected-output diffs as behavior changes, not formatting noise.
 - **Bilingual changes:** compare meaning and terminology on both sides; a green pairing hash does not prove translation quality.

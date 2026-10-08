@@ -9,28 +9,40 @@
   ],
   "references": [
     {
+      "path": "../../api/workspace-controller/tsconfig.client.json"
+    },
+    {
       "path": "../../../vendor/cordis"
     },
     {
       "path": "../ui-slots"
     },
     {
+      "path": "../store"
+    },
+    {
       "path": "../ui-primitives"
     },
     {
-      "path": "../web-react"
+      "path": "../ui-conversation/tsconfig.client.json"
     },
     {
-      "path": "../runtime"
+      "path": "../ui-renderer"
+    },
+    {
+      "path": "../ui-session"
     },
     {
       "path": "../ui-layout"
     },
     {
-      "path": "../locale"
+      "path": "../locale/tsconfig.client.json"
     },
     {
-      "path": "../../runtime-diagnostics/invariants"
+      "path": "../shortcuts/tsconfig.client.json"
+    },
+    {
+      "path": "../product-analytics/tsconfig.client.json"
     }
   ]
 }

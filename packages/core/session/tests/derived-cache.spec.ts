@@ -1,4 +1,5 @@
 import { createUserMessage, createMessage } from '@deepseek-ai/dsh-llm'
+import type { MessageSource } from '@deepseek-ai/dsh-llm'
 /**
  * Derived-message cache contract against a scratch oracle: project new nodes
  * once, rebuild on surface replacements, return fresh arrays over shared
@@ -8,6 +9,13 @@ import { createUserMessage, createMessage } from '@deepseek-ai/dsh-llm'
 import { describe, expect, it } from 'vitest'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
 
+type CheckpointSource = Extract<MessageSource, { readonly kind: 'compact-checkpoint' }>
+
+/** Build a typed checkpoint source for a derived-message fixture. */
+function checkpointSource(compactionId: string): CheckpointSource {
+  return { kind: 'compact-checkpoint', compactionId: compactionId as CheckpointSource['compactionId'] }
+}
+
 function userText(session: Session, text: string): void {
   session.append('user/message', createUserMessage({
     content: [{ type: 'text', text }], source: { kind: 'user' },
@@ -16,7 +24,7 @@ function userText(session: Session, text: string): void {
 
 /** From-scratch oracle: replay the log into a fresh session and derive. */
 function scratch(session: Session): unknown {
-  return Session.create(SessionId(`${session.id}-scratch-${session.seq}`), [...session.events]).deriveMessages()
+  return Session.create(SessionId(`${session.id}-scratch-${session.seq}`), session.snapshotEvents()).deriveMessages()
 }
 
 describe('derived-message cache', () => {
@@ -27,6 +35,7 @@ describe('derived-message cache', () => {
     expect(session.deriveMessages()).toEqual(scratch(session))
     userText(session, 'two')
     session.append('assistant/message', {
+      stream: [],
       turn: 1, step: 1,
       message: createMessage({
         role: 'assistant',
@@ -39,6 +48,7 @@ describe('derived-message cache', () => {
     }, { surfaceOp: 'append' })
     expect(session.deriveMessages()).toEqual(scratch(session))
     session.append('assistant/message', {
+      stream: [],
       turn: 1, step: 2,
       message: createMessage({
         role: 'assistant',
@@ -63,8 +73,8 @@ describe('derived-message cache', () => {
 
     const nodes = session.surface.nodes
     session.append('user/message', createUserMessage({
-      content: [{ type: 'text', text: 'summary' }], source: { kind: 'plugin', plugin: 'compact' },
-    }), { surfaceOp: { op: 'replace', start: nodes[0]!, end: nodes[1]! }, sourceEventSeqs: [nodes[0]!, nodes[1]!] })
+      content: [{ type: 'text', text: 'summary' }], source: checkpointSource('derived-cache-compaction'),
+    }), { surfaceOp: { op: 'replace', startSeq: nodes[0]!, endSeq: nodes[1]! }, sourceEventSeqs: [nodes[0]!, nodes[1]!] })
 
     expect(session.deriveMessages()).toHaveLength(1)
     expect(session.deriveMessages()).toEqual(scratch(session))
@@ -118,6 +128,7 @@ describe('Session.deriveEventMessage — the per-event projection', () => {
     const boundary = session.append('step/start', { turn: 1, step: 1 })
     expect(session.deriveEventMessage(boundary)).toBeNull()
     const empty = session.append('assistant/message', {
+      stream: [],
       turn: 1, step: 1,
       message: createMessage({
         role: 'assistant',

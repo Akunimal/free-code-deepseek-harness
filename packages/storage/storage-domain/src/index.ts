@@ -88,7 +88,10 @@ export class DomainFacility {
    * (`facet-unsupported`); open the unit projected from the spec (backend
    * `version-mismatch`/`malformed-medium` pass through); load and validate
    * every stored record against the spec's zod schemas (`invalid-record`
-   * with the offending table and key); construct the domain.
+   * with the offending table and key — unless the spec declares
+   * `invalidRecords: 'backup-and-skip'` and the unit can move documents aside, in
+   * which case the failing record is backed up, logged, and skipped);
+   * construct the domain.
    *
    * Lifecycle: the CALLER owns the returned handle and closes it via
    * `Domain.close()` (typically as its own `ctx.effect` disposer) — the
@@ -118,7 +121,23 @@ export class DomainFacility {
         for (const [table, tableSpec] of Object.entries(spec.tables)) {
           const records = new Map<string, unknown>()
           for (const [key, raw] of Object.entries(snapshot.tables[table] ?? {})) {
-            records.set(key, parseRecord(spec.name, table, key, () => tableSpec.valueSchema.parse(raw)))
+            let parsed: unknown
+            try {
+              parsed = parseRecord(spec.name, table, key, () => tableSpec.valueSchema.parse(raw))
+            } catch (error) {
+              // Backup-and-skip policy (disposable derived data): move the record's
+              // document aside, log the concrete failure, and open without the
+              // record. Backends that cannot move a document keep the loud path.
+              if (spec.invalidRecords !== 'backup-and-skip' || unit.backupRecord === undefined) throw error
+              const moved = await unit.backupRecord(table, key)
+              // parseRecord always wraps the zod failure as the cause.
+              this.ctx.logger.error(
+                `domain '${spec.name}': stored record '${key}' in table '${table}' failed schema validation; `
+                + `moved to '${moved}' and treated as absent. Cause: ${String((error as DomainError).cause)}`,
+              )
+              continue
+            }
+            records.set(key, parsed)
           }
           tables.set(table, records)
         }
@@ -131,9 +150,8 @@ export class DomainFacility {
             ? globalSpec.initial
             : parseRecord(spec.name, '', '', () => globalSpec.schema.parse(snapshot.global))
         // The onClosed hook runs strictly after teardown completes: writes
-        // landing during the drain still emit domain/changed, and the domain
-        // stays resolvable (the package invariant cross-checks each event)
-        // until fully closed — only then does the name free up for reopening.
+        // landing during the drain still emit domain/changed, and the name
+        // frees up for reopening only once the domain is fully closed.
         const domain: DomainImpl = new DomainImpl(this.ctx, spec, unit, tables, globalValue, () => {
           this.domains.delete(spec.name)
           this.reserved.delete(spec.name)
@@ -156,8 +174,7 @@ export class DomainFacility {
   }
 
   /**
-   * Look up an open domain by name, untyped. Diagnostic surface (the package
-   * invariant cross-checks change events against live domain state); typed
+   * Look up an open domain by name, untyped. Diagnostic surface; typed
    * consumers hold the handle returned by {@link open}.
    * @param name - Domain name.
    * @returns the open domain runtime, or `undefined` when not open.
@@ -209,7 +226,7 @@ export function apply(ctx: Context, config: Config): Promise<void> {
       const unmount = domainCtx.storage.mount('domain', facility)
       return async () => {
         // Close leftovers before unmounting: draining writes still emit
-        // domain/changed, whose invariant resolves the facility through the hub.
+        // domain/changed.
         await facility.closeAll()
         unmount()
       }

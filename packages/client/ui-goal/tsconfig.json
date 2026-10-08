@@ -12,16 +12,25 @@
       "path": "../../../vendor/cordis"
     },
     {
-      "path": "../locale"
+      "path": "../locale/tsconfig.client.json"
     },
     {
       "path": "../../api/remotes/tsconfig.client.json"
     },
     {
-      "path": "../runtime"
+      "path": "../../api/session-controller/tsconfig.client.json"
     },
     {
-      "path": "../ui-conversation"
+      "path": "../ui-chat/tsconfig.client.json"
+    },
+    {
+      "path": "../ui-conversation/tsconfig.client.json"
+    },
+    {
+      "path": "../ui-renderer"
+    },
+    {
+      "path": "../ui-session"
     },
     {
       "path": "../ui-primitives"
@@ -36,7 +45,7 @@
       "path": "../../goal/goal"
     },
     {
-      "path": "../../runtime-diagnostics/invariants"
+      "path": "../../typert/protocol"
     }
   ]
 }

@@ -15,10 +15,10 @@ import {
   webSnapshotMode,
   type WebScaffold,
 } from './scaffold.ts'
-import { newEnglishPage, saveFailureShot } from './support.ts'
+import { newEnglishPage, saveFailureShot, WEB_FIXTURE_TIME } from './support.ts'
 
-const SNAPSHOT_DIR = fileURLToPath(new URL('./snapshots/math-rendering', import.meta.url))
-const UI_EXPECTED = fileURLToPath(new URL('./snapshots/math-rendering/ui.expected.md', import.meta.url))
+const SNAPSHOT_DIR = fileURLToPath(new URL('./expected/math-rendering', import.meta.url))
+const UI_EXPECTED = fileURLToPath(new URL('./expected/math-rendering/ui.expected.md', import.meta.url))
 const MODE = webSnapshotMode()
 const SEED_ID = 'math-rendering-web-e2e'
 const DONE = 'MATH_RENDERING_DONE'
@@ -26,7 +26,6 @@ const DONE = 'MATH_RENDERING_DONE'
 /** Build a settled assistant reply that exercises every supported math delimiter. */
 function mathFixture(): string {
   const session = Session.create(SessionId('math-rendering-source'))
-  const eventTimeOrigin = new Date().setHours(12, 0, 0, 0)
   session.append('turn/start', {
     turn: 1,
   })
@@ -41,6 +40,7 @@ function mathFixture(): string {
   })
   session.append('step/start', { turn: 1, step: 1 })
   session.append('assistant/message', {
+    stream: [],
     turn: 1,
     step: 1,
     message: createMessage({
@@ -76,10 +76,12 @@ function mathFixture(): string {
       id: '{{sessionId}}',
       createdAt: 0,
       cwd: '{{cwd}}',
+      isSeeded: false,
+      delegationDepth: 0,
     }),
-    ...session.events.map(event => JSON.stringify({
+    ...session.snapshotEvents().map(event => JSON.stringify({
       ...event,
-      time: eventTimeOrigin + event.seq * 1_000,
+      time: WEB_FIXTURE_TIME + event.seq * 1_000,
     })),
     '',
   ].join('\n')
@@ -93,11 +95,12 @@ describe('web e2e: settled Markdown math rendering', () => {
 
   beforeAll(async () => {
     scaffold = await launchWebScaffold({})
-    await seedSession(scaffold, mathFixture(), SEED_ID)
+    await seedSession(scaffold, mathFixture(), SEED_ID, undefined, { createdAt: WEB_FIXTURE_TIME })
     browser = await chromium.launch()
     page = await newEnglishPage(browser)
+    await page.clock.setFixedTime(WEB_FIXTURE_TIME)
     tripwire = watchConsole(page)
-    await page.goto(scaffold.baseUrl, { waitUntil: 'load' })
+    await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
   }, 120_000)
 
@@ -120,7 +123,7 @@ describe('web e2e: settled Markdown math rendering', () => {
     await expect.poll(() => page.locator('.katex-display').count(), { timeout: 10_000 }).toBe(2)
     expect(await page.locator('.katex-error').count()).toBe(0)
     await expect.poll(
-      () => page.getByText('1 turns · 1 steps', { exact: false }).count(),
+      () => page.getByText('1 turns 1 steps', { exact: false }).count(),
       { timeout: 10_000 },
     ).toBe(1)
 

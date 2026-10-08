@@ -11,32 +11,44 @@ import type { JobOutcome } from '@deepseek-ai/dsh-jobs'
 import type { SubagentResult, SubagentRun } from './types.ts'
 
 /** Flatten a child's final output blocks to the task's final text. */
-function finalText(blocks: ContentBlock[]): string {
+function finalText(blocks: readonly ContentBlock[]): string {
   return blocks
     .filter((block): block is Extract<ContentBlock, { type: 'text' }> => block.type === 'text')
     .map(block => block.text)
     .join('')
 }
 
+/** Render a failed stop reason with optional provider-authored detail. */
+function failureDetail(result: SubagentResult): string {
+  const stopReason = result.stopReason
+  return result.diagnostic === undefined
+    ? stopReason
+    : `${stopReason}; diagnostic: ${result.diagnostic}`
+}
+
 /**
- * Map a child result to the task outcome: completed carries final text,
- * aborted is killed, and every other reason is failed without partial output.
+ * Map a child result to the task outcome: completed carries final text, local
+ * cancellation (`aborted` without a diagnostic) is killed, and provider-
+ * diagnosed remote aborts plus every other reason are failed without partial
+ * output.
  * @param result - child terminal result.
  * @returns outcome for the `ctx.jobs` registration.
  */
 function runOutcome(result: SubagentResult): JobOutcome {
   switch (result.stopReason) {
     case 'completed':
-      return { status: 'completed', output: finalText(result.output) }
+      return { status: 'completed', result: finalText(result.output) }
     case 'aborted':
-      return { status: 'killed' }
+      return result.diagnostic === undefined
+        ? { status: 'killed' }
+        : { status: 'failed', detail: failureDetail(result) }
     case 'error':
     case 'max-tokens':
     case 'refusal':
-      return { status: 'failed', detail: result.stopReason }
-    // Merge-extensible reasons remain failures with their raw detail.
+      return { status: 'failed', detail: failureDetail(result) }
+    // Merge-extensible reasons remain failures with provider-authored detail.
     default:
-      return { status: 'failed', detail: String(result.stopReason) }
+      return { status: 'failed', detail: failureDetail(result) }
   }
 }
 

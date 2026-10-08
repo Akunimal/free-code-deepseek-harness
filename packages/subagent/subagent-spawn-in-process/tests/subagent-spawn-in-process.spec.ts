@@ -1,4 +1,4 @@
-import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, type GenerateOptions } from '@deepseek-ai/dsh-llm'
 import { describe, expect, it } from 'vitest'
 import { Context, symbols, type EffectMeta } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
@@ -6,11 +6,8 @@ import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
-import InvariantRegistry from '@deepseek-ai/dsh-invariants'
-import * as SessionInvariant from '@deepseek-ai/dsh-session/invariant'
-import * as AgentInvariant from '@deepseek-ai/dsh-agent/invariant'
-import * as AgentLoopInvariant from '@deepseek-ai/dsh-agent-loop/invariant'
 import SubagentRuntime, { type SubagentStartRequest } from '@deepseek-ai/dsh-subagent'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { MockAdapter, maxTokensResponse, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import * as spawn from '../src/index.ts'
 import { STRUCTURED_OUTPUT_TOOL } from '@deepseek-ai/dsh-subagent-in-process-driver'
@@ -18,17 +15,9 @@ import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 
 type Script = ConstructorParameters<typeof MockAdapter>[0]
 
-async function mountInvariants(ctx: Context): Promise<void> {
-  await ctx.plugin(InvariantRegistry)
-  await ctx.plugin(SessionInvariant)
-  await ctx.plugin(AgentInvariant)
-  await ctx.plugin(AgentLoopInvariant)
-}
-
 /**
  * Drives the REAL spawn backend end-to-end: a real agent loop + a scripted mock
- * MODEL (the only mocked boundary) + the real SubagentRuntime + the real
- * invariant service plus package companions (so a malformed child session log would fail the test).
+ * MODEL (the only mocked boundary) + the real SubagentRuntime.
  * The parent is a real config agent; the spawn provider creates a real child
  * agent on the same context and we assert its output.
  */
@@ -36,16 +25,15 @@ async function setup(script: Script) {
   const ctx = new Context()
   const adapter = new MockAdapter(script)
   await mountAgentLoopTestDependencies(ctx)
-  await mountInvariants(ctx)
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(SubagentRuntime)
   await ctx.plugin(spawn, { providerName: 'spawn' })
   ctx.llm.registerAdapter(['mock'], adapter)
-  const parent = ctx.agentLoop.create(SessionId('parent'), { provider: 'mock', model: 'mock' })
+  const parent = await ctx.agentLoop.create(SessionId('parent'), { provider: 'mock', model: 'mock' })
   return { ctx, parent, adapter }
 }
 
-function text(blocks: { type: string; text?: string }[]): string {
+function text(blocks: readonly { type: string; text?: string }[]): string {
   return blocks.filter(b => b.type === 'text').map(b => b.text).join('')
 }
 
@@ -62,6 +50,14 @@ function disposeChildLifecycle(parent: Agent): void {
     })
   if (lifecycle === undefined) throw new Error('child lifecycle effect not found')
   void lifecycle()
+}
+
+
+/** The system prompt a loop-built request carries as its leading system-role message ('' when none). */
+function systemPromptOf(request: GenerateOptions): string {
+  const head = request.messages[0]
+  if (head?.role !== 'system') return ''
+  return head.content.flatMap(block => block.type === 'text' ? [block.text] : []).join('')
 }
 
 describe('dsh-subagent-spawn-in-process', () => {
@@ -109,14 +105,14 @@ describe('dsh-subagent-spawn-in-process', () => {
     const { ctx, parent } = await setup([textResponse('parent turn'), textResponse('child sees nothing')])
     parent.followup(createUserMessage({ content: [{ type: 'text', text: 'parent prompt' }], source: { kind: 'user' } }))
     await parent.whenIdle()
-    const parentEventCount = parent.session.events.length
+    const parentEventCount = parent.session.snapshotEvents().length
     expect(parentEventCount).toBeGreaterThan(0)
 
     const run = await start(ctx, 'spawn', { prompt: [{ type: 'text', text: 'child prompt' }], parent })
     await run.result
     const child = ctx.agents.get(run.id)!
     // The child's first user/message is its OWN prompt, not the parent's history.
-    const firstUser = child.session.events.find(e => e.type === 'user/message')
+    const firstUser = child.session.snapshotEvents().find(e => e.type === 'user/message')
     expect(firstUser).toBeDefined()
     await run.dispose()
   })
@@ -186,7 +182,6 @@ describe('dsh-subagent-spawn-in-process', () => {
     const published: string[] = []
     ctx.on('session/created', () => void published.push('session/created'))
     ctx.on('agent/created', () => void published.push('agent/created'))
-    ctx.on('agent/session-start', () => void published.push('agent/session-start'))
     ctx.on('subagent/start', () => void published.push('subagent/start'))
     ctx.on('subagent/end', () => void published.push('subagent/end'))
     const controller = new AbortController()
@@ -282,14 +277,21 @@ describe('dsh-subagent-spawn-in-process', () => {
     await parentHandle.dispose()
   })
 
-  it('advertises every start-time capability (depthLimit, outputSchema, toolFilter, persona)', async () => {
+  it('advertises every start-time capability', async () => {
     const { ctx } = await setup([])
     const provider = ctx.subagents.getProvider('spawn')!
-    expect(provider.capabilities).toEqual({ outputSchema: true, depthLimit: true, toolFilter: true, persona: true })
+    expect(provider.capabilities).toEqual({
+      agentOptions: true,
+      outputSchema: true,
+      depthLimit: true,
+      toolFilter: true,
+      persona: true,
+    })
   })
 
   it('unregisters the provider when its fiber is disposed (HMR safety)', async () => {
     const ctx = new Context()
+    await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(SubagentRuntime)
     await ctx.plugin(AgentRegistry)
     const fiber = await ctx.plugin(spawn, { providerName: 'spawn' })
@@ -310,7 +312,6 @@ describe('dsh-subagent-spawn-in-process', () => {
     const result = await run.result
     expect(result.stopReason).toBe('completed')
     expect(result.structured).toEqual({ answer: 42 })
-    // Run-scoped runtime: the settle released the last acquisition.
     expect(ctx.tools.get(STRUCTURED_OUTPUT_TOOL)).toBeUndefined()
     await run.dispose()
   })
@@ -320,12 +321,11 @@ describe('dsh-subagent-spawn-in-process', () => {
     const ctx = new Context()
     const adapter = new MockAdapter(['hang'])
     await mountAgentLoopTestDependencies(ctx)
-    await mountInvariants(ctx)
     await ctx.plugin(AgentLoop, { agents: [] })
     await ctx.plugin(SubagentRuntime)
     const fiber = await ctx.plugin(spawn, { providerName: 'spawn' })
     ctx.llm.registerAdapter(['mock'], adapter)
-    const parent = ctx.agentLoop.create(SessionId('parent'), { provider: 'mock', model: 'mock' })
+    const parent = await ctx.agentLoop.create(SessionId('parent'), { provider: 'mock', model: 'mock' })
     const controller = new AbortController()
     const run = await start(ctx, 'spawn', {
       prompt: [{ type: 'text', text: 'q' }],
@@ -352,7 +352,7 @@ describe('dsh-subagent-spawn-in-process', () => {
     await ctx.plugin(AgentLoop, { agents: [] })
     await ctx.plugin(SubagentRuntime)
     const fiber = await ctx.plugin(spawn, { providerName: 'spawn' })
-    const parent = ctx.agentLoop.create(SessionId('parent'), { provider: 'mock', model: 'mock' })
+    const parent = await ctx.agentLoop.create(SessionId('parent'), { provider: 'mock', model: 'mock' })
     const parentEffects = parent.ctx.fiber.getEffects().length
     const published: string[] = []
     ctx.on('session/created', () => void published.push('session/created'))
@@ -396,9 +396,9 @@ describe('dsh-subagent-spawn-in-process', () => {
       })
       await run.result
       const childRequest = adapter.requests.at(-1)!
-      expect(childRequest.system).toContain('You are the tersest test runner.')
+      expect(systemPromptOf(childRequest)).toContain('You are the tersest test runner.')
       // The parent's earlier request carried no such persona.
-      expect(adapter.requests[0]!.system ?? '').not.toContain('tersest test runner')
+      expect(systemPromptOf(adapter.requests[0]!)).not.toContain('tersest test runner')
       await run.dispose()
     })
 
@@ -424,7 +424,7 @@ describe('dsh-subagent-spawn-in-process', () => {
       expect((childRequest.tools ?? []).map(t => t.name)).not.toContain('forbidden_tool')
       // …and the attempted call executed as UNKNOWN_TOOL (visible in the log).
       const child = ctx.agents.get(run.id)!
-      const toolResult = child.session.events.find(e => e.type === 'tool/result')!
+      const toolResult = child.session.snapshotEvents().find(e => e.type === 'tool/result')!
       expect(JSON.stringify(toolResult.data)).toContain('unknown tool')
       await run.dispose()
     })
@@ -454,7 +454,6 @@ describe('dsh-subagent-spawn-in-process', () => {
     const published: string[] = []
     ctx.on('session/created', () => void published.push('session/created'))
     ctx.on('agent/created', () => void published.push('agent/created'))
-    ctx.on('agent/session-start', () => void published.push('agent/session-start'))
     await expect(start(ctx, 'spawn', {
       prompt: [{ type: 'text', text: 'do X' }],
       parent: parentHandle.agent,
@@ -473,7 +472,6 @@ describe('dsh-subagent-spawn-in-process', () => {
     const published: string[] = []
     ctx.on('session/created', () => void published.push('session/created'))
     ctx.on('agent/created', () => void published.push('agent/created'))
-    ctx.on('agent/session-start', () => void published.push('agent/session-start'))
     let teardownStarted = false
     ctx.on('internal/plugin', (fiber) => {
       if (teardownStarted || fiber.name !== 'scope') return

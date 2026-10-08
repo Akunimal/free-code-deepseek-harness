@@ -19,12 +19,6 @@
     },
     {
       "path": "../../sandbox/sandbox"
-    },
-    {
-      "path": "../../settings/settings"
-    },
-    {
-      "path": "../../runtime-diagnostics/invariants"
     }
   ]
 }

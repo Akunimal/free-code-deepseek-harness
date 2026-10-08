@@ -1,4 +1,4 @@
-/* Skill toolview: Bash-matched summary row plus a bounded instructions disclosure. */
+/* Skill toolview: ToolRow-matched summary line plus a bounded instructions disclosure. */
 
 .card {
   display: flex;
@@ -10,48 +10,39 @@
   overflow: hidden;
   display: flex;
   align-items: center;
-  height: 24px;
+  height: calc(24px + var(--dsh-content-font-delta, 0px));
   min-width: 0;
+  color: var(--dsw-alias-label-tertiary);
+  transition: color 100ms ease;
+}
+
+.row:hover {
+  color: var(--dsw-alias-label-secondary);
 }
 
 .row[data-expandable] {
   cursor: pointer;
 }
 
-.card[data-state='running'] .row::after {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 300px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    color-mix(in srgb, var(--dsw-alias-bg-base) 60%, transparent) 55%,
-    transparent 100%
-  );
-  animation: dsh-skill-row-sweep 2.6s ease-out infinite;
-  pointer-events: none;
-}
-
-@keyframes dsh-skill-row-sweep {
-  0% { left: -300px; }
-  90%, 100% { left: 100%; }
-}
-
 .leading {
   position: relative;
   flex: none;
-  width: 16px;
-  height: 16px;
+  width: calc(16px + var(--dsh-content-font-delta, 0px));
+  height: calc(16px + var(--dsh-content-font-delta, 0px));
   display: inline-flex;
   align-items: center;
   justify-content: center;
   margin-right: 6px;
-  color: var(--dsw-alias-label-tertiary);
+  color: inherit;
+}
+
+.leading svg {
+  width: calc(14px + var(--dsh-content-font-delta, 0px));
+  height: calc(14px + var(--dsh-content-font-delta, 0px));
 }
 
 .chevron {
-  color: var(--dsw-alias-label-secondary);
+  color: inherit;
 }
 
 .iconIdle {
@@ -78,9 +69,8 @@
 
 .title {
   flex: none;
-  font-size: 14px;
-  line-height: 24px;
-  color: var(--dsw-alias-label-secondary);
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
 }
 
 .separator {
@@ -98,13 +88,16 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
-  line-height: 24px;
-  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
 }
 
 .errorSummary {
   color: var(--dsw-alias-state-error-primary);
+}
+
+.stoppedSummary {
+  color: var(--dsw-alias-state-warn-label);
 }
 
 .bodyWrap {
@@ -118,15 +111,15 @@
   max-height: 260px;
   margin: 4px 0 4px 4px;
   overflow: hidden;
-  border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: 12px;
+  border: 0.5px solid var(--dsw-alias-border-l1);
+  border-radius: var(--dsw-radius-lg);
   background: var(--dsw-alias-markdown-code-block);
 }
 
 .instructionsHeader {
   flex: none;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--dsw-alias-border-l2);
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
   background: var(--dsw-alias-markdown-code-block-banner);
   font-size: 11px;
   font-weight: 500;
@@ -154,7 +147,7 @@
 .instructions::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   background-clip: padding-box;
-  border-radius: 6px;
+  border-radius: var(--dsw-radius-sm);
 }
 
 .instructions::-webkit-scrollbar-track {
@@ -168,8 +161,9 @@
   gap: 4px;
   margin: 4px 0 2px 4px;
   padding: 2px 8px;
-  border: 1px solid var(--dsw-alias-border-l2);
+  border: 0.5px solid var(--dsw-alias-border-l4);
   border-radius: 999px;
+  corner-shape: round;
   background: var(--dsw-alias-bg-base);
   color: var(--dsw-alias-label-secondary);
   font-size: 11px;
@@ -199,11 +193,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .card[data-state='running'] .row::after {
-    animation: none;
-    display: none;
-  }
-
+  .row,
   .iconIdle,
   .chevronHover,
   .inspectButton {

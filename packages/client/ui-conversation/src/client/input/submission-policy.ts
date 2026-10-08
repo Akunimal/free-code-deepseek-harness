@@ -1,11 +1,12 @@
 /**
- * Composer submission policy. It owns the live busy-Enter
- * preference and resolves keyboard gestures into queue/steer delivery modes;
- * Host and Agent keep the actual delivery-window authority.
+ * Composer submission policy. It owns the live busy-Enter preference and
+ * resolves submission gestures into queue/steer delivery modes; Host and
+ * Agent keep the actual delivery-window authority.
  */
 import {
-  createSnapshotStore, type SettingsScope, type SnapshotStore,
-} from '@deepseek-ai/dsh-client-runtime/client'
+  createSnapshotStore, type SnapshotStore,
+} from '@deepseek-ai/dsh-client-store'
+import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {
   BusyEnterBehavior, ComposerSubmitGesture, InputSubmitMode,
 } from '../contract/composer-submission.ts'
@@ -15,50 +16,56 @@ import type { ConversationSettings } from '../../submission-settings.ts'
 export { DEFAULT_BUSY_ENTER_BEHAVIOR } from '../../submission-settings.ts'
 
 /**
- * Busy-Enter policy used by both the composer inject face and its Settings row.
- * Direct `steer` is intentionally best-effort: AgentLoop turns a closed-window
- * submission into the next waking Queue item.
+ * Resolve one submission gesture against the busy-Enter preference. Plain
+ * Enter and the primary Send button share the `enter` gesture, so the button
+ * delivers exactly what Enter would. Direct `steer` is intentionally
+ * best-effort: AgentLoop turns a closed-window submission into the next waking
+ * Queue item.
+ * @param preferred - the live busy-Enter preference.
+ * @param running - whether the addressed agent currently reports busy.
+ * @param gesture - plain Enter (or the Send button) or the Cmd/Ctrl-accelerated chord.
+ * @param steeringAvailable - whether this session transport supports steering.
+ * @returns Queue outside steer-capable busy state; otherwise the preferred mode or its opposite.
+ */
+export function resolveSubmitMode(
+  preferred: BusyEnterBehavior,
+  running: boolean,
+  gesture: ComposerSubmitGesture,
+  steeringAvailable: boolean,
+): InputSubmitMode {
+  if (!running || !steeringAvailable) return 'queue'
+  if (gesture === 'enter') return preferred
+  return preferred === 'queue' ? 'steer' : 'queue'
+}
+
+/**
+ * Busy-Enter preference shared by the composer bar inject face and its
+ * Settings row: one live store the bar's submission gestures and Send label
+ * read, backed by the Host user-settings document when one is composed.
  */
 export class ComposerSubmissionPolicy {
-  /** Reactive preference source for the Settings row. */
+  /** Reactive preference source for the composer bar and the Settings row. */
   readonly busyEnter: SnapshotStore<BusyEnterBehavior> = createSnapshotStore(DEFAULT_BUSY_ENTER_BEHAVIOR)
-  private readonly host: SettingsScope<ConversationSettings> | undefined
+  private readonly unsubscribe: (() => void) | undefined
+  private readonly host: ConfigForm<ConversationSettings> | undefined
 
   /**
-   * @param host - durable preference scope owned by the providing plugin;
-   * absent compositions stay process-local. The adoption subscription shares
-   * the scope's plugin lifetime — a disposed scope never publishes again, so
-   * the policy needs no release hook.
+   * @param host Shared configuration form; omitted keeps the browser-local default.
    */
-  constructor(host?: SettingsScope<ConversationSettings>) {
+  constructor(host?: ConfigForm<ConversationSettings>) {
     this.host = host
     if (host !== undefined) {
-      host.subscribe(() => { this.adopt(host) })
+      this.unsubscribe = host.subscribe(() => { this.adopt(host) })
       this.adopt(host)
     }
   }
 
-  /**
-   * Resolve one keyboard gesture without changing state.
-   * @param running - whether the addressed agent currently reports busy.
-   * @param gesture - plain Enter or the Cmd/Ctrl-accelerated chord.
-   * @param steeringAvailable - whether this session transport supports steering.
-   * @returns Queue outside steer-capable busy state; otherwise the preferred mode or its opposite.
-   */
-  resolve(
-    running: boolean,
-    gesture: ComposerSubmitGesture,
-    steeringAvailable: boolean,
-  ): InputSubmitMode {
-    if (!running || !steeringAvailable) return 'queue'
-    const preferred = this.busyEnter.getSnapshot()
-    if (gesture === 'enter') return preferred
-    return preferred === 'queue' ? 'steer' : 'queue'
-  }
+  /** Release the preference subscription. */
+  dispose(): void { this.unsubscribe?.() }
 
   /**
-   * Change the plain-Enter behavior used during busy state; the live value
-   * publishes before the durable write starts.
+   * Change the busy-state submission behavior; the live value publishes
+   * before the durable write starts.
    * @param behavior - Queue or Steer.
    */
   setBusyEnter(behavior: BusyEnterBehavior): void {
@@ -71,7 +78,7 @@ export class ComposerSubmissionPolicy {
    * Adopt the scope's accepted durable behavior without writing it back.
    * @param host - the constructor-narrowed scope driving this adoption.
    */
-  private adopt(host: SettingsScope<ConversationSettings>): void {
+  private adopt(host: ConfigForm<ConversationSettings>): void {
     const section = host.getSnapshot().value
     if (section === undefined || this.busyEnter.getSnapshot() === section.busyEnter) return
     this.busyEnter.set(section.busyEnter)

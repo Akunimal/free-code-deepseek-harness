@@ -144,6 +144,26 @@ export function setTokenDefaultDaclGrant(api: Win32Bindings, token: NativePtr, s
   api.localFree(newDacl)
 }
 
+/**
+ * Lower the restricted token's integrity level to Low (S-1-16-4096), the level
+ * the mandatory labels `grantWrite` applies are matched against; a token left
+ * at Medium would ignore them. Requires TOKEN_ADJUST_DEFAULT on the token;
+ * fails closed before any child is spawned.
+ * @param api - the binding table.
+ * @param token - the restricted token to lower.
+ * @param lowLabelSidPtr - the Low integrity SID (S-1-16-4096).
+ */
+export function restrictTokenIntegrity(api: Win32Bindings, token: NativePtr, lowLabelSidPtr: NativePtr): void {
+  const sidLength = api.getLengthSid(lowLabelSidPtr)
+  if (sidLength === 0) throwLastError(api, 'GetLengthSid', 'Low integrity label SID')
+  const info = Buffer.alloc(abi.TOKEN_MANDATORY_LABEL_SIZE + sidLength)
+  info.writeBigUInt64LE(ptrAddress(lowLabelSidPtr), 0) // Label.Sid
+  info.writeUInt32LE(abi.SE_GROUP_INTEGRITY, 8) // Label.Attributes
+  if (api.setTokenInformation(token, abi.TokenIntegrityLevel, info, info.length) === 0) {
+    throwLastError(api, 'SetTokenInformation', 'TokenIntegrityLevel (Low)')
+  }
+}
+
 /** Pack `SID_AND_ATTRIBUTES[count]` (16-byte stride; Attributes stay 0). */
 function buildRestrictingSids(sids: readonly NativePtr[]): Buffer {
   const buffer = Buffer.alloc(abi.SID_AND_ATTRIBUTES_SIZE * sids.length)
@@ -180,8 +200,9 @@ export interface RestrictingSidSet {
  * `AU:(AD)` + `AU:(OI)(CI)(IO)(M)` ACEs) is closed in both — documented in
  * README. INTERACTIVE/LOCAL are absent from BOTH lists too — the host's
  * Public tree grants write to INTERACTIVE, so removing it closes that
- * escape. S-1-2-1 (console logon) is intentionally absent: see win32-abi.ts
- * for the verified failure modes. FAILS CLOSED: any failure throws — never
+ * escape. S-1-2-1 (console logon) is intentionally absent: the package
+ * README's "Console isolation is unavailable" entry records the verified
+ * failure modes. FAILS CLOSED: any failure throws — never
  * spawn unrestricted.
  * @param api - the binding table.
  * @param currentToken - the process token to restrict.

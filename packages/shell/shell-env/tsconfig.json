@@ -27,10 +27,7 @@
       "path": "../../core/tools"
     },
     {
-      "path": "../../session/session-persistence"
-    },
-    {
-      "path": "../../runtime-diagnostics/invariants"
+      "path": "../../boot/app-boot"
     }
   ]
 }

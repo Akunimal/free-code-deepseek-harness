@@ -1,8 +1,8 @@
-# Bash Executor
+# Shell Executor
 
 English | [中文](shell.zh.md)
 
-The bash execution seam is split across a Service Definition ([dsh-shell](../../packages/shell/shell), `ctx.shell`), Service Providers ([dsh-bash-local](../../packages/shell/bash-local) and [dsh-bash-sandbox](../../packages/shell/bash-sandbox)), and Consumer ([dsh-tool-bash](../../packages/shell/tool-bash), the `bash` schema). Generic background-job ids, ownership, and controls live in [jobs.md](jobs.md); this seam returns a task-free process handle. Raw process-group mechanics live behind the [subprocess seam](subprocess.md).
+The shell execution seam uses [dsh-shell](../../packages/shell/shell) as its Service Definition on `ctx.shell`. The [shell package group](../../packages/shell/README.md) lists its Bash and PowerShell providers and model-facing Consumers. Generic background-job ids, ownership, and controls live in [jobs.md](jobs.md); this seam returns a process handle without job registration. Managed-range mechanics live behind the [subprocess seam](subprocess.md).
 
 Source: [`packages/shell/shell/src/types.ts`](../../packages/shell/shell/src/types.ts)
 
@@ -27,6 +27,8 @@ interface ShellExecRequest {
   workdir?: string | undefined
   /** Timeout override in milliseconds (implementations cap it). */
   timeoutMs?: number | undefined
+  /** Deadline policy at `timeoutMs` expiry (default `'kill'`). */
+  onExpiry?: ShellExpiryPolicy | undefined
   /**
    * Foreground stdout capture budget in bytes. Absent uses the executor's
    * default output cap. Trusted in-process consumers use this when they must
@@ -34,7 +36,7 @@ interface ShellExecRequest {
    * tool does not expose it as a parameter.
    */
   stdoutMaxBytes?: number | undefined
-  /** Abort signal — implementations kill the command when it fires. */
+  /** Abort signal — implementations kill the command when it fires, and treat a signal that is already aborted as fired. */
   signal?: AbortSignal | undefined
   /**
    * Bytes to write to the command's stdin, then close it. Absent leaves stdin
@@ -68,19 +70,21 @@ interface ShellExecRequest {
 ```ts type-equiv
 /**
  * A resolved execution spec. {@link ShellExecutor.resolve} fills and caps the
- * required fields; {@link ShellExecutor.start} ignores `timeoutMs` because
- * background processes have no executor timeout.
+ * required fields; under `onExpiry: 'none'` the resolved `timeoutMs` arms no
+ * timer and is only echoed into {@link ShellRunResult.timeoutMs}.
  */
 interface ShellExecSpec {
   command: string
   workdir: string
   timeoutMs: number
+  /** Deadline policy at `timeoutMs` expiry ({@link ShellExecutor.resolve} defaults it to `'kill'`). */
+  onExpiry: ShellExpiryPolicy
   /**
-   * Resolved foreground stdout capture budget in bytes. `run()` uses it for
-   * stdout; background jobs and stderr keep the executor's own output cap.
+   * Resolved stdout capture budget in bytes, applied to every execution's
+   * stdout; stderr keeps the executor's own output cap.
    */
   stdoutMaxBytes: number
-  /** Abort signal — implementations kill the command when it fires. */
+  /** Abort signal — implementations kill the command when it fires, and treat a signal that is already aborted as fired. */
   signal?: AbortSignal | undefined
   /** Bytes to write to stdin before closing it; absent means no stdin. */
   stdin?: string | undefined
@@ -98,7 +102,7 @@ interface ShellExecSpec {
 }
 ```
 
-`stdin` and `env` are trusted in-process plugin inputs and are not exposed by `dsh-tool-bash`. The local executor scrubs ambient credentials before merging explicit caller-supplied env. See [the bash-stdin-env Agent Note](../../.agents/notes/implemented/architecture/2026-06-30-bash-stdin-env-trusted-plugin-api.md).
+`stdin` and `env` are trusted in-process plugin inputs and are not exposed by `dsh-tool-bash`. The local executor scrubs ambient credentials before merging explicit caller-supplied env.
 
 `stdoutMaxBytes` is also trusted-plugin-only. It lets a foreground consumer request complete stdout up to a bounded parser budget without changing stderr, background jobs, or the model-facing bash tool's ordinary output cap.
 
@@ -107,11 +111,11 @@ interface ShellExecSpec {
 The outcome of one completed (or killed) foreground run. Orthogonal outcomes are reported **independently** — a process can both time out AND exit 0 because it trapped the signal — so `timedOut`, `aborted`, `signal`, and `exitCode` are each their own field; a caller never reads a cut-short run as a clean success.
 
 ```ts type-equiv
-/** The outcome of one completed (or killed) foreground run. */
+/** The outcome of a foreground run, including timeout during preparation. */
 interface ShellRunResult {
-  /** Exit code; null when the process died from a signal. */
+  /** Exit code; null when preparation expired or the process died from a signal. */
   exitCode: number | null
-  /** Terminating signal (e.g. 'SIGTERM'); null on normal exit. */
+  /** Terminating signal, or null when none was reported, including preparation expiry. */
   signal: NodeJS.Signals | null
   /**
    * True when the executor's own timeout was the FIRST cause to cut the command
@@ -162,11 +166,11 @@ interface ShellSandboxInfo {
 }
 ```
 
-The `SANDBOX_UNAVAILABLE` error code (owned by the [sandbox seam](sandbox.md)) is what the `ctx.sandbox` provider throws — and the executor propagates — when a confined mode has no usable backend. A selected runner refusing its profile reaches the same fail-closed foreground error; a settled background job records `runnerFailed`. The model receives denial/runner facts in results, learns the effective mode only when a denial marker names it, and can request a one-shot strictly wider retry through `sandbox_permissions` plus `justification`; `ctx.approval` must grant that exact call before anything executes. The complete policy and switching design is the [sandbox Agent Note](../../.agents/notes/implemented/feature/2026-07-06-sandbox.md).
+The `SANDBOX_UNAVAILABLE` error code (owned by the [sandbox seam](sandbox.md)) is what the `ctx.sandbox` provider throws — and the executor propagates — when a confined mode has no usable backend. A selected runner refusing its profile reaches the same fail-closed foreground error; a settled background job records `runnerFailed`. The model receives denial/runner facts in results, learns the effective mode only when a denial marker names it, and can request a one-shot strictly wider retry through `sandbox_permissions` plus `justification`; `ctx.approval` must grant that exact call before anything executes. The complete policy and switching design is the [sandbox reference](../../packages/sandbox/sandbox-policy/README.md).
 
 ## Background processes: `ShellProcess`
 
-`start()` returns a handle with no id or owner. `dsh-tool-bash` adapts it into `ctx.jobs.start()` hooks; the generic runtime then owns job identity and lifecycle. `done` resolves when the process closes and never rejects, reads remain valid after settlement, and sandbox facts are stamped before `done` resolves.
+`start()` resolves with a handle after asynchronous launch preparation; cancellation or preparation failure rejects before publication. The handle has no id or owner. `dsh-tool-bash` adapts it into `ctx.jobs.start()` hooks; the generic runtime then owns job identity and lifecycle. `done` resolves when the underlying process settles and never rejects; a subprocess provider rejection becomes a `killed` process with a stage-neutral error on stderr. Reads remain valid after settlement, and sandbox facts are stamped before `done` resolves.
 
 ```ts type-equiv
 /**
@@ -182,7 +186,10 @@ interface ShellProcess {
   exitCode: number | null
   /** Terminating signal name, when signal-killed. */
   signal: NodeJS.Signals | null
-  /** Resolves when the underlying process closes (never rejects — a spawn failure settles as `killed` with the error on stderr). */
+  /**
+   * Resolves when the underlying process settles (never rejects — provider
+   * rejection settles as `killed` with a stage-neutral error on stderr).
+   */
   readonly done: Promise<void>
   /** Sandbox facts, stamped once a confined process settles. */
   sandbox?: ShellSandboxInfo
@@ -193,7 +200,14 @@ interface ShellProcess {
    */
   readOutput(): ShellProcessRead
   /**
-   * Kill the process group. Returns false when it had already finished
+   * Non-consuming offset readers over the same captured streams the consuming
+   * {@link readOutput} cursor drains, including the provider-failure note a
+   * rejected spawn leaves on stderr. Independent observers read here at their
+   * own offsets without stealing bytes from `readOutput`.
+   */
+  observed: ShellObservedStreams
+  /**
+   * Terminate the provider-managed range. Returns false when it had already finished
    * (no-op); idempotent.
    */
   kill(): boolean
@@ -218,7 +232,7 @@ interface ShellProcessRead {
 
 ## The service
 
-`ShellExecutor` owns `resolve`, foreground `run`, background-process `start`, and the `sandboxMode` capability fact. `dsh-bash-local` owns command defaulting, timeout/abort classification, the terminal environment, and the background read merge; process groups, bounded collectors, spill files, credential scrubbing, and disposal quiescence are the [subprocess service](subprocess.md)'s. `dsh-tool-bash` owns model-facing rendering and adapts background handles into the [generic job runtime](jobs.md). `dsh-shell` owns the shell tools' shared exit-status contract: the exported `parseExitStatus`/`ParsedExitStatus` inverts the `[exit code: N]` / `[killed by signal: X]` markers `dsh-tool-bash`'s `renderResult` and `dsh-tool-pwsh`'s `renderPwshResult` append, and both tools' `presentResult` use it to split the rendered text into the terminal card's output body and its exit-status pill.
+`ShellExecutor` owns `resolve`, foreground `run`, background-process `start`, and the `sandboxMode` capability fact. `dsh-bash-local` owns command defaulting, timeout/abort classification, the terminal environment, and the background read merge; managed-range termination, bounded collectors, spill files, credential scrubbing, and disposal quiescence are the [subprocess service](subprocess.md)'s. `dsh-tool-bash` owns model-facing rendering and adapts background handles into the [generic job runtime](jobs.md). `dsh-shell` owns the shell tools' shared exit-status contract: the exported `parseExitStatus`/`ParsedExitStatus` inverts the `[exit code: N]` / `[killed by signal: X]` markers `dsh-tool-bash`'s `renderResult` and `dsh-tool-pwsh`'s `renderPwshResult` append, and both tools' `presentResult` use it to split the rendered text into the terminal card's output body and its exit-status pill.
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -226,7 +240,7 @@ interface ShellProcessRead {
 
 ## Cordis API
 
-Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — this section is byte-identical in both language sides of the page. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
+Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — the language sides differ only in locale-specific paired document paths. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
 
 <a id="ctxshell--shellexecutor-abstract-seam"></a>
 
@@ -234,39 +248,36 @@ Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnp
 
 Abstract bash execution service. Subclass, implement the abstract methods, and load the subclass as a plugin — it registers as `ctx.shell` (one implementation per context; loading a second throws, which is cordis' standard duplicate-service behavior).
 
+execute resolves with the process handle after preparation. "Foreground" is a property of what the caller awaits, not of the spawn — a caller that awaits ShellExecution.result ran the command in the foreground; one that keeps the handle ran it in the background. A caller that waits only for a while runs the command under `onExpiry: 'none'` and bounds its own wait; the handle stays valid after the caller stops waiting.
+
 Implementations must honor these semantics:
 
-- run rejects only for infrastructure failures. Nonzero exits, timeout kills, and abort kills resolve with a ShellRunResult.
-- start returns immediately; no timeout applies to background processes. `done` settles at process close and never rejects; spawn failures settle as `killed` with the error on stderr.
+- ShellExecution.result rejects only for infrastructure failures. Nonzero exits, timeout kills, and abort kills resolve with a descriptive result: first-cause `timedOut`/`aborted`, the spec's `timeoutMs` echoed.
+- The handle is published after preparation. `done` settles at process close and never rejects; spawn failures settle as `killed` with the error on the read path, while `result()` carries the same failure as its rejection.
+- `onExpiry: 'none'` arms no deadline; `'kill'` kills at expiry. Expiry during preparation returns a settled timed-out handle without output.
 - ShellProcess.readOutput is incremental: consecutive reads never repeat output. Lossy reads report truncation and available spill files.
-- A still-running background process is stopped and awaited when its owning composition tears down. With the subprocess seam that boundary is `ctx.subprocess` disposal, so a background process survives an executor-only reload.
+- A still-running process is stopped and awaited when its owning composition tears down. With the subprocess seam that boundary is `ctx.subprocess` disposal, so a process survives an executor-only reload.
 
 ```ts cordis-catalog
 /**
  * Apply implementation-owned defaults and caps to a request before execution.
  * @param request - the caller's request; omitted fields get this
  *   implementation's defaults, capped fields are clamped.
- * @returns the fully-specified spec to hand to {@link run}/{@link start}.
+ * @returns the fully-specified spec to hand to {@link execute}.
  */
 abstract resolve(request: ShellExecRequest): ShellExecSpec
 
 /**
- * Run a command in the foreground; resolves when it finishes.
+ * Prepare and spawn the command under its resolved deadline.
  * @param spec - a resolved spec from {@link resolve}, never a raw request.
- * @returns the outcome; nonzero exits, timeout kills, and abort kills
- *   resolve with a descriptive result rather than reject.
+ * @returns the prepared handle, including its result projection;
+ *   preparation timeout yields an already-settled handle with no output.
+ * @throws on preparation failure or caller cancellation before process publication.
  */
-abstract run(spec: ShellExecSpec): Promise<ShellRunResult>
-
-/**
- * Start a background process and return its handle immediately.
- * @param spec - a resolved spec from {@link resolve}, never a raw request.
- * @returns the live process handle (reads, kill, quiescence promise).
- */
-abstract start(spec: ShellExecSpec): ShellProcess
+abstract execute(spec: ShellExecSpec): Promise<ShellExecution>
 ```
 
-Source: [`packages/shell/shell/src/index.ts:65`](../../packages/shell/shell/src/index.ts)
+Source: [`packages/shell/shell/src/index.ts`](../../packages/shell/shell/src/index.ts)
 
 <a id="ctxshellenv--shellenvregistry"></a>
 
@@ -299,5 +310,5 @@ list(): BashEnvVariableInfo[]
 
 Types: [DshEnvironment](subprocess.md) · [ToolExecution](tools.md)
 
-Source: [`packages/shell/shell-env/src/index.ts:89`](../../packages/shell/shell-env/src/index.ts)
+Source: [`packages/shell/shell-env/src/index.ts`](../../packages/shell/shell-env/src/index.ts)
 <!-- END GENERATED cordis-surface -->

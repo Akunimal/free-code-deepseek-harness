@@ -6,16 +6,14 @@
  */
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-web-react'
-import { createSnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
-import type { TodoItem } from '@deepseek-ai/dsh-client-runtime/client'
-import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
+import { bindSnapshotSelector, makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
+import type { TodoItem } from '@deepseek-ai/dsh-tool-todo/client'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import type { TodoDockProps } from '../src/client/skeleton/TodoPanel.tsx'
 import { TodoDock, TodoPanel, todoDockEntry } from '../src/client/skeleton/TodoPanel.tsx'
 import { NS, zh } from '../src/client/locales.ts'
 
-// Mirrors the real lookup chain (conversation namespace, then common).
 const t: TodoDockProps['t'] = makeTranslate(zh, commonZh)
 
 afterEach(cleanup)
@@ -66,8 +64,10 @@ describe('TodoPanel', () => {
     expect(items.map(li => li.getAttribute('data-status'))).toEqual(['completed', 'in_progress', 'pending'])
     expect(screen.getByText('搭骨架')).toBeTruthy()
     expect(screen.getByText('写组件')).toBeTruthy()
-    // Each status row carries an SVG glyph (not a text bullet).
-    expect(items.every(li => li.querySelector('svg') !== null)).toBe(true)
+    expect(items.map(li => li.querySelector('[data-state]')?.getAttribute('data-state')))
+      .toEqual(['done', 'ongoing', 'idle'])
+    expect(screen.getAllByRole('img').map(node => node.getAttribute('aria-label')))
+      .toEqual(['已完成', '进行中', '待处理'])
   })
 
   it('collapse hides an expanded list; expand restores; header keeps the count summary', () => {

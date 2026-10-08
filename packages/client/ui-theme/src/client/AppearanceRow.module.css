@@ -6,7 +6,7 @@
   flex-direction: column;
   gap: 8px;
   padding: 16px 0;
-  border-bottom: 1px solid var(--dsw-alias-border-l2);
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
 }
 
 .title {
@@ -23,7 +23,7 @@
   flex-wrap: wrap;
 }
 
-/* Appearance cube (figma '.Selector Cube' 276x82 r16, pad 20/32, centered
+/* Appearance cube (figma '.Selector Cube' 276x82, pad 20/32, centered
  * icon-over-label column, gap 4); flexed down from the figma width so all
  * three sit on one row in the 800 panel, wrapping when narrower. */
 .themeCube {
@@ -35,8 +35,8 @@
   justify-content: center;
   gap: 4px;
   padding: 20px 32px;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 16px;
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: var(--dsw-radius-xl);
   background: transparent;
   font: inherit;
   font-size: 14px;

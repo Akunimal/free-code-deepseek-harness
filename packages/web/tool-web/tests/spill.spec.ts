@@ -7,14 +7,15 @@
  * deliberate spill notice (the full formatted result lands in the spill file).
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { AddressInfo } from 'node:net'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { estimateContent } from '@deepseek-ai/dsh-token-meter/estimate'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
@@ -26,6 +27,7 @@ import * as WebFetchLocal from '@deepseek-ai/dsh-web-fetch-http'
 import LocalSpillStore from '@deepseek-ai/dsh-spill-local'
 import * as SpillPolicy from '@deepseek-ai/dsh-spill-policy'
 import * as ToolWeb from '@deepseek-ai/dsh-tool-web'
+import { publicHttpNetwork } from '../../web-fetch-http/src/network.ts'
 
 type Handler = (req: IncomingMessage, res: ServerResponse) => void
 
@@ -36,9 +38,10 @@ let spillRoot: string
 let ctx: Context
 
 const BODY = 'X'.repeat(4000) // formatted result is well over the policy cap
-const MAX_INLINE_BYTES = 1000 // leaves room for a head/tail preview beside the notice
+const MAX_INLINE_TOKENS = 250 // leaves room for a head/tail preview beside the notice
 
 beforeEach(async () => {
+  vi.spyOn(publicHttpNetwork, 'resolve').mockResolvedValue([{ address: '127.0.0.1', family: 4 }])
   handler = (_req, res) => { res.writeHead(200, { 'content-type': 'text/plain' }); res.end(BODY) }
   server = createServer((req, res) => { handler(req, res) })
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
@@ -53,11 +56,13 @@ beforeEach(async () => {
   // policy cap is what triggers the spill (the Agent Note's separation of concerns).
   await ctx.plugin(WebFetchLocal, { maxBodyChars: 500_000 })
   await ctx.plugin(LocalSpillStore, { root: spillRoot })
-  await ctx.plugin(SpillPolicy, { maxInlineBytes: MAX_INLINE_BYTES })
+  await ctx.plugin(SpillPolicy, { maxInlineTokens: MAX_INLINE_TOKENS })
   await ctx.plugin(ToolWeb)
 })
 
 afterEach(async () => {
+  vi.restoreAllMocks()
+  await ctx.fiber.dispose()
   await new Promise<void>(resolve => server.close(() => { resolve() }))
   rmSync(spillRoot, { recursive: true, force: true })
 })
@@ -65,7 +70,7 @@ afterEach(async () => {
 /** A web_fetch call carrying a session owner (so the policy can scope the spill). */
 function fetchCall(): Promise<{ isError: boolean; content: { type: string; text?: string }[] }> {
   const agent = { session: { header: { id: SessionId('web-sess') } } }
-  const exec = { callId: CallId('call-1'), name: 'web_fetch', arguments: { url: base }, agent, signal: testToolSignal } as unknown as ToolExecution
+  const exec = { callId: ToolCallId('call-1'), name: 'web_fetch', arguments: { url: base }, agent, signal: testToolSignal } as unknown as ToolExecution
   return ctx.tools.execute(exec)
 }
 
@@ -77,7 +82,7 @@ describe('web_fetch spill showcase', () => {
 
     // Model-facing text is a preview + notice within the cap, NOT the full body.
     expect(text.length).toBeLessThan(BODY.length)
-    expect(Buffer.byteLength(text, 'utf8')).toBeLessThanOrEqual(MAX_INLINE_BYTES)
+    expect(estimateContent([{ type: 'text', text }])).toBeLessThanOrEqual(MAX_INLINE_TOKENS)
     expect(text).toContain(`Fetched ${base}`) // the head of the formatted result survives
     expect(text).toContain('Full formatted result stored at:')
     expect(text).toContain('Use read with offset/limit, or grep this path')
