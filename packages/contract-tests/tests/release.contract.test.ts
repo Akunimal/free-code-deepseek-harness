@@ -273,8 +273,9 @@ describe('release and runtime packaging contracts', () => {
       join(ROOT, 'vendor/deepseek-harness/packages/client/ui-conversation/src/client/input/TorPill.module.css'),
       'utf8',
     );
-    expect(css).toContain('box-shadow');
-    expect(css).toContain('22c55e');
+    expect(css).toContain('text-shadow');
+    expect(css).toContain('00bfff');
+    expect(css).toContain('background: transparent; border: none;');
   });
 
   it('keeps one-shot pwsh grandchildren headless', () => {

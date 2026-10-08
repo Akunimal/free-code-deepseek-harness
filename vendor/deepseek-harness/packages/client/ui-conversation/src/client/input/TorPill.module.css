@@ -1,27 +1,25 @@
-/* Tor route pill: first seat of the composer leading row. Green glow while
-   Tor carries failover traffic, dimmed on the direct-only route. */
+/* Tor route indicator: bare token, no container. Electric-blue glow while
+   Tor carries failover traffic, flat gray on the direct-only route. */
 .on,
 .off {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border-radius: 999px;
-  padding: 5px 12px;
+  background: transparent; border: none;
+  padding: 5px 8px;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
   cursor: pointer;
 }
 .on {
-  color: #bbf7d0;
-  background: #052e16;
-  border: 1px solid #22c55e;
-  box-shadow: 0 0 12px rgba(34, 197, 94, 0.75);
+  color: #00bfff;
+  background: transparent; border: none;
+  text-shadow: 0 0 10px rgba(0, 191, 255, 0.9);
 }
 .off {
   color: #9da4b3;
-  background: transparent;
-  border: 1px solid #2a2f3a;
+  background: transparent; border: none;
 }
 .off:disabled,
 .on:disabled {
