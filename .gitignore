@@ -62,3 +62,7 @@ apps/shell/electron-builder.yml.bak
 # Test artifacts
 coverage/
 .nyc_output/
+
+# Agent/tool local state (regenerable, never commit)
+.atl/
+.a0proj/
