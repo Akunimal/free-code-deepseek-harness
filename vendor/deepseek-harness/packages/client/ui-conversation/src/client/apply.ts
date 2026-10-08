@@ -31,6 +31,7 @@ import { ConversationRoot } from './skeleton/ConversationRoot.tsx'
 import { ConversationSession, ConversationSessionHeader } from './skeleton/ConversationSession.tsx'
 import { InputBar } from './skeleton/InputBar.tsx'
 import { todoDockEntry } from './skeleton/TodoPanel.tsx'
+import { torPillEntry } from './input/TorPill.tsx'
 import { resolveActiveView } from './view-selection.ts'
 import { en, es, NS, zh, type ConversationKey } from './locales.ts'
 import { CONVERSATION_SETTINGS_NAMESPACE, type ConversationSettings } from '../submission-settings.ts'
@@ -399,4 +400,5 @@ export function apply(ctx: Context, config: Config = Config({})): void {
   })
   ctx.plugin(todoDockEntry)
   ctx.plugin(queueDockEntry)
+  ctx.plugin(torPillEntry)
 }

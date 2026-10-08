@@ -2,7 +2,7 @@ diff --git a/vendor/deepseek-harness/packages/client/ui-conversation/src/client/
 new file mode 100644
 --- /dev/null
 +++ b/vendor/deepseek-harness/packages/client/ui-conversation/src/client/input/TorPill.tsx
-@@ -0,0 +1,80 @@
+@@ -0,0 +1,81 @@
 +import { useEffect, useState } from 'react'
 +import type { Context } from '@deepseek-ai/cordis'
 +import { NS } from '../locales.ts'
@@ -82,7 +82,7 @@ new file mode 100644
 +  apply(ctx: Context): void {
 +    ctx.slots.inject('conversation.input.left', () =>
 +      ctx.slots.register({ name: 'conversation.input.left', id: 'freecode-tor', order: -100, locale: NS }, TorPill))
-+  },
++  }
 +}
 diff --git a/vendor/deepseek-harness/packages/client/ui-conversation/src/client/input/TorPill.module.css b/vendor/deepseek-harness/packages/client/ui-conversation/src/client/input/TorPill.module.css
 new file mode 100644
