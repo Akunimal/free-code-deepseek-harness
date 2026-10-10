@@ -64,7 +64,7 @@ In v0.9.1, native `CreateProcessW` and `CreateProcessAsUserW` creation paths sup
 - [x] Reconcile all vendored `node-pty` patch-hash references in `vendor/deepseek-harness/pnpm-lock.yaml` with the fork overlay.
 - Checks: inspect both package versions; compare the patch's SHA-256 with all lockfile references; `git diff --check`.
 - Evidence/limitations: both package manifests now say `0.9.2`; the active fork patch hash is `471b22cde81c7a04e9d89a1274a3d87c66fd8d420ed02c9b3e68bf435e803ccf`, and the stale `b40ae5…` references were replaced. Frozen install/build verification is tracked separately in BUILD-1 because local package content is missing.
-- Commit evidence: pending local work-unit commit.
+- Commit evidence: `e55f3248c3c5d9196e610cbc3ccde2b070652445` (`chore(release): prepare 0.9.2 candidate`).
 
 ### BUILD-1 - Compile local Windows binaries and installer
 
@@ -77,7 +77,7 @@ In v0.9.1, native `CreateProcessW` and `CreateProcessAsUserW` creation paths sup
 
 ## Progress and next step
 
-Root cause is fixed by the imported native startup-info flags, and both creation routes are protected by a proven Red-Green regression test. The local work-unit commit is `109a14ec22f44a6fc26162eb8f34a83255f63f57`; no merge is active, no unmerged paths remain, and all 20 fork patches apply idempotently through the direct local Node runner. The user authorized compiling a `0.9.2` local candidate, but not installing, tagging, or publishing it. Version metadata and vendor patch hashes now target `0.9.2`; local TSC passed. The offline package install/bundle needs uncached registry packages (`@testing-library/dom@10.4.2` and `chrome-devtools-frontend`), so no network was used and the installer build remains pending authorization. Graphify freshness could not be confirmed because its update command failed with `uv trampoline failed to canonicalize script path`. No process was killed. Next: commit VER-1, then request explicit authorization for the narrowly scoped package fetch needed to continue the 0.9.2 build.
+Root cause is fixed by the imported native startup-info flags, and both creation routes are protected by a proven Red-Green regression test. The local work-unit commit is `109a14ec22f44a6fc26162eb8f34a83255f63f57`; version metadata and vendor patch hashes for `0.9.2` are in `e55f3248c3c5d9196e610cbc3ccde2b070652445`. No merge is active, no unmerged paths remain, and all 20 fork patches apply idempotently through the direct local Node runner. The user authorized compiling a `0.9.2` local candidate, but not installing, tagging, or publishing it. Local TSC passed; the offline package install/bundle needs uncached registry packages (`@testing-library/dom@10.4.2` and `chrome-devtools-frontend`), so no network was used and the installer build remains pending authorization. Graphify freshness could not be confirmed because its update command failed with `uv trampoline failed to canonicalize script path`. No process was killed. Next: request explicit authorization for the narrowly scoped package fetch needed to continue the 0.9.2 build.
 
 ## Relevant files
 
