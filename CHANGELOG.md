@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.9.2 — unreleased
+
+### Fixed / Corregido
+
+- Prevented native Win32-created PowerShell (`pwsh`) children from briefly
+  showing console windows and stealing focus; regression tests cover both
+  ordinary and restricted-token process creation paths. / Se evita que los
+  procesos PowerShell hijos creados por Win32 muestren ventanas de consola y
+  roben el foco; hay tests para ambas rutas de creación.
+
 ## 0.9.1 — unreleased
 
 ### Changed / Cambiado

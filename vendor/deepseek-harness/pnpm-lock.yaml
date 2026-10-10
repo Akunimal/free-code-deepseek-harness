@@ -16,7 +16,7 @@ patchedDependencies:
   '@fortune-sheet/react@1.0.4': 2932e52e79afcd4ced08cfa123b5eded786c85043da32f622f3e80af6fc96c37
   '@yao-pkg/pkg@6.21.0': 75891fc22b277c145cafeab83e41baf4a70f5b8fe6dc0801c6a0b922d7ee88c7
   exceljs@4.4.0: c1bf8ac8f319dab382f08e3a669b715e691d46c703ac5a4163eb383fbedd1d48
-  node-pty@1.2.0-beta.15: b40ae545608897914bd25fb009c97eeac478c34e8a910298ddcb01b746534bb0
+  node-pty@1.2.0-beta.15: 471b22cde81c7a04e9d89a1274a3d87c66fd8d420ed02c9b3e68bf435e803ccf
 
 importers:
 
@@ -13092,7 +13092,7 @@ importers:
         version: 3.1.1
       node-pty:
         specifier: 1.2.0-beta.15
-        version: 1.2.0-beta.15(patch_hash=b40ae545608897914bd25fb009c97eeac478c34e8a910298ddcb01b746534bb0)
+        version: 1.2.0-beta.15(patch_hash=471b22cde81c7a04e9d89a1274a3d87c66fd8d420ed02c9b3e68bf435e803ccf)
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:~
@@ -28198,7 +28198,7 @@ snapshots:
 
   node-int64@0.4.0: {}
 
-  node-pty@1.2.0-beta.15(patch_hash=b40ae545608897914bd25fb009c97eeac478c34e8a910298ddcb01b746534bb0):
+  node-pty@1.2.0-beta.15(patch_hash=471b22cde81c7a04e9d89a1274a3d87c66fd8d420ed02c9b3e68bf435e803ccf):
     dependencies:
       node-addon-api: 7.1.1
 
