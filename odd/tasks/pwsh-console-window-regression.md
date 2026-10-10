@@ -40,10 +40,10 @@ In v0.9.1, native `CreateProcessW` and `CreateProcessAsUserW` creation paths sup
 - [x] Update the patch manifest to upstream `0.2.1-alpha.1` and local sync anchor `3b46b46ae9722a70cb3fb5e075aba7ebd00f0b5a`.
 - [x] Replay all 20 ordered patches; refresh overlapping patches so reverse/replay validation remains clean.
 - [x] Confirm no unmerged index entries or active merge remain.
-- [ ] Create the local work-unit commit for the replayed fork state and this task evidence; do not push.
+- [x] Create the local work-unit commit for the replayed fork state and this task evidence; do not push.
 - Checks: `node scripts/apply-upstream-patches.mjs` twice (20 already-applied, zero failed both runs); `node scripts/verify-upstream-patch-stack.mjs`; `git ls-files -u`; `git diff --check`.
 - Evidence/limitations: patch replay succeeded twice. The verifier reports all static/replay/whitespace checks green except its idempotency subprocess: pnpm tries an implicit install and fails with `EPERM` resolving the workspace realpath. Full `git diff --check` flags whitespace in serialized patch hunks; the vendored source and task/docs checks pass. No remote operation was performed.
-- Commit evidence: pending.
+- Commit evidence: `109a14ec22f44a6fc26162eb8f34a83255f63f57` (`chore(upstream): complete 0.2.1-alpha.1 sync with fork patches`).
 
 ### REG-1 - Guard hidden Win32 child windows
 
@@ -51,14 +51,14 @@ In v0.9.1, native `CreateProcessW` and `CreateProcessAsUserW` creation paths sup
 - [x] TDD Red: temporarily remove `STARTF_USESHOWWINDOW`; three assertions fail (`257` expected, `256` received). Restore the production fix.
 - [x] TDD Green: focused Vitest run passes 2 files / 19 tests. Both creation routes have hidden-flag regression assertions, so no additional duplicate test file is needed.
 - [x] Re-run focused Win32 tests after patch replay: 2 files / 19 tests passed.
-- [ ] Record the local work-unit commit containing this behavior, regression proof, and sync docs.
+- [x] Record the local work-unit commit containing this behavior, regression proof, and sync docs.
 - Checks: focused Vitest command above; ordered patch replay; graph freshness. No installer/build/package command.
 - Evidence/limitations: separate OCR/content check passed 145 tests across 3 suites; the read-image suite had 28 failures from sandbox `EPERM` during temp-path `realpath`, unrelated to Win32 startup. `pnpm` and the patch-stack verifier's pnpm subprocess are blocked by the same sandbox realpath restriction.
-- Commit evidence: pending.
+- Commit evidence: `109a14ec22f44a6fc26162eb8f34a83255f63f57` (`chore(upstream): complete 0.2.1-alpha.1 sync with fork patches`).
 
 ## Progress and next step
 
-Root cause is fixed by the imported native startup-info flags, and both creation routes are protected by a proven Red-Green regression test. The local sync commit is present, no merge is active, no unmerged paths remain, and all 20 fork patches apply idempotently through the direct local Node runner. Graphify freshness could not be confirmed because its update command failed with `uv trampoline failed to canonicalize script path`. Remaining work: record the exact local work-unit commit(s), preserve this graph limitation, and leave installer compilation untouched until the user is notified and approves. No process was killed; no installer compilation was started.
+Root cause is fixed by the imported native startup-info flags, and both creation routes are protected by a proven Red-Green regression test. The local work-unit commit is `109a14ec22f44a6fc26162eb8f34a83255f63f57`; no merge is active, no unmerged paths remain, and all 20 fork patches apply idempotently through the direct local Node runner. Graphify freshness could not be confirmed because its update command failed with `uv trampoline failed to canonicalize script path`. No process was killed; no installer compilation was started. Next step: wait for user approval before any installer compilation.
 
 ## Relevant files
 
