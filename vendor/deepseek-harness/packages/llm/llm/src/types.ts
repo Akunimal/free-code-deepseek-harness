@@ -381,6 +381,12 @@ export interface LlmModelReasoningInfo {
   /** Supported efforts in adapter-preferred display order. */
   efforts: readonly LlmReasoningEffortInfo[]
   /**
+   * Presentation control for the model selector. Omission means a graded
+   * effort selector; `toggle` means the values are a provider's binary
+   * thinking switch and must not be presented as tunable effort tiers.
+   */
+  control?: 'effort' | 'toggle'
+  /**
    * Adapter-configured default materialized into requests when callers omit
    * an effort. Absence preserves the provider's own default.
    */

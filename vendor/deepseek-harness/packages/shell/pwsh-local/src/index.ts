@@ -18,7 +18,9 @@
 import type { Volatile } from '@deepseek-ai/cordis'
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { ShellExecutor } from '@deepseek-ai/dsh-shell'
+import {
+  resolveCaveman, resolveRtk, ShellExecutor, wrapWithCaveman, wrapWithRtk,
+} from '@deepseek-ai/dsh-shell'
 import type { CollectedOutput, ShellExecRequest, ShellExecSpec, ShellExecution, ShellProcess, ShellProcessRead, ShellRunResult } from '@deepseek-ai/dsh-shell'
 import type { SubprocessCollect, SubprocessHandle, SubprocessOutputReader, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { clampTimeout, deadline, MAX_TIMER_DELAY_MS, timeoutOf } from '@deepseek-ai/dsh-timeout'
@@ -44,9 +46,16 @@ export const ENV_OVERRIDES = {
  * garbles non-ASCII output; pwsh 7 defaults to UTF-8 and is unaffected. The
  * statements ride on line 1 after `; ` separators so PowerShell error line
  * numbers stay accurate.
+ *
+ * FreeCode: also default Start-Process grandchildren to a hidden window. A
+ * model-issued `Start-Process powershell.exe ... -NoNewWindow` spawns its
+ * child from a console-less parent, so Windows allocates a NEW VISIBLE
+ * console that flashes for the duration of the child. Defaulting
+ * WindowStyle to Hidden keeps those grandchildren headless; an explicit
+ * -WindowStyle still wins, and -Wait/-PassThru/redirects are unaffected.
  */
 export const ENCODING_PREAMBLE =
-  '[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); $OutputEncoding = [System.Text.UTF8Encoding]::new($false); '
+  '[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); $OutputEncoding = [System.Text.UTF8Encoding]::new($false); $PSDefaultParameterValues["Start-Process:WindowStyle"]="Hidden"; '
 
 /** Default SIGTERM→SIGKILL grace period (the `graceMs` config). */
 const DEFAULT_GRACE_MS = 3_000
@@ -68,6 +77,10 @@ export interface Config {
   maxSpillBytes: Volatile<number>
   /** Grace period for kill escalation and inherited pipes; at most `MAX_TIMER_DELAY_MS`. */
   graceMs: Volatile<number>
+  /** Use an installed RTK binary to compress eligible command output. */
+  rtk: Volatile<boolean>
+  /** Use an installed Caveman binary to compress eligible command output. */
+  caveman: Volatile<boolean>
   /**
    * Explicit pwsh executable. When omitted, well-known Windows install
    * locations and PATH entries are probed in order (PowerShell 7 install,
@@ -131,6 +144,8 @@ export class PwshLocalExecutor extends ShellExecutor {
     maxSpillBytes: z.number().default(DEFAULT_MAX_SPILL_BYTES).volatile(),
     graceMs: z.number().default(DEFAULT_GRACE_MS).volatile(),
     pwshPath: z.string().volatile(),
+    rtk: z.boolean().default(true).volatile(),
+    caveman: z.boolean().default(true).volatile(),
   })
 
   /** The declared executable the current {@link pwshPath} was resolved from. */
@@ -138,6 +153,12 @@ export class PwshLocalExecutor extends ShellExecutor {
 
   /** The pwsh executable resolved from the current config. */
   private resolvedPwshPath: string
+
+  /** Cached because probing PATH for every command adds avoidable latency. */
+  private readonly rtkInstalled: boolean
+
+  /** Cached because probing PATH for every command adds avoidable latency. */
+  private readonly cavemanInstalled: boolean
 
   /** The pwsh executable every command runs through; a changed declared path is probed again on the next read. */
   get pwshPath(): string {
@@ -153,6 +174,8 @@ export class PwshLocalExecutor extends ShellExecutor {
     super(ctx)
     this.declaredPwshPath = config.pwshPath.get()
     this.resolvedPwshPath = resolvePwshPath(this.declaredPwshPath)
+    this.rtkInstalled = resolveRtk()
+    this.cavemanInstalled = resolveCaveman()
   }
 
   /**
@@ -171,7 +194,10 @@ export class PwshLocalExecutor extends ShellExecutor {
     const stdoutMaxBytes = request.stdoutMaxBytes ?? this.config.maxOutputBytes.get()
     assertPositiveFinite('request.stdoutMaxBytes', stdoutMaxBytes)
     return {
-      command: request.command,
+      command: wrapWithCaveman(
+        wrapWithRtk(request.command, this.config.rtk.get() && this.rtkInstalled),
+        this.config.caveman.get() && this.cavemanInstalled,
+      ),
       workdir: request.workdir ?? this.config.cwd.get() ?? process.cwd(),
       timeoutMs,
       onExpiry: request.onExpiry ?? 'kill',

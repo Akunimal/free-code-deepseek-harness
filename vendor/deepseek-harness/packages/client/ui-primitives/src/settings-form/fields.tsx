@@ -115,7 +115,7 @@ export function SettingsValueField(props: Omit<SettingsFieldProps, 'hint'> & {
 }
 
 /** A checkbox toggle for a boolean settings field. */
-export function ToggleField(props: FieldProps & {
+export function ToggleField(props: SettingsFieldProps & {
   /** Current boolean value represented by the staged draft. */
   checked: boolean
 }) {

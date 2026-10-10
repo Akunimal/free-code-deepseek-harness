@@ -23,6 +23,19 @@ import type { ToolDefinition, ToolExecution, ToolExecutionResult } from '@deepse
 import { assertSupportedJsonSchema } from '@deepseek-ai/dsh-tools'
 import type { JsonSchemaNode } from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
+import {
+  canonicalProjectPath,
+  createProjectActivationState,
+  withProjectActivation,
+} from './project-activation.ts'
+import type {
+  ProjectActivationConfig,
+  ProjectActivationResult,
+  ProjectActivationState,
+} from './project-activation.ts'
+
+export { canonicalProjectPath, createProjectActivationState } from './project-activation.ts'
+export type { ProjectActivationConfig, ProjectActivationState } from './project-activation.ts'
 
 /** Resolved options relevant to tool bridging. */
 export interface ToolBridgeOptions {
@@ -30,6 +43,10 @@ export interface ToolBridgeOptions {
   registrationFailure: 'contain' | 'throw'
   serverName: string
   toolCallTimeoutMs: number
+  /** Optional contract for servers with one active project at a time. */
+  projectActivation?: ProjectActivationConfig
+  /** Connection-owned state shared across tool-list synchronization generations. */
+  projectActivationState?: ProjectActivationState
 }
 
 /** State for one sync generation: the current set of disposers keyed by public name. */
@@ -116,11 +133,20 @@ export async function syncTools(
   opts: ToolBridgeOptions,
   previous: ToolDisposers,
 ): Promise<ToolDisposers> {
+  // Programmatic callers may omit the connection-owned state. The connection
+  // supervisor supplies one that survives tool-list re-syncs and reconnects.
+  const projectActivationState = opts.projectActivation === undefined
+    ? undefined
+    : opts.projectActivationState ?? createProjectActivationState()
+
   // Phase 1: fetch and build the next generation without touching the registry.
   const definitions = new Map<string, ToolDefinition>()
   const response = client.getServerCapabilities()?.tools === undefined
     ? { tools: [] }
     : await client.listTools(undefined, { cacheMode: 'refresh' })
+  const activationTool = opts.projectActivation === undefined
+    ? undefined
+    : response.tools.find(tool => tool.name === opts.projectActivation!.toolName)
   for (const tool of response.tools) {
     const publicName = publicToolName(opts.serverName, tool.name)
     if (definitions.has(publicName)) {
@@ -131,10 +157,22 @@ export async function syncTools(
     definitions.set(publicName, createMcpToolDefinition(ctx, {
       name: publicName,
       rawName: tool.name,
+      serverName: opts.serverName,
       description: tool.description ?? '',
       inputSchema: tool.inputSchema,
       outputSchema: tool.outputSchema,
       taskRequired: tool.execution?.taskSupport === 'required',
+      ...(opts.projectActivation === undefined ? {} : { projectActivation: opts.projectActivation }),
+      ...(projectActivationState === undefined ? {} : { projectActivationState }),
+      ...(activationTool === undefined || opts.projectActivation === undefined ? {} : {
+        activateProject: (project: string, execution: ToolExecution) => client.callTool(
+          {
+            name: activationTool.name,
+            arguments: { [opts.projectActivation!.pathArgument]: project },
+          },
+          { signal: execution.signal, timeout: opts.toolCallTimeoutMs, toolDefinition: activationTool },
+        ),
+      }),
       call: (args, execution) => client.callTool(
         { name: tool.name, arguments: args },
         { signal: execution.signal, timeout: opts.toolCallTimeoutMs, toolDefinition: tool },
@@ -198,6 +236,8 @@ export interface McpToolDefinitionOptions {
   name: string
   /** Upstream name used in result diagnostics. */
   rawName: string
+  /** Configured MCP server namespace used by structured call diagnostics. */
+  serverName: string
   /** Upstream model-facing description. */
   description: string
   /** Upstream JSON input schema. */
@@ -206,6 +246,12 @@ export interface McpToolDefinitionOptions {
   outputSchema?: unknown
   /** Whether the upstream tool requires the unsupported task execution extension. */
   taskRequired?: boolean
+  /** Optional single-active-workspace contract for this server. */
+  projectActivation?: ProjectActivationConfig
+  /** Shared serialized activation state for this connection generation. */
+  projectActivationState?: ProjectActivationState
+  /** Invoke the configured project activation tool using its own schema. */
+  activateProject?(project: string, execution: ToolExecution): Promise<unknown>
   /**
    * Obtain one raw MCP result from the provider.
    * @param args - model arguments admitted by the ToolRuntime.
@@ -265,6 +311,84 @@ function createOutput(rawName: string, structuredSchema: JsonSchemaNode | undefi
   }
 }
 
+/** Stable outcome taxonomy emitted for every MCP tool invocation. */
+export type ToolCallStatus =
+  | 'success'
+  | 'failed-local'
+  | 'failed-mcp'
+  | 'failed-provider'
+  | 'failed-timeout'
+  | 'failed-permission'
+  | 'failed-invalid-response'
+
+class ToolCallFailure extends Error {
+  constructor(message: string, readonly status: Exclude<ToolCallStatus, 'success'>) {
+    super(message)
+    this.name = 'ToolCallFailure'
+  }
+}
+
+function classifyToolCallFailure(error: unknown): Exclude<ToolCallStatus, 'success'> {
+  if (error instanceof ToolCallFailure) return error.status
+  const message = error instanceof Error ? error.message : String(error)
+  if (/timed? out|timeout|aborted|cancell?ed/i.test(message)) return 'failed-timeout'
+  if (/permission|access denied|not allowed|sandbox|forbidden/i.test(message)) return 'failed-permission'
+  if (/provider|upstream|429|rate.?limit|api key|authentication/i.test(message)) return 'failed-provider'
+  if (/schema|invalid response|empty|no output|malformed|expected (?:an )?object/i.test(message)) return 'failed-invalid-response'
+  if (/mcp|json-?rpc|connection|transport|server|tools\/(?:list|call)/i.test(message)) return 'failed-mcp'
+  return 'failed-local'
+}
+
+function logToolCall(
+  ctx: Context,
+  options: McpToolDefinitionOptions,
+  requestId: string,
+  startedAt: number,
+  status: ToolCallStatus,
+  error?: unknown,
+): void {
+  const record = {
+    requestId,
+    server: options.serverName,
+    tool: options.rawName,
+    attempt: 1,
+    status,
+    durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
+    ...error === undefined
+      ? {}
+      : { error: (error instanceof Error ? error.message : String(error)).slice(0, 1_024) },
+  }
+  // Machine-readable and useful for diagnostics, without logging model args or image payloads.
+  const line = `mcp tool call ${JSON.stringify(record)}`
+  try {
+    if (status === 'success') ctx.logger.info(line)
+    else ctx.logger.error(line)
+  } catch {
+    // Diagnostics must never replace the actual tool result or error.
+  }
+}
+
+/** Resolve the selected session workspace, never the MCP process cwd. */
+function projectPathFor(execution: ToolExecution): string | undefined {
+  const cwd = execution.agent?.session.header?.cwd
+  return typeof cwd === 'string' && cwd.length > 0 ? canonicalProjectPath(cwd) : undefined
+}
+
+/** Bound a failed activation diagnostic to the server response text. */
+function activationFailure(result: ProjectActivationResult, toolName: string): Error {
+  let detail = 'the MCP server returned an error'
+  if (Array.isArray(result.content)) {
+    detail = extractText(result.content as JsonValue[], toolName).slice(0, 1_024)
+  } else if ('toolResult' in result) {
+    try {
+      detail = JSON.stringify(result.toolResult).slice(0, 1_024)
+    } catch {
+      // Keep the stable fallback for cyclic or otherwise unserializable results.
+    }
+  }
+  return new Error(`project activation via MCP tool "${toolName}" failed: ${detail}`)
+}
+
 /**
  * Invoke the caller-owned raw-result callback and prepare canonical content.
  * MCP isError results reject before image storage so ToolRuntime records failure.
@@ -276,40 +400,69 @@ function createExecutor(
 ): ToolDefinition['execute'] {
   const { rawName, taskRequired } = options
   return async (args: unknown, exec: ToolExecution) => {
-    if (taskRequired) {
-      throw new Error(`Tool "${rawName}" requires task-based execution, which this bridge does not support`)
-    }
-    // The agent loop passes `JSON.parse(model_arguments)` which is usually an
-    // object, but can be any JSON value if the model misbehaves (outputs a bare
-    // string/number/null). Fallback to {} lets the MCP server produce a
-    // specific "missing required param" error the model can learn from.
-    const argsObj = (typeof args === 'object' && args !== null ? args : {}) as Record<string, unknown>
-    const parsed = specTypeSchemas.CallToolResult['~standard'].validate(await options.call(argsObj, exec))
-    if (parsed.issues !== undefined) {
-      throw new Error(`Tool "${rawName}" returned an invalid MCP result: ${parsed.issues.map(issue => issue.message).join('; ')}`)
-    }
-    const result = parsed.value
+    const requestId = String(exec.callId ?? 'unknown')
+    const startedAt = performance.now()
+    let status: ToolCallStatus = 'success'
+    let failure: unknown
+    try {
+      if (taskRequired) {
+        throw new ToolCallFailure(
+          `Tool "${rawName}" requires task-based execution, which this bridge does not support`,
+          'failed-local',
+        )
+      }
+      // Invalid model arguments fall back to {} so the MCP server can return
+      // its specific missing-parameter diagnostic.
+      const argsObj = (typeof args === 'object' && args !== null ? args : {}) as Record<string, unknown>
+      const rawResult = await withProjectActivation<ProjectActivationResult, ToolExecution>({
+        rawName,
+        args: argsObj,
+        execution: exec,
+        project: projectPathFor(exec),
+        config: options.projectActivation,
+        state: options.projectActivationState,
+        call: async (callArgs, execution) => await options.call(callArgs, execution) as ProjectActivationResult,
+        ...(options.activateProject === undefined ? {} : {
+          activate: async (project, execution) => await options.activateProject!(project, execution) as ProjectActivationResult,
+        }),
+        activationError: activationFailure,
+      })
+      const parsed = specTypeSchemas.CallToolResult['~standard'].validate(rawResult)
+      if (parsed.issues !== undefined) {
+        throw new ToolCallFailure(
+          `Tool "${rawName}" returned an invalid MCP result: ${parsed.issues.map(issue => issue.message).join('; ')}`,
+          'failed-invalid-response',
+        )
+      }
+      const result = parsed.value
 
-    const content = result.content as unknown as JsonValue[]
-    const text = extractText(content, rawName)
+      const content = result.content as unknown as JsonValue[]
+      const text = extractText(content, rawName)
 
-    // MCP isError → throw so ToolRuntime produces an isError result for the model.
-    if (result.isError === true) {
-      throw new Error(text)
-    }
+      // MCP isError → throw so ToolRuntime produces an isError result for the model.
+      if (result.isError === true) {
+        throw new ToolCallFailure(text, 'failed-mcp')
+      }
 
-    const value: McpResult = {
-      content,
-      ...result.structuredContent !== undefined
-        ? { structuredContent: result.structuredContent as JsonValue }
-        : {},
+      const value: McpResult = {
+        content,
+        ...result.structuredContent !== undefined
+          ? { structuredContent: result.structuredContent as JsonValue }
+          : {},
+      }
+      if (containsImage(content)) {
+        const fallback: ContentBlock[] = [{ type: 'text', text: extractText(content, rawName) }]
+        const projected = await prepareImageProjection(ctx, exec, content, rawName)
+        projections.set(exec, { value, fallback, content: projected })
+      }
+      return value
+    } catch (error: unknown) {
+      status = classifyToolCallFailure(error)
+      failure = error
+      throw error
+    } finally {
+      logToolCall(ctx, options, requestId, startedAt, status, failure)
     }
-    if (containsImage(content)) {
-      const fallback: ContentBlock[] = [{ type: 'text', text: extractText(content, rawName) }]
-      const projected = await prepareImageProjection(ctx, exec, content, rawName)
-      projections.set(exec, { value, fallback, content: projected })
-    }
-    return value
   }
 }
 

@@ -1,12 +1,6 @@
 # Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
-<<<<<<<< HEAD:vendor/deepseek-harness/.agents/notes/implemented/architecture/2026-06-14-session-persistence.i18n.yaml
-#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-06-14-session-persistence.md
-2026-06-14-session-persistence.md: 8f6c8753007e1998f9b072974e154c5a76ef116b
-2026-06-14-session-persistence.zh.md: b6d8e16377e0c294f19c69334c0770a66add756e
-========
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-08-31-pr-opened-issue-start-dates.md
 2026-08-31-pr-opened-issue-start-dates.md: f17e1bf0dcfdc541952312d1b504bdaa2e2817cc
 2026-08-31-pr-opened-issue-start-dates.zh.md: 3aab8f5528ad125210fbb3839fd334d99ad49bb0
->>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/.agents/notes/archived/process/2026-08-31-pr-opened-issue-start-dates.i18n.yaml

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { resolve } from 'node:path'
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
 import { Context } from '@deepseek-ai/cordis'
 import AttachmentStore, { AttachmentError, AttachmentId } from '@deepseek-ai/dsh-attachment'
@@ -10,7 +11,7 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { PostToolDecision } from '@deepseek-ai/dsh-tools'
-import { publicToolName, syncTools, type ToolBridgeOptions } from '@deepseek-ai/dsh-mcp-client/src/tools.ts'
+import { canonicalProjectPath, createProjectActivationState, publicToolName, syncTools, type ToolBridgeOptions } from '@deepseek-ai/dsh-mcp-client/src/tools.ts'
 import { createTransport } from '@deepseek-ai/dsh-mcp-client/src/transport.ts'
 import type { Config } from '@deepseek-ai/dsh-mcp-client'
 
@@ -119,11 +120,11 @@ async function mountRichRegistry(): Promise<{ ctx: Context; attachments: Recordi
   return { ctx, attachments: ctx.attachments as RecordingAttachmentStore }
 }
 
-/** Calling-agent stand-in with no durable request header yet. */
-function agentOn(model: string | undefined = 'vision'): object {
+/** Calling-agent stand-in with an optional durable workspace header. */
+function agentOn(model: string | undefined = 'vision', cwd?: string): object {
   return {
     options: model === undefined ? {} : { provider: 'visual', model },
-    session: { requestHeader: () => undefined },
+    session: { ...(cwd === undefined ? {} : { header: { cwd } }), requestHeader: () => undefined },
   }
 }
 
@@ -404,6 +405,81 @@ describe('tool execution', () => {
       { name: 'admin.reset', arguments: {} },
       expect.anything(),
     )
+  })
+
+  it('serializes workspace activation immediately before each MCP call', async () => {
+    const projectA = canonicalProjectPath(process.cwd())
+    const projectB = canonicalProjectPath(resolve(process.cwd(), 'packages'))
+    const activationStarted = Promise.withResolvers<void>()
+    const releaseActivation = Promise.withResolvers<void>()
+    const client = createMockClient([
+      { name: 'activate_project', inputSchema: { type: 'object' } },
+      { name: 'find_symbol', inputSchema: { type: 'object' } },
+    ])
+    client.callTool.mockImplementation(async (params?: Record<string, unknown>) => {
+      const call = params as { name: string; arguments: Record<string, unknown> }
+      if (call.name === 'activate_project' && call.arguments.project === projectA) {
+        activationStarted.resolve()
+        await releaseActivation.promise
+      }
+      return { content: [{ type: 'text', text: 'ok' }] }
+    })
+
+    await syncTools(client as never, ctx, {
+      ...defaultOpts,
+      projectActivation: { toolName: 'activate_project', pathArgument: 'project' },
+      projectActivationState: createProjectActivationState(),
+    }, new Map())
+
+    const callA = ctx.tools.execute({
+      signal: testToolSignal, callId: ToolCallId('project-a'), name: 'mcp__srv__find_symbol',
+      arguments: { symbol: 'A' }, agent: agentOn('vision', projectA) as never,
+    })
+    await activationStarted.promise
+    const callB = ctx.tools.execute({
+      signal: testToolSignal, callId: ToolCallId('project-b'), name: 'mcp__srv__find_symbol',
+      arguments: { symbol: 'B' }, agent: agentOn('vision', projectB) as never,
+    })
+
+    expect(client.callTool.mock.calls.map(([params]) => (params as { name: string }).name))
+      .toEqual(['activate_project'])
+    releaseActivation.resolve()
+    await Promise.all([callA, callB])
+
+    expect(client.callTool.mock.calls.map(([params]) => {
+      const call = params as { name: string; arguments: Record<string, unknown> }
+      return [call.name, call.arguments]
+    })).toEqual([
+      ['activate_project', { project: projectA }],
+      ['find_symbol', { symbol: 'A' }],
+      ['activate_project', { project: projectB }],
+      ['find_symbol', { symbol: 'B' }],
+    ])
+  })
+
+  it('emits one bounded machine-readable tool-call record without model arguments', async () => {
+    const info = vi.spyOn(ctx.logger, 'info').mockImplementation(() => undefined)
+    const client = createMockClient([{ name: 'contract', inputSchema: { type: 'object' } }])
+    await syncTools(client as never, ctx, defaultOpts, new Map())
+    await ctx.tools.execute({
+      signal: testToolSignal,
+      callId: ToolCallId('contract-call'),
+      name: 'mcp__srv__contract',
+      arguments: { secret: 'must not be logged' },
+    })
+
+    const lines = info.mock.calls.flatMap(call => call.map(String))
+      .filter(value => value.startsWith('mcp tool call '))
+    expect(lines).toHaveLength(1)
+    const record = JSON.parse(lines[0]!.slice('mcp tool call '.length)) as Record<string, unknown>
+    expect(record).toMatchObject({
+      requestId: 'contract-call',
+      server: 'srv',
+      tool: 'contract',
+      attempt: 1,
+      status: 'success',
+    })
+    expect(lines[0]).not.toContain('must not be logged')
   })
 
   it('joins multiple text blocks with newline', async () => {

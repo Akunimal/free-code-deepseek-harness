@@ -29,3 +29,15 @@ export const en = {
   'row.inspect': 'Inspect',
   'menu.userOnly': 'user-only',
 } satisfies Record<SkillKey, string>
+
+/** Spanish translations retain the fork copy and inherit new upstream keys from English. */
+export const es = {
+  ...en,
+  "row.title": "Habilidad",
+  "row.running": "Cargando habilidad",
+  "row.failed": "Error al cargar la habilidad",
+  "row.stopped": "Carga de habilidad detenida",
+  "row.instructions": "Instrucciones",
+  "row.inspect": "Inspeccionar",
+  "menu.userOnly": "solo usuario",
+}

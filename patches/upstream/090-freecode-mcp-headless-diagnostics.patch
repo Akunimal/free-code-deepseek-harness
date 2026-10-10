@@ -1,8 +1,8 @@
 diff --git a/vendor/deepseek-harness/packages/mcp/mcp-client/src/transport.ts b/vendor/deepseek-harness/packages/mcp/mcp-client/src/transport.ts
-index bc7fd1cc08..9591a82e99 100644
+index 52030772fe..d9e1ec2aee 100644
 --- a/vendor/deepseek-harness/packages/mcp/mcp-client/src/transport.ts
 +++ b/vendor/deepseek-harness/packages/mcp/mcp-client/src/transport.ts
-@@ -12,6 +12,9 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
+@@ -12,6 +12,9 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
  import { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
  import type { Config } from './index.ts'
  
@@ -21,24 +21,20 @@ index bc7fd1cc08..9591a82e99 100644
    switch (config.transport) {
      case 'stdio':
        return new StdioClientTransport({
-@@ -36,7 +39,11 @@ export function createTransport(config: Config): Transport {
+@@ -36,11 +39,14 @@ export function createTransport(config: Config): Transport {
          args: config.args,
          env: buildChildEnv(config.env),
          cwd: config.cwd,
 -      })
-+        // Do not inherit MCP stderr into Electron. It is not a tool protocol
-+        // stream, can surface as a transient console on Windows, and otherwise
-+        // makes startup failures invisible to the application logger.
++        // Keep MCP diagnostics out of the Electron console and available to
++        // the host's bounded structured logger instead.
 +        stderr: 'pipe',
 +      }) as McpTransport
      case 'streamable-http':
-       // The MCP SDK's StreamableHTTPClientTransport has optional callback
-       // properties typed without `| undefined` (exactOptionalPropertyTypes
-@@ -45,6 +52,6 @@ export function createTransport(config: Config): Transport {
        return new StreamableHTTPClientTransport(
          new URL(config.url),
          { requestInit: { headers: config.headers } },
--      ) as Transport
+-      )
 +      ) as McpTransport
    }
  }

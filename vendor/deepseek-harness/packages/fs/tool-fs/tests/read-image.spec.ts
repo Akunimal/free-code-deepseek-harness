@@ -13,7 +13,7 @@ import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { PtcRuntime } from '@deepseek-ai/dsh-ptc-runtime'
 import type { PtcRunRequest, PtcRunResult } from '@deepseek-ai/dsh-ptc-runtime'
-import { ToolCallId, LlmAdapter, LlmRuntime } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, LlmAdapter, LlmRuntime, setOcrRunnerForTests } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, LlmModelInfo, LlmResolvedModelInfo, Message, StreamChunk } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { RUN_CODE_NAME } from '@deepseek-ai/dsh-tools'
@@ -452,7 +452,7 @@ describe('extension-less paths', () => {
   })
 })
 
-describe('strict image-modality gate', () => {
+describe('vision and OCR route gate', () => {
   it('accepts an exact visual route even when the advisory model catalog omits it', async () => {
     await writeFile(join(dir, 'red.png'), PNG_1X1)
     const ctx = await setup({
@@ -469,12 +469,27 @@ describe('strict image-modality gate', () => {
     ['a text-only model', 'text-model'],
     ['a model without declared modalities', 'legacy-model'],
     ['a model absent from the catalog', 'unknown-model'],
-  ])('refuses on %s', async (_label, model) => {
+  ])('uses the bounded OCR bridge on %s', async (_label, model) => {
     await writeFile(join(dir, 'red.png'), PNG_1X1)
     const ctx = await setup()
     const result = await readImage(ctx, { file_path: 'red.png' }, agentOn(model))
     expect(result.isError).toBe(true)
-    expect(text(result)).toContain('does not declare image input')
+    expect(text(result)).toContain('OCR process could not start')
+  })
+
+  it('returns OCR text instead of an image for a text-only route', async () => {
+    await writeFile(join(dir, 'red.png'), PNG_1X1)
+    const restore = setOcrRunnerForTests(async () => 'text extracted from image')
+    try {
+      const ctx = await setup()
+      const result = await readImage(ctx, { file_path: 'red.png' }, agentOn('text-model'))
+      expect(result.isError).toBe(false)
+      expect(result.content).toHaveLength(1)
+      expect(text(result)).toContain('<type>ocr</type>')
+      expect(text(result)).toContain('text extracted from image')
+    } finally {
+      restore()
+    }
   })
 
   it('refuses when the route cannot be resolved (no agent, or no header and no options)', async () => {

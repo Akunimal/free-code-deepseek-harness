@@ -89,24 +89,26 @@ export const en: Record<JobKey, string> = {
   'terminal.expandAria': 'Expand {n} collapsed output lines',
 }
 
-/** Spanish dictionary, key-identical to the Chinese source of truth. */
-export const es: Record<JobKey, string> = {
-  'count.live.one': '{count} trabajo en segundo plano en ejecución',
-  'count.live.other': '{count} trabajos en segundo plano en ejecución',
-  'count.idle.one': '{count} trabajo en segundo plano',
-  'count.idle.other': '{count} trabajos en segundo plano',
-  'list.aria': 'Trabajos en segundo plano',
-  'status.running': 'en ejecución',
-  'status.stopping': 'deteniendo',
-  'status.completed': 'completado',
-  'status.killed': 'cancelado',
-  'status.failed': 'fallido',
-  'duration.seconds': '{seconds} s',
-  'duration.minutes': '{minutes} min {seconds} s',
-  'duration.hours': '{hours} h {minutes} min',
-  'duration.title.live': 'En ejecución durante {duration}',
-  'duration.title.done': 'Duró {duration}',
+/** Spanish translations retain the fork copy and inherit new upstream keys from English. */
+export const es = {
+  ...en,
+  "count.live.one": "{count} trabajo en segundo plano en ejecución",
+  "count.live.other": "{count} trabajos en segundo plano en ejecución",
+  "count.idle.one": "{count} trabajo en segundo plano",
+  "count.idle.other": "{count} trabajos en segundo plano",
+  "list.aria": "Trabajos en segundo plano",
+  "status.running": "en ejecución",
+  "status.stopping": "deteniendo",
+  "status.completed": "completado",
+  "status.killed": "cancelado",
+  "status.failed": "fallido",
+  "duration.seconds": "{seconds} s",
+  "duration.minutes": "{minutes} min {seconds} s",
+  "duration.hours": "{hours} h {minutes} min",
+  "duration.title.live": "En ejecución durante {duration}",
+  "duration.title.done": "Duró {duration}",
 }
+
 
 /** Key domain of the `job` namespace (zh is the source of truth). */
 export type JobKey = keyof typeof zh

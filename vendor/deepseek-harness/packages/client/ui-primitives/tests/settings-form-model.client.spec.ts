@@ -5,9 +5,23 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import {
-  SettingsFormModel, settingsNumberField, settingsTextField,
+  SettingsFormModel, settingsBooleanField, settingsNumberField, settingsTextField,
   type SettingsFormPathOp, type SettingsFormScope, type SettingsFormScopeSnapshot,
-} from '../src/index.ts'
+} from '../src/settings-form/form-model.ts'
+
+describe('settingsBooleanField', () => {
+  it('formats booleans and stages only literal true/false values', () => {
+    const field = settingsBooleanField('enabled')
+
+    expect(field.format(true)).toBe('true')
+    expect(field.format(false)).toBe('false')
+    expect(field.format(undefined)).toBe('')
+    expect(field.parse('true')).toEqual({ kind: 'set', value: true })
+    expect(field.parse('false')).toEqual({ kind: 'set', value: false })
+    expect(field.parse('')).toEqual({ kind: 'clear' })
+    expect(field.parse('yes')).toBeUndefined()
+  })
+})
 
 interface StubScope<T> {
   scope: SettingsFormScope<T>

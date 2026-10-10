@@ -37,14 +37,6 @@ const SOURCE_LINK_POLICY: CordisCatalogPolicy = {
   inheritedServices: [{ name: 'ctx.root', summary: 'Root.', source: 'vendor/cordis/src/context.ts:12' }],
 }
 
-const SOURCE_LINK_POLICY: CordisCatalogPolicy = {
-  linkedTypePages: {},
-  foundationTypeNames: new Set(),
-  typeLinkExemptions: {},
-  inheritedEvents: [{ name: 'ready', summary: 'Ready.', source: 'vendor/cordis/src/events.ts:9' }],
-  inheritedServices: [{ name: 'ctx.root', summary: 'Root.', source: 'vendor/cordis/src/context.ts:12' }],
-}
-
 describe('Typert-backed Cordis catalog', () => {
   it('omits subsystem source lines while preserving inherited Cordis source lines', () => {
     const page = renderPageRegion('fixture.md', [{

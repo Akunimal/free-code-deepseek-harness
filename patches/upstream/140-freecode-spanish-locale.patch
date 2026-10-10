@@ -1,8 +1,8 @@
 diff --git a/vendor/deepseek-harness/packages/client/locale/src/client/index.ts b/vendor/deepseek-harness/packages/client/locale/src/client/index.ts
-index 8370696886..9ce5905c42 100644
+index 744a5f54e6..f2b4928f5c 100644
 --- a/vendor/deepseek-harness/packages/client/locale/src/client/index.ts
 +++ b/vendor/deepseek-harness/packages/client/locale/src/client/index.ts
-@@ -18,9 +18,9 @@ import {
+@@ -20,9 +20,9 @@ import {
    LOCALE_ID_PATTERN, LOCALE_IDS, LOCALE_PREFERENCE_FIELD, LOCALE_SETTINGS_NAMESPACE,
    type BuiltInLocaleId, type LocaleId, type LocaleSettings,
  } from '../locale-settings.ts'
@@ -14,7 +14,12 @@ index 8370696886..9ce5905c42 100644
  } from '../locales/settings.ts'
  import type { LanguageRowInjected } from './LanguageRow.tsx'
  import { LanguageRow } from './LanguageRow.tsx'
-@@ -116,6 +116,7 @@ export const SETTINGS_NS = 'settings.locale'
+@@ -114,10 +114,11 @@ export const COMMON_NS = 'common'
+ /** Namespace owning this feature's settings-row copy. */
+ export const SETTINGS_NS = 'settings.locale'
+ 
+-/** The two locales and dictionaries shipped by this package. */
++/** The three locales and dictionaries shipped by this package. */
  const BUILT_IN_LOCALE_METADATA = {
    zh: { label: '中文', fallback: 'en' },
    en: { label: 'English' },
@@ -22,19 +27,19 @@ index 8370696886..9ce5905c42 100644
  } as const satisfies Record<BuiltInLocaleId, Omit<LocaleDefinition, 'id'>>
  const BUILT_IN_LOCALES: readonly LocaleDefinition[] = Object.freeze(
    LOCALE_IDS.map(id => Object.freeze({ id, ...BUILT_IN_LOCALE_METADATA[id] })),
-@@ -539,8 +540,8 @@ export const inject = ['slots', 'remote', 'settingsScope']
- export function apply(ctx: ClientContext): void {
-   const host = ctx.settingsScope.bind<LocaleSettings>({ namespace: LOCALE_SETTINGS_NAMESPACE })
-   const locale = new LocaleRuntime(ctx, host)
+@@ -576,8 +577,8 @@ export async function apply(ctx: ClientContext): Promise<void> {
+   }
+   const host = ctx.configForms.get<LocaleSettings>(LOCALE_SETTINGS_NAMESPACE)
+   const locale = new LocaleRuntime(ctx, host, bootstrap)
 -  locale.register(COMMON_NS, { zh, en })
 -  locale.register(SETTINGS_NS, { zh: settingsZh, en: settingsEn })
 +  locale.register(COMMON_NS, { zh, en, es })
 +  locale.register(SETTINGS_NS, { zh: settingsZh, en: settingsEn, es: settingsEs })
    ctx.provide('locale', locale)
-   // The service IS the LocaleFace (bind + getSnapshot/subscribe): install it
-   // so the render machinery can synthesize the `t` standard seat.
+   if (bridge !== undefined) {
+     ctx.on('locale/change', (snapshot) => { bridge.onChange(snapshot.active) })
 diff --git a/vendor/deepseek-harness/packages/client/locale/src/locale-settings.ts b/vendor/deepseek-harness/packages/client/locale/src/locale-settings.ts
-index 236ea6d788..9d4dbde15f 100644
+index 24808a17b6..1d482f6c6f 100644
 --- a/vendor/deepseek-harness/packages/client/locale/src/locale-settings.ts
 +++ b/vendor/deepseek-harness/packages/client/locale/src/locale-settings.ts
 @@ -12,7 +12,7 @@ export const LOCALE_PREFERENCE_FIELD = 'preference'
@@ -48,13 +53,13 @@ index 236ea6d788..9d4dbde15f 100644
  export type BuiltInLocaleId = typeof LOCALE_IDS[number]
 diff --git a/vendor/deepseek-harness/packages/client/locale/src/locales/es.ts b/vendor/deepseek-harness/packages/client/locale/src/locales/es.ts
 new file mode 100644
-index 0000000000..211ce83040
+index 0000000000..1ab78f5d23
 --- /dev/null
 +++ b/vendor/deepseek-harness/packages/client/locale/src/locales/es.ts
 @@ -0,0 +1,44 @@
 +import type { CommonKey } from './zh.ts'
 +
-+/** es base dictionary for the common namespace, checked complete against the zh key set. */
++/** Spanish base dictionary for the common namespace, checked against the zh key set. */
 +export const es = {
 +  'ok': 'Aceptar',
 +  'cancel': 'Cancelar',

@@ -1,6 +1,6 @@
 import type { CommonKey } from './zh.ts'
 
-/** es base dictionary for the common namespace, checked complete against the zh key set. */
+/** Spanish base dictionary for the common namespace, checked against the zh key set. */
 export const es = {
   'ok': 'Aceptar',
   'cancel': 'Cancelar',

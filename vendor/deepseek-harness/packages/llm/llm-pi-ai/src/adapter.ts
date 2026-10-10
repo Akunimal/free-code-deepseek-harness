@@ -190,12 +190,19 @@ function reasoningInfo(
 ): Pick<LlmResolvedModelInfo, 'reasoning'> | Record<string, never> {
   if (!model.reasoning) return {}
   const levels = getSupportedThinkingLevels(model)
+  const compat = model.compat as { thinkingFormat?: string; supportsReasoningEffort?: boolean } | undefined
+  const control = compat?.thinkingFormat === 'deepseek' && compat.supportsReasoningEffort === false
+    ? 'toggle' as const
+    : 'effort' as const
   return {
     reasoning: {
       efforts: levels.map(level => ({
         id: ReasoningEffortId(level),
-        name: `${level.charAt(0).toUpperCase()}${level.slice(1)}`,
+        name: control === 'toggle'
+          ? level === 'off' ? 'Off' : 'On'
+          : `${level.charAt(0).toUpperCase()}${level.slice(1)}`,
       })),
+      control,
       ...defaultLevel === undefined ? {} : { defaultEffort: ReasoningEffortId(defaultLevel) },
     },
   }

@@ -21,10 +21,11 @@ export const en = {
   'panels.label': 'Global panels',
 } satisfies Record<SidebarKey, string>
 
-/** Spanish dictionary. */
+/** Spanish translations retain the fork copy and inherit new upstream keys from English. */
 export const es = {
-  'session.new': 'Nueva sesión',
-  'session.new.label': 'Nueva sesión',
-  'toggle.open': 'Abrir barra lateral',
-  'toggle.collapse': 'Contraer barra lateral',
-} satisfies Record<SidebarKey, string>
+  ...en,
+  "session.new": "Nueva sesión",
+  "session.new.label": "Nueva sesión",
+  "toggle.open": "Abrir barra lateral",
+  "toggle.collapse": "Contraer barra lateral",
+}

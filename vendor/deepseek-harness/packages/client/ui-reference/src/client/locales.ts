@@ -50,3 +50,18 @@ export const en = {
   'time.months': '{n}mo',
   'time.years': '{n}y',
 } satisfies Record<ReferenceKey, string>
+
+/** Spanish translations retain the fork copy and inherit new upstream keys from English. */
+export const es = {
+  ...en,
+  "section.files": "Archivos y carpetas",
+  "section.sessions": "Sesiones",
+  "candidate.noCwd": "(sin cwd)",
+  "crumb.root": "Espacio de trabajo",
+  "time.now": "ahora",
+  "time.minutes": "{n} min",
+  "time.hours": "{n} h",
+  "time.days": "{n} d",
+  "time.months": "{n} meses",
+  "time.years": "{n} años",
+}

@@ -37,9 +37,9 @@ import { HarnessError, INVALID_CREDENTIAL_CODE } from './error.ts'
 import { normalizeLlmFailure } from './adapter-failure.ts'
 import { normalizeApiKey } from './api-key.ts'
 import {
-  contentHasFile, contentHasImage, fileHandleText, projectFilesToText, projectImagesForTextModel, projectToolUpdates,
+  contentHasFile, contentHasImage, fileHandleText, projectFilesToText, projectImagesForTextModelWithOcr, projectToolUpdates,
 } from './content.ts'
-import type { FileAttachmentRef } from '@deepseek-ai/dsh-attachment'
+import type { FileAttachmentRef, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 
 export * from './attribution.ts'
 export * from './brand.ts'
@@ -47,6 +47,7 @@ export * from './error.ts'
 export * from './api-key.ts'
 export * from './types.ts'
 export * from './content.ts'
+export * from './ocr.ts'
 export * from './assistant-stream.ts'
 export * from './message.ts'
 export * from './retry-policy.ts'
@@ -821,6 +822,14 @@ export class LlmRuntime extends TypertRemoteService {
         'INVALID_MODEL_REASONING',
       )
     }
+    if (reasoning.control !== undefined
+      && reasoning.control !== 'effort'
+      && reasoning.control !== 'toggle') {
+      throw new LlmError(
+        `adapter returned invalid reasoning control for provider "${provider}" model "${model}"`,
+        'INVALID_MODEL_REASONING',
+      )
+    }
     const seen = new Set<string>()
     const efforts = reasoning.efforts.map((effort) => {
       if (
@@ -853,6 +862,7 @@ export class LlmRuntime extends TypertRemoteService {
       ...info,
       reasoning: {
         efforts,
+        ...reasoning.control === undefined ? {} : { control: reasoning.control },
         ...reasoning.defaultEffort === undefined ? {} : { defaultEffort: reasoning.defaultEffort },
       },
     }
@@ -1018,6 +1028,19 @@ export class LlmRuntime extends TypertRemoteService {
     return fs?.processPathFromHostPath(hostPath)
   }
 
+  /** Resolve a durable image into the read-only path visible to the LLM host. */
+  private imageReadPath(ref: ImageAttachmentRef): string | undefined {
+    let hostPath: string | undefined
+    try {
+      hostPath = this.ctx.get('attachments')?.imageHostPath(ref)
+    } catch {
+      return undefined
+    }
+    if (hostPath === undefined) return undefined
+    const fs = this.ctx.get('fs') as { processPathFromHostPath(hostPath: string): string | undefined } | undefined
+    return fs?.processPathFromHostPath(hostPath)
+  }
+
   /**
    * Final adapter boundary. Adapter selection, dispatch, iterator construction,
    * and iteration failures become one terminal failure chunk. Middleware and
@@ -1063,7 +1086,14 @@ export class LlmRuntime extends TypertRemoteService {
       if (modelInfo.inputModalities !== undefined
         && !modelInfo.inputModalities.includes('image')
         && projectedMessages.some(message => contentHasImage(message.content))) {
-        projectedMessages = projectImagesForTextModel(projectedMessages)
+        projectedMessages = await projectImagesForTextModelWithOcr(
+          projectedMessages,
+          ref => {
+            const readonlyPath = this.imageReadPath(ref)
+            return readonlyPath === undefined ? undefined : { readonlyPath }
+          },
+          resolvedOptions.signal,
+        )
       }
       // Tool changes are logged on every route; the route's declared mode selects what it receives.
       const projectedTools = projectToolUpdates(projectedMessages, resolvedOptions.tools, modelInfo.toolUpdate, resolvedOptions.toolHistory)

@@ -1,9 +1,5 @@
 /**
-<<<<<<<< HEAD:vendor/deepseek-harness/packages/client/ui-settings/src/client/settings-contract.ts
- * Settings-namespace scope contracts owned beside the settings transport.
-========
  * Client configuration values and atomic write operations.
->>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/packages/client/ui-settings/src/client/config-form-types.ts
  */
 
 import type { SettingsPathOpView } from '@deepseek-ai/dsh-api-remotes/client'
@@ -38,14 +34,7 @@ export interface ConfigFormSnapshot<T> {
 }
 
 /**
-<<<<<<<< HEAD:vendor/deepseek-harness/packages/client/ui-settings/src/client/settings-contract.ts
- * Reactive owner handle over one namespace's durable section — the browser
- * mirror of the Host-side `SettingsScope` owner seam. Domain services read
- * and observe the snapshot and route explicit user choices through its
- * mutation methods.
-========
  * Accepted values and serialized writes shared by editors of one Host entry.
->>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/packages/client/ui-settings/src/client/config-form-types.ts
  */
 export interface ConfigForm<T> {
   /** @returns the current sync snapshot (stable reference until the next change). */
@@ -63,16 +52,10 @@ export interface ConfigForm<T> {
    * the latest queued or mirrored revision.
    * @param ops - ordered field operations copied when queued.
    * @param expectedRevision - optional fixed revision read by the domain editor.
-<<<<<<<< HEAD:vendor/deepseek-harness/packages/client/ui-settings/src/client/settings-contract.ts
-   * @returns settlement after the mutation and any latest-write recovery read.
-   */
-  mutate(ops: readonly SettingsPathOpView[], expectedRevision?: number): Promise<void>
-========
    * @returns true for Host acceptance, false for refusal or skipped writes, after any latest-write recovery.
    * Transport failures reject.
    */
   mutate(ops: readonly SettingsPathOpView[], expectedRevision?: number): Promise<boolean>
->>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/packages/client/ui-settings/src/client/config-form-types.ts
   /**
    * Queue one field write. Rapid writes preserve mutation order, each carries
    * the latest known namespace revision, and only the latest settlement may

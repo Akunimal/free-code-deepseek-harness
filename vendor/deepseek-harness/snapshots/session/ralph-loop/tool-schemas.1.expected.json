@@ -109,11 +109,7 @@
     },
     {
       "name": "exit_plan_mode",
-<<<<<<<< HEAD:vendor/deepseek-harness/snapshots/session/text-turn/tool-schemas.expected.json
-      "description": "Use only in plan mode. Present your plan for the user's review and, on approval, leave plan mode. Send the COMPLETE plan as markdown, starting with a # heading that names it. The user may approve (carry out the plan from your next step) or keep planning — their feedback comes back in the tool result; revise and present again.",
-========
       "description": "Use only in plan mode. Present your plan for the user's review and, on approval, leave plan mode. The user may approve (carry out the plan from your next step) or keep planning — their feedback comes back in the tool result; revise and present again.",
->>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/snapshots/session/ralph-loop/tool-schemas.1.expected.json
       "parameters": {
         "type": "object",
         "properties": {
@@ -137,11 +133,7 @@
     },
     {
       "name": "glob",
-<<<<<<<< HEAD:vendor/deepseek-harness/snapshots/session/text-turn/tool-schemas.expected.json
-      "description": "Find files whose paths match a glob pattern. Returns matching file paths — never directories — including hidden and ignored files (VCS metadata directories are excluded). Up to 100 paths come back in modification-time order; a larger result returns the first 100 paths in modification-time order, says so, and reports where the complete sorted list was saved. This tool does not enumerate directory entries.",
-========
       "description": "Find files, not directories, whose paths match a glob pattern, including hidden and ignored files. Returns up to 100 paths in modification-time order; a larger result keeps the first paths and reports where the complete list was saved.",
->>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/snapshots/session/ralph-loop/tool-schemas.1.expected.json
       "parameters": {
         "type": "object",
         "properties": {
@@ -161,11 +153,7 @@
     },
     {
       "name": "grep",
-<<<<<<<< HEAD:vendor/deepseek-harness/snapshots/session/text-turn/tool-schemas.expected.json
-      "description": "Search file contents with a ripgrep regular expression. Returns matching lines with line numbers, grouped by file. Returns the first 250 matches inline; a capped result reports where the complete match list was saved. Use read on a matched file for surrounding context.",
-========
       "description": "Search file contents with a ripgrep regular expression. Returns matching lines with line numbers, grouped by file. Returns up to 250 matches; a larger result reports where the complete match list was saved.",
->>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/snapshots/session/ralph-loop/tool-schemas.1.expected.json
       "parameters": {
         "type": "object",
         "properties": {
@@ -257,11 +245,7 @@
     },
     {
       "name": "list_agents",
-<<<<<<<< HEAD:vendor/deepseek-harness/snapshots/session/text-turn/tool-schemas.expected.json
-      "description": "List your continuable background subagents by durable id and label. Use it to recall which ones you started, not to poll for completion — you are told when one finishes. Status comes from the live registry: running means the agent is working right now, idle means it is loaded but between turns (it may be waiting on agents it started), and ready means it exists only in storage — resumable, not terminal, and not a result waiting to be collected; a `send_message` steers a running child at its nearest step boundary or starts a turn for an idle or ready child, and a direct child remains a `send_message` candidate in every status. The snapshot is not a delivery promise — `send_message` performs the authoritative check and may still fail. Children that could not be read are reported as diagnostics instead of being silently dropped. Scope `descendants` walks the whole tree below you in stable pre-order, annotating each entry with its durable direct-parent session id and depth. You may use `send_message` only for depth-1 entries; deeper entries are candidates for `interrupt_agent` only.",
-========
       "description": "List subagents you started, with their ids, labels, and status. running means it is working; inactive means it is not currently working. You will be notified when a subagent finishes; there is no need to keep checking its status. Use send_message to continue the conversation.",
->>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/snapshots/session/ralph-loop/tool-schemas.1.expected.json
       "parameters": {
         "type": "object",
         "properties": {
@@ -322,11 +306,7 @@
     },
     {
       "name": "read_image",
-<<<<<<<< HEAD:vendor/deepseek-harness/snapshots/session/text-turn/tool-schemas.expected.json
-      "description": "Read a PNG/JPEG/WebP/GIF file and return the image itself. A path without a file extension is accepted; the format is detected from the file content, so normalized attachment paths can be passed directly without copying or renaming. Harness validates and downscales large supported images before the next model request, so use this tool directly instead of installing image libraries or creating thumbnails merely to inspect an image. Independent files may be read concurrently in small batches. Requires the current model to accept image input.",
-========
       "description": "Read a PNG/JPEG/WebP/GIF file and return the image itself. Large images are downscaled automatically; do not install image libraries or create thumbnails to inspect an image.",
->>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/snapshots/session/ralph-loop/tool-schemas.1.expected.json
       "parameters": {
         "type": "object",
         "properties": {
@@ -342,11 +322,7 @@
     },
     {
       "name": "send_message",
-<<<<<<<< HEAD:vendor/deepseek-harness/snapshots/session/text-turn/tool-schemas.expected.json
-      "description": "Send a message to a direct continuable child by its agent id. If you are a resident continuable child, you may also target your direct parent. If the target is still working, the message steers its nearest step; if it is idle, the message starts a turn. This call returns no answer from the agent — only confirmation that the message was delivered. A failure means the message was NOT delivered.",
-========
       "description": "Send a message to an agent. A working agent receives it at its next step; an idle agent starts a new turn with it. Returns delivery confirmation, not the agent's answer.",
->>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/snapshots/session/ralph-loop/tool-schemas.1.expected.json
       "parameters": {
         "type": "object",
         "properties": {
@@ -382,90 +358,6 @@
       }
     },
     {
-<<<<<<<< HEAD:vendor/deepseek-harness/snapshots/session/text-turn/tool-schemas.expected.json
-      "name": "str_replace_editor",
-      "description": "Custom editing tool for viewing, creating and editing files\n* State is persistent across command calls and discussions with the user\n* If `path` is a file, `view` displays the result of applying `cat -n`. If `path` is a directory, `view` lists non-hidden files and directories up to 2 levels deep\n* The `create` command cannot be used if the specified `path` already exists as a file\n* If a `command` generates a long output, it will be truncated and marked with `<response clipped>`\n* A null placeholder for a parameter unused by the selected command is treated as omitted. Required parameters still need values; omit `str_replace.new_str` rather than setting it to null when deleting a match\n\nNotes for using the `str_replace` command:\n* The `old_str` parameter should match EXACTLY one or more consecutive lines from the original file. Be mindful of whitespaces!\n* If the `old_str` parameter is not unique in the file, the replacement will not be performed. Make sure to include enough context in `old_str` to make it unique\n* The `new_str` parameter should contain the edited lines that should replace the `old_str`",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "command": {
-            "type": "string",
-            "description": "The commands to run. Allowed options are: `view`, `create`, `str_replace`, `insert`.",
-            "enum": [
-              "view",
-              "create",
-              "str_replace",
-              "insert"
-            ]
-          },
-          "path": {
-            "type": "string",
-            "description": "Absolute path to file or directory, e.g. `/repo/file.py` or `/repo`."
-          },
-          "file_text": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Required string parameter of `create` command, with the content of the file to be created. A null placeholder is treated as omitted by commands that do not use this parameter."
-          },
-          "insert_line": {
-            "oneOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Required integer parameter of `insert` command. The `new_str` will be inserted AFTER the line `insert_line` of `path`. A null placeholder is treated as omitted by commands that do not use this parameter."
-          },
-          "new_str": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Optional string parameter of `str_replace` command containing the new string (if omitted, no string will be added). Required string parameter of `insert` command containing the string to insert. A null placeholder is accepted only by commands that do not use this parameter."
-          },
-          "old_str": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Required string parameter of `str_replace` command containing the string in `path` to replace. A null placeholder is treated as omitted by commands that do not use this parameter."
-          },
-          "view_range": {
-            "oneOf": [
-              {
-                "type": "array",
-                "items": {
-                  "type": "integer"
-                }
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Optional parameter of `view` command when `path` points to a file. If omitted or null, the full file is shown. If provided, the file will be shown in the indicated line number range, e.g. [11, 12] will show lines 11 and 12. Indexing at 1 to start. Setting `[start_line, -1]` shows all lines from `start_line` to the end of the file."
-          }
-        },
-        "required": [
-          "command",
-          "path"
-        ]
-========
       "name": "structured_output",
       "description": "Report your final structured result. Call this exactly once, when your answer is complete; the arguments must match this tool's parameter schema exactly.",
       "parameters": {
@@ -506,16 +398,11 @@
           "blocker"
         ],
         "additionalProperties": false
->>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/snapshots/session/ralph-loop/tool-schemas.1.expected.json
       }
     },
     {
       "name": "subagent",
-<<<<<<<< HEAD:vendor/deepseek-harness/snapshots/session/text-turn/tool-schemas.expected.json
-      "description": "Delegate a self-contained task to a subagent (a separate agent that works in its own context) to offload focused, independent work — research, a scoped implementation, an analysis — so it does not consume this conversation's context. The subagent returns its result, not its intermediate steps. Give it a complete, standalone prompt: it does not see this conversation. This tool runs in the background by default, immediately returns a durable subagent id, and keeps the child conversation available for later turns. When that run settles, the runtime sends the parent a notice containing its outcome and any final assistant message; `send_message` steers the child's nearest step while it is running and starts a turn while it is idle. Set `run_in_background: false` only when your next action depends on receiving the result.",
-========
       "description": "Delegate a self-contained task to a subagent (a separate agent that works in its own context) to offload focused, independent work — research, a scoped implementation, an analysis — so it does not consume this conversation's context. The subagent returns its result, not its intermediate steps. It runs in the background by default and returns a subagent id you can continue with `send_message`; you are notified when the run settles.",
->>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/snapshots/session/ralph-loop/tool-schemas.1.expected.json
       "parameters": {
         "type": "object",
         "properties": {
@@ -661,21 +548,13 @@
     },
     {
       "name": "web_search",
-<<<<<<<< HEAD:vendor/deepseek-harness/snapshots/session/text-turn/tool-schemas.expected.json
-      "description": "Search the web for current information. Provide 1–4 queries in the required queries array. Returns an optional summary answer and a list of source URLs.",
-========
       "description": "Search the web for current information. Returns an optional summary answer and a list of source URLs.",
->>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/snapshots/session/ralph-loop/tool-schemas.1.expected.json
       "parameters": {
         "type": "object",
         "properties": {
           "queries": {
             "type": "array",
-<<<<<<<< HEAD:vendor/deepseek-harness/snapshots/session/text-turn/tool-schemas.expected.json
-            "description": "Required search queries; accepts 1–4 items and merges their results.",
-========
             "description": "1–4 search queries; their results are merged.",
->>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/snapshots/session/ralph-loop/tool-schemas.1.expected.json
             "items": {
               "type": "string"
             }

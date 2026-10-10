@@ -5,11 +5,7 @@ Archived: 2026-09-30
 
 [English](2026-07-26-ptc-live-parallel-dispatch.md) | 中文
 
-<<<<<<<< HEAD:vendor/deepseek-harness/.agents/notes/implemented/feature/2026-07-26-ptc-live-parallel-dispatch.zh.md
-> 范围：`tool/code-dispatch-start` 事件、Web chat 中每个子调用的运行状态，以及桥接层调度器对原生并发约定的复用。构建在[宿主侧基础](2026-07-26-ptc-dispatch-ui-foundation.zh.md)与 [chat 子调用行](2026-07-26-ptc-chat-subcall-rows.zh.md)之上；原生约定本身归[并行工具调用 Agent Note](2026-07-10-parallel-tool-call-execution.zh.md) 所有。
-========
 > 范围：`tool/ptc-dispatch-start` 事件、Web chat 中每个子调用的运行状态，以及桥接层调度器对原生并发约定的复用。构建在[宿主侧基础](../../archived/feature/2026-07-26-ptc-dispatch-ui-foundation.md)与 [chat 子调用行](../../archived/feature/2026-07-26-ptc-chat-subcall-rows.md)之上；原生约定本身归[并行工具调用 Agent Note](2026-07-10-parallel-tool-call-execution.zh.md) 所有。
->>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/.agents/notes/archived/feature/2026-07-26-ptc-live-parallel-dispatch.zh.md
 
 ## 问题
 
@@ -34,8 +30,4 @@ Archived: 2026-09-30
 
 ## 后果
 
-<<<<<<<< HEAD:vendor/deepseek-harness/.agents/notes/implemented/feature/2026-07-26-ptc-live-parallel-dispatch.zh.md
-程序不需要任何新的模型侧 API，独立读取就获得了原生级的延迟：`Promise.all` 直接变得更好用，提示词指引也随之修改。Web UI 实时显示每个子调用的运行指示环：fixture（测试前置数据）发出成对的 start/settle 事件；jsdom 锁定运行中形状；运行时测试锁定原位结算、乱序完成与 callTime 配对。trajectory/waterfall 的子调用 span 从这对事件取得如实的计时。spill 边界划定（[ptc-dispatch 日志 spill](2026-07-26-ptc-dispatch-log-spill.zh.md)）则以结算事件作为唯一的边界点。
-========
 程序不需要任何新的模型侧 API，独立读取就获得了原生级的延迟：`Promise.all` 直接变得更好用，提示词指引也随之修改。Web UI 实时显示每个子调用的运行指示环：fixture（测试前置数据）发出成对的 start/settle 事件；jsdom 锁定运行中形状；运行时测试锁定原位结算、乱序完成与 callTime 配对。trajectory/waterfall 的子调用 span 从这对事件取得如实的计时。spill 边界划定（[ptc-dispatch 日志 spill](../../archived/feature/2026-07-26-ptc-dispatch-log-spill.md)）则以结算事件作为唯一的边界点。
->>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/.agents/notes/archived/feature/2026-07-26-ptc-live-parallel-dispatch.zh.md

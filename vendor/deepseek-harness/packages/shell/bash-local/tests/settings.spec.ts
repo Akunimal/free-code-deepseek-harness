@@ -24,3 +24,17 @@ it('uses changed budgets for later commands without remounting the executor', as
   await live.replace({})
   expect(ctx.shell.resolve({ command: 'echo ok' }).timeoutMs).toBe(120_000)
 })
+
+it('defaults output optimizers on and honors live opt-outs', async () => {
+  const ctx = new Context()
+  onTestFinished(() => ctx.fiber.dispose())
+  await ctx.plugin(LocalSubprocessRuntime)
+  const live = await liveConfig(ctx, LocalBashExecutor, {})
+  const executor = ctx.shell as LocalBashExecutor
+
+  expect(executor.config.rtk.get()).toBe(true)
+  expect(executor.config.caveman.get()).toBe(true)
+  await live.update({ rtk: false, caveman: false })
+  expect(executor.config.rtk.get()).toBe(false)
+  expect(executor.config.caveman.get()).toBe(false)
+})

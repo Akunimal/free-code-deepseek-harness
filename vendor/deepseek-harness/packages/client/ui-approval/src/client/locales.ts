@@ -20,3 +20,13 @@ export const en = {
   reject: 'Reject',
   allowOnce: 'Allow once',
 } satisfies Record<ApprovalKey, string>
+
+/** Spanish translations retain the fork copy and inherit new upstream keys from English. */
+export const es = {
+  ...en,
+  "waiting": "En espera de aprobación",
+  "detail.aria": "Detalles de la aprobación",
+  "escalation": "La herramienta {toolName} solicita ejecución con privilegios",
+  "reject": "Rechazar",
+  "allowOnce": "Permitir una vez",
+}

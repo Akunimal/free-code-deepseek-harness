@@ -92,6 +92,33 @@ describe('ShellCardController', () => {
     })
   })
 
+  it('projects RTK and Caveman toggles and saves boolean values', async () => {
+    const host = stubConfigForm<ShellSettings>()
+    acceptWrites(host)
+    const controller = new ShellCardController(host.scope)
+    host.publish({
+      status: 'ready', writable: true,
+      value: { timeoutMs: 60_000, maxOutputBytes: 64_000, rtk: true, caveman: true },
+      base: { timeoutMs: 60_000, maxOutputBytes: 64_000, rtk: true, caveman: true },
+      user: {},
+    })
+    const face = controller.inject()
+
+    expect(face.hooks.shellCard.getSnapshot()).toMatchObject({
+      rtk: { text: 'true', overridden: false },
+      caveman: { text: 'true', overridden: false },
+    })
+    face.edit('rtk', 'false')
+    face.edit('caveman', 'false')
+    face.save()
+    await vi.waitFor(() => { expect(host.mutate).toHaveBeenCalledTimes(1) })
+
+    expect(host.mutate.mock.calls[0]?.[0]).toEqual([
+      { op: 'set', path: ['rtk'], value: false },
+      { op: 'set', path: ['caveman'], value: false },
+    ])
+  })
+
   it('discards staged edits without writing', () => {
     const host = stubConfigForm<ShellSettings>()
     const controller = new ShellCardController(host.scope)

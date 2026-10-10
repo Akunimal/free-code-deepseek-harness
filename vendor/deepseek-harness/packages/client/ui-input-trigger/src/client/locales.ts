@@ -33,15 +33,16 @@ export const en = {
   'suggestions.aria': 'Trigger suggestions',
 } satisfies Record<MenuKey, string>
 
-/** Spanish dictionary. */
+/** Spanish translations retain the fork copy and inherit new upstream keys from English. */
 export const es = {
-  'command': 'Comandos',
-  'skill': 'Habilidades',
-  'subagent': 'Subagentes',
-  'loading': 'Cargando…',
-  'drill.aria': 'Explorar carpeta',
-  'drill.hint': 'Explorar carpeta',
-  'drill.key': 'Tab',
-  'crumbs.aria': 'Navegación de carpetas',
-  'suggestions.aria': 'Sugerencias de activación',
-} satisfies Record<MenuKey, string>
+  ...en,
+  "command": "Comandos",
+  "skill": "Habilidades",
+  "subagent": "Subagentes",
+  "loading": "Cargando…",
+  "drill.aria": "Explorar carpeta",
+  "drill.hint": "Explorar carpeta",
+  "drill.key": "Tab",
+  "crumbs.aria": "Navegación de carpetas",
+  "suggestions.aria": "Sugerencias de activación",
+}

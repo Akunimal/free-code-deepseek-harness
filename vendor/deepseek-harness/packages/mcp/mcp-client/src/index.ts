@@ -19,6 +19,7 @@ import { scopeOf } from '@deepseek-ai/dsh-scope'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { DEFAULT_MAX_INSTRUCTION_BYTES, RECONNECT_DEFAULTS, resolveReconnectPolicy, startConnection } from './connection.ts'
 import type { ReconnectConfig } from './connection.ts'
+import type { ProjectActivationConfig } from './project-activation.ts'
 import { registerServerContext } from './server-context.ts'
 // Side-effect type import: declaration-merges `ctx.tools` onto Context.
 import type {} from '@deepseek-ai/dsh-tools'
@@ -26,6 +27,7 @@ import type {} from '@deepseek-ai/dsh-tools'
 export { createMcpToolDefinition } from './tools.ts'
 export type { McpResult, McpToolDefinitionOptions } from './tools.ts'
 export type { ReconnectConfig, ResolvedReconnectPolicy } from './connection.ts'
+export type { ProjectActivationConfig } from './project-activation.ts'
 
 /** Cordis plugin name used by loader diagnostics. */
 export const name = 'mcp-client'
@@ -74,6 +76,8 @@ export interface StdioConfig {
   maxInstructionBytes?: number
   /** Automatic reconnect policy after a lost connection; omission uses the defaults. */
   reconnect?: ReconnectConfig
+  /** Optional automatic project activation contract for this MCP server. */
+  projectActivation?: ProjectActivationConfig
 }
 
 /** Config for connecting to an MCP server over Streamable HTTP (SSE). */
@@ -98,6 +102,8 @@ export interface StreamableHttpConfig {
   maxInstructionBytes?: number
   /** Automatic reconnect policy after a lost connection; omission uses the defaults. */
   reconnect?: ReconnectConfig
+  /** Optional automatic project activation contract for this MCP server. */
+  projectActivation?: ProjectActivationConfig
 }
 
 /** Configuration for one stdio or Streamable HTTP MCP server. */
@@ -116,6 +122,16 @@ const Reconnect: z<ReconnectConfig> = z.object({
   maxAttempts: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(RECONNECT_DEFAULTS.maxAttempts),
 })
 
+const PROJECT_ACTIVATION_NAME = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/
+const ProjectActivation: z<ProjectActivationConfig> = z.object({
+  toolName: z.string().required().pattern(PROJECT_ACTIVATION_NAME),
+  pathArgument: z.string().required().pattern(PROJECT_ACTIVATION_NAME),
+})
+const OptionalProjectActivation: z<ProjectActivationConfig | undefined> = z.union([
+  ProjectActivation,
+  z.const(undefined),
+])
+
 export const Config = z.union([
   z.object({
     transport: z.const('stdio'),
@@ -128,6 +144,7 @@ export const Config = z.union([
     failOnStartupError: z.boolean().default(false),
     maxInstructionBytes: z.number().step(1).min(1).default(DEFAULT_MAX_INSTRUCTION_BYTES),
     reconnect: Reconnect,
+    projectActivation: OptionalProjectActivation,
   }),
   z.object({
     transport: z.const('streamable-http'),
@@ -138,6 +155,7 @@ export const Config = z.union([
     failOnStartupError: z.boolean().default(false),
     maxInstructionBytes: z.number().step(1).min(1).default(DEFAULT_MAX_INSTRUCTION_BYTES),
     reconnect: Reconnect,
+    projectActivation: OptionalProjectActivation,
   }),
 ]) as z<ConfigInput, Config>
 

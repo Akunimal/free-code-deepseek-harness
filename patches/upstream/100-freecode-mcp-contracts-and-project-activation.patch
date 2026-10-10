@@ -1,9 +1,16 @@
 diff --git a/vendor/deepseek-harness/packages/mcp/mcp-client/src/connection.ts b/vendor/deepseek-harness/packages/mcp/mcp-client/src/connection.ts
-index f452e3a81d..f7cb6402da 100644
+index 074d90a12e..f22af473f8 100644
 --- a/vendor/deepseek-harness/packages/mcp/mcp-client/src/connection.ts
 +++ b/vendor/deepseek-harness/packages/mcp/mcp-client/src/connection.ts
-@@ -20,7 +20,7 @@ import { ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/typ
+@@ -15,13 +15,13 @@
+  * @module
+  */
+ 
+-import { Client, type Transport } from '@modelcontextprotocol/client'
++import { Client } from '@modelcontextprotocol/client'
  import type { Context } from '@deepseek-ai/cordis'
+ import { assertNever, type JsonValue } from '@deepseek-ai/dsh-util-values'
+ import type { ServerContext } from './server-context.ts'
  import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
  import { createTransport } from './transport.ts'
 -import { syncTools } from './tools.ts'
@@ -11,47 +18,73 @@ index f452e3a81d..f7cb6402da 100644
  import type { ToolBridgeOptions, ToolDisposers } from './tools.ts'
  import type { Config } from './index.ts'
  
-@@ -126,6 +126,10 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
+@@ -150,13 +150,8 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
      registrationFailure: 'contain',
      serverName: config.serverName,
      toolCallTimeoutMs: config.toolCallTimeoutMs,
-+    ...(config.projectActivation === undefined ? {} : {
-+      projectActivation: config.projectActivation,
-+      projectActivationState: createProjectActivationState(),
-+    }),
++    ...(config.projectActivation === undefined ? {} : { projectActivation: config.projectActivation }),
    }
-   // The initial sync uses 'throw' when failOnStartupError is configured, so
-   // a registration conflict propagates to the startup-await path. Re-syncs
-@@ -243,6 +247,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
+-  // The initial sync uses 'throw' when failOnStartupError is configured, so
+-  // a registration conflict propagates to the startup-await path. Re-syncs
+-  // and reconnect syncs always contain conflicts.
+-  const startupOpts: ToolBridgeOptions = config.failOnStartupError
+-    ? { ...opts, registrationFailure: 'throw' }
+-    : opts
+ 
+   let disposed = false
+   const maxInstructionBytes = config.maxInstructionBytes ?? DEFAULT_MAX_INSTRUCTION_BYTES
+@@ -274,6 +269,14 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
+    * @param startup - Whether this is the plugin's activation attempt.
+    */
+   async function connectGeneration(startup: boolean): Promise<void> {
++    // Keep each protocol generation's active-project cache isolated from any
++    // in-flight calls owned by the generation it replaces.
++    const generationOpts: ToolBridgeOptions = config.projectActivation === undefined
++      ? opts
++      : { ...opts, projectActivationState: createProjectActivationState() }
++    const startupOpts: ToolBridgeOptions = startup && config.failOnStartupError
++      ? { ...generationOpts, registrationFailure: 'throw' }
++      : generationOpts
+     const generation = new Client(
+       { name: 'dsh-mcp-client', version: '0.0.1' },
+       {
+@@ -291,7 +294,8 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
+     const closed: PromiseWithResolvers<void> = Promise.withResolvers()
      let attemptSettled = false
      let closeObserved = false
-     const hasClosed = (): boolean => closeObserved
-+    if (opts.projectActivationState !== undefined) opts.projectActivationState.activeProject = undefined
-     client = generation
-     clientClosed = closed.promise
-     generation.onclose = () => {
-@@ -268,19 +273,31 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
-         }
-       },
-     )
-+    const transport = createTransport(config)
+-    let transport: Transport | undefined
++    let transport: ReturnType<typeof createTransport> | undefined
 +    let stderrTail = ''
-+    transport.stderr?.on('data', (chunk: Buffer | string) => {
-+      // Retain enough context for one actionable failure without turning a
-+      // noisy third-party server into an unbounded log or memory sink.
-+      stderrTail = `${stderrTail}${String(chunk)}`.slice(-4_096)
-+    })
+     const hasClosed = (): boolean => closeObserved
+     client = generation
+     closeClient = closeGeneration
+@@ -316,7 +320,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
+       if (!isCurrent(generation)) return
+       ctx.logger.info(`${label}: tool list changed, re-syncing`)
+       try {
+-        await enqueueSync(generation)
++        await enqueueSync(generation, generationOpts)
+       } catch (error) {
+         if (!disposed) ctx.logger.error(`${label}: tool re-sync failed: ${String(error)}`)
+       }
+@@ -324,6 +328,11 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
+     let instructions: string
      try {
--      await generation.connect(createTransport(config))
-+      await generation.connect(transport)
+       transport = createTransport(config)
++      transport.stderr?.on('data', (chunk: Buffer | string) => {
++        // Retain enough context for one actionable failure without turning a
++        // noisy third-party server into an unbounded log or memory sink.
++        stderrTail = `${stderrTail}${String(chunk)}`.slice(-4_096)
++      })
+       await generation.connect(transport)
        if (hasClosed()) {
          attemptSettled = true
-         generationDown(generation)
-         return
+@@ -339,12 +348,15 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
+       if (Buffer.byteLength(instructions) > maxInstructionBytes) {
+         throw new Error(`${label}: server instructions exceed maxInstructionBytes (${maxInstructionBytes})`)
        }
-       await enqueueSync(generation, startup ? startupOpts : opts)
-+      ctx.logger.info(`${label}: ready; initialize -> tools/list -> schema validation -> ${disposers.size} tool(s) registered`)
-+      publishHostStatus('ready', disposers.size)
+-      await enqueueSync(generation, startup ? startupOpts : opts)
++      await enqueueSync(generation, startup ? startupOpts : generationOpts)
      } catch (error) {
        if (firstAttemptError === undefined) firstAttemptError = error
        // Disposal clears current ownership before it closes the generation, so
@@ -61,45 +94,31 @@ index f452e3a81d..f7cb6402da 100644
 +        const diagnostic = stderrTail.trim()
 +        ctx.logger.warn(`${label}: connection attempt failed: ${String(error)}${diagnostic ? `\n${diagnostic}` : ''}`)
 +      }
-       try { await generation.close() } catch { /* transport already gone */ }
-       const quiesced = hasClosed() || await waitForClose(closed.promise)
+       const quiesced = await closeGeneration()
        attemptSettled = true
-@@ -301,7 +317,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
-     }
-     if (!isCurrent(generation)) return
-     connectedAt = Date.now()
--    if (failedAttempts > 0) ctx.logger.info(`${label}: reconnected and re-synced tools (attempt ${failedAttempts}/${policy.maxAttempts})`)
-+    if (failedAttempts > 0) ctx.logger.info(`${label}: reconnected and re-synced tools (attempt ${failedAttempts}/${policy.maxAttempts}; ${disposers.size} tool(s) registered)`)
-   }
- 
-   /** The in-flight (or last settled) connection attempt; dispose awaits it for quiescence. */
+       settleFailedGeneration(generation, quiesced)
 diff --git a/vendor/deepseek-harness/packages/mcp/mcp-client/src/index.ts b/vendor/deepseek-harness/packages/mcp/mcp-client/src/index.ts
-index 59ef928751..0c8b104d13 100644
+index 3f89532b91..fc4b56dd63 100644
 --- a/vendor/deepseek-harness/packages/mcp/mcp-client/src/index.ts
 +++ b/vendor/deepseek-harness/packages/mcp/mcp-client/src/index.ts
-@@ -37,6 +37,20 @@ const DEFAULT_TOOL_CALL_TIMEOUT_MS = 60_000
- /** Valid `serverName`, kept below the public tool-name budget. */
- const SERVER_NAME_PATTERN = /^[A-Za-z0-9_-]{1,32}$/
+@@ -19,6 +19,7 @@ import { scopeOf } from '@deepseek-ai/dsh-scope'
+ import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
+ import { DEFAULT_MAX_INSTRUCTION_BYTES, RECONNECT_DEFAULTS, resolveReconnectPolicy, startConnection } from './connection.ts'
+ import type { ReconnectConfig } from './connection.ts'
++import type { ProjectActivationConfig } from './project-activation.ts'
+ import { registerServerContext } from './server-context.ts'
+ // Side-effect type import: declaration-merges `ctx.tools` onto Context.
+ import type {} from '@deepseek-ai/dsh-tools'
+@@ -26,6 +27,7 @@ import type {} from '@deepseek-ai/dsh-tools'
+ export { createMcpToolDefinition } from './tools.ts'
+ export type { McpResult, McpToolDefinitionOptions } from './tools.ts'
+ export type { ReconnectConfig, ResolvedReconnectPolicy } from './connection.ts'
++export type { ProjectActivationConfig } from './project-activation.ts'
  
-+/**
-+ * Optional per-session project activation for MCP servers whose state is
-+ * scoped to one active workspace (for example Serena).
-+ *
-+ * The bridge supplies the selected session cwd immediately before a tool call;
-+ * it never derives a project from the MCP child process cwd.
-+ */
-+export interface ProjectActivationConfig {
-+  /** Raw MCP tool that activates one project. */
-+  toolName: string
-+  /** Required string argument receiving the selected session cwd. */
-+  pathArgument: string
-+}
-+
- /**
-  * Live `serverName` reservations per registration scope. Agent-scoped MCP
-  * servers may reuse a namespace in another Agent, while global instances and
-@@ -70,6 +84,8 @@ export interface StdioConfig {
-   failOnStartupError: boolean
+ /** Cordis plugin name used by loader diagnostics. */
+ export const name = 'mcp-client'
+@@ -74,6 +76,8 @@ export interface StdioConfig {
+   maxInstructionBytes?: number
    /** Automatic reconnect policy after a lost connection; omission uses the defaults. */
    reconnect?: ReconnectConfig
 +  /** Optional automatic project activation contract for this MCP server. */
@@ -107,8 +126,8 @@ index 59ef928751..0c8b104d13 100644
  }
  
  /** Config for connecting to an MCP server over Streamable HTTP (SSE). */
-@@ -92,6 +108,8 @@ export interface StreamableHttpConfig {
-   failOnStartupError: boolean
+@@ -98,6 +102,8 @@ export interface StreamableHttpConfig {
+   maxInstructionBytes?: number
    /** Automatic reconnect policy after a lost connection; omission uses the defaults. */
    reconnect?: ReconnectConfig
 +  /** Optional automatic project activation contract for this MCP server. */
@@ -116,7 +135,7 @@ index 59ef928751..0c8b104d13 100644
  }
  
  /** Configuration for one stdio or Streamable HTTP MCP server. */
-@@ -110,6 +128,16 @@ const Reconnect: z<ReconnectConfig> = z.object({
+@@ -116,6 +122,16 @@ const Reconnect: z<ReconnectConfig> = z.object({
    maxAttempts: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(RECONNECT_DEFAULTS.maxAttempts),
  })
  
@@ -133,53 +152,127 @@ index 59ef928751..0c8b104d13 100644
  export const Config = z.union([
    z.object({
      transport: z.const('stdio'),
-@@ -121,6 +149,7 @@ export const Config = z.union([
-     toolCallTimeoutMs: z.number().default(DEFAULT_TOOL_CALL_TIMEOUT_MS),
+@@ -128,6 +144,7 @@ export const Config = z.union([
      failOnStartupError: z.boolean().default(false),
+     maxInstructionBytes: z.number().step(1).min(1).default(DEFAULT_MAX_INSTRUCTION_BYTES),
      reconnect: Reconnect,
 +    projectActivation: OptionalProjectActivation,
    }),
    z.object({
      transport: z.const('streamable-http'),
-@@ -130,6 +159,7 @@ export const Config = z.union([
-     toolCallTimeoutMs: z.number().default(DEFAULT_TOOL_CALL_TIMEOUT_MS),
+@@ -138,6 +155,7 @@ export const Config = z.union([
      failOnStartupError: z.boolean().default(false),
+     maxInstructionBytes: z.number().step(1).min(1).default(DEFAULT_MAX_INSTRUCTION_BYTES),
      reconnect: Reconnect,
 +    projectActivation: OptionalProjectActivation,
    }),
- ]) as unknown as z<ConfigInput, Config>
+ ]) as z<ConfigInput, Config>
  
 diff --git a/vendor/deepseek-harness/packages/mcp/mcp-client/src/tools.ts b/vendor/deepseek-harness/packages/mcp/mcp-client/src/tools.ts
-index a580fd0c84..ada9fb5032 100644
+index 9e7b5c0ab5..c05e2ac15b 100644
 --- a/vendor/deepseek-harness/packages/mcp/mcp-client/src/tools.ts
 +++ b/vendor/deepseek-harness/packages/mcp/mcp-client/src/tools.ts
-@@ -13,6 +13,8 @@
-  */
- 
- import { createHash } from 'node:crypto'
-+import { realpathSync } from 'node:fs'
-+import { resolve } from 'node:path'
- import { isDeepStrictEqual } from 'node:util'
- import type { Client } from '@modelcontextprotocol/sdk/client/index.js'
- import { ListToolsResultSchema } from '@modelcontextprotocol/sdk/types.js'
-@@ -25,6 +27,7 @@ import type { ToolDefinition, ToolExecution, ToolExecutionResult } from '@deepse
+@@ -23,6 +23,19 @@ import type { ToolDefinition, ToolExecution, ToolExecutionResult } from '@deepse
  import { assertSupportedJsonSchema } from '@deepseek-ai/dsh-tools'
  import type { JsonSchemaNode } from '@deepseek-ai/dsh-tools'
  import type { JsonValue } from '@deepseek-ai/dsh-util-values'
-+import type { ProjectActivationConfig } from './index.ts'
++import {
++  canonicalProjectPath,
++  createProjectActivationState,
++  withProjectActivation,
++} from './project-activation.ts'
++import type {
++  ProjectActivationConfig,
++  ProjectActivationResult,
++  ProjectActivationState,
++} from './project-activation.ts'
++
++export { canonicalProjectPath, createProjectActivationState } from './project-activation.ts'
++export type { ProjectActivationConfig, ProjectActivationState } from './project-activation.ts'
  
  /** Resolved options relevant to tool bridging. */
  export interface ToolBridgeOptions {
-@@ -32,6 +35,75 @@ export interface ToolBridgeOptions {
+@@ -30,6 +43,10 @@ export interface ToolBridgeOptions {
    registrationFailure: 'contain' | 'throw'
    serverName: string
    toolCallTimeoutMs: number
 +  /** Optional contract for servers with one active project at a time. */
 +  projectActivation?: ProjectActivationConfig
-+  /** Connection-owned state shared by all tools and sync generations. */
++  /** Connection-owned state shared across tool-list synchronization generations. */
 +  projectActivationState?: ProjectActivationState
-+}
+ }
+ 
+ /** State for one sync generation: the current set of disposers keyed by public name. */
+@@ -116,11 +133,20 @@ export async function syncTools(
+   opts: ToolBridgeOptions,
+   previous: ToolDisposers,
+ ): Promise<ToolDisposers> {
++  // Programmatic callers may omit the connection-owned state. The connection
++  // supervisor supplies one that survives tool-list re-syncs and reconnects.
++  const projectActivationState = opts.projectActivation === undefined
++    ? undefined
++    : opts.projectActivationState ?? createProjectActivationState()
 +
+   // Phase 1: fetch and build the next generation without touching the registry.
+   const definitions = new Map<string, ToolDefinition>()
+   const response = client.getServerCapabilities()?.tools === undefined
+     ? { tools: [] }
+     : await client.listTools(undefined, { cacheMode: 'refresh' })
++  const activationTool = opts.projectActivation === undefined
++    ? undefined
++    : response.tools.find(tool => tool.name === opts.projectActivation!.toolName)
+   for (const tool of response.tools) {
+     const publicName = publicToolName(opts.serverName, tool.name)
+     if (definitions.has(publicName)) {
+@@ -131,10 +157,22 @@ export async function syncTools(
+     definitions.set(publicName, createMcpToolDefinition(ctx, {
+       name: publicName,
+       rawName: tool.name,
++      serverName: opts.serverName,
+       description: tool.description ?? '',
+       inputSchema: tool.inputSchema,
+       outputSchema: tool.outputSchema,
+       taskRequired: tool.execution?.taskSupport === 'required',
++      ...(opts.projectActivation === undefined ? {} : { projectActivation: opts.projectActivation }),
++      ...(projectActivationState === undefined ? {} : { projectActivationState }),
++      ...(activationTool === undefined || opts.projectActivation === undefined ? {} : {
++        activateProject: (project: string, execution: ToolExecution) => client.callTool(
++          {
++            name: activationTool.name,
++            arguments: { [opts.projectActivation!.pathArgument]: project },
++          },
++          { signal: execution.signal, timeout: opts.toolCallTimeoutMs, toolDefinition: activationTool },
++        ),
++      }),
+       call: (args, execution) => client.callTool(
+         { name: tool.name, arguments: args },
+         { signal: execution.signal, timeout: opts.toolCallTimeoutMs, toolDefinition: tool },
+@@ -198,6 +236,8 @@ export interface McpToolDefinitionOptions {
+   name: string
+   /** Upstream name used in result diagnostics. */
+   rawName: string
++  /** Configured MCP server namespace used by structured call diagnostics. */
++  serverName: string
+   /** Upstream model-facing description. */
+   description: string
+   /** Upstream JSON input schema. */
+@@ -206,6 +246,12 @@ export interface McpToolDefinitionOptions {
+   outputSchema?: unknown
+   /** Whether the upstream tool requires the unsupported task execution extension. */
+   taskRequired?: boolean
++  /** Optional single-active-workspace contract for this server. */
++  projectActivation?: ProjectActivationConfig
++  /** Shared serialized activation state for this connection generation. */
++  projectActivationState?: ProjectActivationState
++  /** Invoke the configured project activation tool using its own schema. */
++  activateProject?(project: string, execution: ToolExecution): Promise<unknown>
+   /**
+    * Obtain one raw MCP result from the provider.
+    * @param args - model arguments admitted by the ToolRuntime.
+@@ -265,6 +311,84 @@ function createOutput(rawName: string, structuredSchema: JsonSchemaNode | undefi
+   }
+ }
+ 
 +/** Stable outcome taxonomy emitted for every MCP tool invocation. */
 +export type ToolCallStatus =
 +  | 'success'
@@ -210,162 +303,60 @@ index a580fd0c84..ada9fb5032 100644
 +
 +function logToolCall(
 +  ctx: Context,
-+  opts: ToolBridgeOptions,
-+  rawName: string,
++  options: McpToolDefinitionOptions,
 +  requestId: string,
-+  attempt: number,
 +  startedAt: number,
 +  status: ToolCallStatus,
 +  error?: unknown,
 +): void {
 +  const record = {
 +    requestId,
-+    server: opts.serverName,
-+    tool: rawName,
-+    attempt,
++    server: options.serverName,
++    tool: options.rawName,
++    attempt: 1,
 +    status,
 +    durationMs: Math.max(0, Math.round(performance.now() - startedAt)),
-+    ...error === undefined ? {} : { error: error instanceof Error ? error.message.slice(0, 1_024) : String(error).slice(0, 1_024) },
++    ...error === undefined
++      ? {}
++      : { error: (error instanceof Error ? error.message : String(error)).slice(0, 1_024) },
 +  }
-+  // Keep the contract machine-readable while avoiding model arguments or
-+  // image payloads in logs. One invocation produces exactly one record.
++  // Machine-readable and useful for diagnostics, without logging model args or image payloads.
 +  const line = `mcp tool call ${JSON.stringify(record)}`
-+  if (status === 'success') ctx.logger.info(line)
-+  else ctx.logger.error(line)
++  try {
++    if (status === 'success') ctx.logger.info(line)
++    else ctx.logger.error(line)
++  } catch {
++    // Diagnostics must never replace the actual tool result or error.
++  }
 +}
 +
-+/** Mutable connection state used to serialize activation with the tool call. */
-+export interface ProjectActivationState {
-+  chain: Promise<void>
-+  activeProject: string | undefined
-+}
-+
-+/** Create fresh activation state for one MCP connection supervisor. */
-+export function createProjectActivationState(): ProjectActivationState {
-+  return { chain: Promise.resolve(), activeProject: undefined }
- }
- 
- /** State for one sync generation: the current set of disposers keyed by public name. */
-@@ -82,19 +154,93 @@ function callToolUncached(
-   client: Client,
-   rawName: string,
-   args: Record<string, unknown>,
--  exec: ToolExecution,
-+  signal: AbortSignal,
-   opts: ToolBridgeOptions,
- ) {
-   return client.request(
-     { method: 'tools/call', params: { name: rawName, arguments: args } },
-     RawCallToolResultSchema,
-     {
--      signal: exec.signal,
-+      signal,
-       timeout: opts.toolCallTimeoutMs,
-     },
-   )
- }
- 
-+/** Canonicalize a workspace without making a missing/deleted workspace fatal. */
-+export function canonicalProjectPath(project: string): string {
-+  const absolute = resolve(project)
-+  try { return realpathSync.native(absolute) } catch { return absolute }
-+}
-+
-+/** Resolve the immutable, canonical workspace selected for the calling session. */
-+function projectPathFor(exec: ToolExecution): string | undefined {
-+  const cwd = exec.agent?.session.header?.cwd
++/** Resolve the selected session workspace, never the MCP process cwd. */
++function projectPathFor(execution: ToolExecution): string | undefined {
++  const cwd = execution.agent?.session.header?.cwd
 +  return typeof cwd === 'string' && cwd.length > 0 ? canonicalProjectPath(cwd) : undefined
 +}
 +
-+/** Extract a bounded, model-visible diagnostic from a failed activation call. */
-+function activationFailure(result: Record<string, unknown>, toolName: string): Error {
++/** Bound a failed activation diagnostic to the server response text. */
++function activationFailure(result: ProjectActivationResult, toolName: string): Error {
 +  let detail = 'the MCP server returned an error'
 +  if (Array.isArray(result.content)) {
-+    detail = extractText(result.content as unknown as JsonValue[], toolName).slice(0, 1_024)
++    detail = extractText(result.content as JsonValue[], toolName).slice(0, 1_024)
 +  } else if ('toolResult' in result) {
-+    try { detail = JSON.stringify(result.toolResult).slice(0, 1_024) } catch { /* retain stable fallback */ }
++    try {
++      detail = JSON.stringify(result.toolResult).slice(0, 1_024)
++    } catch {
++      // Keep the stable fallback for cyclic or otherwise unserializable results.
++    }
 +  }
 +  return new Error(`project activation via MCP tool "${toolName}" failed: ${detail}`)
 +}
 +
-+/**
-+ * Call one MCP tool, activating the selected session workspace immediately
-+ * before it when the server declares a project activation contract.
-+ *
-+ * Serena keeps one active project in one long-lived process. The activation
-+ * and the dependent call therefore share one serialized queue; activating in
-+ * a separate fire-and-forget request would let concurrent sessions switch the
-+ * global project between those two requests.
-+ */
-+function callToolWithProjectActivation(
-+  client: Client,
-+  rawName: string,
-+  args: Record<string, unknown>,
-+  exec: ToolExecution,
-+  opts: ToolBridgeOptions,
-+): Promise<Record<string, unknown>> {
-+  const activation = opts.projectActivation
-+  const state = opts.projectActivationState
-+  const project = projectPathFor(exec)
-+  if (activation === undefined || state === undefined || project === undefined) {
-+    return callToolUncached(client, rawName, args, exec.signal, opts)
-+  }
-+
-+  const run = state.chain.catch(() => {}).then(async () => {
-+    exec.signal.throwIfAborted()
-+    if (rawName !== activation.toolName && state.activeProject !== project) {
-+      const activated = await callToolUncached(
-+        client,
-+        activation.toolName,
-+        { [activation.pathArgument]: project },
-+        exec.signal,
-+        opts,
-+      )
-+      if (activated.isError === true) throw activationFailure(activated, activation.toolName)
-+      state.activeProject = project
-+    }
-+
-+    const result = await callToolUncached(client, rawName, args, exec.signal, opts)
-+    // A manual activate_project call remains supported and updates the local
-+    // cache only after the server accepted it.
-+    if (rawName === activation.toolName && result.isError !== true) {
-+      const requested = args[activation.pathArgument]
-+      if (typeof requested === 'string' && requested.length > 0) state.activeProject = requested
-+    }
-+    return result
-+  })
-+  // A failed call must not poison later independent calls in the same server.
-+  state.chain = run.then(() => undefined, () => undefined)
-+  return run
-+}
-+
  /**
-  * Derive the model-facing public name for one MCP tool.
-  *
-@@ -147,6 +293,11 @@ export async function syncTools(
-   opts: ToolBridgeOptions,
-   previous: ToolDisposers,
- ): Promise<ToolDisposers> {
-+  // Tests and programmatic callers may omit the internal state. The
-+  // connection supervisor supplies one that survives tool-list re-syncs.
-+  const bridgeOpts = opts.projectActivation !== undefined && opts.projectActivationState === undefined
-+    ? { ...opts, projectActivationState: createProjectActivationState() }
-+    : opts
-   // Phase 1: fetch and build the next generation without touching the registry.
-   const definitions = new Map<string, ToolDefinition>()
-   let cursor: string | undefined
-@@ -168,7 +319,7 @@ export async function syncTools(
-         tool.inputSchema,
-         supportedOutputSchema(tool.outputSchema),
-         tool.execution?.taskSupport === 'required',
--        opts,
-+        bridgeOpts,
-       ))
-     }
-     cursor = response.nextCursor
-@@ -310,54 +461,85 @@ function createExecutor(
-   projections: WeakMap<ToolExecution, PreparedProjection>,
+  * Invoke the caller-owned raw-result callback and prepare canonical content.
+  * MCP isError results reject before image storage so ToolRuntime records failure.
+@@ -276,40 +400,69 @@ function createExecutor(
  ): ToolDefinition['execute'] {
+   const { rawName, taskRequired } = options
    return async (args: unknown, exec: ToolExecution) => {
 -    if (taskRequired) {
 -      throw new Error(`Tool "${rawName}" requires task-based execution, which this bridge does not support`)
@@ -375,100 +366,12 @@ index a580fd0c84..ada9fb5032 100644
 -    // string/number/null). Fallback to {} lets the MCP server produce a
 -    // specific "missing required param" error the model can learn from.
 -    const argsObj = (typeof args === 'object' && args !== null ? args : {}) as Record<string, unknown>
--    const result = await callToolUncached(client, rawName, argsObj, exec, opts)
+-    const parsed = specTypeSchemas.CallToolResult['~standard'].validate(await options.call(argsObj, exec))
+-    if (parsed.issues !== undefined) {
+-      throw new Error(`Tool "${rawName}" returned an invalid MCP result: ${parsed.issues.map(issue => issue.message).join('; ')}`)
+-    }
+-    const result = parsed.value
 -
--    // The SDK may return a legacy `toolResult` shape; normalize to content array.
--    if (!Array.isArray(result.content)) {
--      const rendered: unknown = 'toolResult' in result
--        ? JSON.stringify(result.toolResult)
--        : '(no output)'
--      const text = typeof rendered === 'string' ? rendered : '(no output)'
--      if (result.isError === true) throw new Error(text)
--      return {
--        content: [{ type: 'text', text }],
-+    const requestId = String(exec.callId ?? 'unknown')
-+    const startedAt = performance.now()
-+    let status: ToolCallStatus = 'success'
-+    let failure: unknown
-+    try {
-+      if (taskRequired) {
-+        throw new ToolCallFailure(
-+          `Tool "${rawName}" requires task-based execution, which this bridge does not support`,
-+          'failed-local',
-+        )
-+      }
-+      // The agent loop passes `JSON.parse(model_arguments)` which is usually an
-+      // object, but can be any JSON value if the model misbehaves (outputs a bare
-+      // string/number/null). Fallback to {} lets the MCP server produce a
-+      // specific "missing required param" error the model can learn from.
-+      const argsObj = (typeof args === 'object' && args !== null ? args : {}) as Record<string, unknown>
-+      const result = await callToolWithProjectActivation(client, rawName, argsObj, exec, opts)
-+
-+      // The SDK may return a legacy `toolResult` shape; normalize to content array.
-+      if (!Array.isArray(result.content)) {
-+        if (result.isError === true) {
-+          const renderedError = 'toolResult' in result ? JSON.stringify(result.toolResult) : undefined
-+          throw new ToolCallFailure(
-+            typeof renderedError === 'string' && renderedError.length > 0
-+              ? renderedError
-+              : `${rawName} returned an MCP error without content`,
-+            'failed-mcp',
-+          )
-+        }
-+        if (!('toolResult' in result)) {
-+          throw new ToolCallFailure(`${rawName} returned an invalid response without content`, 'failed-invalid-response')
-+        }
-+        const rendered: unknown = JSON.stringify(result.toolResult)
-+        if (typeof rendered !== 'string' || rendered.length === 0) {
-+          throw new ToolCallFailure(`${rawName} returned an empty MCP response`, 'failed-invalid-response')
-+        }
-+        const text = rendered
-+        return {
-+          content: [{ type: 'text', text }],
-+          ...result.structuredContent !== undefined
-+            ? { structuredContent: result.structuredContent as JsonValue }
-+            : {},
-+        }
-+      }
-+
-+      // Trust boundary: the SDK's return type erases to `any[]` due to the
-+      // union of CallToolResult | CompatibilityCallToolResult; extractText
-+      // validates each element.
-+      const content = result.content as unknown as JsonValue[]
-+      if (result.isError === true) {
-+        throw new ToolCallFailure(
-+          content.length > 0 ? extractText(content, rawName) : `${rawName} returned an MCP error without content`,
-+          'failed-mcp',
-+        )
-+      }
-+      if (content.length === 0) {
-+        throw new ToolCallFailure(`${rawName} returned an empty MCP response`, 'failed-invalid-response')
-+      }
-+      const text = extractText(content, rawName)
-+
-+      const value: McpResult = {
-+        content,
-         ...result.structuredContent !== undefined
-           ? { structuredContent: result.structuredContent as JsonValue }
-           : {},
-       }
-+      if (containsImage(content)) {
-+        const fallback: ContentBlock[] = [{ type: 'text', text }]
-+        const projected = await prepareImageProjection(ctx, exec, content, rawName)
-+        projections.set(exec, { value, fallback, content: projected })
-+      }
-+      return value
-+    } catch (error: unknown) {
-+      status = classifyToolCallFailure(error)
-+      failure = error
-+      throw error
-+    } finally {
-+      logToolCall(ctx, opts, rawName, requestId, 1, startedAt, status, failure)
-     }
--
--    // Trust boundary: the SDK's return type erases to `any[]` due to the
--    // union of CallToolResult | CompatibilityCallToolResult; extractText
--    // validates each element.
 -    const content = result.content as unknown as JsonValue[]
 -    const text = extractText(content, rawName)
 -
@@ -487,67 +390,191 @@ index a580fd0c84..ada9fb5032 100644
 -      const fallback: ContentBlock[] = [{ type: 'text', text: extractText(content, rawName) }]
 -      const projected = await prepareImageProjection(ctx, exec, content, rawName)
 -      projections.set(exec, { value, fallback, content: projected })
--    }
++    const requestId = String(exec.callId ?? 'unknown')
++    const startedAt = performance.now()
++    let status: ToolCallStatus = 'success'
++    let failure: unknown
++    try {
++      if (taskRequired) {
++        throw new ToolCallFailure(
++          `Tool "${rawName}" requires task-based execution, which this bridge does not support`,
++          'failed-local',
++        )
++      }
++      // Invalid model arguments fall back to {} so the MCP server can return
++      // its specific missing-parameter diagnostic.
++      const argsObj = (typeof args === 'object' && args !== null ? args : {}) as Record<string, unknown>
++      const rawResult = await withProjectActivation<ProjectActivationResult, ToolExecution>({
++        rawName,
++        args: argsObj,
++        execution: exec,
++        project: projectPathFor(exec),
++        config: options.projectActivation,
++        state: options.projectActivationState,
++        call: async (callArgs, execution) => await options.call(callArgs, execution) as ProjectActivationResult,
++        ...(options.activateProject === undefined ? {} : {
++          activate: async (project, execution) => await options.activateProject!(project, execution) as ProjectActivationResult,
++        }),
++        activationError: activationFailure,
++      })
++      const parsed = specTypeSchemas.CallToolResult['~standard'].validate(rawResult)
++      if (parsed.issues !== undefined) {
++        throw new ToolCallFailure(
++          `Tool "${rawName}" returned an invalid MCP result: ${parsed.issues.map(issue => issue.message).join('; ')}`,
++          'failed-invalid-response',
++        )
++      }
++      const result = parsed.value
++
++      const content = result.content as unknown as JsonValue[]
++      const text = extractText(content, rawName)
++
++      // MCP isError → throw so ToolRuntime produces an isError result for the model.
++      if (result.isError === true) {
++        throw new ToolCallFailure(text, 'failed-mcp')
++      }
++
++      const value: McpResult = {
++        content,
++        ...result.structuredContent !== undefined
++          ? { structuredContent: result.structuredContent as JsonValue }
++          : {},
++      }
++      if (containsImage(content)) {
++        const fallback: ContentBlock[] = [{ type: 'text', text: extractText(content, rawName) }]
++        const projected = await prepareImageProjection(ctx, exec, content, rawName)
++        projections.set(exec, { value, fallback, content: projected })
++      }
++      return value
++    } catch (error: unknown) {
++      status = classifyToolCallFailure(error)
++      failure = error
++      throw error
++    } finally {
++      logToolCall(ctx, options, requestId, startedAt, status, failure)
+     }
 -    return value
    }
  }
  
 diff --git a/vendor/deepseek-harness/packages/mcp/mcp-client/tests/apply.spec.ts b/vendor/deepseek-harness/packages/mcp/mcp-client/tests/apply.spec.ts
-index 1b1716e51b..b043613ee7 100644
+index fff238923f..30329fe520 100644
 --- a/vendor/deepseek-harness/packages/mcp/mcp-client/tests/apply.spec.ts
 +++ b/vendor/deepseek-harness/packages/mcp/mcp-client/tests/apply.spec.ts
-@@ -126,6 +126,22 @@ describe('mcp-client plugin module exports', () => {
-     expect(resolved.serverName).toBe('github-prod_1')
+@@ -136,6 +136,22 @@ describe('mcp-client plugin module exports', () => {
+     expect(partial.reconnect).toEqual({ enabled: true, initialDelayMs: 100, maxDelayMs: 30_000, maxAttempts: 10 })
    })
  
 +  it('Config schema preserves a bounded project activation contract', () => {
 +    const resolved = ConfigSchema({
 +      transport: 'stdio',
-+      serverName: 'serena',
-+      command: 'uvx',
++      serverName: 'srv',
++      command: 'echo',
 +      projectActivation: { toolName: 'activate_project', pathArgument: 'project' },
 +    } as never)
 +    expect(resolved.projectActivation).toEqual({ toolName: 'activate_project', pathArgument: 'project' })
 +    expect(() => ConfigSchema({
 +      transport: 'stdio',
-+      serverName: 'serena',
-+      command: 'uvx',
++      serverName: 'srv',
++      command: 'echo',
 +      projectActivation: { toolName: 'activate project', pathArgument: 'project' },
 +    } as never)).toThrow()
 +  })
 +
-   it('Config schema materializes reconnect defaults and merges partial overrides', () => {
-     const omitted = ConfigSchema({
-       transport: 'stdio',
+   it('Config schema rejects an invalid reconnect block', () => {
+     // schemastery unions wrap branch errors, so assert the throw only.
+     expect(() => ConfigSchema({
 diff --git a/vendor/deepseek-harness/packages/mcp/mcp-client/tests/mcp-client.spec.ts b/vendor/deepseek-harness/packages/mcp/mcp-client/tests/mcp-client.spec.ts
-index 605a31ece1..2397afe183 100644
+index 4a330850b8..aeb30f8661 100644
 --- a/vendor/deepseek-harness/packages/mcp/mcp-client/tests/mcp-client.spec.ts
 +++ b/vendor/deepseek-harness/packages/mcp/mcp-client/tests/mcp-client.spec.ts
-@@ -129,11 +129,11 @@ async function mountRichRegistry(): Promise<{ ctx: Context; attachments: Recordi
+@@ -1,4 +1,5 @@
+ import { describe, expect, it, vi, beforeEach } from 'vitest'
++import { resolve } from 'node:path'
+ import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
+ import { Context } from '@deepseek-ai/cordis'
+ import AttachmentStore, { AttachmentError, AttachmentId } from '@deepseek-ai/dsh-attachment'
+@@ -10,7 +11,7 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+ import ToolRuntime from '@deepseek-ai/dsh-tools'
+ import type { JsonValue } from '@deepseek-ai/dsh-util-values'
+ import type { PostToolDecision } from '@deepseek-ai/dsh-tools'
+-import { publicToolName, syncTools, type ToolBridgeOptions } from '@deepseek-ai/dsh-mcp-client/src/tools.ts'
++import { canonicalProjectPath, createProjectActivationState, publicToolName, syncTools, type ToolBridgeOptions } from '@deepseek-ai/dsh-mcp-client/src/tools.ts'
+ import { createTransport } from '@deepseek-ai/dsh-mcp-client/src/transport.ts'
+ import type { Config } from '@deepseek-ai/dsh-mcp-client'
+ 
+@@ -119,11 +120,11 @@ async function mountRichRegistry(): Promise<{ ctx: Context; attachments: Recordi
    return { ctx, attachments: ctx.attachments as RecordingAttachmentStore }
  }
  
 -/** Calling-agent stand-in with no durable request header yet. */
 -function agentOn(model: string | undefined = 'vision'): object {
-+/** Calling-agent stand-in with a durable workspace header. */
-+function agentOn(model: string | undefined = 'vision', cwd = '/workspace/project'): object {
++/** Calling-agent stand-in with an optional durable workspace header. */
++function agentOn(model: string | undefined = 'vision', cwd?: string): object {
    return {
      options: model === undefined ? {} : { provider: 'visual', model },
 -    session: { requestHeader: () => undefined },
-+    session: { header: { cwd }, requestHeader: () => undefined },
++    session: { ...(cwd === undefined ? {} : { header: { cwd } }), requestHeader: () => undefined },
    }
  }
  
-@@ -414,6 +414,37 @@ describe('tool execution', () => {
+@@ -406,6 +407,81 @@ describe('tool execution', () => {
      )
    })
  
-+  it('emits one redacted, machine-readable tool-call contract record', async () => {
++  it('serializes workspace activation immediately before each MCP call', async () => {
++    const projectA = canonicalProjectPath(process.cwd())
++    const projectB = canonicalProjectPath(resolve(process.cwd(), 'packages'))
++    const activationStarted = Promise.withResolvers<void>()
++    const releaseActivation = Promise.withResolvers<void>()
++    const client = createMockClient([
++      { name: 'activate_project', inputSchema: { type: 'object' } },
++      { name: 'find_symbol', inputSchema: { type: 'object' } },
++    ])
++    client.callTool.mockImplementation(async (params?: Record<string, unknown>) => {
++      const call = params as { name: string; arguments: Record<string, unknown> }
++      if (call.name === 'activate_project' && call.arguments.project === projectA) {
++        activationStarted.resolve()
++        await releaseActivation.promise
++      }
++      return { content: [{ type: 'text', text: 'ok' }] }
++    })
++
++    await syncTools(client as never, ctx, {
++      ...defaultOpts,
++      projectActivation: { toolName: 'activate_project', pathArgument: 'project' },
++      projectActivationState: createProjectActivationState(),
++    }, new Map())
++
++    const callA = ctx.tools.execute({
++      signal: testToolSignal, callId: ToolCallId('project-a'), name: 'mcp__srv__find_symbol',
++      arguments: { symbol: 'A' }, agent: agentOn('vision', projectA) as never,
++    })
++    await activationStarted.promise
++    const callB = ctx.tools.execute({
++      signal: testToolSignal, callId: ToolCallId('project-b'), name: 'mcp__srv__find_symbol',
++      arguments: { symbol: 'B' }, agent: agentOn('vision', projectB) as never,
++    })
++
++    expect(client.callTool.mock.calls.map(([params]) => (params as { name: string }).name))
++      .toEqual(['activate_project'])
++    releaseActivation.resolve()
++    await Promise.all([callA, callB])
++
++    expect(client.callTool.mock.calls.map(([params]) => {
++      const call = params as { name: string; arguments: Record<string, unknown> }
++      return [call.name, call.arguments]
++    })).toEqual([
++      ['activate_project', { project: projectA }],
++      ['find_symbol', { symbol: 'A' }],
++      ['activate_project', { project: projectB }],
++      ['find_symbol', { symbol: 'B' }],
++    ])
++  })
++
++  it('emits one bounded machine-readable tool-call record without model arguments', async () => {
 +    const info = vi.spyOn(ctx.logger, 'info').mockImplementation(() => undefined)
-+    const client = createMockClient(
-+      [{ name: 'contract', inputSchema: { type: 'object' } }],
-+      { content: [{ type: 'text', text: 'ok' }] },
-+    )
++    const client = createMockClient([{ name: 'contract', inputSchema: { type: 'object' } }])
 +    await syncTools(client as never, ctx, defaultOpts, new Map())
 +    await ctx.tools.execute({
 +      signal: testToolSignal,
@@ -556,11 +583,10 @@ index 605a31ece1..2397afe183 100644
 +      arguments: { secret: 'must not be logged' },
 +    })
 +
-+    const line = info.mock.calls
-+      .map(call => call.map(value => String(value)).join(' '))
-+      .find(value => value.startsWith('mcp tool call '))
-+    expect(line).toBeDefined()
-+    const record = JSON.parse(line!.slice('mcp tool call '.length)) as Record<string, unknown>
++    const lines = info.mock.calls.flatMap(call => call.map(String))
++      .filter(value => value.startsWith('mcp tool call '))
++    expect(lines).toHaveLength(1)
++    const record = JSON.parse(lines[0]!.slice('mcp tool call '.length)) as Record<string, unknown>
 +    expect(record).toMatchObject({
 +      requestId: 'contract-call',
 +      server: 'srv',
@@ -568,90 +594,236 @@ index 605a31ece1..2397afe183 100644
 +      attempt: 1,
 +      status: 'success',
 +    })
-+    expect(record).not.toHaveProperty('secret')
-+    expect(record.durationMs).toEqual(expect.any(Number))
-+    info.mockRestore()
++    expect(lines[0]).not.toContain('must not be logged')
 +  })
 +
-   it('sends the raw name for normalized public names', async () => {
+   it('joins multiple text blocks with newline', async () => {
      const client = createMockClient(
-       [{ name: 'admin.reset', inputSchema: { type: 'object' } }],
-@@ -823,12 +854,12 @@ describe('tool execution', () => {
-         inputSchema: { type: 'object' },
-         outputSchema: { type: 'object', patternProperties: { '^x-': { type: 'string' } } },
-       }],
--      { content: [], structuredContent: ['kept', { nested: true }] },
-+      { content: [{ type: 'text', text: 'kept' }], structuredContent: ['kept', { nested: true }] },
-     )
-     await syncTools(client as never, ctx, defaultOpts, new Map())
-     const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('fallback'), name: 'mcp__srv__future-schema', arguments: {} })
-     if (result.isError) throw new Error('unsupported MCP output schemas must fall back')
--    expect(result.value).toEqual({ content: [], structuredContent: ['kept', { nested: true }] })
-+    expect(result.value).toEqual({ content: [{ type: 'text', text: 'kept' }], structuredContent: ['kept', { nested: true }] })
-   })
- 
-   it('maps isError to an error result via throw', async () => {
-@@ -878,6 +909,33 @@ describe('tool execution', () => {
-     )
-   })
- 
-+  it('automatically activates the calling session workspace before Serena tools', async () => {
-+    const client = createMockClient([
-+      { name: 'activate_project', inputSchema: { type: 'object' } },
-+      { name: 'get_current_config', inputSchema: { type: 'object' } },
-+    ])
-+    const opts: ToolBridgeOptions = {
-+      ...defaultOpts,
-+      serverName: 'serena',
-+      projectActivation: { toolName: 'activate_project', pathArgument: 'project' },
-+    }
-+    await syncTools(client as never, ctx, opts, new Map())
+       [{ name: 'multi', inputSchema: { type: 'object' } }],
+diff --git a/vendor/deepseek-harness/packages/mcp/mcp-client/src/project-activation.ts b/vendor/deepseek-harness/packages/mcp/mcp-client/src/project-activation.ts
+new file mode 100644
+index 0000000000..a79c70e18b
+--- /dev/null
++++ b/vendor/deepseek-harness/packages/mcp/mcp-client/src/project-activation.ts
+@@ -0,0 +1,92 @@
++import { realpathSync } from 'node:fs'
++import { resolve } from 'node:path'
 +
-+    const result = await ctx.tools.execute({
-+      signal: testToolSignal,
-+      callId: ToolCallId('serena-config'),
-+      name: 'mcp__serena__get_current_config',
-+      arguments: {},
-+      agent: agentOn('vision', 'C:\\Projects\\Hermes') as never,
++/** Optional per-session project activation for servers with one active workspace. */
++export interface ProjectActivationConfig {
++  /** Raw MCP tool that selects the active project. */
++  toolName: string
++  /** Required string argument that receives the selected session cwd. */
++  pathArgument: string
++}
++
++/** Mutable state shared by all tools owned by one MCP connection generation. */
++export interface ProjectActivationState {
++  chain: Promise<void>
++  activeProject: string | undefined
++}
++
++/** Minimal MCP result surface required by the activation coordinator. */
++export interface ProjectActivationResult {
++  isError?: boolean
++  content?: unknown[]
++  toolResult?: unknown
++}
++
++/** Create fresh activation state for one MCP connection generation. */
++export function createProjectActivationState(): ProjectActivationState {
++  return { chain: Promise.resolve(), activeProject: undefined }
++}
++
++/** Canonicalize a workspace while allowing sessions whose directory was deleted. */
++export function canonicalProjectPath(project: string): string {
++  const absolute = resolve(project)
++  try {
++    return realpathSync.native(absolute)
++  } catch {
++    return absolute
++  }
++}
++
++export interface ProjectActivationCallOptions<Result extends ProjectActivationResult, Execution extends { signal: AbortSignal }> {
++  rawName: string
++  args: Record<string, unknown>
++  execution: Execution
++  project: string | undefined
++  config: ProjectActivationConfig | undefined
++  state: ProjectActivationState | undefined
++  call(args: Record<string, unknown>, execution: Execution): Promise<Result>
++  activate?(project: string, execution: Execution): Promise<Result>
++  activationError?(result: Result, toolName: string): Error
++}
++
++/** Serialize activation with its dependent call so concurrent sessions cannot switch server state mid-call. */
++export function withProjectActivation<Result extends ProjectActivationResult, Execution extends { signal: AbortSignal }>(
++  options: ProjectActivationCallOptions<Result, Execution>,
++): Promise<Result> {
++  const { rawName, args, execution, project, config, state } = options
++  if (config === undefined || state === undefined || project === undefined) {
++    return options.call(args, execution)
++  }
++
++  const run = state.chain.catch(() => {}).then(async () => {
++    if (execution.signal.aborted) {
++      const reason = execution.signal.reason
++      throw reason instanceof Error ? reason : new Error('MCP tool call aborted')
++    }
++
++    if (rawName !== config.toolName && state.activeProject !== project) {
++      if (options.activate === undefined) {
++        throw new Error(`project activation tool "${config.toolName}" is not available from the MCP server`)
++      }
++      const activated = await options.activate(project, execution)
++      if (activated.isError === true) {
++        throw options.activationError?.(activated, config.toolName)
++          ?? new Error(`project activation via MCP tool "${config.toolName}" failed`)
++      }
++      state.activeProject = project
++    }
++
++    const result = await options.call(args, execution)
++    if (rawName === config.toolName && result.isError !== true) {
++      const requested = args[config.pathArgument]
++      if (typeof requested === 'string' && requested.length > 0) {
++        state.activeProject = canonicalProjectPath(requested)
++      }
++    }
++    return result
++  })
++
++  // One failed call must not poison later work queued for this server.
++  state.chain = run.then(() => undefined, () => undefined)
++  return run
++}
+diff --git a/vendor/deepseek-harness/packages/mcp/mcp-client/tests/project-activation.spec.ts b/vendor/deepseek-harness/packages/mcp/mcp-client/tests/project-activation.spec.ts
+new file mode 100644
+index 0000000000..f3d843e1d8
+--- /dev/null
++++ b/vendor/deepseek-harness/packages/mcp/mcp-client/tests/project-activation.spec.ts
+@@ -0,0 +1,123 @@
++import { describe, expect, it, vi } from 'vitest'
++import { canonicalProjectPath, createProjectActivationState, withProjectActivation } from '../src/project-activation.ts'
++
++type Result = { isError?: boolean; content?: Array<{ type: string; text?: string }> }
++type Execution = { id: string; signal: AbortSignal }
++
++const activation = { toolName: 'activate_project', pathArgument: 'project' }
++
++describe('project activation', () => {
++  it('canonicalizes the workspace and activates it before the requested tool', async () => {
++    const state = createProjectActivationState()
++    const project = canonicalProjectPath(process.cwd())
++    const calls: string[] = []
++    const execution: Execution = { id: 'one', signal: new AbortController().signal }
++    const result = await withProjectActivation<Result, Execution>({
++      rawName: 'find_symbol',
++      args: { name: 'target' },
++      execution,
++      project,
++      config: activation,
++      state,
++      activate: async requested => {
++        calls.push(`activate:${requested}`)
++        return { content: [{ type: 'text', text: 'activated' }] }
++      },
++      call: async args => {
++        calls.push(`tool:${String(args.name)}`)
++        return { content: [{ type: 'text', text: 'found' }] }
++      },
 +    })
 +
-+    expect(result.isError).toBe(false)
-+    expect(client.callTool.mock.calls.slice(0, 2).map(call => call[0])).toEqual([
-+      { name: 'activate_project', arguments: { project: 'C:\\Projects\\Hermes' } },
-+      { name: 'get_current_config', arguments: {} },
++    expect(calls).toEqual([`activate:${project}`, 'tool:target'])
++    expect(result.content?.[0]?.text).toBe('found')
++    expect(state.activeProject).toBe(project)
++  })
++
++  it('serializes activation and dependent calls when sessions switch workspaces', async () => {
++    const state = createProjectActivationState()
++    const projectA = canonicalProjectPath(process.cwd())
++    const projectB = canonicalProjectPath('packages')
++    const started = Promise.withResolvers<void>()
++    const release = Promise.withResolvers<void>()
++    const events: string[] = []
++    const call = (id: string, project: string) => withProjectActivation<Result, Execution>({
++      rawName: 'find_symbol',
++      args: { id },
++      execution: { id, signal: new AbortController().signal },
++      project,
++      config: activation,
++      state,
++      activate: async requested => {
++        events.push(`activate:${id}:${requested}`)
++        if (id === 'A') {
++          started.resolve()
++          await release.promise
++        }
++        return { content: [] }
++      },
++      call: async () => {
++        events.push(`tool:${id}`)
++        return { content: [] }
++      },
++    })
++
++    const first = call('A', projectA)
++    await started.promise
++    const second = call('B', projectB)
++    expect(events).toEqual([`activate:A:${projectA}`])
++    release.resolve()
++    await Promise.all([first, second])
++    expect(events).toEqual([
++      `activate:A:${projectA}`,
++      'tool:A',
++      `activate:B:${projectB}`,
++      'tool:B',
 +    ])
 +  })
 +
-   it('handles legacy toolResult shape', async () => {
-     const client = createMockClient(
-       [{ name: 'legacy', inputSchema: { type: 'object' } }],
-@@ -1052,7 +1110,8 @@ describe('tool execution edge cases', () => {
-     await syncTools(client as never, ctx, defaultOpts, new Map())
-     const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c1'), name: 'mcp__srv__empty_tool', arguments: {} })
- 
--    expect(result.content[0]).toEqual({ type: 'text', text: '(empty_tool returned no model-visible content)' })
-+    expect(result.isError).toBe(true)
-+    expect(result.content[0]).toEqual({ type: 'text', text: 'Error: empty_tool returned an empty MCP response' })
-   })
- 
- 
-@@ -1065,7 +1124,8 @@ describe('tool execution edge cases', () => {
-     await syncTools(client as never, ctx, defaultOpts, new Map())
-     const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c1'), name: 'mcp__srv__legacy2', arguments: {} })
- 
--    expect(result.content[0]).toEqual({ type: 'text', text: '(no output)' })
-+    expect(result.isError).toBe(true)
-+    expect(result.content[0]).toEqual({ type: 'text', text: 'Error: legacy2 returned an empty MCP response' })
-   })
- 
-   it('handles a legacy result with neither content nor toolResult', async () => {
-@@ -1077,7 +1137,8 @@ describe('tool execution edge cases', () => {
-     await syncTools(client as never, ctx, defaultOpts, new Map())
-     const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('legacy-empty'), name: 'mcp__srv__legacy-empty', arguments: {} })
- 
--    expect(result.content[0]).toEqual({ type: 'text', text: '(no output)' })
-+    expect(result.isError).toBe(true)
-+    expect(result.content[0]).toEqual({ type: 'text', text: 'Error: legacy-empty returned an invalid response without content' })
-   })
- 
-   it('handles isError with non-text content (fallback error message)', async () => {
++  it('does not call the requested tool after activation fails and does not poison the queue', async () => {
++    const state = createProjectActivationState()
++    const project = canonicalProjectPath(process.cwd())
++    const call = vi.fn(async () => ({ content: [] }))
++    const activate = vi.fn(async () => ({ isError: true, content: [{ type: 'text', text: 'denied' }] }))
++    const params = {
++      rawName: 'find_symbol',
++      args: {},
++      execution: { id: 'failed', signal: new AbortController().signal },
++      project,
++      config: activation,
++      state,
++      activate,
++      call,
++      activationError: (result: Result) => new Error(result.content?.[0]?.text ?? 'failed'),
++    }
++
++    await expect(withProjectActivation<Result, Execution>(params)).rejects.toThrow('denied')
++    expect(call).not.toHaveBeenCalled()
++    expect(state.activeProject).toBeUndefined()
++
++    activate.mockResolvedValueOnce({ content: [] })
++    await withProjectActivation<Result, Execution>({ ...params, execution: { id: 'retry', signal: new AbortController().signal } })
++    expect(activate).toHaveBeenCalledTimes(2)
++    expect(call).toHaveBeenCalledTimes(1)
++  })
++
++  it('bypasses activation when the execution has no selected workspace', async () => {
++    const state = createProjectActivationState()
++    const activate = vi.fn()
++    const call = vi.fn(async () => ({ content: [] }))
++    await withProjectActivation<Result, Execution>({
++      rawName: 'find_symbol',
++      args: {},
++      execution: { id: 'no-cwd', signal: new AbortController().signal },
++      project: undefined,
++      config: activation,
++      state,
++      activate,
++      call,
++    })
++    expect(activate).not.toHaveBeenCalled()
++    expect(call).toHaveBeenCalledOnce()
++  })
++})

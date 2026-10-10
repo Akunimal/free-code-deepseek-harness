@@ -26,6 +26,8 @@ export type {
 } from './types.ts'
 export { parseExitStatus } from './render.ts'
 export type { ParsedExitStatus } from './render.ts'
+export { canUseRtk, resolveRtk, wrapWithRtk } from './rtk.ts'
+export { canUseCaveman, resolveCaveman, wrapWithCaveman } from './caveman.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {

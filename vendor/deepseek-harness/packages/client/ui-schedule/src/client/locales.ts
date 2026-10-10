@@ -49,5 +49,29 @@ export const en: Record<ScheduleCatalogKey, string> = {
   'hover.more': '{count} more',
 }
 
+/** Spanish translations retain the fork copy and inherit new upstream keys from English. */
+export const es = {
+  ...en,
+  "trigger.one": "{count} recordatorio",
+  "trigger.other": "{count} recordatorios",
+  "list.aria": "Recordatorios activos",
+  "status.scheduled": "Programado",
+  "status.overdue": "Vencido",
+  "frequency.once": "Una vez",
+  "frequency.every": "Cada {value} {unit}",
+  "unit.day.one": "día",
+  "unit.day.other": "días",
+  "unit.hour.one": "hora",
+  "unit.hour.other": "horas",
+  "unit.minute.one": "minuto",
+  "unit.minute.other": "minutos",
+  "unit.second.one": "segundo",
+  "unit.second.other": "segundos",
+  "relative.now": "Vence ahora",
+  "relative.future": "en {value} {unit}",
+  "relative.overdue": "{value} {unit} de retraso",
+}
+
+
 /** Key domain of the Schedule catalog namespace. */
 export type ScheduleCatalogKey = keyof typeof zh

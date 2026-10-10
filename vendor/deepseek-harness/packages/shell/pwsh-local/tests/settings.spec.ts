@@ -3,6 +3,7 @@ import { expect, it, onTestFinished } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import { PwshLocalExecutor } from '../src/index.ts'
+import { resolveCaveman, resolveRtk, wrapWithCaveman, wrapWithRtk } from '../../shell/src/index.ts'
 import { liveConfig } from '../../../settings/settings/tests/live-config.ts'
 
 it('uses changed budgets for later commands without remounting the executor', async () => {
@@ -38,4 +39,23 @@ it('resolves a changed pwsh path for later commands without remounting the execu
   expect(executor.pwshPath).toBe('/opt/pwsh/pwsh')
   await live.replace({})
   expect(executor.pwshPath).toBe(initial)
+})
+
+it('defaults output optimizers on and honors live opt-outs', async () => {
+  const ctx = new Context()
+  onTestFinished(() => ctx.fiber.dispose())
+  await ctx.plugin(LocalSubprocessRuntime)
+  const live = await liveConfig(ctx, PwshLocalExecutor, {})
+  const executor = ctx.shell as PwshLocalExecutor
+
+  expect(executor.config.rtk.get()).toBe(true)
+  expect(executor.config.caveman.get()).toBe(true)
+  const command = 'git status'
+  expect(executor.resolve({ command }).command).toBe(
+    wrapWithCaveman(wrapWithRtk(command, resolveRtk()), resolveCaveman()),
+  )
+  await live.update({ rtk: false, caveman: false })
+  expect(executor.config.rtk.get()).toBe(false)
+  expect(executor.config.caveman.get()).toBe(false)
+  expect(executor.resolve({ command }).command).toBe(command)
 })

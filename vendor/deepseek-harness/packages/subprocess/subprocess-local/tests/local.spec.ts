@@ -9,6 +9,7 @@ import { Context } from '@deepseek-ai/cordis'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import type { SubprocessSpawnSpec, SubprocessTerminalHandle, SubprocessTerminalSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { childEnv } from '../src/spawn.ts'
+import type { ProcessInspector } from '../src/process-inspector.ts'
 import { signalLinuxDirectProcess } from '../src/linux-scope.ts'
 
 function mockWin32ForIsolatedRuntime(): void {
@@ -298,6 +299,52 @@ describe('LocalSubprocessRuntime', () => {
     await expect(ctx.subprocess.spawnTerminal({ ...base, argv: [''] })).rejects.toThrow('must contain a program')
     await expect(ctx.subprocess.spawnTerminal({ ...base, signal: AbortSignal.abort('stop') })).rejects.toBe('stop')
     await fiber.dispose()
+  })
+
+  it('selects ConPTY for Windows persistent terminal allocation', async () => {
+    const platform = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    let receivedOptions: Record<string, unknown> | undefined
+    let exitListener: ((event: { exitCode: number; signal?: number }) => void) | undefined
+    const terminal = {
+      pid: 123,
+      onData: () => ({ dispose: () => {} }),
+      onExit: (listener: (event: { exitCode: number; signal?: number }) => void) => {
+        exitListener = listener
+        return { dispose: () => {} }
+      },
+      write: () => {},
+      kill: () => { exitListener?.({ exitCode: 0 }) },
+    }
+    mockNodePtyForIsolatedRuntime((_file, _args, options) => {
+      receivedOptions = options as Record<string, unknown>
+      return terminal
+    })
+    vi.resetModules()
+    let fiber: Awaited<ReturnType<Context['plugin']>> | undefined
+    try {
+      const { default: IsolatedLocalSubprocessRuntime } = await import('../src/index.ts')
+      const ctx = new Context()
+      fiber = await ctx.plugin(IsolatedLocalSubprocessRuntime)
+      const runtime = ctx.subprocess as unknown as { terminalInspector: ProcessInspector }
+      runtime.terminalInspector = {
+        foregroundPgid: () => undefined,
+        isStdinWaiting: () => false,
+        snapshot: () => ({ tree: () => [], session: () => [], alive: () => false }),
+        isAlive: () => false,
+        signalGroup: () => {},
+        signalProcess: () => {},
+      }
+      const handle = await ctx.subprocess.spawnTerminal({
+        argv: ['shell'], cwd: process.cwd(), rows: 24, cols: 80, terminalType: 'dumb', graceMs: 1,
+      })
+      expect(receivedOptions).toHaveProperty('useConpty', true)
+      await handle.terminate()
+    } finally {
+      await fiber?.dispose()
+      platform.mockRestore()
+      unmockLazyRequireForIsolatedRuntime()
+      vi.resetModules()
+    }
   })
 
   it('terminates and joins an owned terminal during disposal', async () => {
@@ -676,44 +723,6 @@ describe('LocalSubprocessRuntime', () => {
       unmockLazyRequireForIsolatedRuntime()
       vi.doUnmock('../src/linux-scope.ts')
       unmockWin32ForIsolatedRuntime()
-      vi.resetModules()
-    }
-  })
-
-  it('requests the Windows pseudoconsole backend for persistent terminals', async () => {
-    const platform = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
-    let receivedOptions: Record<string, unknown> | undefined
-    let exitListener: ((event: { exitCode: number; signal?: number }) => void) | undefined
-    const terminal = {
-      pid: 123,
-      onData: () => ({ dispose: () => {} }),
-      onExit: (listener: (event: { exitCode: number; signal?: number }) => void) => {
-        exitListener = listener
-        return { dispose: () => {} }
-      },
-      write: () => {},
-      kill: () => { exitListener?.({ exitCode: 0 }) },
-    }
-    vi.resetModules()
-    vi.doMock('node-pty', () => ({
-      spawn: (_file: string, _args: string[], options: Record<string, unknown>) => {
-        receivedOptions = options
-        return terminal
-      },
-    }))
-    try {
-      const { default: IsolatedLocalSubprocessRuntime } = await import('../src/index.ts')
-      const ctx = new Context()
-      const fiber = await ctx.plugin(IsolatedLocalSubprocessRuntime)
-      const handle = await ctx.subprocess.spawnTerminal({
-        argv: ['shell'], cwd: process.cwd(), rows: 24, cols: 80, graceMs: 1,
-      })
-      expect(receivedOptions).toHaveProperty('useConpty', true)
-      await handle.terminate()
-      await fiber.dispose()
-    } finally {
-      platform.mockRestore()
-      vi.doUnmock('node-pty')
       vi.resetModules()
     }
   })

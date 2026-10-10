@@ -22,7 +22,7 @@ function field(text: string, rest: Partial<SettingsFieldState> = {}): SettingsFi
 
 function renderCard(state: Partial<ShellCardState> = {}, view: 'summary' | 'page' = 'page') {
   const store = createSnapshotStore<ShellCardState>({
-    ...settled, timeoutMs: field('60000'), maxOutputBytes: field('64000'), ...state,
+    ...settled, timeoutMs: field('60000'), maxOutputBytes: field('64000'), rtk: field('true'), caveman: field('true'), ...state,
   })
   const actions = { edit: vi.fn(), resetField: vi.fn(), save: vi.fn(), discard: vi.fn() }
   const props = { ...actions, view, t, useShellCard: bindSnapshotSelector(store) } as ShellCardProps
@@ -51,6 +51,20 @@ describe('ShellCard', () => {
     expect(screen.getByLabelText(en.timeoutMs)).toBeTruthy()
     expect(screen.getByLabelText(en.maxOutputBytes)).toBeTruthy()
     expect(screen.queryByText(en.title)).toBeNull()
+  })
+
+  it('renders RTK and Caveman as staged resettable toggles', () => {
+    const actions = renderCard({ rtk: field('true'), caveman: field('false', { overridden: true }) })
+    const rtk = screen.getByRole('checkbox', { name: en.rtk })
+    const caveman = screen.getByRole('checkbox', { name: en.caveman })
+
+    expect(rtk).toHaveProperty('checked', true)
+    expect(caveman).toHaveProperty('checked', false)
+    fireEvent.click(rtk)
+    fireEvent.click(screen.getByRole('button', { name: en.reset }))
+
+    expect(actions.edit).toHaveBeenCalledWith('rtk', 'false')
+    expect(actions.resetField).toHaveBeenCalledWith('caveman')
   })
 
   it('stages an edit instead of writing it', () => {

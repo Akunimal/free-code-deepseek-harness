@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { AttachmentId } from '@deepseek-ai/dsh-attachment'
 import LlmRuntime, {
@@ -16,6 +19,7 @@ import LlmRuntime, {
   createMessage,
   createDeveloperMessage,
   createUserMessage,
+  setOcrRunnerForTests,
 } from '@deepseek-ai/dsh-llm'
 import type {
   LlmModelContext,
@@ -860,6 +864,7 @@ describe('LlmRuntime', () => {
     [{ efforts: [{ id: 'valid', name: '' }] }, 'empty name'],
     [{ efforts: [{ id: 'valid', name: 'Valid', description: 1 }] }, 'non-string description'],
     [{ efforts: [{ id: 'same', name: 'One' }, { id: 'same', name: 'Two' }] }, 'duplicate id'],
+    [{ efforts: [{ id: 'valid', name: 'Valid' }], control: 'slider' }, 'invalid control'],
     [{ efforts: [{ id: 'valid', name: 'Valid' }], defaultEffort: 'other' }, 'unknown default'],
   ] as const)('rejects invalid model reasoning metadata (%s: %s)', async (metadata, _label) => {
     const ctx = new Context()
@@ -1099,8 +1104,14 @@ describe('LlmRuntime', () => {
     expect(dispatched).toBe('first')
   })
 
-  it('projects historical images to stable text only after the loop-visible waterfall', async () => {
+  it('projects historical images through OCR only after the loop-visible waterfall', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-llm-ocr-'))
+    const imagePath = join(dir, 'image.png')
+    await writeFile(imagePath, Buffer.from('fixture image bytes'))
+    const restoreOcr = setOcrRunnerForTests(async () => 'recognized text')
     const ctx = new Context()
+    ctx.provide('attachments', { imageHostPath: () => imagePath } as never)
+    ctx.provide('fs', { processPathFromHostPath: () => imagePath } as never)
     await ctx.plugin(LlmRuntime)
     const seen: GenerateOptions[] = []
     const adapter = new class extends ScriptedAdapter {
@@ -1127,32 +1138,37 @@ describe('LlmRuntime', () => {
       yield * next()
     })
 
-    await collect(ctx.llm.stream({
-      provider: 'route',
-      model: 'text-only',
-      messages: [createUserMessage({
-        content: [{ type: 'image', attachment }],
-        source: { kind: 'test' },
-      })],
-    }))
+    try {
+      await collect(ctx.llm.stream({
+        provider: 'route',
+        model: 'text-only',
+        messages: [createUserMessage({
+          content: [{ type: 'image', attachment }],
+          source: { kind: 'test' },
+        })],
+      }))
 
-    expect(waterfall[0]?.messages[0]?.content).toEqual([{ type: 'image', attachment }])
-    expect(seen[0]?.messages[0]?.content).toEqual([{
-      type: 'text',
-      text: '[image omitted because this model accepts text only; attachment sha256:aaaaaaaa]',
-    }])
+      expect(waterfall[0]?.messages[0]?.content).toEqual([{ type: 'image', attachment }])
+      expect(seen[0]?.messages[0]?.content).toEqual([{
+        type: 'text',
+        text: '[OCR text for attached image]\nrecognized text',
+      }])
 
-    const frozen = Object.freeze({
-      provider: 'route',
-      model: 'text-only',
-      messages: [createUserMessage({
-        content: [{ type: 'image', attachment }],
-        source: { kind: 'test' as const },
-      })],
-    })
-    await collect(ctx.llm.stream(frozen))
-    expect(Object.isFrozen(seen[1])).toBe(true)
-    expect(Object.isFrozen(seen[1]?.messages)).toBe(true)
+      const frozen = Object.freeze({
+        provider: 'route',
+        model: 'text-only',
+        messages: [createUserMessage({
+          content: [{ type: 'image', attachment }],
+          source: { kind: 'test' as const },
+        })],
+      })
+      await collect(ctx.llm.stream(frozen))
+      expect(Object.isFrozen(seen[1])).toBe(true)
+      expect(Object.isFrozen(seen[1]?.messages)).toBe(true)
+    } finally {
+      restoreOcr()
+      await rm(dir, { recursive: true, force: true })
+    }
   })
 
   it('passes cancellation through exact-model resolution', async () => {

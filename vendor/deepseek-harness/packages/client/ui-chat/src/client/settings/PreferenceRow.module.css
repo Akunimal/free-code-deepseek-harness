@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:vendor/deepseek-harness/packages/client/ui-chat/src/client/settings/TranscriptViewRow.module.css
-/* Completed-Turn transcript preference row: label plus selector pill. */
-========
 /* Chat preference row: label plus selector pill. */
->>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/packages/client/ui-chat/src/client/settings/PreferenceRow.module.css
 
 .row {
   display: flex;

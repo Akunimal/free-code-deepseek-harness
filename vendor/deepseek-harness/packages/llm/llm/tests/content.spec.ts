@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { AttachmentId, ImageVariantId } from '@deepseek-ai/dsh-attachment'
 import type { AttachmentStore, ImageMediaType } from '@deepseek-ai/dsh-attachment'
 import {
@@ -11,11 +14,13 @@ import {
   projectFilesToText,
   offloadedImageText,
   projectImagesForTextModel,
+  projectImagesForTextModelWithOcr,
   projectOffloadedImages,
   projectToolUpdates,
   requiredImageOffload,
   resolveImageAttachmentAccess,
   requestImageHandleText,
+  setOcrRunnerForTests,
 } from '../src/index.ts'
 import type { ContentBlock, RequestMessage, RequestUserInput, ToolHistory, ToolSchema } from '../src/index.ts'
 
@@ -311,6 +316,59 @@ describe('projectImagesForTextModel', () => {
       { type: 'text', text: '[image omitted because this model accepts text only; attachment sha256:aaaaaaaa]' },
       { type: 'text', text: 'after' },
     ])
+  })
+})
+
+describe('projectImagesForTextModelWithOcr', () => {
+  it('replaces direct and nested images with bounded OCR text and caches an attachment', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-content-ocr-'))
+    const path = join(dir, 'sample.png')
+    await writeFile(path, Buffer.from('fixture image bytes'))
+    let runs = 0
+    const restore = setOcrRunnerForTests(async () => {
+      runs++
+      return 'recognized text'
+    })
+    try {
+      const shared = image(3)
+      const messages = [createUserMessage({
+        content: [shared, {
+          type: 'tool-result',
+          toolCallId: ToolCallId('nested-ocr'),
+          content: [shared],
+        }],
+        source,
+      })]
+      const projected = await projectImagesForTextModelWithOcr(
+        messages,
+        () => ({ readonlyPath: path }),
+      )
+      expect(runs).toBe(1)
+      expect(projected[0]?.content).toEqual([
+        { type: 'text', text: '[OCR text for attached image]\nrecognized text' },
+        {
+          type: 'tool-result',
+          toolCallId: ToolCallId('nested-ocr'),
+          content: [{ type: 'text', text: '[OCR text for attached image]\nrecognized text' }],
+        },
+      ])
+      expect(messages[0]?.content[0]).toStrictEqual(shared)
+    } finally {
+      restore()
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('fails explicitly when a durable normalized path is unavailable', async () => {
+    const restore = setOcrRunnerForTests(async () => 'unreachable')
+    try {
+      await expect(projectImagesForTextModelWithOcr(
+        [createUserMessage({ content: [image(1)], source })],
+        () => undefined,
+      )).rejects.toThrow('normalized image path')
+    } finally {
+      restore()
+    }
   })
 })
 

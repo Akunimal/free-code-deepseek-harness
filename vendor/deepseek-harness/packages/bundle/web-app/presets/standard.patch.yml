@@ -155,6 +155,39 @@
             config:
               fetch: true
               searchTimeoutMs: 60000
+          # FreeCode's MCP servers are agent-plane capabilities. These rows
+          # use the persisted desktop toggles; the host overlay is disabled
+          # while the Electron web profile is active to avoid duplicate clients.
+          - id: freecode-mcp-engram
+            name: '@deepseek-ai/dsh-mcp-client'
+            disabled: !!js process.env.FREECODE_MCP_ENGRAM_ENABLED !== 'true'
+            config:
+              transport: stdio
+              serverName: engram
+              command: !!js process.env.FREECODE_ENGRAM_COMMAND ?? 'engram'
+              args: ['mcp']
+              cwd: !!js process.cwd()
+              failOnStartupError: false
+              reconnect:
+                enabled: true
+                initialDelayMs: 500
+                maxDelayMs: 30000
+                maxAttempts: 10
+          - id: freecode-mcp-free-search
+            name: '@deepseek-ai/dsh-mcp-client'
+            disabled: !!js process.env.FREECODE_MCP_FREE_SEARCH_ENABLED !== 'true'
+            config:
+              transport: stdio
+              serverName: free-search
+              command: !!js process.env.FREECODE_UVX_COMMAND ?? 'uvx'
+              args: ['free-search-mcp']
+              cwd: !!js process.cwd()
+              failOnStartupError: false
+              reconnect:
+                enabled: true
+                initialDelayMs: 500
+                maxDelayMs: 30000
+                maxAttempts: 10
           - id: present
             name: '@deepseek-ai/dsh-tool-present'
           - id: tool-plugin-manager

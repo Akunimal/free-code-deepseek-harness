@@ -12,17 +12,13 @@
       "path": "../../../vendor/cordis"
     },
     {
-      "path": "../../../vendor/schemastery"
+      "path": "../../../vendor/loader"
     },
     {
-<<<<<<<< HEAD:vendor/deepseek-harness/packages/bundle/sdk-app/tsconfig.json
-      "path": "../../boot/cmdline"
-========
       "path": "../../../vendor/schemastery"
     },
     {
       "path": "../agent-preset-registry"
->>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/packages/preset/agent-preset/tsconfig.json
     }
   ]
 }

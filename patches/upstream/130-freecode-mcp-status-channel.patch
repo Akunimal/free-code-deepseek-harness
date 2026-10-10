@@ -1,7 +1,25 @@
 diff --git a/vendor/deepseek-harness/packages/mcp/mcp-client/src/connection.ts b/vendor/deepseek-harness/packages/mcp/mcp-client/src/connection.ts
+index 074d90a12e..79f7712061 100644
 --- a/vendor/deepseek-harness/packages/mcp/mcp-client/src/connection.ts
 +++ b/vendor/deepseek-harness/packages/mcp/mcp-client/src/connection.ts
-@@ -216,8 +240,10 @@
+@@ -210,6 +210,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
+       client = undefined
+       closeClient = undefined
+       ctx.logger.error(`${label}: failed generation could not confirm transport closure — reconnect stopped to avoid overlapping server processes; reload the plugin or restart the Host to retry`)
++      publishHostStatus('failed', 0, 'transport closure could not be confirmed')
+       return
+     }
+     generationDown(generation)
+@@ -234,6 +235,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
+         ? 'connection lost and reconnect is disabled — registered tools will fail until an HMR reload or Host restart'
+         : 'connection failed and reconnect is disabled — no tools were registered; reload the plugin or restart the Host to connect'
+       ctx.logger.error(`${label}: ${message}`)
++      publishHostStatus('failed', 0, message)
+       return
+     }
+     // A connection that stayed up past the stability window (= maxDelayMs, the
+@@ -250,11 +252,13 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
+         serverInstructions = ''
        })
        ctx.logger.error(`${label}: giving up after ${policy.maxAttempts} consecutive failed reconnect attempts — tools unregistered; reload the plugin or restart the Host to reconnect`)
 +      publishHostStatus('failed', 0, `giving up after ${policy.maxAttempts} consecutive failed reconnect attempts`)
@@ -12,3 +30,5 @@ diff --git a/vendor/deepseek-harness/packages/mcp/mcp-client/src/connection.ts b
      ctx.logger.warn(`${label}: ${action} in ${delayMs}ms (attempt ${failedAttempts}/${policy.maxAttempts})`)
 +    publishHostStatus('degraded', 0, action)
      reconnectTimer = setTimeout(() => {
+       reconnectTimer = undefined
+       settling = connectGeneration(false)

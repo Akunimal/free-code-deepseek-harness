@@ -113,6 +113,41 @@ describe('ModelSelect reasoning effort', () => {
     })
   })
 
+  it('labels a binary thinking model as Thinking instead of exposing an effort control', () => {
+    const directory = createSnapshotStore(state({
+      groups: [{
+        id: 'mimo',
+        name: 'MiMo',
+        models: [{
+          id: 'mimo-v2.5',
+          name: 'MiMo-V2.5',
+          reasoning: {
+            control: 'toggle',
+            efforts: [{ id: 'off', name: 'Off' }, { id: 'high', name: 'On' }],
+            defaultEffort: 'high',
+          },
+        }],
+      }],
+      current: { provider: 'mimo', model: 'mimo-v2.5', reasoningEffort: 'high' },
+    }))
+    render(<ModelSelect
+      locked={false}
+      available
+      directory={directory}
+      load={vi.fn()}
+      select={vi.fn().mockResolvedValue(true)}
+      t={t}
+    />)
+
+    const trigger = screen.getByRole('button', {
+      name: '选择模型，当前 MiMo-V2.5，思考模式 On',
+    })
+    fireEvent.click(trigger)
+    expect(screen.getByRole('menu', { name: '模型与思考模式' })).toBeTruthy()
+    expect(screen.getByRole('menuitem', { name: /思考模式/ })).toBeTruthy()
+    expect(screen.queryByRole('menuitem', { name: /推理等级/ })).toBeNull()
+  })
+
   it('offers provider default only when the adapter does not configure a model default', () => {
     const directory = createSnapshotStore(state({
       groups: [{

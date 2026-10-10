@@ -43,7 +43,8 @@ this recovery step.
 - `020-freecode-browser-tool.patch` restores the embedded browser tool bridge
   used by the FreeCode desktop shell.
 - `030-freecode-shell-optimizers.patch` restores RTK and Caveman settings and
-  wrappers, including their UI controls and safety tests.
+  wrappers in both local shell executors, with staged controls on the new Shell
+  settings card and tests for parsing, live toggles, and safe command selection.
 - `040-freecode-branding.patch` keeps the product identity as FreeCode while
   retaining upstream's local-build version badge structure.
 - `050-cross-platform-tsdown-root.patch` keeps the upstream client bundle
@@ -61,8 +62,9 @@ this recovery step.
 - `090-freecode-mcp-headless-diagnostics.patch` bounds MCP stderr and keeps
   connection diagnostics in the structured log.
 - `100-freecode-mcp-contracts-and-project-activation.patch` canonicalizes the
-  selected session workspace contract, validates tool schemas and serializes
-  Serena activation with its call.
+  selected session cwd and serializes project activation with dependent MCP
+  calls; it also emits bounded, redacted tool-call diagnostics. MCP result
+  schema validation now comes from the upstream client contract.
 - `110-freecode-mimo-thinking-toggle.patch` keeps MiMo's binary thinking
   contract separate from unsupported reasoning-effort controls.
 - `120-freecode-ocr-fallback.patch` adds bounded Tesseract fallback for

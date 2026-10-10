@@ -192,22 +192,6 @@ Correct the block once and copy that byte-exact fence into both language files. 
 
 **Right:** Trace the source's generated fan-out, update the owner, regenerate every derivative, and update the owning runnable snapshot. For a GUI string, include the repository-required behavior evidence. If the authorized scope has no owning scenario, leave the wording unchanged and report the deferral.
 
-### Authoring-language slip inside a paired fence
-
-**Leaked in both files:** `// 更新这里 before returning` inside a verbatim code block.
-
-**Fixed in both files:** `// Update this before returning.`
-
-Correct the block once and copy that byte-exact fence into both language files. Translating the code comment differently in the Chinese counterpart breaks the pairing contract even when both comments are individually fluent.
-
-## Behavior-visible candidates
-
-**Suspect:** An exported JSDoc sentence says "available for now," and a generator copies that sentence into a model-visible catalog.
-
-**Wrong:** Rewrite only the source sentence during a prose-only purge, or hand-edit only the generated catalog.
-
-**Right:** Trace the source's generated fan-out, update the owner, regenerate every derivative, and update the owning runnable snapshot. For a GUI string, include the repository-required behavior evidence. If the authorized scope has no owning scenario, leave the wording unchanged and report the deferral.
-
 ## Keeps
 
 ### Issue references are durable on every surface

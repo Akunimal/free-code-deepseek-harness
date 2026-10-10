@@ -1,12 +1,11 @@
 diff --git a/vendor/deepseek-harness/packages/client/ui-settings-plugins/src/client/PluginsSettingsSection.module.css b/vendor/deepseek-harness/packages/client/ui-settings-plugins/src/client/PluginsSettingsSection.module.css
-index 0bd1beb9bf..16c574ad6b 100644
+index 17c270692e..31b8caae10 100644
 --- a/vendor/deepseek-harness/packages/client/ui-settings-plugins/src/client/PluginsSettingsSection.module.css
 +++ b/vendor/deepseek-harness/packages/client/ui-settings-plugins/src/client/PluginsSettingsSection.module.css
-@@ -83,3 +83,107 @@
-   font-size: 13px;
-   color: var(--dsw-alias-label-tertiary);
+@@ -78,6 +78,109 @@
+   gap: 10px;
  }
-+
+ 
 +.mcpPanel {
 +  display: flex;
 +  flex-direction: column;
@@ -58,22 +57,21 @@ index 0bd1beb9bf..16c574ad6b 100644
 +  min-width: 0;
 +}
 +
-+.mcpMeta code {
-+  color: var(--dsw-alias-label-tertiary);
-+  font-size: 11px;
-+  max-width: 520px;
++.mcpMeta code,
++.mcpMeta small {
 +  overflow: hidden;
 +  text-overflow: ellipsis;
 +  white-space: nowrap;
 +}
 +
++.mcpMeta code {
++  color: var(--dsw-alias-label-tertiary);
++  font-size: 11px;
++}
++
 +.mcpMeta small {
 +  color: var(--dsw-alias-label-danger, #f27676);
 +  font-size: 11px;
-+  max-width: 520px;
-+  overflow: hidden;
-+  text-overflow: ellipsis;
-+  white-space: nowrap;
 +}
 +
 +.mcpToggle,
@@ -110,22 +108,38 @@ index 0bd1beb9bf..16c574ad6b 100644
 +  flex-direction: column;
 +  gap: 8px;
 +}
++
+ .empty {
+   margin: 0;
+   font-size: 13px;
 diff --git a/vendor/deepseek-harness/packages/client/ui-settings-plugins/src/client/index.ts b/vendor/deepseek-harness/packages/client/ui-settings-plugins/src/client/index.ts
-index 46529882bc..6129f7481c 100644
+index 1a4f2feff0..33cc2c5ff4 100644
 --- a/vendor/deepseek-harness/packages/client/ui-settings-plugins/src/client/index.ts
 +++ b/vendor/deepseek-harness/packages/client/ui-settings-plugins/src/client/index.ts
-@@ -27,6 +27,7 @@ import { PluginsSettingsSection } from './PluginsSettingsSection.tsx'
+@@ -18,7 +18,8 @@ import type { Context as ClientContext } from '@deepseek-ai/cordis'
+ import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
+ import { PluginsSettingsSection } from './PluginsSettingsSection.tsx'
  import type { PluginsSettingsSectionInjected, PluginsSettingsTabEntry } from './PluginsSettingsSection.tsx'
- import { SubagentModelSelectionCard } from './SubagentModelSelectionCard.tsx'
- import { WebSearchCard } from './WebSearchCard.tsx'
+-import { en, zh } from './locales.ts'
 +import { McpSettingsTab } from './McpSettingsTab.tsx'
- import { AGENT_LOOP_NS, AgentLoopCardController } from './agent-loop-card-controller.ts'
- import { SHELL_NS, BashCardController } from './bash-card-controller.ts'
- import { ConfigurablePluginsTabController } from './tab-store.ts'
-@@ -164,6 +165,14 @@ export function apply(ctx: ClientContext): void {
-     children: { 'settings.plugin.item': { kind: 'keyed', scope: 'root' } },
-   }, ConfigurablePluginsTab))
++import { en, zh, es } from './locales.ts'
  
+ export type { PluginsSettingsSectionInjected, PluginsSettingsSectionProps } from './PluginsSettingsSection.tsx'
+ 
+@@ -34,7 +35,7 @@ export const inject = ['slots', 'locale']
+  */
+ export function apply(ctx: ClientContext): void {
+   const t = ctx.locale.bind(NS)
+-  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-settings-plugins: section dictionaries')
++  ctx.effect(() => ctx.locale.register(NS, { zh, en, es }), 'ui-settings-plugins: section dictionaries')
+ 
+   let tabsVersion = -1
+   let tabsRevision = -1
+@@ -82,4 +83,12 @@ export function apply(ctx: ClientContext): void {
+     inject: sectionInjected,
+     children: { 'settings.plugins.tab': { kind: 'list', scope: 'root' } },
+   }, PluginsSettingsSection))
++
 +  ctx.slots.inject('settings.plugins.tab', () => ctx.slots.register({
 +    name: 'settings.plugins.tab',
 +    id: 'mcp',
@@ -133,18 +147,18 @@ index 46529882bc..6129f7481c 100644
 +    label: () => t('mcpTab'),
 +    locale: NS,
 +  }, McpSettingsTab))
-+
-   ctx.slots.inject('settings.plugin.item', function* () {
-     yield ctx.slots.register({
-       name: 'settings.plugin.item',
+ }
 diff --git a/vendor/deepseek-harness/packages/client/ui-settings-plugins/src/client/locales.ts b/vendor/deepseek-harness/packages/client/ui-settings-plugins/src/client/locales.ts
-index c70b51b39d..4a0a3b5295 100644
+index 0e82c56625..0d1bdff514 100644
 --- a/vendor/deepseek-harness/packages/client/ui-settings-plugins/src/client/locales.ts
 +++ b/vendor/deepseek-harness/packages/client/ui-settings-plugins/src/client/locales.ts
-@@ -18,6 +18,10 @@ export type PluginsSettingsLocaleKey =
-   | 'subagentModelSelectionPartial' | 'subagentModelSelectionUnavailable'
-   | 'subagentModelSelectionUnavailableGroup' | 'subagentModelSelectionEmpty'
-   | 'subagentModelSelectionRequired' | 'subagentModelSelectionConflict' | 'subagentModelSelectionOff'
+@@ -1,7 +1,12 @@
+ /** Locale bundles for the built-in plugins settings section. */
+ 
+ /** Locale keys the section renders. */
+-export type PluginsSettingsLocaleKey = 'nav' | 'title' | 'intro' | 'tabs' | 'empty'
++export type PluginsSettingsLocaleKey =
++  | 'nav' | 'title' | 'intro' | 'tabs' | 'empty'
 +  | 'mcpTab' | 'mcpTitle' | 'mcpDescription' | 'mcpLoading' | 'mcpUnavailable'
 +  | 'mcpRetry' | 'mcpEnabled' | 'mcpDisabled' | 'mcpEnable' | 'mcpDisable'
 +  | 'mcpOpenConfig' | 'mcpRefresh' | 'mcpStatusStarting' | 'mcpStatusReady'
@@ -152,10 +166,10 @@ index c70b51b39d..4a0a3b5295 100644
  
  /** English copy. */
  export const en: Record<PluginsSettingsLocaleKey, string> = {
-@@ -77,6 +81,24 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
-   subagentModelSelectionRequired: 'Select at least one model before saving.',
-   subagentModelSelectionConflict: 'Settings changed elsewhere. Discard your draft and try again.',
-   subagentModelSelectionOff: 'Subagents use configured defaults or inherit the parent agent\'s model. Saved model choices are retained.',
+@@ -10,8 +15,106 @@ export const en: Record<PluginsSettingsLocaleKey, string> = {
+   intro: 'Inspect the plugins this deployment ships.',
+   tabs: 'Plugin views',
+   empty: 'This deployment exposes no plugin views.',
 +  mcpTab: 'MCP',
 +  mcpTitle: 'Embedded MCP servers',
 +  mcpDescription: 'Serena and free web search are bundled as managed integrations. Toggle them without editing the generated patch.',
@@ -176,11 +190,93 @@ index c70b51b39d..4a0a3b5295 100644
 +  mcpTools: 'tools registered',
  }
  
++/** Spanish translations retain the fork copy and inherit new upstream keys from English. */
++export const es = {
++  ...en,
++  "nav": "Complementos",
++  "title": "Complementos",
++  "intro": "Configure e inspeccione los complementos instalados en esta instalación.",
++  "tabs": "Vistas de complementos",
++  "configurableTab": "Configuración de complementos",
++  "empty": "Esta instalación no expone configuración de complementos.",
++  "overridden": "Sobrescrito",
++  "reset": "Restablecer valores predeterminados",
++  "readOnly": "Esta instalación almacena la configuración como solo lectura.",
++  "expand": "Mostrar configuración",
++  "collapse": "Ocultar configuración",
++  "save": "Guardar",
++  "saving": "Guardando…",
++  "discard": "Descartar",
++  "unsaved": "Sin guardar",
++  "saveFailed": "La instalación no aceptó estos valores; se dejaron para que los corrija.",
++  "invalidNumber": "Ingrese un número o deje en blanco para usar el valor predeterminado.",
++  "bashTitle": "Shell",
++  "bashDescription": "Limita cada comando que ejecuta el agente.",
++  "bashTimeoutMs": "Tiempo máximo de comando (ms)",
++  "bashTimeoutMsHint": "Cuánto puede durar un comando antes de terminarse.",
++  "bashMaxOutputBytes": "Límite de salida por flujo (bytes)",
++  "bashMaxOutputBytesHint": "La salida que exceda se guarda en un archivo temporal en lugar de perderse.",
++  "bashRtk": "Usar compresión de tokens RTK",
++  "bashRtkHint": "Usa un RTK ya instalado para comandos CLI simples elegibles. Sin RTK no cambia nada.",
++  "bashCaveman": "Usar compresión de contexto Caveman",
++  "bashCavemanHint": "Comprime la salida de comandos elegible. Requiere Caveman instalado por separado; sin Caveman no cambia nada.",
++  "agentLoopTitle": "Bucle del agente",
++  "agentLoopDescription": "Cómo el agente distribuye las llamadas a herramientas.",
++  "agentLoopMaxParallel": "Llamadas a herramientas en paralelo",
++  "agentLoopMaxParallelHint": "Límite de llamadas paralelas seguras en un mismo paso.",
++  "webSearchTitle": "Búsqueda web",
++  "webSearchDescription": "El proveedor de búsqueda DeepSeek.",
++  "webSearchApiKey": "Clave de API",
++  "webSearchApiKeyHint": "Se almacena fuera del archivo de configuración. Deje en blanco para conservar la clave actual.",
++  "webSearchApiKeySet": "Hay una clave configurada.",
++  "webSearchApiKeyUnset": "No hay clave configurada; la búsqueda no está disponible hasta que haya una.",
++  "webSearchBaseUrl": "Endpoint",
++  "webSearchBaseUrlHint": "Deje en blanco para usar el valor predeterminado del proveedor.",
++  "webSearchMaxUses": "Máx. búsquedas por solicitud",
++  "webSearchMaxUsesHint": "Cuántas veces puede buscar una solicitud antes de responder.",
++  "subagentModelSelectionTitle": "Subagente",
++  "subagentModelSelectionDescription": "Controle qué modelos pueden elegir los agentes para los subagentes.",
++  "subagentModelSelectionToggle": "Permitir que los agentes elijan modelos para subagentes",
++  "subagentModelSelectionChoose": "Si está activado, los agentes pueden elegir proveedor, modelo y esfuerzo de razonamiento para cada subagente entre los modelos autorizados. Solo aplica a sesiones nuevas.",
++  "subagentModelSelectionAllowed": "Modelos que pueden elegir los agentes",
++  "subagentModelSelectionLoading": "Cargando modelos…",
++  "subagentModelSelectionLoadFailed": "No se pudieron cargar los modelos.",
++  "subagentModelSelectionRetry": "Reintentar",
++  "subagentModelSelectionPartial": "Algunos proveedores no se pudieron cargar; las opciones guardadas aún se pueden quitar.",
++  "subagentModelSelectionUnavailable": "No disponible actualmente",
++  "subagentModelSelectionUnavailableGroup": "Guardado pero no disponible actualmente",
++  "subagentModelSelectionEmpty": "Ningún proveedor anuncia un modelo actualmente.",
++  "subagentModelSelectionRequired": "Seleccione al menos un modelo antes de guardar.",
++  "subagentModelSelectionConflict": "La configuración cambió en otro lugar. Descarte el borrador e inténtelo de nuevo.",
++  "subagentModelSelectionOff": "Los subagentes usan valores predeterminados o heredan el modelo del agente principal. Las opciones guardadas se conservan.",
++  "mcpTab": "MCP",
++  "mcpTitle": "Servidores MCP integrados",
++  "mcpDescription": "Serena y la búsqueda web gratuita vienen como integraciones gestionadas. Actívelas sin editar el parche generado.",
++  "mcpLoading": "Cargando configuración MCP…",
++  "mcpUnavailable": "La configuración MCP no está disponible en este host.",
++  "mcpRetry": "Reintentar",
++  "mcpEnabled": "Activado",
++  "mcpDisabled": "Desactivado",
++  "mcpEnable": "Activar",
++  "mcpDisable": "Desactivar",
++  "mcpOpenConfig": "Abrir configuración MCP",
++  "mcpRefresh": "Actualizar",
++  "mcpStatusStarting": "Iniciando",
++  "mcpStatusReady": "Listo",
++  "mcpStatusDegraded": "Reintentando",
++  "mcpStatusFailed": "Fallido",
++  "mcpStatusDisabled": "Desactivado",
++  "mcpTools": "herramientas registradas",
++}
++
++
  /** Simplified Chinese copy. */
-@@ -137,4 +159,22 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
-   subagentModelSelectionRequired: '保存前请至少选择一个模型。',
-   subagentModelSelectionConflict: '设置已在其他位置更新。请放弃修改后重试。',
-   subagentModelSelectionOff: '关闭后，Subagent 使用配置的默认模型或继承父 Agent 的模型；已选模型会保留。',
+ export const zh: Record<PluginsSettingsLocaleKey, string> = {
+   nav: '内置插件',
+@@ -19,4 +122,22 @@ export const zh: Record<PluginsSettingsLocaleKey, string> = {
+   intro: '查看内置部署的插件列表',
+   tabs: '插件视图',
+   empty: '本部署没有开放任何插件视图。',
 +  mcpTab: 'MCP',
 +  mcpTitle: '内置 MCP 服务器',
 +  mcpDescription: 'Serena 和免费网页搜索作为受管理集成随产品提供。无需编辑生成的补丁即可切换。',
@@ -201,41 +297,73 @@ index c70b51b39d..4a0a3b5295 100644
 +  mcpTools: '个工具已注册',
  }
 diff --git a/vendor/deepseek-harness/packages/client/ui-settings-plugins/tests/apply.client.spec.ts b/vendor/deepseek-harness/packages/client/ui-settings-plugins/tests/apply.client.spec.ts
-index 3094d17672..3a4f0874ca 100644
+index 63ba773884..2bf4ac7b9e 100644
 --- a/vendor/deepseek-harness/packages/client/ui-settings-plugins/tests/apply.client.spec.ts
 +++ b/vendor/deepseek-harness/packages/client/ui-settings-plugins/tests/apply.client.spec.ts
-@@ -103,6 +103,7 @@ describe('ui-settings-plugins apply', () => {
+@@ -3,9 +3,9 @@
+ import { Context } from '@deepseek-ai/cordis'
+ import { describe, expect, it, vi } from 'vitest'
+ import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
+-import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
++import { SlotRegistry } from '../../ui-renderer/src/client/registry.ts'
+ import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
+-import { apply, inject } from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
++import { apply, inject } from '../src/client/index.ts'
+ import type { PluginsSettingsSectionInjected } from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
+ import { apply as hostApply } from '../src/index.ts'
+ 
+@@ -39,7 +39,7 @@ describe('ui-settings-plugins apply', () => {
+     expect(inject).toEqual(['slots', 'locale'])
+   })
+ 
+-  it('registers one Built-in plugins section and declares its tab slot, contributing no tab of its own', async () => {
++  it('registers the MCP settings tab alongside the Built-in plugins section', async () => {
+     const { ctx, slots } = await bench()
+     declareRoot(slots)
+ 
+@@ -50,7 +50,9 @@ describe('ui-settings-plugins apply', () => {
+     // The nav label is a locale-following thunk; owners resolve it at read time.
+     expect(resolveSlotLabel(section.options.label)).toBe('内置插件')
+     expect(slots.spec('settings.plugins.tab')).toMatchObject({ kind: 'list', scope: 'root' })
+-    expect(slots.entries('settings.plugins.tab')).toHaveLength(0)
++    expect(slots.entries('settings.plugins.tab')).toEqual([
++      expect.objectContaining({ options: expect.objectContaining({ id: 'mcp', order: 5 }) }),
++    ])
+   })
+ 
+   it('injects a live tab projection ordered by the contributions', async () => {
+@@ -61,7 +63,7 @@ describe('ui-settings-plugins apply', () => {
+     const section = slots.entries('settings.section')[0]!
+     const sectionFace = (section.inject as () => Pick<PluginsSettingsSectionInjected, 'hooks'>)()
      const initialTabs = sectionFace.hooks.tabs.getSnapshot()
-     expect(initialTabs).toEqual([
-       { id: 'configurable', order: 0, label: '插件配置' },
-+      { id: 'mcp', order: 5, label: 'MCP' },
-     ])
+-    expect(initialTabs).toEqual([])
++    expect(initialTabs).toEqual([{ id: 'mcp', order: 5, label: 'MCP' }])
      expect(sectionFace.hooks.tabs.getSnapshot()).toBe(initialTabs)
  
-@@ -112,6 +113,7 @@ describe('ui-settings-plugins apply', () => {
+     const unsubscribe = sectionFace.hooks.tabs.subscribe(vi.fn())
+@@ -71,6 +73,7 @@ describe('ui-settings-plugins apply', () => {
      expect(sectionFace.hooks.tabs.getSnapshot()).toEqual([
-       { id: 'configurable', order: 0, label: '插件配置' },
+       { id: 'first', order: -1, label: '' },
        { id: 'plain', order: 0, label: '' },
 +      { id: 'mcp', order: 5, label: 'MCP' },
      ])
      unsubscribe()
- 
+   })
 diff --git a/vendor/deepseek-harness/packages/util/native-command/src/path-opener.ts b/vendor/deepseek-harness/packages/util/native-command/src/path-opener.ts
-index 97d2084e61..2c322f61bb 100644
+index 3994308d73..64a6c754ab 100644
 --- a/vendor/deepseek-harness/packages/util/native-command/src/path-opener.ts
 +++ b/vendor/deepseek-harness/packages/util/native-command/src/path-opener.ts
-@@ -22,7 +22,8 @@ export interface PathOpenerInternals {
+@@ -26,7 +26,7 @@ export interface PathOpenerInternals {
    /** Kernel release override used to distinguish WSL from desktop Linux. */
    osRelease?: string
    /** Environment used for WSL markers and the desktop Linux browser convention. */
 -  env?: NodeJS.ProcessEnv
-+  /** Environment used for WSL markers, desktop conventions, and the optional Electron bridge. */
 +  env?: NodeJS.ProcessEnv & Partial<Record<'FREECODE_FILE_OPEN_ENDPOINT' | 'FREECODE_DIALOG_BRIDGE_TOKEN', string>>
    run?: PathOpenerRunner
  }
  
-@@ -107,6 +108,24 @@ async function openWindowsPath(path: string, signal: AbortSignal, run: PathOpene
-   ], signal)
+@@ -155,6 +155,24 @@ async function openWindowsPath(path: string, signal: AbortSignal, run: PathOpene
+   await runExplorer([explorerTarget(path)], signal, run)
  }
  
 +/** Open settings through the authenticated Electron shell bridge when present. */
@@ -258,8 +386,8 @@ index 97d2084e61..2c322f61bb 100644
 +
  /** Translate a WSL path before handing it to the Windows desktop. */
  async function openWslPath(path: string, signal: AbortSignal, run: PathOpenerRunner): Promise<void> {
-   const translated = await run('wslpath', ['-w', path], signal)
-@@ -128,6 +147,15 @@ async function openNativePathWithIntent(
+   const translated = await run('wslpath', ['-w', path], signal, 'hidden')
+@@ -176,6 +194,15 @@ async function openNativePathWithIntent(
    const env = internals.env ?? process.env
    const wsl = platform === 'linux' && isWsl(internals)
  
@@ -276,32 +404,35 @@ index 97d2084e61..2c322f61bb 100644
      && await openInBrowser(path, signal, platform, run, env)) return
  
 diff --git a/vendor/deepseek-harness/packages/util/native-command/tests/path-opener.spec.ts b/vendor/deepseek-harness/packages/util/native-command/tests/path-opener.spec.ts
-index d5cd1bb751..43195baf7e 100644
+index a58c6d4669..208910bdec 100644
 --- a/vendor/deepseek-harness/packages/util/native-command/tests/path-opener.spec.ts
 +++ b/vendor/deepseek-harness/packages/util/native-command/tests/path-opener.spec.ts
-@@ -108,6 +108,27 @@ describe('native path opener', () => {
+@@ -148,6 +148,30 @@ describe('native path opener', () => {
      )
    })
  
-+  it('uses the authenticated Electron bridge for Windows settings documents', async () => {
-+    const fetchMock = vi.fn(async () => ({ ok: true, json: async () => ({}) }))
++  it('uses the authenticated Electron bridge to open Windows settings documents', async () => {
++    const run = vi.fn<PathOpenerRunner>(async () => ({ stdout: '', stderr: '' }))
++    const fetchMock = vi.fn(async () => new Response('{}', { status: 200 }))
 +    vi.stubGlobal('fetch', fetchMock)
-+    const run = vi.fn<PathOpenerRunner>()
-+    await openNativeTextFile('C:\\work\\settings.yaml', signal(), {
-+      platform: 'win32',
-+      run,
-+      env: {
-+        FREECODE_FILE_OPEN_ENDPOINT: 'http://127.0.0.1:9000/open-text-file',
-+        FREECODE_DIALOG_BRIDGE_TOKEN: 'token',
-+      },
-+    })
-+    expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:9000/open-text-file', expect.objectContaining({
-+      method: 'POST',
-+      headers: expect.objectContaining({ 'x-freecode-dialog-token': 'token' }),
-+      body: JSON.stringify({ path: 'C:\\work\\settings.yaml' }),
-+    }))
-+    expect(run).not.toHaveBeenCalled()
-+    vi.unstubAllGlobals()
++    try {
++      await openNativeTextFile('C:\\work\\settings.yaml', signal(), {
++        platform: 'win32',
++        run,
++        env: {
++          FREECODE_FILE_OPEN_ENDPOINT: 'http://127.0.0.1:9000/open-text-file',
++          FREECODE_DIALOG_BRIDGE_TOKEN: 'token',
++        },
++      })
++      expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:9000/open-text-file', expect.objectContaining({
++        method: 'POST',
++        headers: expect.objectContaining({ 'x-freecode-dialog-token': 'token' }),
++        body: JSON.stringify({ path: 'C:\\work\\settings.yaml' }),
++      }))
++      expect(run).not.toHaveBeenCalled()
++    } finally {
++      vi.unstubAllGlobals()
++    }
 +  })
 +
    it('opens with Linux xdg-open', async () => {

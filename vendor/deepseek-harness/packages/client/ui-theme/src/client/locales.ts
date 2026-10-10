@@ -28,3 +28,17 @@ export const en = {
   'fontSize.increase': 'Increase font size',
   'fontSize.decrease': 'Decrease font size',
 } satisfies Record<ThemeKey, string>
+
+/** Spanish translations retain the fork copy and inherit new upstream keys from English. */
+export const es = {
+  ...en,
+  "appearance.title": "Apariencia",
+  "appearance.light": "Claro",
+  "appearance.dark": "Oscuro",
+  "appearance.system": "Sistema",
+  "fontSize.title": "Tamaño de fuente",
+  "fontSize.description": "Solo afecta el contenido de la conversación",
+  "fontSize.unit": "px",
+  "fontSize.increase": "Aumentar tamaño de fuente",
+  "fontSize.decrease": "Reducir tamaño de fuente",
+}

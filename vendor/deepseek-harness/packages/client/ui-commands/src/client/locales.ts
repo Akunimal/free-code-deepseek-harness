@@ -71,3 +71,16 @@ export const en = {
   'listbox.aria': '/{command} matches',
   'notice.attachmentsUnsupported': '/{command} does not accept attachments; remove them first',
 } satisfies Record<CommandKey, string>
+
+/** Spanish translations retain the fork copy and inherit new upstream keys from English. */
+export const es = {
+  ...en,
+  "search.placeholder": "Buscar…",
+  "search.aria": "Filtrar opciones",
+  "status.loading": "Cargando opciones…",
+  "status.applying": "Aplicando…",
+  "status.empty": "Sin opciones",
+  "overlay.aria": "Opciones de /{command}",
+  "listbox.aria": "Coincidencias de /{command}",
+  "notice.attachmentsUnsupported": "/{command} no acepta archivos adjuntos; elimínelos primero",
+}

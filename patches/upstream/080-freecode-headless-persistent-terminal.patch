@@ -1,27 +1,34 @@
 diff --git a/vendor/deepseek-harness/packages/subprocess/subprocess-local/src/index.ts b/vendor/deepseek-harness/packages/subprocess/subprocess-local/src/index.ts
-index d5289682f5..12105ba89f 100644
+index 7b11f4f8da..7158280ee1 100644
 --- a/vendor/deepseek-harness/packages/subprocess/subprocess-local/src/index.ts
 +++ b/vendor/deepseek-harness/packages/subprocess/subprocess-local/src/index.ts
-@@ -170,6 +170,10 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
+@@ -278,6 +278,9 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
        cols: spec.cols,
        cwd: spec.cwd,
-       env: childEnv(spec.env),
-+      // Prefer the Windows pseudoconsole backend explicitly. Without this,
-+      // older node-pty builds may fall back to winpty and briefly create a
-+      // visible console window for every persistent tool session.
-+      ...(process.platform === 'win32' ? { useConpty: true } : {}),
+       env: { ...activity?.env ?? env, TERM: spec.terminalType },
++      // Use ConPTY on Windows so persistent tool terminals do not create a
++      // visible console window through node-pty's legacy backend.
++      ...((this.internals.platform ?? process.platform) === 'win32' ? { useConpty: true } : {}),
      }
-     const inspector = this.terminalInspector ?? createProcessInspector()
-     const terminal = nodePty.spawn(file, [...spec.argv.slice(1)], options)
+     let scope: ReturnType<typeof prepareLinuxTerminalScope> | undefined
+     let terminal: NodePty.IPty
 diff --git a/vendor/deepseek-harness/packages/subprocess/subprocess-local/tests/local.spec.ts b/vendor/deepseek-harness/packages/subprocess/subprocess-local/tests/local.spec.ts
-index 9e4925bdb2..1466ab6e95 100644
+index 971f5bdb97..7cf79fdb3c 100644
 --- a/vendor/deepseek-harness/packages/subprocess/subprocess-local/tests/local.spec.ts
 +++ b/vendor/deepseek-harness/packages/subprocess/subprocess-local/tests/local.spec.ts
-@@ -344,6 +344,44 @@ describe('LocalSubprocessRuntime', () => {
-     }
+@@ -9,6 +9,7 @@ import { Context } from '@deepseek-ai/cordis'
+ import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
+ import type { SubprocessSpawnSpec, SubprocessTerminalHandle, SubprocessTerminalSpawnSpec } from '@deepseek-ai/dsh-subprocess'
+ import { childEnv } from '../src/spawn.ts'
++import type { ProcessInspector } from '../src/process-inspector.ts'
+ import { signalLinuxDirectProcess } from '../src/linux-scope.ts'
+ 
+ function mockWin32ForIsolatedRuntime(): void {
+@@ -300,6 +301,52 @@ describe('LocalSubprocessRuntime', () => {
+     await fiber.dispose()
    })
  
-+  it('requests the Windows pseudoconsole backend for persistent terminals', async () => {
++  it('selects ConPTY for Windows persistent terminal allocation', async () => {
 +    const platform = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
 +    let receivedOptions: Record<string, unknown> | undefined
 +    let exitListener: ((event: { exitCode: number; signal?: number }) => void) | undefined
@@ -35,30 +42,38 @@ index 9e4925bdb2..1466ab6e95 100644
 +      write: () => {},
 +      kill: () => { exitListener?.({ exitCode: 0 }) },
 +    }
++    mockNodePtyForIsolatedRuntime((_file, _args, options) => {
++      receivedOptions = options as Record<string, unknown>
++      return terminal
++    })
 +    vi.resetModules()
-+    vi.doMock('node-pty', () => ({
-+      spawn: (_file: string, _args: string[], options: Record<string, unknown>) => {
-+        receivedOptions = options
-+        return terminal
-+      },
-+    }))
++    let fiber: Awaited<ReturnType<Context['plugin']>> | undefined
 +    try {
 +      const { default: IsolatedLocalSubprocessRuntime } = await import('../src/index.ts')
 +      const ctx = new Context()
-+      const fiber = await ctx.plugin(IsolatedLocalSubprocessRuntime)
++      fiber = await ctx.plugin(IsolatedLocalSubprocessRuntime)
++      const runtime = ctx.subprocess as unknown as { terminalInspector: ProcessInspector }
++      runtime.terminalInspector = {
++        foregroundPgid: () => undefined,
++        isStdinWaiting: () => false,
++        snapshot: () => ({ tree: () => [], session: () => [], alive: () => false }),
++        isAlive: () => false,
++        signalGroup: () => {},
++        signalProcess: () => {},
++      }
 +      const handle = await ctx.subprocess.spawnTerminal({
-+        argv: ['shell'], cwd: process.cwd(), rows: 24, cols: 80, graceMs: 1,
++        argv: ['shell'], cwd: process.cwd(), rows: 24, cols: 80, terminalType: 'dumb', graceMs: 1,
 +      })
 +      expect(receivedOptions).toHaveProperty('useConpty', true)
 +      await handle.terminate()
-+      await fiber.dispose()
 +    } finally {
++      await fiber?.dispose()
 +      platform.mockRestore()
-+      vi.doUnmock('node-pty')
++      unmockLazyRequireForIsolatedRuntime()
 +      vi.resetModules()
 +    }
 +  })
 +
-   it('retains a terminal whose automatic cleanup fails', async () => {
-     let exitListener: ((event: { exitCode: number; signal?: number }) => void) | undefined
-     const terminal = {
+   it('terminates and joins an owned terminal during disposal', async () => {
+     const ctx = new Context()
+     const fiber = await ctx.plugin(LocalSubprocessRuntime)

@@ -1,15 +1,12 @@
 diff --git a/vendor/deepseek-harness/packages/mcp/mcp-client/src/connection.ts b/vendor/deepseek-harness/packages/mcp/mcp-client/src/connection.ts
+index 9a4ec9123a..074d90a12e 100644
 --- a/vendor/deepseek-harness/packages/mcp/mcp-client/src/connection.ts
 +++ b/vendor/deepseek-harness/packages/mcp/mcp-client/src/connection.ts
-@@ -123,3 +123,27 @@
+@@ -126,6 +126,25 @@ export interface ConnectionHandle extends ServerContext {
+  */
  export function startConnection(ctx: Context, config: Config, policy: ResolvedReconnectPolicy): ConnectionHandle {
    const label = `mcp-client(${config.serverName})`
-+  /**
-+   * The web composition keeps Cordis logs out of stdout/stderr.  FreeCode's
-+   * desktop shell still needs a bounded, machine-readable readiness signal for
-+   * its tray and settings surfaces, so the host opts into this side channel
-+   * explicitly.  Standalone upstream consumers remain unaffected.
-+   */
++  /** Publish a bounded, opt-in status record for the FreeCode desktop shell. */
 +  const publishHostStatus = (
 +    state: 'ready' | 'degraded' | 'failed',
 +    toolCount: number,
@@ -28,4 +25,14 @@ diff --git a/vendor/deepseek-harness/packages/mcp/mcp-client/src/connection.ts b
 +      // A closing Electron pipe must never turn MCP cleanup into a crash.
 +    }
 +  }
+   const incompleteDisposalMessage = `${label}: transport closure could not be confirmed during disposal — server shutdown may be incomplete`
    const opts: ToolBridgeOptions = {
+     registrationFailure: 'contain',
+@@ -339,6 +358,7 @@ export function startConnection(ctx: Context, config: Config, policy: ResolvedRe
+     if (!isCurrent(generation)) return
+     serverInstructions = instructions
+     connectedAt = Date.now()
++    publishHostStatus('ready', disposers.size)
+     if (failedAttempts > 0) ctx.logger.info(`${label}: reconnected and re-synced tools (attempt ${failedAttempts}/${policy.maxAttempts})`)
+   }
+ 

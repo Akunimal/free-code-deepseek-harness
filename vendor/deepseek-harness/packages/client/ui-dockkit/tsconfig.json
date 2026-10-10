@@ -9,14 +9,10 @@
   ],
   "references": [
     {
-<<<<<<<< HEAD:vendor/deepseek-harness/packages/client/store/tsconfig.json
-      "path": "../../../vendor/cordis"
-========
       "path": "../../util/brand"
     },
     {
       "path": "../ui-primitives"
->>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/packages/client/ui-dockkit/tsconfig.json
     }
   ]
 }

@@ -1,61 +1,44 @@
-diff --git a/vendor/deepseek-harness/packages/preset/agent-presets/presets/standard/agent.cordis.yml b/vendor/deepseek-harness/packages/preset/agent-presets/presets/standard/agent.cordis.yml
-index 63b1798840..006963ff74 100644
---- a/vendor/deepseek-harness/packages/preset/agent-presets/presets/standard/agent.cordis.yml
-+++ b/vendor/deepseek-harness/packages/preset/agent-presets/presets/standard/agent.cordis.yml
-@@ -26,6 +26,7 @@
-   config:
-     text: >-
-       You are a coding agent powered by the {{model}} model. Your working directory is {{cwd}}.
-+      FreeCode automatically activates this workspace before every Serena MCP call; treat it as the active project and do not ask the user to activate it.
- 
- - id: agent-instructions
-   name: '@deepseek-ai/dsh-agent-instructions'
-@@ -234,6 +235,48 @@
- 
- # ── remaining model-facing rows ─────────────────────────────────────────────
- 
-+# FreeCode's managed MCP servers are agent-plane capabilities. They belong in
-+# Standard (where the model-facing tools are composed), not only in the host
-+# patch. Environment flags are generated from mcp/servers.json by the shell;
-+# disabled entries stay inert without making the whole harness optional.
-+- id: freecode-mcp-serena
-+  name: '@deepseek-ai/dsh-mcp-client'
-+  disabled: !!js process.env.FREECODE_MCP_SERENA_ENABLED !== 'true'
-+  config:
-+    transport: stdio
-+    serverName: serena
-+    command: !!js process.env.FREECODE_UVX_COMMAND ?? 'uvx'
-+    # The web runtime cwd is DSH_HOME, not the selected workspace. Let Serena
-+    # start without auto-scanning a drive root; the MCP bridge automatically
-+    # activates the session workspace before each Serena call.
-+    args: ['--from', 'git+https://github.com/oraios/serena', 'serena', 'start-mcp-server', '--context', 'claude-code']
-+    cwd: !!js process.cwd()
-+    projectActivation:
-+      toolName: activate_project
-+      pathArgument: project
-+    failOnStartupError: false
-+    reconnect:
-+      enabled: true
-+      initialDelayMs: 500
-+      maxDelayMs: 30000
-+      maxAttempts: 10
-+
-+- id: freecode-mcp-free-search
-+  name: '@deepseek-ai/dsh-mcp-client'
-+  disabled: !!js process.env.FREECODE_MCP_FREE_SEARCH_ENABLED !== 'true'
-+  config:
-+    transport: stdio
-+    serverName: free-search
-+    command: !!js process.env.FREECODE_UVX_COMMAND ?? 'uvx'
-+    args: ['free-search-mcp']
-+    cwd: !!js process.cwd()
-+    failOnStartupError: false
-+    reconnect:
-+      enabled: true
-+      initialDelayMs: 500
-+      maxDelayMs: 30000
-+      maxAttempts: 10
-+
- - id: tool-ask-user
-   name: '@deepseek-ai/dsh-tool-ask-user'
- 
+diff --git a/vendor/deepseek-harness/packages/bundle/web-app/presets/standard.patch.yml b/vendor/deepseek-harness/packages/bundle/web-app/presets/standard.patch.yml
+index a0b474b0e3..35fedb4f3f 100644
+--- a/vendor/deepseek-harness/packages/bundle/web-app/presets/standard.patch.yml
++++ b/vendor/deepseek-harness/packages/bundle/web-app/presets/standard.patch.yml
+@@ -155,6 +155,39 @@
+             config:
+               fetch: true
+               searchTimeoutMs: 60000
++          # FreeCode's MCP servers are agent-plane capabilities. These rows
++          # use the persisted desktop toggles; the host overlay is disabled
++          # while the Electron web profile is active to avoid duplicate clients.
++          - id: freecode-mcp-engram
++            name: '@deepseek-ai/dsh-mcp-client'
++            disabled: !!js process.env.FREECODE_MCP_ENGRAM_ENABLED !== 'true'
++            config:
++              transport: stdio
++              serverName: engram
++              command: !!js process.env.FREECODE_ENGRAM_COMMAND ?? 'engram'
++              args: ['mcp']
++              cwd: !!js process.cwd()
++              failOnStartupError: false
++              reconnect:
++                enabled: true
++                initialDelayMs: 500
++                maxDelayMs: 30000
++                maxAttempts: 10
++          - id: freecode-mcp-free-search
++            name: '@deepseek-ai/dsh-mcp-client'
++            disabled: !!js process.env.FREECODE_MCP_FREE_SEARCH_ENABLED !== 'true'
++            config:
++              transport: stdio
++              serverName: free-search
++              command: !!js process.env.FREECODE_UVX_COMMAND ?? 'uvx'
++              args: ['free-search-mcp']
++              cwd: !!js process.cwd()
++              failOnStartupError: false
++              reconnect:
++                enabled: true
++                initialDelayMs: 500
++                maxDelayMs: 30000
++                maxAttempts: 10
+           - id: present
+             name: '@deepseek-ai/dsh-tool-present'
+           - id: tool-plugin-manager

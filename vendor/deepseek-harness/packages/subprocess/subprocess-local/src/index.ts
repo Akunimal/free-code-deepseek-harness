@@ -278,6 +278,9 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
       cols: spec.cols,
       cwd: spec.cwd,
       env: { ...activity?.env ?? env, TERM: spec.terminalType },
+      // Use ConPTY on Windows so persistent tool terminals do not create a
+      // visible console window through node-pty's legacy backend.
+      ...((this.internals.platform ?? process.platform) === 'win32' ? { useConpty: true } : {}),
     }
     let scope: ReturnType<typeof prepareLinuxTerminalScope> | undefined
     let terminal: NodePty.IPty

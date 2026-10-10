@@ -684,6 +684,59 @@ describe('provider profile lifecycle', () => {
     expect(server.requests[1]).not.toHaveProperty('reasoning_effort')
   })
 
+  it('uses MiMo V2.5 thinking on/off without exposing reasoning_effort on the wire', async () => {
+    vi.stubEnv('PI_TEST_KEY', 'test-key')
+    const server = await mockServer([{ events: textEvents }, { events: textEvents }])
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    await ctx.plugin(LlmPiAi, {
+      providers: {
+        'mimo-gateway': {
+          apiKeyEnv: 'PI_TEST_KEY',
+          api: 'openai-completions',
+          baseURL: `${server.url}/v1`,
+          compat: { thinkingFormat: 'deepseek' },
+          models: [{
+            id: 'mimo-v2.5',
+            contextWindow: 65_536,
+            maxTokens: 4096,
+            reasoningEfforts: { off: null, high: 'high' },
+            compat: { thinkingFormat: 'deepseek', supportsReasoningEffort: false },
+          }],
+        },
+      },
+    })
+
+    await expect(ctx.llm.resolveModelInfo('mimo-gateway', 'mimo-v2.5'))
+      .resolves.toMatchObject({
+        reasoning: {
+          control: 'toggle',
+          efforts: [
+            { id: ReasoningEffortId('off'), name: 'Off' },
+            { id: ReasoningEffortId('high'), name: 'On' },
+          ],
+        },
+      })
+
+    await assemble(ctx, {
+      provider: 'mimo-gateway',
+      model: 'mimo-v2.5',
+      reasoningEffort: ReasoningEffortId('high'),
+      messages: [],
+    })
+    expect(server.requests[0]).toMatchObject({ thinking: { type: 'enabled' } })
+    expect(server.requests[0]).not.toHaveProperty('reasoning_effort')
+
+    await assemble(ctx, {
+      provider: 'mimo-gateway',
+      model: 'mimo-v2.5',
+      reasoningEffort: ReasoningEffortId('off'),
+      messages: [],
+    })
+    expect(server.requests[1]).toMatchObject({ thinking: { type: 'disabled' } })
+    expect(server.requests[1]).not.toHaveProperty('reasoning_effort')
+  })
+
   it('keeps the system role on a declared route whose gateway rejects the developer one', async () => {
     vi.stubEnv('PI_TEST_KEY', 'test-key')
     const server = await mockServer([{ events: textEvents }, { events: textEvents }])

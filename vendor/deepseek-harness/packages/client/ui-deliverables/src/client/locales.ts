@@ -131,14 +131,16 @@ export const en: Record<DeliverablesKey, string> = {
   'diff.truncated': 'Showing the first {count} lines',
 }
 
-/** Spanish dictionary (same key set). */
-export const es: Record<DeliverablesKey, string> = {
-  'produced.label': 'Producido',
-  'produced.moreOne': '+ 1 archivo',
-  'produced.more': '+ {count} archivos',
-  'produced.open': 'Abrir {name}',
-  'produced.showInFolder': 'Mostrar en la carpeta',
+/** Spanish translations retain the fork copy and inherit new upstream keys from English. */
+export const es = {
+  ...en,
+  "produced.label": "Producido",
+  "produced.moreOne": "+ 1 archivo",
+  "produced.more": "+ {count} archivos",
+  "produced.open": "Abrir {name}",
+  "produced.showInFolder": "Mostrar en la carpeta",
 }
+
 
 /** Union of this namespace's dictionary keys. */
 export type DeliverablesKey = keyof typeof zh

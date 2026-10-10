@@ -5,11 +5,7 @@ Archived: 2026-09-30
 
 English | [中文](2026-07-26-ptc-live-parallel-dispatch.zh.md)
 
-<<<<<<<< HEAD:vendor/deepseek-harness/.agents/notes/implemented/feature/2026-07-26-ptc-live-parallel-dispatch.md
-> Scope: the `tool/code-dispatch-start` event, per-sub-call running state in the web chat, and the bridge's scheduler reusing the native concurrency contract. Builds on the [host foundation](2026-07-26-ptc-dispatch-ui-foundation.md) and [chat sub-call rows](2026-07-26-ptc-chat-subcall-rows.md); the native contract itself is owned by the [parallel tool-call note](2026-07-10-parallel-tool-call-execution.md).
-========
 > Scope: the `tool/ptc-dispatch-start` event, per-sub-call running state in the web chat, and the bridge's scheduler reusing the native concurrency contract. Builds on the [host foundation](../../archived/feature/2026-07-26-ptc-dispatch-ui-foundation.md) and [chat sub-call rows](../../archived/feature/2026-07-26-ptc-chat-subcall-rows.md); the native contract itself is owned by the [parallel tool-call note](2026-07-10-parallel-tool-call-execution.md).
->>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/.agents/notes/archived/feature/2026-07-26-ptc-live-parallel-dispatch.md
 
 ## Problem
 
@@ -34,8 +30,4 @@ Two gaps remained after the host foundation and chat sub-call rows shipped. Sub-
 
 ## Consequences
 
-<<<<<<<< HEAD:vendor/deepseek-harness/.agents/notes/implemented/feature/2026-07-26-ptc-live-parallel-dispatch.md
-Programs get native-grade latency for independent reads with no new model-side API — `Promise.all` simply works better, and prompt guidance changed accordingly. The web UI shows per-sub-call running rings live (fixture emits start/settle pairs; jsdom pins the running shape; the runtime spec pins in-place settlement, out-of-order completion, and callTime pairing). Trajectory/waterfall sub-call spans draw truthful timing from the pair. Spill bounding ([ptc-dispatch log spill](2026-07-26-ptc-dispatch-log-spill.md)) inherits the settle event as its single bounding point.
-========
 Programs get native-grade latency for independent reads with no new model-side API — `Promise.all` simply works better, and prompt guidance changed accordingly. The web UI shows per-sub-call running rings live (fixture emits start/settle pairs; jsdom pins the running shape; the runtime spec pins in-place settlement, out-of-order completion, and callTime pairing). Trajectory/waterfall sub-call spans draw truthful timing from the pair. Spill bounding ([ptc-dispatch log spill](../../archived/feature/2026-07-26-ptc-dispatch-log-spill.md)) inherits the settle event as its single bounding point.
->>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/.agents/notes/archived/feature/2026-07-26-ptc-live-parallel-dispatch.md

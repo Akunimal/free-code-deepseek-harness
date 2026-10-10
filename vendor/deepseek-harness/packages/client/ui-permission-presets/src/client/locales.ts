@@ -38,6 +38,24 @@ export const en = {
   'confirm.enable': 'Enable Full access',
 } satisfies Record<PermissionSettingsKey, string>
 
+/** Spanish translations retain the fork copy and inherit new upstream keys from English. */
+export const es = {
+  ...en,
+  "title": "Permisos",
+  "description": "Elija el modo de permisos predeterminado para las sesiones nuevas",
+  "loading": "Cargando",
+  "unavailable": "No disponible",
+  "preset.readOnly": "Solo lectura",
+  "preset.workspaceWrite": "Escritura en el espacio de trabajo",
+  "preset.fullAccess": "Acceso total",
+  "confirm.title": "¿Activar el acceso total?",
+  "confirm.description": "El acceso total permite que las sesiones nuevas reduzcan los pasos de confirmación y realicen más acciones directamente, incluidas operaciones sensibles, cambios de archivos o comandos externos. Úselo solo cuando confíe en las tareas siguientes.",
+  "confirm.acknowledge": "Entiendo los riesgos y deseo continuar",
+  "confirm.cancel": "Cancelar",
+  "confirm.enable": "Activar acceso total",
+}
+
+
 /** Simplified Chinese dictionary for the current-session popup gate. */
 export const accessZh = {
   'mode': '访问模式，当前：{name}',

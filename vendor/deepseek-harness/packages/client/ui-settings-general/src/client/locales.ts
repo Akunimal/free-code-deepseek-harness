@@ -78,3 +78,20 @@ export const en = {
   'connection.reconnect': 'Disconnected, reconnect now',
   'connection.restart': 'Reconnecting, reconnect now',
 } satisfies Record<SettingsKey, string>
+
+/** Spanish translations retain the fork copy and inherit new upstream keys from English. */
+export const es = {
+  ...en,
+  "trigger": "Configuración",
+  "title": "Configuración",
+  "close": "Cerrar",
+  "openDocument": "Abrir archivo de configuración",
+  "openDocument.error": "No se pudo abrir el archivo de configuración",
+  "general.nav": "General",
+  "connection.error": "Desconectado",
+  "connection.retry": "Reconectar ahora",
+  "connection.connecting": "Conectando",
+  "connection.connected": "Conectado",
+  "connection.reconnect": "Desconectado, reconectar ahora",
+  "connection.restart": "Conectando, reiniciar ahora",
+}

@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-client-ui-settings-shell",
-  "description": "Settings page of the shell executor on the dsh web client's Plugins page: the command timeout and the per-stream output cap of the shell namespace",
+  "description": "Settings page of the shell executor on the dsh web client's Plugins page: command timeout, per-stream output cap, and optional RTK/Caveman output compression",
   "version": "0.2.1-alpha.1",
   "publishConfig": {
     "access": "public"

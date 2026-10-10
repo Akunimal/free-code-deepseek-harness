@@ -7,6 +7,7 @@ import type {
   AttachmentStore, FileAttachmentRef, ImageAttachmentRef, ImageMediaType, RequestImageAttachment,
 } from '@deepseek-ai/dsh-attachment'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
+import { extractTextFromImage } from './ocr.ts'
 
 /** Execution-world path that model tools can use to read one normalized attachment. */
 export interface ImageAttachmentAccess {
@@ -363,6 +364,56 @@ export function projectImagesForTextModel(messages: readonly RequestMessage[]): 
     const content = replaceImagesForTextModel(message.content)
     return content === message.content ? message : { ...message, content }
   })
+}
+
+/**
+ * Project durable image history into OCR text for an exact text-only model.
+ * Missing image access or OCR failure rejects rather than silently discarding
+ * the user's image. The original durable messages remain untouched.
+ * @param messages - complete durable request history.
+ * @param resolvePath - resolve one attachment into this execution world's read-only path.
+ * @param signal - optional request cancellation signal.
+ * @returns original messages when image-free, otherwise projected shallow copies.
+ */
+export async function projectImagesForTextModelWithOcr(
+  messages: readonly Message[],
+  resolvePath: ImageAttachmentAccessResolver,
+  signal?: AbortSignal,
+): Promise<readonly Message[]> {
+  if (!messages.some(message => contentHasImage(message.content))) return messages
+  const cache = new Map<string, Promise<string>>()
+  const project = async (blocks: readonly ContentBlock[]): Promise<ContentBlock[]> => {
+    const next: ContentBlock[] = []
+    for (const block of blocks) {
+      if (block.type === 'image') {
+        if (signal?.aborted === true) throw new Error('OCR canceled before image extraction')
+        const access = resolvePath(block.attachment)
+        if (access === undefined || access.readonlyPath.length === 0) {
+          throw new Error('OCR cannot access the normalized image path for this attachment')
+        }
+        const key = String(block.attachment.attachmentId)
+        let pending = cache.get(key)
+        if (pending === undefined) {
+          pending = extractTextFromImage(access.readonlyPath, signal === undefined ? {} : { signal })
+          cache.set(key, pending)
+        }
+        const text = await pending
+        next.push({ type: 'text', text: `[OCR text for ${block.attachment.name ?? 'attached image'}]\n${text}` })
+        continue
+      }
+      if (block.type === 'tool-result') {
+        next.push({ ...block, content: await project(block.content) })
+        continue
+      }
+      next.push(block)
+    }
+    return next
+  }
+
+  return Promise.all(messages.map(async (message) => {
+    const content = await project(message.content)
+    return { ...message, content }
+  }))
 }
 
 /** Request messages and tools after one route's tool update projection. */

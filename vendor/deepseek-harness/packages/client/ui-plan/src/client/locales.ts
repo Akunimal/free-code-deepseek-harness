@@ -44,3 +44,14 @@ export const en = {
   'chip.on.title': 'Plan mode on — click to turn off (/plan off)',
   'chip.exitFailed': 'Failed to exit plan mode',
 } satisfies Record<PlanKey, string>
+
+/** Spanish translations retain the fork copy and inherit new upstream keys from English. */
+export const es = {
+  ...en,
+  "chip.label": "Plan",
+  "chip.on.aria": "Modo plan activado, presione para desactivar",
+  "chip.on.title": "Modo plan activado — clic para desactivar (/plan off)",
+  "chip.off.aria": "Modo plan desactivado, presione para activar",
+  "chip.off.title": "Modo plan desactivado — clic para activar (/plan)",
+  "chip.exitFailed": "No se pudo salir del modo plan",
+}

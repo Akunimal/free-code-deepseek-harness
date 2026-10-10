@@ -12,15 +12,9 @@
       "path": "../../../vendor/cordis"
     },
     {
-      "path": "../credentials"
-    },
-    {
       "path": "../../llm/llm"
     },
     {
-<<<<<<<< HEAD:vendor/deepseek-harness/packages/credentials/authorization/tsconfig.json
-      "path": "../../runtime-diagnostics/invariants"
-========
       "path": "../../core/scope"
     },
     {
@@ -31,7 +25,6 @@
     },
     {
       "path": "../../util/values"
->>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/packages/mcp/mcp-resources/tsconfig.json
     }
   ]
 }

@@ -73,21 +73,22 @@ export const en = {
   'plan.discuss': 'Request changes',
 } satisfies Record<QuestionKey, string>
 
-/** Spanish dictionary. */
+/** Spanish translations retain the fork copy and inherit new upstream keys from English. */
 export const es = {
-  'error.incomplete': 'Complete primero esta pregunta.',
-  'error.unanswered': 'Seleccione una opción o escriba una respuesta personalizada.',
-  'nav.prev': 'Pregunta anterior',
-  'nav.next': 'Pregunta siguiente',
-  'nav.minimize': 'Contraer la tarjeta de preguntas',
-  'nav.maximize': 'Expandir la tarjeta de preguntas',
-  'nav.cancel': 'Descartar todas las preguntas',
-  'option.recommended': 'Recomendado',
-  'custom.placeholder': 'Escriba su respuesta',
-  'action.skip': 'Omitir esta pregunta',
-  'action.next': 'Siguiente',
-  'plan.header': 'Revisión del plan',
-  'plan.approve': 'Aprobar',
-  'plan.decline': 'Rechazar',
-  'plan.discuss': 'Conversar al respecto',
-} satisfies Record<QuestionKey, string>
+  ...en,
+  "error.incomplete": "Complete primero esta pregunta.",
+  "error.unanswered": "Seleccione una opción o escriba una respuesta personalizada.",
+  "nav.prev": "Pregunta anterior",
+  "nav.next": "Pregunta siguiente",
+  "nav.minimize": "Contraer la tarjeta de preguntas",
+  "nav.maximize": "Expandir la tarjeta de preguntas",
+  "nav.cancel": "Descartar todas las preguntas",
+  "option.recommended": "Recomendado",
+  "custom.placeholder": "Escriba su respuesta",
+  "action.skip": "Omitir esta pregunta",
+  "action.next": "Siguiente",
+  "plan.header": "Revisión del plan",
+  "plan.approve": "Aprobar",
+  "plan.decline": "Rechazar",
+  "plan.discuss": "Conversar al respecto",
+}

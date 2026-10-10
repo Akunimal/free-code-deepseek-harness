@@ -57,3 +57,21 @@ export const en = {
   'error.generic': 'Could not save feedback',
   'error.noteTooLarge': 'The description is too long; shorten it and submit again',
 } satisfies Record<MessageFeedbackKey, string>
+
+/** Spanish translations retain the fork copy and inherit new upstream keys from English. */
+export const es = {
+  ...en,
+  "action.like": "Buena respuesta",
+  "action.likeActive": "Quitar calificación",
+  "action.dislike": "Mala respuesta",
+  "action.dislikeActive": "Quitar calificación",
+  "note.open": "Agregar una nota",
+  "note.dialog": "Comentarios",
+  "note.placeholder": "¿Qué estuvo bien o qué salió mal? (opcional)",
+  "note.save": "Guardar",
+  "note.cancel": "Cancelar",
+  "note.aria": "Nota de comentarios",
+  "error.conflict": "Este comentario cambió en otro lugar; se muestra el estado más reciente",
+  "error.load": "No se pudo cargar el comentario",
+  "error.generic": "No se pudo guardar el comentario",
+}

@@ -130,6 +130,23 @@
   border-color: var(--dsw-alias-state-error-primary);
 }
 
+.checkbox {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex: none;
+  accent-color: var(--dsw-alias-state-business-primary);
+}
+
+.checkbox:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 2px;
+}
+
+.checkbox:disabled {
+  cursor: default;
+}
+
 .invalid {
   margin: 0;
   font-size: 12px;

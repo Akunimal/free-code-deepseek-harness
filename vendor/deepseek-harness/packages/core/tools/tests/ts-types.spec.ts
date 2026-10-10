@@ -214,61 +214,6 @@ describe('renderToolsSdk', () => {
     expect(renderToolsSdk([constrained])).toContain('tools.bash({ command: \'pwd\' })')
   })
 
-  it('keeps generated bindings inside a run_code program', () => {
-    const text = renderToolsSdk([bash])
-    expect(text).toContain('A declaration does not make its name a directly callable tool')
-    expect(text).toContain('only names supplied as separate tool schemas may be called directly')
-    expect(text).toContain('`run_code({ code: "return await tools.bash({ command: \'pwd\', description: \'Show current directory\' })"')
-    expect(text).toContain('Program-only SDK bindings:')
-    expect(text).not.toContain('The available tools:')
-  })
-
-  it('only shows a bash example accepted by the declared binding', () => {
-    expect(renderToolsSdk([exotic])).not.toContain('tools.bash(')
-
-    const commandOnly = {
-      ...bash,
-      parameters: parameterSchemaSpecToJsonSchema({
-        command: { type: 'string', required: true },
-      }) as unknown as Record<string, unknown>,
-    }
-    expect(renderToolsSdk([commandOnly]))
-      .toContain('tools.bash({ command: \'pwd\' })')
-
-    const incompatible = {
-      ...bash,
-      parameters: parameterSchemaSpecToJsonSchema({
-        command: { type: 'string', required: true },
-        cwd: { type: 'string', required: true },
-      }) as unknown as Record<string, unknown>,
-    }
-    expect(renderToolsSdk([incompatible])).not.toContain('tools.bash(')
-
-    const parameters = (value: JsonSchemaNode): ToolSdkSchema => ({
-      ...bash,
-      parameters: value as Record<string, unknown>,
-    })
-    const rejected: JsonSchemaNode[] = [
-      { type: 'string' },
-      { type: 'object', properties: {} },
-      { type: 'object', properties: { command: { type: 'number' } } },
-      { type: 'object', properties: { command: { type: 'string', const: 'date' } } },
-      { type: 'object', properties: { command: { type: 'string', enum: ['date'] } } },
-      {
-        type: 'object',
-        properties: { command: { type: 'string' }, description: { type: 'number' } },
-        required: ['command', 'description'],
-      },
-    ]
-    for (const schema of rejected) expect(renderToolsSdk([parameters(schema)])).not.toContain('tools.bash(')
-
-    const constrained = parameters({
-      type: 'object',
-      properties: { command: { type: 'string', const: 'pwd', enum: ['pwd'] } },
-    })
-    expect(renderToolsSdk([constrained])).toContain('tools.bash({ command: \'pwd\' })')
-  })
-
   it('is deterministic: same tool set, byte-identical text regardless of input order', () => {
     expect(renderToolsSdk([bash, exotic])).toBe(renderToolsSdk([exotic, bash]))
     // Equal names sort stably (the comparator's equal arm).

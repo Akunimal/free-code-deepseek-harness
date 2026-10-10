@@ -12,7 +12,9 @@
 import type { Volatile } from '@deepseek-ai/cordis'
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { ShellExecutor } from '@deepseek-ai/dsh-shell'
+import {
+  resolveCaveman, resolveRtk, ShellExecutor, wrapWithCaveman, wrapWithRtk,
+} from '@deepseek-ai/dsh-shell'
 import type { ShellExecRequest, ShellExecSpec, ShellExecution, ShellProcess, ShellProcessRead, ShellRunResult, CollectedOutput } from '@deepseek-ai/dsh-shell'
 import type { SubprocessCollect, SubprocessHandle, SubprocessOutputReader, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { clampTimeout, deadline, MAX_TIMER_DELAY_MS, timeoutOf } from '@deepseek-ai/dsh-timeout'
@@ -51,6 +53,10 @@ export interface Config {
   maxSpillBytes: Volatile<number>
   /** Grace period for kill escalation and inherited pipes; at most `MAX_TIMER_DELAY_MS`. */
   graceMs: Volatile<number>
+  /** Use an installed RTK binary to compress eligible command output. */
+  rtk: Volatile<boolean>
+  /** Use an installed Caveman binary to compress eligible command output. */
+  caveman: Volatile<boolean>
 }
 
 /** Project a settled collect-mode reader into the final CollectedOutput shape. */
@@ -104,10 +110,20 @@ export class LocalBashExecutor extends ShellExecutor {
     maxOutputBytes: z.number().default(64_000).volatile(),
     maxSpillBytes: z.number().default(DEFAULT_MAX_SPILL_BYTES).volatile(),
     graceMs: z.number().default(DEFAULT_GRACE_MS).volatile(),
+    rtk: z.boolean().default(true).volatile(),
+    caveman: z.boolean().default(true).volatile(),
   })
+
+  /** Cached because probing PATH for every command adds avoidable latency. */
+  private readonly rtkInstalled: boolean
+
+  /** Cached because probing PATH for every command adds avoidable latency. */
+  private readonly cavemanInstalled: boolean
 
   constructor(ctx: Context, readonly config: Config) {
     super(ctx)
+    this.rtkInstalled = resolveRtk()
+    this.cavemanInstalled = resolveCaveman()
   }
 
   /**
@@ -128,7 +144,10 @@ export class LocalBashExecutor extends ShellExecutor {
     const stdoutMaxBytes = request.stdoutMaxBytes ?? this.config.maxOutputBytes.get()
     assertPositiveFinite('request.stdoutMaxBytes', stdoutMaxBytes)
     return {
-      command: request.command,
+      command: wrapWithCaveman(
+        wrapWithRtk(request.command, this.config.rtk.get() && this.rtkInstalled),
+        this.config.caveman.get() && this.cavemanInstalled,
+      ),
       workdir: request.workdir ?? this.config.cwd.get() ?? process.cwd(),
       timeoutMs,
       onExpiry: request.onExpiry ?? 'kill',

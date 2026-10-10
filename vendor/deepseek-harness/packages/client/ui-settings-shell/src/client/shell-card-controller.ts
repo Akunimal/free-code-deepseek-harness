@@ -2,7 +2,7 @@
 
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import {
-  SettingsFormModel, settingsNumberField,
+  SettingsFormModel, settingsBooleanField, settingsNumberField,
   type SettingsFieldState, type SettingsFormActions, type SettingsFormScope, type SettingsFormShell,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 
@@ -17,6 +17,10 @@ export interface ShellSettings {
   timeoutMs?: number
   /** Per-stream in-memory output cap in bytes. */
   maxOutputBytes?: number
+  /** Compress eligible CLI output through an installed RTK binary. */
+  rtk?: boolean
+  /** Compress eligible CLI output through an installed Caveman binary. */
+  caveman?: boolean
 }
 
 /** What the shell page renders. */
@@ -25,6 +29,10 @@ export interface ShellCardState extends SettingsFormShell {
   timeoutMs: SettingsFieldState
   /** Per-stream output cap in bytes. */
   maxOutputBytes: SettingsFieldState
+  /** Whether eligible commands may use RTK. */
+  rtk: SettingsFieldState
+  /** Whether eligible commands may use Caveman. */
+  caveman: SettingsFieldState
 }
 
 /** The registration-side face the shell page's slot entry injects. */
@@ -42,7 +50,10 @@ export class ShellCardController {
 
   /** @param scope - the shared configuration form of the composed shell executor entry. */
   constructor(scope: SettingsFormScope<ShellSettings>) {
-    this.form = new SettingsFormModel(scope, [settingsNumberField('timeoutMs'), settingsNumberField('maxOutputBytes')])
+    this.form = new SettingsFormModel(scope, [
+      settingsNumberField('timeoutMs'), settingsNumberField('maxOutputBytes'),
+      settingsBooleanField('rtk'), settingsBooleanField('caveman'),
+    ])
     this.store = this.form.bind(() => this.projection())
   }
 
@@ -51,6 +62,8 @@ export class ShellCardController {
       ...this.form.shell(),
       timeoutMs: this.form.field('timeoutMs'),
       maxOutputBytes: this.form.field('maxOutputBytes'),
+      rtk: this.form.field('rtk'),
+      caveman: this.form.field('caveman'),
     }
   }
 

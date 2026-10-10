@@ -80,7 +80,31 @@ const GENERATED_REMOTE = /^@deepseek-ai\/dsh-[a-z0-9]+(?:-[a-z0-9]+)*\/remote$/
  */
 const SKIP_WORKSPACE_BUILD: UserConfig = { entry: '' }
 
-const REPOSITORY_ROOT = fileURLToPath(new URL('../..', import.meta.url))
+/**
+ * Resolve the vendored repository from both direct package execution and the
+ * `.unrun` config copies used by workspace builds. The latter lives under a
+ * different node_modules directory on Linux/WSL than on Windows, so deriving
+ * the root from import.meta.url alone is not portable.
+ */
+function isRepositoryRoot(candidate: string): boolean {
+  return existsSync(resolvePath(candidate, 'pnpm-workspace.yaml'))
+    && existsSync(resolvePath(candidate, 'packages', 'api', 'workspace-controller', 'package.json'))
+}
+
+function findRepositoryRoot(): string {
+  const moduleRoot = fileURLToPath(new URL('../..', import.meta.url))
+  const candidates = [
+    process.cwd(),
+    moduleRoot,
+    resolvePath(moduleRoot, '..', '..'),
+    resolvePath(process.cwd(), 'vendor', 'deepseek-harness'),
+  ]
+  const repositoryRoot = candidates.find(isRepositoryRoot)
+  if (repositoryRoot !== undefined) return repositoryRoot
+  throw new Error(`tsdown: unable to locate vendored repository root from ${moduleRoot}`)
+}
+
+const REPOSITORY_ROOT = findRepositoryRoot()
 
 /** Rebase a physical lib-relative source onto a browser URL that mirrors the repository directories. */
 function browserSourcePath(source: string, sourcemapPath: string): string {

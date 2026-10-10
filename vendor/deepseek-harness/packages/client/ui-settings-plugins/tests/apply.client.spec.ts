@@ -3,9 +3,9 @@
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
-import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
+import { SlotRegistry } from '../../ui-renderer/src/client/registry.ts'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
-import { apply, inject } from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
+import { apply, inject } from '../src/client/index.ts'
 import type { PluginsSettingsSectionInjected } from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
 import { apply as hostApply } from '../src/index.ts'
 
@@ -39,7 +39,7 @@ describe('ui-settings-plugins apply', () => {
     expect(inject).toEqual(['slots', 'locale'])
   })
 
-  it('registers one Built-in plugins section and declares its tab slot, contributing no tab of its own', async () => {
+  it('registers the MCP settings tab alongside the Built-in plugins section', async () => {
     const { ctx, slots } = await bench()
     declareRoot(slots)
 
@@ -50,7 +50,9 @@ describe('ui-settings-plugins apply', () => {
     // The nav label is a locale-following thunk; owners resolve it at read time.
     expect(resolveSlotLabel(section.options.label)).toBe('内置插件')
     expect(slots.spec('settings.plugins.tab')).toMatchObject({ kind: 'list', scope: 'root' })
-    expect(slots.entries('settings.plugins.tab')).toHaveLength(0)
+    expect(slots.entries('settings.plugins.tab')).toEqual([
+      expect.objectContaining({ options: expect.objectContaining({ id: 'mcp', order: 5 }) }),
+    ])
   })
 
   it('injects a live tab projection ordered by the contributions', async () => {
@@ -61,7 +63,7 @@ describe('ui-settings-plugins apply', () => {
     const section = slots.entries('settings.section')[0]!
     const sectionFace = (section.inject as () => Pick<PluginsSettingsSectionInjected, 'hooks'>)()
     const initialTabs = sectionFace.hooks.tabs.getSnapshot()
-    expect(initialTabs).toEqual([])
+    expect(initialTabs).toEqual([{ id: 'mcp', order: 5, label: 'MCP' }])
     expect(sectionFace.hooks.tabs.getSnapshot()).toBe(initialTabs)
 
     const unsubscribe = sectionFace.hooks.tabs.subscribe(vi.fn())
@@ -71,6 +73,7 @@ describe('ui-settings-plugins apply', () => {
     expect(sectionFace.hooks.tabs.getSnapshot()).toEqual([
       { id: 'first', order: -1, label: '' },
       { id: 'plain', order: 0, label: '' },
+      { id: 'mcp', order: 5, label: 'MCP' },
     ])
     unsubscribe()
   })

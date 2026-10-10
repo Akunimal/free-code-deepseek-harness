@@ -1,30 +1,16 @@
 diff --git a/vendor/deepseek-harness/packages/fs/tool-fs/src/read-image.ts b/vendor/deepseek-harness/packages/fs/tool-fs/src/read-image.ts
-index 3115473515..ab177516e7 100644
+index c732750921..2c6c397a11 100644
 --- a/vendor/deepseek-harness/packages/fs/tool-fs/src/read-image.ts
 +++ b/vendor/deepseek-harness/packages/fs/tool-fs/src/read-image.ts
-@@ -4,10 +4,9 @@
-  * attachment service's full decode stays authoritative. The mounted `ctx.fs`
-  * backend owns path resolution and read access; names only declare media type.
-  *
-- * The route gate is deliberately stricter than the host upload preflight. An
-- * image-reading tool is useful only when the exact calling route can inspect
-- * its result, so unknown capability refuses instead of relying on an adapter
-- * failure after filesystem and attachment work.
-+ * Vision routes receive a durable image block. Text-only routes use the
-+ * product-managed OCR bridge and receive bounded text instead; unknown
-+ * capability still refuses before filesystem work.
-  * @module @deepseek-ai/dsh-tool-fs/src/read-image
-  */
- 
-@@ -16,6 +15,7 @@ import type { Context } from '@deepseek-ai/cordis'
+@@ -15,6 +15,7 @@ import { basename, extname } from 'node:path'
+ import type { Context } from '@deepseek-ai/cordis'
  import { AttachmentError, AttachmentId } from '@deepseek-ai/dsh-attachment'
  import type { AttachmentStore, ImageAttachmentRef, ImageMediaType } from '@deepseek-ai/dsh-attachment'
- import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 +import { extractTextFromImage } from '@deepseek-ai/dsh-llm'
+ import type { ContentBlock } from '@deepseek-ai/dsh-llm'
  import { defineTool } from '@deepseek-ai/dsh-tools'
  import type { GenericCallView, ToolExecution } from '@deepseek-ai/dsh-tools'
- import type {} from '@deepseek-ai/dsh-fs'
-@@ -62,7 +62,6 @@ export function sniffImageMediaType(data: Uint8Array): ImageMediaType | undefine
+@@ -62,7 +63,6 @@ export function sniffImageMediaType(data: Uint8Array): ImageMediaType | undefine
  const IMAGE_VALUE_SCHEMA = {
    type: 'object',
    additionalProperties: false,
@@ -32,7 +18,7 @@ index 3115473515..ab177516e7 100644
    properties: {
      attachmentId: { type: 'string', required: true },
      mediaType: { type: 'string', enum: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'], required: true },
-@@ -84,7 +83,7 @@ const IMAGE_VALUE_SCHEMA = {
+@@ -84,7 +84,7 @@ const IMAGE_VALUE_SCHEMA = {
  /** The structured outcome declared by the `read_image` output schema. */
  export interface ImageReadValue {
    path: string
@@ -41,7 +27,7 @@ index 3115473515..ab177516e7 100644
      attachmentId: string
      mediaType: ImageMediaType
      bytes: number
-@@ -97,6 +96,7 @@ export interface ImageReadValue {
+@@ -97,6 +97,7 @@ export interface ImageReadValue {
        height: number
      }
    }
@@ -49,9 +35,19 @@ index 3115473515..ab177516e7 100644
  }
  
  /**
-@@ -116,7 +116,11 @@ export function imageMediaTypeForPath(filePath: string): ImageMediaType | undefi
+@@ -109,14 +110,18 @@ export function imageMediaTypeForPath(filePath: string): ImageMediaType | undefi
+ }
+ 
+ /**
+- * Enforce the strict image-capability gate for the calling route. Resolves the
+- * session's latest routed provider/model (request header config, then agent
+- * options) and requires the exact resolved route to declare `image` input explicitly.
++ * Resolve image capability for the calling route. Resolves the session's
++ * latest routed provider/model (request header config, then agent options).
+  * @param ctx - the plugin context used to resolve the optional `llm` service.
   * @param exec - the tool-execution context supplying the calling agent.
   * @param requestedPath - the raw, not-yet-resolved path rendered in refusal messages.
++ * @returns the exact model and whether it declares image input.
   */
 -export async function assertImageCapableRoute(ctx: Context, exec: ToolExecution, requestedPath: string): Promise<void> {
 +export async function resolveImageRoute(
@@ -62,7 +58,7 @@ index 3115473515..ab177516e7 100644
    const routed = exec.agent?.session.requestHeader()?.config
    const provider = routed?.provider ?? exec.agent?.options.provider
    const model = routed?.model ?? exec.agent?.options.model
-@@ -125,8 +129,14 @@ export async function assertImageCapableRoute(ctx: Context, exec: ToolExecution,
+@@ -125,8 +130,14 @@ export async function assertImageCapableRoute(ctx: Context, exec: ToolExecution,
      throw new Error(`cannot read "${requestedPath}" as an image: the current model route could not be resolved`)
    }
    const active = await llm.resolveModelInfo(provider, model, exec.signal)
@@ -71,7 +67,7 @@ index 3115473515..ab177516e7 100644
 +  return { model, vision: active.inputModalities?.includes('image') === true }
 +}
 +
-+/** Preserve the historical exported guard for callers that require vision. */
++/** Preserve the historical guard for callers that require a vision route. */
 +export async function assertImageCapableRoute(ctx: Context, exec: ToolExecution, requestedPath: string): Promise<void> {
 +  const route = await resolveImageRoute(ctx, exec, requestedPath)
 +  if (!route.vision) {
@@ -79,7 +75,7 @@ index 3115473515..ab177516e7 100644
    }
  }
  
-@@ -146,7 +156,7 @@ function assertDeploymentAccepts(attachments: AttachmentStore, mediaType: ImageMediaType, displayPath: string): void {
+@@ -143,7 +154,7 @@ function assertDeploymentAccepts(attachments: AttachmentStore, mediaType: ImageM
   * @param image - the image metadata from the output schema.
   * @returns the branded attachment reference.
   */
@@ -88,7 +84,7 @@ index 3115473515..ab177516e7 100644
    return {
      attachmentId: AttachmentId(image.attachmentId),
      mediaType: image.mediaType,
-@@ -168,7 +178,7 @@ export function imageRefFromValue(image: ImageReadValue['image']): ImageAttachmentRef {
+@@ -165,7 +176,7 @@ export function imageRefFromValue(image: ImageReadValue['image']): ImageAttachme
   * @param image - the image metadata to summarize.
   * @returns the model-facing envelope; the image itself rides the adjacent image block.
   */
@@ -97,8 +93,12 @@ index 3115473515..ab177516e7 100644
    let scaled = ''
    if (image.originalDimensions !== undefined) {
      // Integer rounding can give the two axes slightly different ratios, so the
-@@ -190,6 +200,13 @@ ${image.mediaType} image, ${image.width}x${image.height} px, ${image.bytes} byte
-  * @returns the two content blocks used by native and nested dispatches.
+@@ -187,9 +198,16 @@ ${image.mediaType} image, ${image.width}x${image.height} px, ${image.bytes} byte
+ /**
+  * Project one structured image read into its model-facing envelope and image.
+  * @param value - the image-read outcome.
+- * @returns the two content blocks used by native and nested dispatches.
++ * @returns OCR text or the image envelope and attachment used by native and nested dispatches.
   */
  function imageReadContent(value: ImageReadValue): ContentBlock[] {
 +  if (value.ocrText !== undefined) {
@@ -111,20 +111,27 @@ index 3115473515..ab177516e7 100644
    return [
      { type: 'text', text: formatImageReadOutput(value.path, value.image) },
      { type: 'image', attachment: imageRefFromValue(value.image) },
-@@ -208,10 +225,10 @@ function imageReadContent(value: ImageReadValue): ContentBlock[] {
+@@ -201,15 +219,16 @@ function imageReadContent(value: ImageReadValue): ContentBlock[] {
+  * owns the attachments gate: `src/index.ts` calls this inside
+  * `ctx.inject(['attachments'], …)` so the tool exists only while a durable
+  * store is mounted. Execution still re-checks `ctx.get('attachments')` for
+- * direct callers and gates on the calling route's declared image input.
++ * direct callers and selects image or OCR output from the calling route's declared input.
+  * @param ctx - the registration scope; execution uses its `fs` service plus
+  *   the optional `attachments`/`llm` services.
+  */
  export function applyReadImageTool(ctx: Context): void {
    ctx.tools.register(defineTool({
      name: 'read_image',
 -    description: 'Read a PNG/JPEG/WebP/GIF file and return the image itself. '
+-      + 'Large images are downscaled automatically; do not install image libraries or create thumbnails to inspect an image.',
 +    description: 'Read a PNG/JPEG/WebP/GIF file and return the image itself, or run the bundled OCR bridge for a text-only model. '
-       + 'A path without a file extension is accepted; the format is detected from the file content, so normalized attachment paths can be passed directly without copying or renaming. '
-       + 'Harness validates and downscales large supported images before the next model request, so use this tool directly instead of installing image libraries or creating thumbnails merely to inspect an image. '
--      + 'Independent files may be read concurrently in small batches. Requires the current model to accept image input.',
-+      + 'Independent files may be read concurrently in small batches. Vision models receive the image; text-only models receive OCR text.',
++      + 'Large images are downscaled automatically; do not install image libraries or create thumbnails to inspect an image. '
++      + 'Vision models receive the image; text-only models receive OCR text.',
      parameters: {
        file_path: { type: 'string', required: true, description: 'Path to the image file, resolved by the filesystem backend.' },
      },
-@@ -222,6 +239,7 @@ export function applyReadImageTool(ctx: Context): void {
+@@ -220,6 +239,7 @@ export function applyReadImageTool(ctx: Context): void {
          properties: {
            path: { type: 'string', required: true },
            image: IMAGE_VALUE_SCHEMA,
@@ -132,7 +139,7 @@ index 3115473515..ab177516e7 100644
          },
        },
        render: (_args, value) => imageReadContent(value),
-@@ -255,7 +273,7 @@ export function applyReadImageTool(ctx: Context): void {
+@@ -253,7 +273,7 @@ export function applyReadImageTool(ctx: Context): void {
          throw new Error(`cannot read "${args.file_path}" as an image: no attachment service is mounted`)
        }
        if (declared !== undefined) assertDeploymentAccepts(attachments, declared, args.file_path)
@@ -141,7 +148,7 @@ index 3115473515..ab177516e7 100644
  
        const { target, info } = await resolveRegularReadTarget(ctx, exec, args.file_path)
  
-@@ -268,6 +286,16 @@ export function applyReadImageTool(ctx: Context): void {
+@@ -266,6 +286,16 @@ export function applyReadImageTool(ctx: Context): void {
          throw new Error(`cannot read "${target.displayPath}": the file content is not a supported image format; read_image accepts PNG/JPEG/WebP/GIF`)
        }
        if (declared === undefined) assertDeploymentAccepts(attachments, mediaType, target.displayPath)
@@ -159,28 +166,19 @@ index 3115473515..ab177516e7 100644
        // committed object by the time the tool/result event is appended.
        let ref: ImageAttachmentRef
 diff --git a/vendor/deepseek-harness/packages/fs/tool-fs/tests/read-image.spec.ts b/vendor/deepseek-harness/packages/fs/tool-fs/tests/read-image.spec.ts
-index d5b4dc5b46..24fc4f0d11 100644
+index 8b1378fb7f..b74c63ab0d 100644
 --- a/vendor/deepseek-harness/packages/fs/tool-fs/tests/read-image.spec.ts
 +++ b/vendor/deepseek-harness/packages/fs/tool-fs/tests/read-image.spec.ts
-@@ -1,7 +1,7 @@
- /**
-  * The `read_image` tool over the REAL local filesystem and attachment store:
-  * extension routing, extension-less content sniffing (attachment object paths
-- * included), the strict image-modality gate (every refusal arm), durable
-+ * included), the vision/OCR route gate, durable
-  * commit + image-block rendering, attachment admission failures, and the
-  * regression that `read` keeps its text-only contract.
-  */
 @@ -13,7 +13,7 @@ import { join } from 'node:path'
  import { Context } from '@deepseek-ai/cordis'
- import { CodeRuntime } from '@deepseek-ai/dsh-code-runtime'
- import type { CodeRunRequest, CodeRunResult } from '@deepseek-ai/dsh-code-runtime'
+ import { PtcRuntime } from '@deepseek-ai/dsh-ptc-runtime'
+ import type { PtcRunRequest, PtcRunResult } from '@deepseek-ai/dsh-ptc-runtime'
 -import { ToolCallId, LlmAdapter, LlmRuntime } from '@deepseek-ai/dsh-llm'
 +import { ToolCallId, LlmAdapter, LlmRuntime, setOcrRunnerForTests } from '@deepseek-ai/dsh-llm'
  import type { GenerateOptions, LlmModelInfo, LlmResolvedModelInfo, Message, StreamChunk } from '@deepseek-ai/dsh-llm'
  import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
  import ToolRuntime, { RUN_CODE_NAME } from '@deepseek-ai/dsh-tools'
-@@ -450,7 +450,7 @@ describe('extension-less paths', () => {
+@@ -452,7 +452,7 @@ describe('extension-less paths', () => {
    })
  })
  
@@ -189,7 +187,7 @@ index d5b4dc5b46..24fc4f0d11 100644
    it('accepts an exact visual route even when the advisory model catalog omits it', async () => {
      await writeFile(join(dir, 'red.png'), PNG_1X1)
      const ctx = await setup({
-@@ -467,12 +467,27 @@ describe('strict image-modality gate', () => {
+@@ -469,12 +469,27 @@ describe('strict image-modality gate', () => {
      ['a text-only model', 'text-model'],
      ['a model without declared modalities', 'legacy-model'],
      ['a model absent from the catalog', 'unknown-model'],
@@ -220,10 +218,10 @@ index d5b4dc5b46..24fc4f0d11 100644
  
    it('refuses when the route cannot be resolved (no agent, or no header and no options)', async () => {
 diff --git a/vendor/deepseek-harness/packages/llm/llm/src/content.ts b/vendor/deepseek-harness/packages/llm/llm/src/content.ts
-index 8ec0c14d35..0b8fd2893e 100644
+index cecbfba938..200da9f842 100644
 --- a/vendor/deepseek-harness/packages/llm/llm/src/content.ts
 +++ b/vendor/deepseek-harness/packages/llm/llm/src/content.ts
-@@ -6,6 +6,7 @@ import type {
+@@ -7,6 +7,7 @@ import type {
    AttachmentStore, FileAttachmentRef, ImageAttachmentRef, ImageMediaType, RequestImageAttachment,
  } from '@deepseek-ai/dsh-attachment'
  import { assertNever } from '@deepseek-ai/dsh-util-values'
@@ -231,17 +229,18 @@ index 8ec0c14d35..0b8fd2893e 100644
  
  /** Execution-world path that model tools can use to read one normalized attachment. */
  export interface ImageAttachmentAccess {
-@@ -303,6 +304,55 @@ export function projectImagesForTextModel(messages: readonly Message[]): readonl
+@@ -365,6 +366,56 @@ export function projectImagesForTextModel(messages: readonly RequestMessage[]):
    })
  }
  
 +/**
 + * Project durable image history into OCR text for an exact text-only model.
-+ *
-+ * Unlike the legacy synchronous projection, this path never substitutes a
-+ * silent placeholder. Missing image access, a missing OCR executable, corrupt
-+ * input, timeout, and empty OCR output all reject the request with an
-+ * actionable error. The original durable messages remain untouched.
++ * Missing image access or OCR failure rejects rather than silently discarding
++ * the user's image. The original durable messages remain untouched.
++ * @param messages - complete durable request history.
++ * @param resolvePath - resolve one attachment into this execution world's read-only path.
++ * @param signal - optional request cancellation signal.
++ * @returns original messages when image-free, otherwise projected shallow copies.
 + */
 +export async function projectImagesForTextModelWithOcr(
 +  messages: readonly Message[],
@@ -284,26 +283,26 @@ index 8ec0c14d35..0b8fd2893e 100644
 +  }))
 +}
 +
- /**
-  * Number of oldest image occurrences one request projection removes, in whole
-  * count and byte quanta, once a route budget is exceeded. The result depends
+ /** Request messages and tools after one route's tool update projection. */
+ export interface ProjectedToolUpdates {
+   /** History with only the developer updates supported by this route and declaration series. */
 diff --git a/vendor/deepseek-harness/packages/llm/llm/src/index.ts b/vendor/deepseek-harness/packages/llm/llm/src/index.ts
-index 6a3cc5de71..adb03209de 100644
+index b1c9081bfe..8023826e02 100644
 --- a/vendor/deepseek-harness/packages/llm/llm/src/index.ts
 +++ b/vendor/deepseek-harness/packages/llm/llm/src/index.ts
-@@ -33,9 +33,9 @@ import { HarnessError, INVALID_CREDENTIAL_CODE } from './error.ts'
+@@ -37,9 +37,9 @@ import { HarnessError, INVALID_CREDENTIAL_CODE } from './error.ts'
  import { normalizeLlmFailure } from './adapter-failure.ts'
  import { normalizeApiKey } from './api-key.ts'
  import {
--  contentHasFile, contentHasImage, fileHandleText, projectFilesToText, projectImagesForTextModel,
-+  contentHasFile, contentHasImage, fileHandleText, projectFilesToText, projectImagesForTextModelWithOcr,
+-  contentHasFile, contentHasImage, fileHandleText, projectFilesToText, projectImagesForTextModel, projectToolUpdates,
++  contentHasFile, contentHasImage, fileHandleText, projectFilesToText, projectImagesForTextModelWithOcr, projectToolUpdates,
  } from './content.ts'
 -import type { FileAttachmentRef } from '@deepseek-ai/dsh-attachment'
 +import type { FileAttachmentRef, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
  
  export * from './attribution.ts'
  export * from './brand.ts'
-@@ -43,6 +43,7 @@ export * from './error.ts'
+@@ -47,6 +47,7 @@ export * from './error.ts'
  export * from './api-key.ts'
  export * from './types.ts'
  export * from './content.ts'
@@ -311,7 +310,7 @@ index 6a3cc5de71..adb03209de 100644
  export * from './assistant-stream.ts'
  export * from './message.ts'
  export * from './retry-policy.ts'
-@@ -796,6 +797,14 @@ export class LlmRuntime extends TypertRemoteService {
+@@ -821,6 +822,14 @@ export class LlmRuntime extends TypertRemoteService {
          'INVALID_MODEL_REASONING',
        )
      }
@@ -326,7 +325,7 @@ index 6a3cc5de71..adb03209de 100644
      const seen = new Set<string>()
      const efforts = reasoning.efforts.map((effort) => {
        if (
-@@ -828,6 +837,7 @@ export class LlmRuntime extends TypertRemoteService {
+@@ -853,6 +862,7 @@ export class LlmRuntime extends TypertRemoteService {
        ...info,
        reasoning: {
          efforts,
@@ -334,7 +333,7 @@ index 6a3cc5de71..adb03209de 100644
          ...reasoning.defaultEffort === undefined ? {} : { defaultEffort: reasoning.defaultEffort },
        },
      }
-@@ -990,6 +1000,19 @@ export class LlmRuntime extends TypertRemoteService {
+@@ -1018,6 +1028,19 @@ export class LlmRuntime extends TypertRemoteService {
      return fs?.processPathFromHostPath(hostPath)
    }
  
@@ -354,7 +353,7 @@ index 6a3cc5de71..adb03209de 100644
    /**
     * Final adapter boundary. Adapter selection, dispatch, iterator construction,
     * and iteration failures become one terminal failure chunk. Middleware and
-@@ -1035,7 +1058,14 @@ export class LlmRuntime extends TypertRemoteService {
+@@ -1063,7 +1086,14 @@ export class LlmRuntime extends TypertRemoteService {
        if (modelInfo.inputModalities !== undefined
          && !modelInfo.inputModalities.includes('image')
          && projectedMessages.some(message => contentHasImage(message.content))) {
@@ -368,10 +367,10 @@ index 6a3cc5de71..adb03209de 100644
 +          resolvedOptions.signal,
 +        )
        }
-       const projectedOptions = projectedMessages === resolvedOptions.messages
-         ? resolvedOptions
+       // Tool changes are logged on every route; the route's declared mode selects what it receives.
+       const projectedTools = projectToolUpdates(projectedMessages, resolvedOptions.tools, modelInfo.toolUpdate, resolvedOptions.toolHistory)
 diff --git a/vendor/deepseek-harness/packages/llm/llm/tests/content.spec.ts b/vendor/deepseek-harness/packages/llm/llm/tests/content.spec.ts
-index af114958b1..7c63c2e07e 100644
+index 19bb84e460..76c706809a 100644
 --- a/vendor/deepseek-harness/packages/llm/llm/tests/content.spec.ts
 +++ b/vendor/deepseek-harness/packages/llm/llm/tests/content.spec.ts
 @@ -1,4 +1,7 @@
@@ -382,18 +381,21 @@ index af114958b1..7c63c2e07e 100644
  import { AttachmentId, ImageVariantId } from '@deepseek-ai/dsh-attachment'
  import type { AttachmentStore, ImageMediaType } from '@deepseek-ai/dsh-attachment'
  import {
-@@ -11,8 +14,10 @@ import {
-   offloadedImagePrefixCount,
-   offloadRequestImagesWithPolicy,
+@@ -11,11 +14,13 @@ import {
+   projectFilesToText,
+   offloadedImageText,
    projectImagesForTextModel,
 +  projectImagesForTextModelWithOcr,
+   projectOffloadedImages,
+   projectToolUpdates,
+   requiredImageOffload,
    resolveImageAttachmentAccess,
    requestImageHandleText,
 +  setOcrRunnerForTests,
  } from '../src/index.ts'
- import type { ContentBlock, Message } from '../src/index.ts'
+ import type { ContentBlock, RequestMessage, RequestUserInput, ToolHistory, ToolSchema } from '../src/index.ts'
  
-@@ -364,6 +369,59 @@ describe('projectImagesForTextModel', () => {
+@@ -314,6 +319,59 @@ describe('projectImagesForTextModel', () => {
    })
  })
  
@@ -454,7 +456,7 @@ index af114958b1..7c63c2e07e 100644
    function fileBlock(name: string): Extract<ContentBlock, { type: 'file' }> {
      return {
 diff --git a/vendor/deepseek-harness/packages/llm/llm/tests/service.spec.ts b/vendor/deepseek-harness/packages/llm/llm/tests/service.spec.ts
-index 2bfcd0f486..ccea7780fe 100644
+index 5179e88c59..37a6509593 100644
 --- a/vendor/deepseek-harness/packages/llm/llm/tests/service.spec.ts
 +++ b/vendor/deepseek-harness/packages/llm/llm/tests/service.spec.ts
 @@ -1,4 +1,7 @@
@@ -465,15 +467,15 @@ index 2bfcd0f486..ccea7780fe 100644
  import { Context } from '@deepseek-ai/cordis'
  import { AttachmentId } from '@deepseek-ai/dsh-attachment'
  import LlmRuntime, {
-@@ -15,6 +18,7 @@ import LlmRuntime, {
-   StreamChunk,
+@@ -16,6 +19,7 @@ import LlmRuntime, {
    createMessage,
+   createDeveloperMessage,
    createUserMessage,
 +  setOcrRunnerForTests,
  } from '@deepseek-ai/dsh-llm'
  import type {
    LlmModelContext,
-@@ -779,6 +783,7 @@ describe('LlmRuntime', () => {
+@@ -860,6 +864,7 @@ describe('LlmRuntime', () => {
      [{ efforts: [{ id: 'valid', name: '' }] }, 'empty name'],
      [{ efforts: [{ id: 'valid', name: 'Valid', description: 1 }] }, 'non-string description'],
      [{ efforts: [{ id: 'same', name: 'One' }, { id: 'same', name: 'Two' }] }, 'duplicate id'],
@@ -481,7 +483,7 @@ index 2bfcd0f486..ccea7780fe 100644
      [{ efforts: [{ id: 'valid', name: 'Valid' }], defaultEffort: 'other' }, 'unknown default'],
    ] as const)('rejects invalid model reasoning metadata (%s: %s)', async (metadata, _label) => {
      const ctx = new Context()
-@@ -1018,8 +1023,14 @@ describe('LlmRuntime', () => {
+@@ -1099,8 +1104,14 @@ describe('LlmRuntime', () => {
      expect(dispatched).toBe('first')
    })
  
@@ -497,7 +499,7 @@ index 2bfcd0f486..ccea7780fe 100644
      await ctx.plugin(LlmRuntime)
      const seen: GenerateOptions[] = []
      const adapter = new class extends ScriptedAdapter {
-@@ -1046,32 +1057,37 @@ describe('LlmRuntime', () => {
+@@ -1127,32 +1138,37 @@ describe('LlmRuntime', () => {
        yield * next()
      })
  
@@ -506,7 +508,7 @@ index 2bfcd0f486..ccea7780fe 100644
 -      model: 'text-only',
 -      messages: [createUserMessage({
 -        content: [{ type: 'image', attachment }],
--        source: { kind: 'plugin', plugin: 'test' },
+-        source: { kind: 'test' },
 -      })],
 -    }))
 +    try {
@@ -515,7 +517,7 @@ index 2bfcd0f486..ccea7780fe 100644
 +        model: 'text-only',
 +        messages: [createUserMessage({
 +          content: [{ type: 'image', attachment }],
-+          source: { kind: 'plugin', plugin: 'test' },
++          source: { kind: 'test' },
 +        })],
 +      }))
  
@@ -535,7 +537,7 @@ index 2bfcd0f486..ccea7780fe 100644
 -      model: 'text-only',
 -      messages: [createUserMessage({
 -        content: [{ type: 'image', attachment }],
--        source: { kind: 'plugin' as const, plugin: 'test' },
+-        source: { kind: 'test' as const },
 -      })],
 -    })
 -    await collect(ctx.llm.stream(frozen))
@@ -546,7 +548,7 @@ index 2bfcd0f486..ccea7780fe 100644
 +        model: 'text-only',
 +        messages: [createUserMessage({
 +          content: [{ type: 'image', attachment }],
-+          source: { kind: 'plugin' as const, plugin: 'test' },
++          source: { kind: 'test' as const },
 +        })],
 +      })
 +      await collect(ctx.llm.stream(frozen))

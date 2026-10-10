@@ -35,17 +35,18 @@ export const en = {
   'action.clear': 'Clear goal',
 } satisfies Record<GoalKey, string>
 
-/** Spanish dictionary. */
+/** Spanish translations retain the fork copy and inherit new upstream keys from English. */
 export const es = {
-  'phase.active': 'Objetivo en curso',
-  'phase.paused': 'Objetivo en pausa',
-  'phase.blocked': 'Objetivo bloqueado',
-  'objective.aria': 'Contenido del objetivo',
-  'commandInput.aria': 'Entrada de comando',
-  'action.save': 'Guardar objetivo',
-  'action.cancel': 'Cancelar edición',
-  'action.pause': 'Pausar objetivo',
-  'action.resume': 'Reanudar objetivo',
-  'action.edit': 'Editar objetivo',
-  'action.clear': 'Eliminar objetivo',
-} satisfies Record<GoalKey, string>
+  ...en,
+  "phase.active": "Objetivo en curso",
+  "phase.paused": "Objetivo en pausa",
+  "phase.blocked": "Objetivo bloqueado",
+  "objective.aria": "Contenido del objetivo",
+  "commandInput.aria": "Entrada de comando",
+  "action.save": "Guardar objetivo",
+  "action.cancel": "Cancelar edición",
+  "action.pause": "Pausar objetivo",
+  "action.resume": "Reanudar objetivo",
+  "action.edit": "Editar objetivo",
+  "action.clear": "Eliminar objetivo",
+}

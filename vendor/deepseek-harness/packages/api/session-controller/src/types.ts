@@ -129,6 +129,8 @@ export interface ModelReasoningEffort {
 /** Selectable reasoning metadata for one exact model route. */
 export interface ModelReasoning {
   readonly efforts: readonly ModelReasoningEffort[]
+  /** Omit for graded effort levels; use `toggle` for binary thinking APIs. */
+  readonly control?: 'effort' | 'toggle'
   readonly defaultEffort?: string
 }
 

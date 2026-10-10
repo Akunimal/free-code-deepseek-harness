@@ -136,6 +136,22 @@ describe('mcp-client plugin module exports', () => {
     expect(partial.reconnect).toEqual({ enabled: true, initialDelayMs: 100, maxDelayMs: 30_000, maxAttempts: 10 })
   })
 
+  it('Config schema preserves a bounded project activation contract', () => {
+    const resolved = ConfigSchema({
+      transport: 'stdio',
+      serverName: 'srv',
+      command: 'echo',
+      projectActivation: { toolName: 'activate_project', pathArgument: 'project' },
+    } as never)
+    expect(resolved.projectActivation).toEqual({ toolName: 'activate_project', pathArgument: 'project' })
+    expect(() => ConfigSchema({
+      transport: 'stdio',
+      serverName: 'srv',
+      command: 'echo',
+      projectActivation: { toolName: 'activate project', pathArgument: 'project' },
+    } as never)).toThrow()
+  })
+
   it('Config schema rejects an invalid reconnect block', () => {
     // schemastery unions wrap branch errors, so assert the throw only.
     expect(() => ConfigSchema({

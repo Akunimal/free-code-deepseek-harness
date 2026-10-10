@@ -35,6 +35,9 @@ export async function buildModelCatalog(
               name: effort.name,
               ...(effort.description === undefined ? {} : { description: effort.description }),
             })),
+            ...(resolved.reasoning.control === undefined
+              ? {}
+              : { control: resolved.reasoning.control }),
             ...(resolved.reasoning.defaultEffort === undefined
               ? {}
               : { defaultEffort: resolved.reasoning.defaultEffort }),

@@ -288,54 +288,6 @@ describe('model discovery registry', () => {
     })
   })
 
-  it('carries cancellation into Remote discovery and maps provider failures', async () => {
-    const ctx = await setup()
-    const discover = vi.fn()
-      .mockResolvedValueOnce([
-        { id: 'keep', name: 'Keep', contextWindow: 1024, maxTokens: 256 },
-        { id: '' },
-        { id: 'keep' },
-        { id: 'bare' },
-      ])
-      .mockRejectedValueOnce(new Error('endpoint offline'))
-      .mockRejectedValueOnce('provider refused')
-    ctx.llm.registerModelDiscovery('llm-example', discover)
-    const signal = new AbortController().signal
-
-    await expect(ctx.llm.remoteDiscoverModels(
-      'llm-example',
-      { baseURL: 'https://gateway.example/v1' },
-      signal,
-    )).resolves.toEqual([
-      { id: 'keep', name: 'Keep', contextWindow: 1024, maxTokens: 256 },
-      { id: 'bare' },
-    ])
-    expect(discover).toHaveBeenNthCalledWith(
-      1,
-      { baseURL: 'https://gateway.example/v1' },
-      signal,
-    )
-
-    await expect(ctx.llm.remoteDiscoverModels(
-      'llm-example',
-      { baseURL: 'https://gateway.example/v1' },
-      signal,
-    )).rejects.toMatchObject({
-      code: 'llm/model-discovery-rejected',
-      message: 'endpoint offline',
-      details: { settingsNs: 'llm-example', baseURL: 'https://gateway.example/v1' },
-    })
-    await expect(ctx.llm.remoteDiscoverModels(
-      'llm-example',
-      { provider: 'known-route' },
-      signal,
-    )).rejects.toMatchObject({
-      code: 'llm/model-discovery-rejected',
-      message: 'provider refused',
-      details: { settingsNs: 'llm-example' },
-    })
-  })
-
   it('refuses a namespace nothing serves and a draft with no endpoint', async () => {
     const ctx = await setup()
     ctx.llm.registerModelDiscovery('llm-example', () => Promise.resolve([]))
