@@ -1,8 +1,8 @@
 /**
  * Pure ACP transcript and session-log normalizers. They scrub session ids, run cwd, RPC ids,
  * timestamps, goal lifecycle clocks, and hook duration while preserving semantic payload values.
- * Request-header scrubbers stay composable so one scenario per header class can pin prompt and
- * tool-schema sidecars.
+ * The prompt-text and tool-schema scrubbers stay composable so one scenario per header class can
+ * pin prompt and tool-schema sidecars.
  * @module @deepseek-ai/dsh-session-snapshot/normalize
  */
 
@@ -11,6 +11,7 @@ import {
 } from '@deepseek-ai/dsh-session'
 import { prepareSessionSnapshotFixtureForComparison } from '@deepseek-ai/dsh-llm-replay'
 import { redactSessionSnapshotIds } from './identity.ts'
+import { sessionHeaderVersion } from './session-files.ts'
 
 const SESSION_ID = '{{sessionId}}'
 const MESSAGE_ID = '{{messageId}}'
@@ -20,6 +21,7 @@ const SYSTEM = '{{system}}'
 const TOOLS = '{{tools}}'
 const EVENT_TIME = '{{eventTime}}'
 const EVENT_OMITTED_BYTES = '{{eventOmittedBytes}}'
+const SOURCE_SESSION_FORMAT = '{{sourceSessionFormatVersion}}'
 const PACKED_CHUNK_ROW_TYPES = new Set(['text-chunks', 'reasoning-chunks', 'tool-call-chunks'])
 
 function isPackedFixtureRow(record: Record<string, unknown>): boolean {
@@ -46,14 +48,15 @@ const FILE_URI_PATH_PREFIX_RE = /(?:^|[^a-z0-9+.-])file:\/\/\/?$/i
 
 /** A UUID v4 string, the shape `randomUUID()` produces for session ids. */
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi
+// Separator runs also match JSON-escaped Windows paths; extraction preserves their exact serialized spelling.
 const LOCAL_SPILL_PATH_RE = new RegExp(
-  String.raw`\{\{cwd\}\}[\\/]\.spill[\\/]session-[0-9a-f]{12}[\\/][0-9a-f]{12}-([A-Za-z0-9._~-]+?)`
-  + String.raw`(?=\. Use read with offset/limit|[\s)]|$)`,
+  String.raw`\{\{cwd\}\}[\\/]+\.spill[\\/]+session-[0-9a-f]{12}[\\/]+[0-9a-f]{12}-([A-Za-z0-9._~-]+?)`
+  + String.raw`(?=\. Use read with offset/limit|[\s)"]|\\+"|$)`,
   'g',
 )
 const SNAPSHOT_SPILL_PATH_RE = new RegExp(
-  String.raw`(?:[A-Za-z]:)?[\\/](?:tmp|t)[\\/](?:dsh-acp-snap-[0-9a-f]{9}|dsh-acp-snapshot-spill)[\\/]session-[0-9a-f]{12}[\\/][0-9a-f]{12}-([A-Za-z0-9._~-]+?)`
-  + String.raw`(?=\. Use read with offset/limit|[\s)]|$)`,
+  String.raw`(?:[A-Za-z]:)?[\\/]+(?:tmp|t)[\\/]+(?:dsh-acp-snap-[0-9a-f]{9}|dsh-acp-snapshot-spill)[\\/]+session-[0-9a-f]{12}[\\/]+[0-9a-f]{12}-([A-Za-z0-9._~-]+?)`
+  + String.raw`(?=\. Use read with offset/limit|[\s)"]|\\+"|$)`,
   'g',
 )
 
@@ -102,6 +105,12 @@ export interface NormalizeOptions {
   cwdPathMode?: CwdPathMode
   /** Keep already-redacted typed ids and arbitrary UUID-like prose unchanged. */
   identityMode?: 'legacy' | 'preserve'
+}
+
+/** Comparison controls for complete primary and child Session logs. */
+export interface SessionSnapshotComparisonOptions extends Omit<NormalizeOptions, 'identityMode'> {
+  /** Inputs are captured native writer output, rather than source-versus-migrated-artifact comparisons. */
+  nativeWriterOutput?: true
 }
 
 /** Return every known spelling of the generated cwd, most specific first. */
@@ -324,8 +333,9 @@ export function normalizeStdout(
 /**
  * Normalize a session JSONL log into a stable expected output: the header line's
  * volatile fields (`createdAt`, `id`, `cwd`) are zeroed/scrubbed; event,
- * historical packed-row, embedded Assistant-stream, and goal lifecycle clocks
- * are zeroed; and all volatile strings are scrubbed. Projected inputs remain
+ * historical packed-row, embedded Assistant-stream, goal lifecycle, and
+ * catalog child-creation clocks are zeroed; and all volatile strings are
+ * scrubbed. Projected inputs remain
  * projected. Packed `data.dt` gaps are normalized even when the projected row
  * omits its `time0` anchor.
  * Output is JSONL in the same shape as the input — one compact record per
@@ -374,10 +384,15 @@ export function normalizeSessionLog(
       const data = record.data as Record<string, unknown>
       if ('durationMs' in data) data.durationMs = 0
     }
+    normalizeFeedbackClocks(record)
     if (record.type === 'goal/change' && record.data !== null && typeof record.data === 'object') {
       const data = record.data as Record<string, unknown>
       if ('createdAt' in data) data.createdAt = 0
       if ('updatedAt' in data) data.updatedAt = 0
+    }
+    if (record.type === 'subagent/catalog' && record.data !== null && typeof record.data === 'object') {
+      const data = record.data as Record<string, unknown>
+      if ('childCreatedAt' in data) data.childCreatedAt = 0
     }
     if (Object.hasOwn(record, 'sourceEventSeqs')) {
       record.sourceEventSeqs = decodeSeqRanges(record.sourceEventSeqs)
@@ -388,7 +403,7 @@ export function normalizeSessionLog(
 }
 
 /**
- * Canonicalize projected v2 body records. Compact streams are nested event data,
+ * Canonicalize projected v3 body records. Compact streams are nested event data,
  * so persistence flush boundaries cannot change the row layout.
  */
 function projectSessionSnapshot(rawLog: string): string {
@@ -397,9 +412,8 @@ function projectSessionSnapshot(rawLog: string): string {
 
   const body = lines.map((line) => {
     const record = JSON.parse(line) as Record<string, unknown>
-    const projected = { ...record }
-    omitFixtureEnvelope(projected)
-    return JSON.stringify(projected)
+    omitFixtureEnvelope(record)
+    return JSON.stringify(record)
   })
   return [header, ...body, ''].join('\n')
 }
@@ -407,8 +421,9 @@ function projectSessionSnapshot(rawLog: string): string {
 /**
  * Normalize and project persisted session JSONL for a committed fixture.
  * This composes ordinary log normalization with request-header scrubbing and
- * persistence-envelope projection, then writes the v2 logical event stream as
- * one record per event, independent of persistence flush boundaries.
+ * persistence-envelope projection, then writes the v3 logical event stream as
+ * one record per event, independent of persistence flush boundaries. Event order
+ * and source-event references are preserved.
  *
  * @param rawLog - persisted or already-projected session JSONL.
  * @param ctx - the run's volatile values to scrub.
@@ -425,81 +440,54 @@ export function normalizeSessionSnapshot(
 
 /**
  * Normalize one scenario's primary and child logs with shared typed identity redaction.
+ * Native-writer comparison strictly restores each input before tokenizing its own delivery generation.
  * @param rawLogs - primary-first persisted or projected session JSONL.
  * @param ctx - generated cwd spellings and other volatile run facts.
- * @param options - separator controls; relationship-preserving identity mode is mandatory.
- * @returns normalized session fixtures in input order.
+ * @param options - separator and native-writer comparison controls; identity relationships are preserved.
+ * @returns comparison-only Session records in input order; not persistence or fixture write-back input.
  */
 export function normalizeSessionSnapshots(
   rawLogs: readonly string[],
   ctx: NormalizeContext,
-  options: Omit<NormalizeOptions, 'identityMode'> = {},
+  options: SessionSnapshotComparisonOptions = {},
 ): string[] {
-  const currentLogs = rawLogs.map(log => hasSessionFormatVersion(log)
-    ? prepareSessionSnapshotFixtureForComparison(log)
-    : log)
-  const comparableLogs = currentLogs.map(normalizeSessionFormatProvenance)
+  const { nativeWriterOutput, ...normalizeOptions } = options
+  const comparableLogs = rawLogs.map((log) => {
+    if (!hasSessionFormatVersion(log)) return normalizeSessionFormatMetadata(log)
+    const currentLog = prepareSessionSnapshotFixtureForComparison(log)
+    return normalizeSessionFormatMetadata(currentLog, nativeWriterOutput
+      ? sessionHeaderVersion(log, 'source Session snapshot') : undefined)
+  })
   return redactSessionSnapshotIds(comparableLogs).map(log => projectSessionSnapshot(
     scrubSessionSnapshot(normalizeSessionLog(
       log,
       { ...ctx, sessionIds: [] },
-      { ...options, identityMode: 'preserve' },
+      { ...normalizeOptions, identityMode: 'preserve' },
     )),
   ))
 }
 
 /**
- * Omit only generation-qualified operational provenance from expected-output comparison.
+ * Omit the artifact header generation after official migration for comparison.
+ * An explicit source version tokenizes only delivery markers for that original input generation.
+ * Other delivery generations and every captured-source generation retain their recorded values.
  * @param rawLog - Session records or events as compact JSON lines.
- * @returns the same records without delivery or captured-source generation qualifiers.
+ * @param sourceVersion - original generation of strictly validated native writer output; otherwise omit.
+ * @returns comparison-only records with the Session header version omitted and native delivery qualifiers tokenized.
  */
-export function normalizeSessionFormatProvenance(rawLog: string): string {
+export function normalizeSessionFormatMetadata(rawLog: string, sourceVersion?: number): string {
   return rawLog.split('\n').map((line) => {
     if (line.trim().length === 0) return line
     const record = JSON.parse(line) as Record<string, unknown>
-    let changed = normalizeCapturedFormatProvenance(record)
     if (record.type === 'session' && Object.hasOwn(record, 'version')) {
       delete record.version
-      changed = true
-    }
-    if (record.type === 'session-log-deepseek/delivery-accepted'
-      && record.data !== null && typeof record.data === 'object' && !Array.isArray(record.data)) {
-      const data = { ...record.data as Record<string, unknown> }
-      if (Object.hasOwn(data, 'sessionFormatVersion')) {
-        delete data.sessionFormatVersion
-        record.data = data
-        changed = true
-      }
-    }
-    return changed ? JSON.stringify(record) : line
+    } else if (sourceVersion !== undefined && record.type === 'session-log-deepseek/delivery-accepted') {
+      const data = record.data as Record<string, unknown> | undefined
+      if (data?.sessionFormatVersion !== sourceVersion) return line
+      data.sessionFormatVersion = SOURCE_SESSION_FORMAT
+    } else return line
+    return JSON.stringify(record)
   }).join('\n')
-}
-
-/** Omit captured generations only from an actual current Message source position. */
-function normalizeCapturedFormatProvenance(event: Record<string, unknown>): boolean {
-  if (event.data === null || typeof event.data !== 'object' || Array.isArray(event.data)) return false
-  const data = event.data as Record<string, unknown>
-  const message = event.type === 'user/message'
-    ? data
-    : event.type === 'assistant/message' || event.type === 'tool/result'
-      ? data.message
-      : undefined
-  if (message === null || typeof message !== 'object' || Array.isArray(message)) return false
-  const source = (message as Record<string, unknown>).source
-  if (source === null || typeof source !== 'object' || Array.isArray(source)) return false
-  const record = source as Record<string, unknown>
-  if (record.kind !== 'session-reference' || record.form !== 'recall' || record.version !== 1
-    || !Array.isArray(record.references)) return false
-  let changed = false
-  for (const reference of record.references) {
-    if (reference === null || typeof reference !== 'object' || Array.isArray(reference)) continue
-    const captured = reference as Record<string, unknown>
-    if (Object.hasOwn(captured, 'capturedFormatVersion')) {
-      delete captured.capturedFormatVersion
-      changed = true
-    }
-  }
-  return changed
 }
 
 /** Whether a fixture declares a released Session format and therefore participates in migration burn-in. */
@@ -515,60 +503,61 @@ function hasSessionFormatVersion(rawLog: string): boolean {
 }
 
 /**
- * Replace system-prompt content in request headers with `{{system}}` tokens
- * while retaining field presence.
- * Other header content stays verbatim, so a header-pinning fixture can keep
- * its complete tool schemas while every JSONL fixture omits the prompt text.
- * Lines without a system payload pass through byte-for-byte; the transform is
- * idempotent.
+ * Replace the rendered prompt text of every `system/message` event with the
+ * `{{system}}` token. The text block keeps its position and type, so the
+ * fixture still shows one system node per prompt version; an empty `content`
+ * (no system prompt) stays empty. Request headers and every other line pass
+ * through byte-for-byte; the transform is idempotent.
  *
  * @param rawLog The raw session `.jsonl` content.
- * @returns The JSONL with system-prompt content tokenized.
+ * @returns The JSONL with system-prompt text tokenized.
  */
 export function scrubSystemPrompts(rawLog: string): string {
-  return scrubHeaderContent(rawLog, { system: true })
+  return scrubModelRequestContent(rawLog, { system: true })
 }
 
 /**
  * Replace tool schemas in full request-header snapshots with `{{tools}}`
- * tokens while retaining field presence. System prompts and session-prefix
- * messages stay verbatim so pinning fixtures can move only schema bulk into
- * their dedicated JSON sidecar. Lines without a tool payload pass through
- * byte-for-byte; the transform is idempotent.
+ * tokens while retaining field presence. Logs containing developer messages
+ * retain tool names so historical addition references remain verifiable.
+ * System-prompt text stays verbatim so
+ * pinning fixtures can move only schema bulk into their dedicated JSON
+ * sidecar. Lines without a tool payload pass through byte-for-byte; the
+ * transform is idempotent.
  *
  * @param rawLog The raw session `.jsonl` content.
  * @returns The JSONL with tool-schema content tokenized.
  */
 export function scrubToolSchemas(rawLog: string): string {
-  return scrubHeaderContent(rawLog, { tools: true })
+  return scrubModelRequestContent(rawLog, { tools: true })
 }
 
 /**
- * Replace all bulky request-header content in a session JSONL with stable
- * tokens. This includes the system-prompt fields handled by
- * {@link scrubSystemPrompts}, tool schemas, and session-prefix messages. It
- * keeps prefix message counts, field presence, config, and reason. Lines
- * without content to scrub pass through byte-for-byte, and the transform is
- * idempotent.
+ * Replace all bulky model-request content in a session JSONL with stable
+ * tokens: the `system/message` prompt text handled by
+ * {@link scrubSystemPrompts} and the request-header tool schemas handled by
+ * {@link scrubToolSchemas}. Field presence, config, and reason are kept.
+ * Lines without content to scrub pass through byte-for-byte, and the
+ * transform is idempotent.
  *
  * @param rawLog The raw session `.jsonl` content.
- * @returns The JSONL with all header bulk tokenized, other lines byte-identical.
+ * @returns The JSONL with prompt text and schema bulk tokenized, other lines byte-identical.
  */
-export function scrubRequestHeaders(rawLog: string): string {
-  return scrubHeaderContent(rawLog, { system: true, tools: true })
+export function scrubModelRequestBulk(rawLog: string): string {
+  return scrubModelRequestContent(rawLog, { system: true, tools: true })
 }
 
 /**
- * Project a persisted session log while tokenizing all request-header bulk.
- * Each non-empty line is parsed at most once; the session header stays
- * byte-identical. Body records omit their persistence-only envelopes, and
- * request-header payloads are tokenized.
+ * Project a persisted session log while tokenizing prompt text and schema
+ * bulk. Each non-empty line is parsed at most once; the session header stays
+ * byte-identical. Body records omit their persistence-only envelopes and expand
+ * source-event ranges without changing reference order.
  *
  * @param rawLog - persisted or already-projected session JSONL.
- * @returns committed snapshot JSONL with request headers tokenized.
+ * @returns committed snapshot JSONL with prompt text and tool schemas tokenized.
  */
 export function scrubSessionSnapshot(rawLog: string): string {
-  const scrubbed = scrubRequestHeaders(rawLog)
+  const scrubbed = scrubModelRequestBulk(rawLog)
   let recordIndex = 0
   return scrubbed.split('\n').map((line) => {
     if (line.trim().length === 0) return line
@@ -578,31 +567,63 @@ export function scrubSessionSnapshot(rawLog: string): string {
       return line
     }
     omitFixtureEnvelope(record)
+    if (Object.hasOwn(record, 'sourceEventSeqs')) {
+      record.sourceEventSeqs = decodeSeqRanges(record.sourceEventSeqs)
+    }
+    normalizeFeedbackClocks(record)
     return JSON.stringify(record)
   }).join('\n')
 }
 
-/** Which independent request-header payloads a scrubber replaces. */
-interface HeaderScrubOptions {
+/** Normalize service-owned feedback clocks without touching user-authored payloads. */
+function normalizeFeedbackClocks(record: Record<string, unknown>): void {
+  if (record.type !== 'feedback/message-put' || record.data === null || typeof record.data !== 'object') return
+  const item = (record.data as { item?: unknown }).item
+  if (item === null || typeof item !== 'object') return
+  const clocks = item as Record<string, unknown>
+  if ('createdAt' in clocks) clocks.createdAt = 0
+  if ('updatedAt' in clocks) clocks.updatedAt = 0
+}
+
+/** Which independent model-request payloads a scrubber replaces. */
+interface ModelRequestScrubOptions {
+  /** Tokenize the prompt text of every `system/message` event. */
   system?: boolean
+  /** Tokenize the `tools` field of every `request/header` event. */
   tools?: boolean
 }
 
-/** Transform the selected request-header payloads. */
-function scrubHeaderContent(rawLog: string, options: HeaderScrubOptions): string {
+/** Return the first text block of a `system/message` payload, or `undefined` when it carries none. */
+function systemPromptBlock(data: Record<string, unknown>): Record<string, unknown> | undefined {
+  const message = data.message as Record<string, unknown> | null | undefined
+  if (message === null || typeof message !== 'object' || !Array.isArray(message.content)) return undefined
+  const block = message.content[0] as Record<string, unknown> | null | undefined
+  return block !== null && typeof block === 'object' && typeof block.text === 'string' ? block : undefined
+}
+
+/** Transform the selected model-request payloads. */
+function scrubModelRequestContent(rawLog: string, options: ModelRequestScrubOptions): string {
   const lines = rawLog.split('\n')
-  const out = lines.map((line) => {
-    if (line.trim().length === 0) return line
-    const record = JSON.parse(line) as Record<string, unknown>
+  const records = lines.map(line => line.trim().length === 0 ? undefined : JSON.parse(line) as Record<string, unknown>)
+  const retainToolNames = records.some(record => record?.type === 'developer/message')
+  const out = lines.map((line, index) => {
+    const record = records[index]
+    if (record === undefined) return line
     const data = record.data as Record<string, unknown> | null | undefined
     if (data === null || typeof data !== 'object') return line
-    if (record.type === 'request/header') {
+    if (options.system === true && record.type === 'system/message') {
+      const block = systemPromptBlock(data)
+      if (block === undefined) return line
+      block.text = SYSTEM
+      return JSON.stringify(record)
+    }
+    if (options.tools === true && record.type === 'request/header') {
       const header = data.header as Record<string, unknown> | null | undefined
-      if (header === null || typeof header !== 'object') return line
-      let touched = false
-      if (options.system === true && 'system' in header) { header.system = SYSTEM; touched = true }
-      if (options.tools === true && 'tools' in header) { header.tools = TOOLS; touched = true }
-      return touched ? JSON.stringify(record) : line
+      if (header === null || typeof header !== 'object' || !('tools' in header)) return line
+      header.tools = retainToolNames && Array.isArray(header.tools)
+        ? header.tools.map((tool: string | { name: string }) => typeof tool === 'string' ? tool : tool.name)
+        : TOOLS
+      return JSON.stringify(record)
     }
     return line
   })

@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-client-ui-workflow-run` is the browser plugin that reconstructs durable top-level workflow runs as independent Chat nodes in the dsh web client. It consumes the four `tool-workflow/*` Session events owned by `dsh-tool-workflow`, registers one `ConversationNodeDefinition`, and renders through the keyed `conversation.chat.node` slot without changing the existing workflow tool card. The run and each phase are controlled disclosures: a mount opens running, failed, cancelled, and interrupted levels and closes fully completed levels, and users can toggle either level with the full row, Enter, or Space. A member opens a child Session only while every current fact agrees, and the node shows run, phase, member identity, and status only.
+Use `dsh-client-ui-workflow-run` to inspect each durable top-level workflow run as an independent Chat node. Expand a run to see its phases and expand a phase to see members; running, failed, cancelled, and interrupted levels open by default, while completed levels remain closed. A running member can open its child Session only when it belongs to the current Session and is available locally. The node shows identities and statuses only; scripts, outputs, errors, logs, usage, topology, and controls remain outside this surface.
 
 ## Table of Contents
 
@@ -29,7 +29,7 @@ A top-level workflow run through `dsh-tool-workflow` appears in the conversation
 
 ### Navigating the node
 
-The run uses a 32-pixel row with persistent chevrons, an inline state dot, and status text; phases use disclosure rows with title and member count in the main area and a fixed aggregate-status tail; members use a 16-pixel dot slot, a truncating name area, and a fixed status column. Opening a member's child Session requires the member to be running, the child id to be in the ordinary Session list, the row to have `origin: 'subagent'`, its `parentId` to be the current Session, and the list row to still be running — remote, addressed-only, wrong-parent, or terminal rows remain non-interactive.
+Run and phase headers keep 6px gaps between their title, count, and status fields, with the status aligned to the right. The run uses a 32-pixel row with persistent chevrons, an inline state dot, and status text; phases use disclosure rows with title and member count in the main area and a fixed aggregate-status tail; members use a 16-pixel dot slot, a truncating name area, and a fixed status column. Opening a member's child Session requires both member and child to be running, and the child must belong to the current Session's direct-child catalog. Child activity uses the unified UI status, falling back to the Session summary when unknown. Session summaries do not establish membership; absent, wrong-parent, or terminal catalog entries remain non-interactive.
 
 ### State and completion
 
@@ -98,5 +98,3 @@ These limits define which runs produce records and what the node exposes; they a
 None.
 
 </details>
-
-**Runtime invariant:** No companion is published. The browser plugin contributes one effect-owned Conversation Definition, keyed renderer, and dictionary; tests prove their disposal and the Host tool package owns the durable event invariant.

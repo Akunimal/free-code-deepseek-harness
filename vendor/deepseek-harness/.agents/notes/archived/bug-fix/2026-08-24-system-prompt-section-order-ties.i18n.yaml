@@ -1,6 +1,12 @@
 # Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
+<<<<<<<< HEAD:vendor/deepseek-harness/.agents/notes/implemented/architecture/2026-07-19-gui-web-client-architecture.i18n.yaml
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-07-19-gui-web-client-architecture.md
+2026-07-19-gui-web-client-architecture.md: 703bf2b873eee8afc7e13f89acba99b06fc98745
+2026-07-19-gui-web-client-architecture.zh.md: d61cc8119929b3efc912221df3343918e4851308
+========
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-24-system-prompt-section-order-ties.md
 2026-08-24-system-prompt-section-order-ties.md: d92756e751e893b1d03b8892ef71ff9faac9d2c6
 2026-08-24-system-prompt-section-order-ties.zh.md: 4a822b7925a38feb254dbc534fc6153c76a93e19
+>>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/.agents/notes/archived/bug-fix/2026-08-24-system-prompt-section-order-ties.i18n.yaml

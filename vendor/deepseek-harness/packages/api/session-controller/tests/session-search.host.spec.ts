@@ -96,7 +96,7 @@ function installSearchQuery(
 describe('session.search', () => {
   it('rejects search when the query service is absent', async () => {
     const ctx = await baseContext()
-    const list = new ApiSessionList(ctx)
+    const list = new ApiSessionList(ctx, 8)
 
     await expect(list.search('query', new AbortController().signal)).rejects.toMatchObject({
       code: 'gateway/internal',
@@ -164,7 +164,7 @@ describe('session.search', () => {
       },
     })
     expect(searchSessions).toHaveBeenCalledOnce()
-    const [query, exec] = searchSessions.mock.calls[0] as unknown as [
+    const [query, exec] = searchSessions.mock.calls[0] as [
       SessionSearchRequest,
       { signal: AbortSignal },
     ]

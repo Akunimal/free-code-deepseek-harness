@@ -1,6 +1,12 @@
 # Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
+<<<<<<<< HEAD:vendor/deepseek-harness/.agents/notes/implemented/architecture/2026-06-11-microkernel-event-taxonomy.i18n.yaml
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-06-11-microkernel-event-taxonomy.md
+2026-06-11-microkernel-event-taxonomy.md: 6cacbc30f29c863de0f8ddfa4df7251a64bc80ca
+2026-06-11-microkernel-event-taxonomy.zh.md: 1c7919392b835c491b9dc606d46f638a708d2948
+========
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-09-03-session-search-result-reveal.md
 2026-09-03-session-search-result-reveal.md: dc43d5e06febf61852d4b8dcdd0b5ca290f623e0
 2026-09-03-session-search-result-reveal.zh.md: 0982498f5602ee18b20368d2b0dc04ab1ffae7f0
+>>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/.agents/notes/archived/bug-fix/2026-09-03-session-search-result-reveal.i18n.yaml

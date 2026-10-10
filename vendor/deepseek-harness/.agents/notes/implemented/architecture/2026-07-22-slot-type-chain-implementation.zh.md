@@ -4,13 +4,15 @@ Status: implemented
 
 [English](2026-07-22-slot-type-chain-implementation.md) | 中文
 
-> 范围：Web 客户端 slot 体系的终版设计——UI 插件如何拼合页面、渲染权威落在哪里、组件 props 如何定型、业务活数据住在哪里。周边语境（装载链、对象层、服务）归 [Web 客户端架构 RFC](2026-07-19-gui-web-client-architecture.zh.md) 所有，其 slot 各节移交本文。
+> 范围：Web 客户端 slot 体系的终版设计——UI 插件如何拼合页面、渲染权威落在哪里、组件 props 如何定型、业务活数据住在哪里。[Web 客户端参考](../../../../docs/subsystems/web-client.zh.md)说明周边的装载链、对象层与服务。
 
 ## 问题
 
 页面在运行时由各自独立装载的插件拼合而成，UI 因此需要一套能以静态强制力回答四个问题的组合机制。谁可以渲染进某块区域——这份权威是可强制执行的，还是仅靠约定？组件如何在保持纯函数（零 ctx、零框架 import）的同时拿到它需要的一切，而不必把每个值都经装配代码手工穿线？实时业务数据应存放在哪里，才能让流式更新恰好只重渲染订阅者，而不必让每个插件自建一套订阅机制？以及这一切有多少能交给编译器检查，让漂移的组件、越权的渲染调用、错配的 store schema 成为单一可见调用点上的编译错误，而非运行时的意外？
 
 ## 决策
+
+全局主面板选择及其 root 生命周期由[全局主面板参考](../../../../packages/client/ui-layout/README.zh.md)定义。
 
 一句话：**ui-renderer 只渲染 `'root'`；插件用单独一次 `register` 调用组合 UI——这一次调用同时占用 slot、声明并授权子 slot、声明 store、注入业务面；组件是纯函数，props 分四份额到达，每一份额都从各自唯一的真源自动推导。**
 
@@ -25,7 +27,7 @@ ctx.slots.register({
   name: 'root',
   children: {
     'sidebar':      { kind: 'single', scope: 'root' },
-    'conversation': { kind: 'single', scope: 'session' },
+    'main':         { kind: 'keyed', scope: 'root' },
   },
   store: createLayoutStore,      // StoreHandle or factory (below)
   inject: injectFrame,           // business face (below)
@@ -36,7 +38,7 @@ ctx.slots.register({
 
 对等原则：**声明子 slot 的 entry 独占渲染这些子 slot 的权力**，全部在 register 时确定（配置错误会在装载时明确失败；渲染热路径不再校验）。装载即炸的情形：第二个 entry 声明已被声明的 slot；向未声明的 slot register；同一个 store 句柄挂到两个 scope 之下；chain 注册缺 `select`。
 
-激活顺序独立于声明条目的贡献方使用 `ctx.slots.inject(key, callback)`，并让直接调用 `register()` 继续大声失败。声明、贡献方、替换与失败各自的生命周期由 [slot 声明注入决策](2026-08-05-slot-declaration-injection.zh.md) 规定。
+激活顺序独立于声明条目的贡献方使用 `ctx.slots.inject(key, callback)`，并让直接调用 `register()` 继续大声失败。声明、贡献方、替换与失败各自的生命周期由 [slot 声明注入决策](../../archived/architecture/2026-08-05-slot-declaration-injection.md) 规定。
 
 `SlotMap` 声明合并仍是类型权威，且 entry 只声明自己的轴加 **owner 份额**——注册方注入的 props 永不进入全局表（「谁注入的，类型归谁」）。
 

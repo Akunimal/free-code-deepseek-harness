@@ -1,19 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { toolPairingBalancedAfter, toolPairingBalancedBefore } from '@deepseek-ai/dsh-compaction'
-import { createUserMessage, CONTEXT_WINDOW_EXCEEDED_CODE, LlmError, resolveRetryPolicy , createMessage } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, createSystemMessage, CONTEXT_WINDOW_EXCEEDED_CODE, LlmError, resolveRetryPolicy , createMessage } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, GenerateOptions, LlmResolvedModelInfo, ResolvedRetryPolicy, StreamChunk } from '@deepseek-ai/dsh-llm'
 import { ToolCallId, LlmAdapter } from '@deepseek-ai/dsh-llm'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
-import InvariantRegistry from '@deepseek-ai/dsh-invariants'
-import * as SessionInvariant from '@deepseek-ai/dsh-session/invariant'
-import * as AgentInvariant from '@deepseek-ai/dsh-agent/invariant'
-import * as AgentLoopInvariant from '@deepseek-ai/dsh-agent-loop/invariant'
 import { BasicCompactionEngine } from '@deepseek-ai/dsh-compaction-basic'
-import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import TokenMeter from '@deepseek-ai/dsh-token-meter'
 import * as LlmRetry from '@deepseek-ai/dsh-llm-retry'
 import { Session, SessionId, type SessionEvent, type SurfaceEvent } from '@deepseek-ai/dsh-session'
@@ -140,20 +135,9 @@ class OverflowRecoveryAdapter extends LlmAdapter {
   }
 }
 
-async function mountInvariants(ctx: Context): Promise<void> {
-  await ctx.plugin(InvariantRegistry)
-  await ctx.plugin(SessionInvariant)
-  await ctx.plugin(AgentInvariant)
-  await ctx.plugin(AgentLoopInvariant)
-}
-
 async function harness(toolSteps: number): Promise<{ ctx: Context; compact: ReproCompactionEngine }> {
   const ctx = new Context()
   await mountAgentLoopTestDependencies(ctx)
-  await mountInvariants(ctx)
-  // AgentLoop and TokenMeter both declare the registry as a required
-  // injection; mount it before either activates.
-  await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(TokenMeter)
   ctx.llm.registerAdapter(['mock'], new StepwiseToolAdapter(toolSteps))
@@ -169,6 +153,7 @@ async function harness(toolSteps: number): Promise<{ ctx: Context; compact: Repr
   // fires within the runaway turn after enough history can shrink.
   const compact = new ReproCompactionEngine(ctx, {
     auto: true,
+    headroomTokens: 0,
     thresholdRatio: 0.5,
     retainTokens: 50,
     maxTokens: 8192,
@@ -309,6 +294,82 @@ describe('CBR-001: a real-loop checkpoint is a valid boundary on both sides', ()
   })
 })
 
+describe('token pressure after loop-admitted system prompts', () => {
+  it.each([false, true])('counts initial and replaced prompts once with retry=%s', async (retry) => {
+    const ctx = new Context()
+    const requests: GenerateOptions[] = []
+    const usage = { inputTokens: 1000, cacheReadTokens: 100, outputTokens: 10 }
+    const adapter = new class extends StepwiseToolAdapter {
+      override async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
+        requests.push(options)
+        yield { type: 'block-start', index: 0, blockType: 'text' }
+        yield { type: 'block-end', index: 0, block: { type: 'text', text: 'answer' } }
+        yield { type: 'usage', usage }
+        yield retry && requests.length === 1
+          ? { type: 'finish', reason: { kind: 'error', failure: { code: 'SERVER', message: 'retry me' } } }
+          : { type: 'finish', reason: { kind: 'stop' } }
+      }
+    }(0)
+    try {
+      await mountAgentLoopTestDependencies(ctx)
+      await ctx.plugin(AgentLoop, { agents: [] })
+      await ctx.plugin(TokenMeter)
+      ctx.llm.registerAdapter(['mock'], adapter)
+      let prompt = 'initial guidance '.repeat(8)
+      ctx.systemPrompt.section({ name: 'meter-test', order: 0, complete: true, text: () => prompt })
+      ctx.on('agent/request', async (_payload, next) => ({ ...await next(), temperature: 0.5 }))
+      ctx.on('agent/request-error', async ({ agent, turn, step }, next) => {
+        const action = await next()
+        if (action !== undefined) return action
+        const node = agent.session.surface.nodes[0]!
+        agent.session.append('system/message', {
+          turn,
+          step,
+          message: createSystemMessage('retry guidance'),
+        }, { surfaceOp: { op: 'replace', startSeq: node, endSeq: node }, sourceEventSeqs: [node] })
+        return { kind: 'retry' }
+      })
+      const agent = await ctx.agentLoop.create(SessionId('prompt-pressure'), { provider: 'mock', model: 'mock' })
+      // Eager replay must observe the same anchor as a fresh reader of the finished log.
+      ctx.tokenMeter.measure(agent.session)
+      for (const nextPrompt of [prompt, 'expanded guidance '.repeat(20), 'short', '']) {
+        prompt = nextPrompt
+        agent.followup(createUserMessage({ content: [{ type: 'text', text: 'question' }], source: { kind: 'user' } }))
+        await agent.whenIdle()
+        expect(agent.session.snapshotEvents().at(-1)).toMatchObject({
+          type: 'turn/end', data: { reason: { kind: 'completed' } },
+        })
+        const measured = ctx.tokenMeter.measure(agent.session)
+        expect(measured.baseline).toEqual({ kind: 'usage', tokens: 1110, usage })
+        expect(measured.surfaceDeltaTokens).toBe(0)
+        expect(measured.totalTokens).toBe(1110)
+        const replay = Session.create(SessionId('prompt-pressure-replay'), agent.session.snapshotEvents())
+        expect(ctx.tokenMeter.measure(replay)).toMatchObject({
+          baseline: measured.baseline, surfaceDeltaTokens: 0, totalTokens: 1110, nodes: measured.nodes,
+        })
+      }
+      const events = agent.session.snapshotEvents()
+      const prompts = events.filter(event => event.type === 'system/message')
+      expect(prompts[0]?.surfaceOp).toBe('append')
+      expect(prompts.slice(1).every(event => typeof event.surfaceOp === 'object')).toBe(true)
+      for (const event of prompts) {
+        expect(events.find(start => start.type === 'step/start'
+          && start.data.turn === event.data.turn && start.data.step === event.data.step)?.seq)
+          .toBeLessThan(event.seq)
+      }
+      expect(requests).toHaveLength(retry ? 5 : 4)
+      expect(requests.every(request => request.temperature === 0.5)).toBe(true)
+      expect(events.filter(event => event.type === 'assistant/attempt')).toHaveLength(retry ? 1 : 0)
+      expect(events.filter(event => event.type === 'step/start')).toHaveLength(4)
+      expect(requests[0]?.messages[0]?.content).toEqual([{ type: 'text', text: 'initial guidance '.repeat(8) }])
+      if (retry) expect(requests[1]?.messages[0]?.content).toEqual(requests[0]?.messages[0]?.content)
+      expect(requests.at(-1)?.messages.some(message => message.role === 'system')).toBe(false)
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+})
+
 describe('context-overflow recovery across the real loop and compaction-basic', () => {
   it.each(['thrown', 'in-band'] as const)(
     'force-compacts a %s overflow within the retried step',
@@ -316,8 +377,6 @@ describe('context-overflow recovery across the real loop and compaction-basic', 
       const ctx = new Context()
       const adapter = new OverflowRecoveryAdapter(delivery)
       await mountAgentLoopTestDependencies(ctx)
-      await mountInvariants(ctx)
-      await ctx.plugin(SessionProjectionRegistry)
       await ctx.plugin(AgentLoop, { agents: [] })
       await ctx.plugin(TokenMeter)
       ctx.llm.registerAdapter(['mock'], adapter)
@@ -325,6 +384,7 @@ describe('context-overflow recovery across the real loop and compaction-basic', 
         ...await next(), provider: 'mock', model: 'mock',
       }))
       await ctx.plugin(BasicCompactionEngine, {
+        headroomTokens: 0,
         thresholdRatio: 1,
         retainTokens: 100,
         maxTokens: 64,
@@ -395,13 +455,12 @@ describe('context-overflow recovery across the real loop and compaction-basic', 
     const ctx = new Context()
     const adapter = new OverflowRecoveryAdapter('thrown', true)
     await mountAgentLoopTestDependencies(ctx)
-    await mountInvariants(ctx)
-    await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(LlmRetry)
     await ctx.plugin(AgentLoop, { agents: [] })
     await ctx.plugin(TokenMeter)
     ctx.llm.registerAdapter(['mock'], adapter)
     await ctx.plugin(BasicCompactionEngine, {
+      headroomTokens: 0,
       thresholdRatio: 1,
       retainTokens: 100,
       maxTokens: 64,

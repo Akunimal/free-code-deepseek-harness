@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type {
   SessionEventLike, SessionEventLikeEntry, SessionLiveEventEntry,
 } from '@deepseek-ai/dsh-api-session-controller/client'
-import { LlmAttemptId } from '@deepseek-ai/dsh-llm/brand'
+import { LlmAttemptId, ToolCallId } from '@deepseek-ai/dsh-llm/brand'
 import type { StreamChunk } from '@deepseek-ai/dsh-llm'
 import { SessionSeq } from '@deepseek-ai/dsh-session/types'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
@@ -172,11 +172,170 @@ function fallbackDefinition(start: () => string): ConversationNodeDefinition<str
 }
 
 describe('ConversationNodeAssembler', () => {
+  it('indexes each appended input once and schedules each Context once per flush', () => {
+    const updates = vi.fn()
+    const definitions: ConversationNodeDefinition<{ count: number }>[] = ['copy', 'mutable'].map(kind => ({
+      kind,
+      target: 'test',
+      match: event => ({ id: 'one', role: event.seq === 1 ? 'start' : 'update' }),
+      start: () => ({ count: 0 }),
+      update: (context) => {
+        updates()
+        if (kind === 'copy') return { count: context.state.count + 1 }
+        context.state.count++
+        return context.state
+      },
+      buildViewNode: context => node(context, context.state?.count),
+    }))
+    const assembler = new ConversationNodeAssembler(
+      new TestEventDefinitions(definitions), new TestViewDefinitions([testView()]),
+    )
+    assembler.replaceWindow([input(at(SessionSeq(1), 'count/start', {}))], false)
+    assembler.flush()
+    // Count index writes separately from the required per-event State updates.
+    const owners = vi.spyOn(Reflect.get(assembler, 'contextsBySeq') as Map<number, unknown>, 'set')
+    const dirty = vi.spyOn(Reflect.get(assembler, 'dirty') as Set<unknown>, 'add')
+    const targets = vi.spyOn(Reflect.get(assembler, 'dirtyByTarget') as Map<string, unknown>, 'set')
+    try {
+      for (const batch of [0, 1]) {
+        for (let offset = 0; offset < 64; offset++) {
+          assembler.append(input(at(SessionSeq(2 + batch * 64 + offset), 'count/update', {})))
+        }
+        expect(owners).toHaveBeenCalledTimes(64)
+        expect(dirty).toHaveBeenCalledTimes(2)
+        expect(targets).toHaveBeenCalledTimes(1)
+        expect(updates).toHaveBeenCalledTimes((batch + 1) * 128)
+        assembler.flush()
+        expect([...testSnapshot(assembler)!.nodes.values()].map(value => value.data))
+          .toEqual([(batch + 1) * 64, (batch + 1) * 64])
+        owners.mockClear()
+        dirty.mockClear()
+        targets.mockClear()
+      }
+    } finally {
+      owners.mockRestore()
+      dirty.mockRestore()
+      targets.mockRestore()
+    }
+  })
+
+  it('resolves nonconsecutive Steps without searching the Turn timeline on each delta', () => {
+    const index = new ConversationLocationIndex()
+    const turnStart = at(SessionSeq(1), 'turn/start', { turn: 4 })
+    const firstStep = at(SessionSeq(2), 'step/start', { turn: 4, step: 7 })
+    const lastStep = at(SessionSeq(3), 'step/start', { turn: 4, step: 200 })
+    index.rebuild([input(turnStart), input(firstStep), input(lastStep)])
+    const turn = index.snapshot().turns.get(4)!
+    const find = vi.spyOn(turn.steps, 'find')
+    const turnIndex = vi.spyOn(Reflect.get(index, 'seqsByTurn') as Map<number, unknown>, 'set')
+    try {
+      for (const [offset, step] of [7, 200, 7].entries()) {
+        const { event } = transientChunk(3 + (offset + 1) / 10, 4, step, { type: 'text-delta', index: 0, text: 'a' })
+        index.appendNonBoundary(event)
+        expect(index.locationOf(event)).toEqual({
+          kind: 'step', turn, step: turn.steps[step === 7 ? 0 : 1],
+        })
+      }
+      expect(find).not.toHaveBeenCalled()
+      expect(turnIndex).not.toHaveBeenCalled()
+    } finally {
+      find.mockRestore()
+      turnIndex.mockRestore()
+    }
+  })
+
+  it('resolves current Step references after closure, prepend and window replacement', () => {
+    const index = new ConversationLocationIndex()
+    const turnStart = at(SessionSeq(1), 'turn/start', { turn: 1 })
+    const stepStart = at(SessionSeq(2), 'step/start', { turn: 1, step: 9 })
+    const stepEnd = at(SessionSeq(3), 'step/end', { turn: 1, step: 9 })
+    const { event } = transientChunk(2.5, 1, 9, { type: 'text-delta', index: 0, text: 'a' })
+    index.rebuild([input(turnStart), input(stepStart)])
+    index.appendNonBoundary(event)
+    const open = index.locationOf(event)
+    index.appendBoundary(stepEnd)
+    const closed = index.locationOf(event)
+    expect(closed).toMatchObject({ kind: 'step', step: { status: 'closed', end: stepEnd } })
+    expect(closed).not.toEqual(open)
+
+    index.rebuild([input(stepEnd)])
+    index.appendNonBoundary(event)
+    expect(index.locationOf(event)).toMatchObject({ kind: 'step', step: { start: undefined, end: stepEnd } })
+    index.rebuild([input(turnStart), input(stepStart), input(stepEnd)])
+    index.appendNonBoundary(event)
+    expect(index.locationOf(event)).toMatchObject({ kind: 'step', step: { start: stepStart, end: stepEnd } })
+
+    index.rebuild([input(turnStart)])
+    index.appendNonBoundary(event)
+    expect(index.locationOf(event)).toEqual({ kind: 'turn', turn: index.snapshot().turns.get(1) })
+    index.rebuild([])
+    index.appendNonBoundary(event)
+    expect(index.locationOf(event)).toEqual({ kind: 'unresolved' })
+    index.appendBoundary(turnStart)
+    index.appendBoundary(stepStart)
+    expect(index.locationOf(event)).toMatchObject({ kind: 'step', step: { start: stepStart, end: undefined } })
+  })
+
+  it('reports a repaired Location while preserving the previously returned value', () => {
+    const index = new ConversationLocationIndex()
+    const turnStart = input(at(SessionSeq(1), 'turn/start', { turn: 1 }))
+    const stepStart = input(at(SessionSeq(2), 'step/start', { turn: 1, step: 9 }))
+    const delta = transientChunk(2.5, 1, 9, { type: 'text-delta', index: 0, text: 'a' })
+    index.rebuild([turnStart])
+    index.appendNonBoundary(delta.event)
+    const previous = index.locationOf(delta.event)
+    expect(previous.kind).toBe('turn')
+
+    const changed = index.rebuild([turnStart, stepStart, delta])
+    expect(changed.has(delta.event.seq)).toBe(true)
+    expect(index.locationOf(delta.event)).toMatchObject({ kind: 'step', step: { step: 9 } })
+    expect(previous.kind).toBe('turn')
+    expect(previous).not.toBe(index.locationOf(delta.event))
+  })
+
+  it('keeps equally numbered Steps in different Turns independent', () => {
+    const index = new ConversationLocationIndex()
+    index.rebuild([
+      input(at(SessionSeq(1), 'turn/start', { turn: 1 })),
+      input(at(SessionSeq(2), 'step/start', { turn: 1, step: 3 })),
+      input(at(SessionSeq(3), 'turn/start', { turn: 2 })),
+      input(at(SessionSeq(4), 'step/start', { turn: 2, step: 3 })),
+    ])
+    for (const turn of [1, 2]) {
+      const { event } = transientChunk(4 + turn / 10, turn, 3, { type: 'text-delta', index: 0, text: 'a' })
+      index.appendNonBoundary(event)
+      const location = index.locationOf(event)
+      expect(location).toMatchObject({ kind: 'step', step: { turn, step: 3 } })
+      if (location.kind !== 'step') throw new Error('expected Step location')
+      expect(location.step).toBe(index.snapshot().turns.get(turn)?.steps[0])
+    }
+  })
+
+  it('reports boundary changes only when the owning Turn location changes', () => {
+    const index = new ConversationLocationIndex()
+    const boundaries = [
+      at(SessionSeq(1), 'turn/start', { turn: 1 }),
+      at(SessionSeq(2), 'step/start', { turn: 1, step: 1 }),
+      at(SessionSeq(3), 'step/end', { turn: 1, step: 1 }),
+      at(SessionSeq(4), 'turn/end', { turn: 1 }),
+    ]
+    for (const boundary of boundaries) {
+      index.appendBoundary(boundary)
+      expect(index.takeChangedTurns()).toEqual([1])
+      const turn = index.snapshot().turns.get(1)
+      expect(index.appendBoundary(boundary)).toEqual(new Set())
+      expect(index.snapshot().turns.get(1)).toBe(turn)
+      expect(index.takeChangedTurns()).toEqual([])
+    }
+  })
+
   it('publishes Location data through stable per-key sources', () => {
     const index = new ConversationLocationIndex()
     const turnStart = at(SessionSeq(1), 'turn/start', { turn: 1 })
     const stepStart = at(SessionSeq(2), 'step/start', { turn: 1, step: 1 })
     index.rebuild([input(turnStart), input(stepStart)])
+    expect(index.takeChangedTurns()).toEqual([1])
+    expect(index.takeChangedTurns()).toEqual([])
     const location = index.locationOf(stepStart)
     if (location.kind !== 'step') throw new Error('scope probe requires a Step Location')
     const source = location.step.data.source('scope-probe')
@@ -192,6 +351,7 @@ describe('ConversationNodeAssembler', () => {
     }])).toBe(true)
     expect(source.getSnapshot()).toBe(initial)
     expect(listener).not.toHaveBeenCalled()
+    expect(index.takeChangedTurns()).toEqual([1])
 
     index.publishData()
     expect(listener).toHaveBeenCalledOnce()
@@ -204,6 +364,7 @@ describe('ConversationNodeAssembler', () => {
     }])
     index.publishData()
     expect(listener).not.toHaveBeenCalled()
+    expect(index.takeChangedTurns()).toEqual([1])
 
     const changed = { value: 2 }
     index.replaceData([{
@@ -349,6 +510,103 @@ describe('ConversationNodeAssembler', () => {
       { callSeq: 1, results: 1 },
       { callSeq: 2, results: 0 },
     ])
+    const keys = snapshot?.order
+    for (const [index, callId] of ['b', 'a', 'b'].entries()) {
+      assembler.append(input(at(SessionSeq(4 + index), 'tool/result', {
+        turn: 1, step: 1,
+        message: { source: { type: 'tool-result', callId }, content: [], isError: false },
+      })))
+    }
+    assembler.flush()
+    expect(starts).not.toHaveBeenCalled()
+    expect(updates).toHaveBeenCalledTimes(4)
+    expect(testSnapshot(assembler)?.order).toEqual(keys)
+    expect([...testSnapshot(assembler)?.nodes.values() ?? []].map(value => value.data)).toEqual([
+      { callSeq: 1, results: 2 },
+      { callSeq: 2, results: 2 },
+    ])
+  })
+
+  it('shares input Matches by role without sharing Definition State or Session locations', () => {
+    type State = { readonly seqs: readonly number[] }
+    const opening = [
+      input(at(SessionSeq(1), 'turn/start', { turn: 1 })),
+      input(at(SessionSeq(2), 'step/start', { turn: 1, step: 1 })),
+      input(at(SessionSeq(3), 'shared/seed', { turn: 1, step: 1 })),
+    ]
+    const createSession = () => {
+      const probes = (['start', 'start', 'update', 'update'] as const).map((role, index) => {
+        const matches: ConversationMatch[] = []
+        const definition: ConversationNodeDefinition<State> = {
+          kind: `shared-${index}`,
+          target: 'test',
+          match: (event) => {
+            const type: string = event.type
+            if (type === 'shared/seed' && role === 'update') return { id: 'one', role: 'start' }
+            if (type === 'shared/input') return { id: 'one', role }
+            if (type === 'shared/first-only' && index === 0) return { id: 'one', role: 'update' }
+            return null
+          },
+          start: (_context, match) => {
+            matches.push(match)
+            return { seqs: [match.event.seq] }
+          },
+          update: (context, match) => {
+            matches.push(match)
+            return { seqs: [...context.state.seqs, match.event.seq] }
+          },
+          buildViewNode: context => node(context, context.state),
+        }
+        return { definition, matches }
+      })
+      const assembler = new ConversationNodeAssembler(
+        new TestEventDefinitions(probes.map(probe => probe.definition)),
+        new TestViewDefinitions([testView()]),
+      )
+      assembler.replaceWindow(opening, false)
+      assembler.flush()
+      const states = () => {
+        const nodes = [...testSnapshot(assembler)?.nodes.values() ?? []]
+        return probes.map(probe => nodes.find(value => value.kind === probe.definition.kind)?.data)
+      }
+      return { assembler, probes, states }
+    }
+    const first = createSession()
+    const second = createSession()
+    const shared = input(at(SessionSeq(4), 'shared/input', { turn: 1, step: 1 }))
+    const expectedStates = [{ seqs: [4] }, { seqs: [4] }, { seqs: [3, 4] }, { seqs: [3, 4] }]
+    for (const session of [first, second]) {
+      session.assembler.append(shared)
+      session.assembler.flush()
+      const start = session.probes[0]!.matches.at(-1)!
+      const update = session.probes[2]!.matches.at(-1)!
+      expect(start).toBe(session.probes[1]!.matches.at(-1))
+      expect(update).toBe(session.probes[3]!.matches.at(-1))
+      expect(start).not.toBe(update)
+      expect(start.role).toBe('start')
+      expect(update.role).toBe('update')
+      expect(start.event).toBe(shared.event)
+      expect(update.event).toBe(shared.event)
+      expect(start.location.kind).toBe('step')
+      expect(start.location).toBe(update.location)
+      expect(session.states()).toEqual(expectedStates)
+    }
+    expect(new Set([...first.states(), ...second.states()]).size).toBe(8)
+    for (const index of [0, 2]) {
+      const left = first.probes[index]!.matches.at(-1)!
+      const right = second.probes[index]!.matches.at(-1)!
+      expect(left).not.toBe(right)
+      expect(left.location).not.toBe(right.location)
+    }
+
+    const secondSnapshot = testSnapshot(second.assembler)
+    first.assembler.append(input(at(SessionSeq(5), 'shared/first-only', { turn: 1, step: 1 })))
+    first.assembler.flush()
+    expect(first.probes[0]!.matches.at(-1)).not.toBe(first.probes[2]!.matches.at(-1))
+    expect(first.probes[2]!.matches.at(-1)!.event).toBe(shared.event)
+    expect(first.states()).toEqual([{ seqs: [4, 5] }, ...expectedStates.slice(1)])
+    expect(testSnapshot(second.assembler)).toBe(secondSnapshot)
+    expect(second.states()).toEqual(expectedStates)
   })
 
   it('keeps one Match collection while a long Context appends without replay', () => {
@@ -577,6 +835,64 @@ describe('ConversationNodeAssembler', () => {
       .toEqual(['assistant/message', 'llm/retry'])
   })
 
+  it.each(['update', 'publication'] as const)('retires every accepted transient owner after a %s failure', (failure) => {
+    const definitions: ConversationNodeDefinition<number>[] = Array.from({ length: 6 }, (_, index) => ({
+      kind: index === 5 ? 'unrelated' : `owner-${index}`,
+      target: 'test',
+      match: event => event.type === 'step/start'
+        ? { id: 'one', role: 'start' }
+        : index < 5 && event.type === 'assistant/live-chunk' ? { id: 'one', role: 'update' } : null,
+      start: () => 0,
+      update: (context) => {
+        if (index === 4 && failure === 'update') throw new Error('owner failure')
+        return context.state + 1
+      },
+      publication: (match) => {
+        if (index === 4 && failure === 'publication' && match.event.type === 'assistant/live-chunk') {
+          throw new Error('owner failure')
+        }
+        return 'immediate'
+      },
+      buildViewNode: context => node(context, {
+        count: context.state, seqs: context.matches.map(match => match.event.seq),
+      }),
+    }))
+    const assembler = new ConversationNodeAssembler(
+      new TestEventDefinitions(definitions), new TestViewDefinitions([testView()]),
+    )
+    assembler.replaceWindow([input(at(SessionSeq(1), 'step/start', { turn: 1, step: 1 }))], false)
+    assembler.flush()
+    const before = testSnapshot(assembler)!
+    expect(before.order).toHaveLength(6)
+    const unrelated = before.nodes.get(before.order[5]!)
+    const delta = transientChunk(1.5, 1, 1, {
+      type: 'tool-call-delta', index: 0, id: ToolCallId('shared'), name: 'write', argumentsDelta: '{}',
+    })
+    expect(() => assembler.append(delta)).toThrow('owner failure')
+    assembler.flush()
+    const partial = testSnapshot(assembler)!
+    for (const [index, key] of before.order.entries()) {
+      const changed = index < 4 || (index === 4 && failure === 'publication')
+      expect(partial.nodes.get(key)?.data).toEqual({ count: changed ? 1 : 0, seqs: changed ? [1, 1.5] : [1] })
+    }
+    expect(assembler.append(delta)).toBe('none')
+    assembler.flush()
+    expect(testSnapshot(assembler)).toBe(partial)
+    expect(assembler.settleAssistant(LlmAttemptId('test-attempt'))).toBe('immediate')
+    assembler.flush()
+    const settled = testSnapshot(assembler)!
+    for (const key of before.order.slice(0, 5)) {
+      expect(settled.nodes.get(key)?.data).toEqual({ count: 0, seqs: [1] })
+      expect(settled.nodes.get(key)).not.toBe(partial.nodes.get(key))
+    }
+    expect(settled.nodes.get(before.order[5]!)).toBe(unrelated)
+    assembler.rebuildRegistry()
+    assembler.flush()
+    const rebuilt = testSnapshot(assembler)!
+    expect(rebuilt.order).toEqual(before.order)
+    expect([...rebuilt.nodes.values()].map(value => value.data)).toEqual([...before.nodes.values()].map(value => value.data))
+  })
+
   it('replays one pending transient Match after prepend supplies its durable start', () => {
     const starts = vi.fn(() => ({ batches: 0, status: 'unresolved' }))
     const updates = vi.fn((
@@ -636,14 +952,17 @@ describe('ConversationNodeAssembler', () => {
     })
   })
 
-  it('rejects a transient event classified as a Context start', () => {
-    const definition: ConversationNodeDefinition<null> = {
-      kind: 'invalid-transient-start',
+  it('initializes from a transient start and clears it when the attempt is withdrawn', () => {
+    const start = vi.fn((_context: ConversationNodeContext<number>, match: ConversationMatch) => match.event.seq)
+    const definition: ConversationNodeDefinition<number> = {
+      kind: 'transient-start',
       match: event => event.type === 'assistant/live-chunk'
         ? { id: 'one', role: 'start' }
         : null,
-      start: () => null,
+      start,
       update: context => context.state,
+      target: 'test',
+      buildViewNode: context => node(context, context.state ?? null),
     }
     const assembler = new ConversationNodeAssembler(
       new TestEventDefinitions([definition]),
@@ -651,9 +970,13 @@ describe('ConversationNodeAssembler', () => {
     )
     const delta = transientChunk(1, 1, 1, { type: 'text-delta', index: 0, text: 'abc' })
 
-    expect(() => assembler.replaceWindow([delta], false)).toThrow(
-      'conversation Context 23:invalid-transient-startone received a transient start Match',
-    )
+    assembler.replaceWindow([delta], false)
+    assembler.flush()
+    expect(start).toHaveBeenCalledOnce()
+    expect([...testSnapshot(assembler)?.nodes.values() ?? []][0]?.data).toBe(1)
+    assembler.settleAssistant(LlmAttemptId('test-attempt'))
+    assembler.flush()
+    expect([...testSnapshot(assembler)?.nodes.values() ?? []][0]?.data).toBeNull()
   })
 
   it('merges an older page and replays its affected Context once', () => {
@@ -888,6 +1211,45 @@ describe('ConversationNodeAssembler', () => {
 
     expect(consumerStart).toHaveBeenCalledTimes(2)
     expect([...testSnapshot(assembler)?.nodes.values() ?? []][0]?.data).toBe(-1)
+  })
+
+  it('reorders predecessor reads when durable calls replace transient starts after dispatch', () => {
+    const source: ConversationNodeDefinition<number> = {
+      kind: 'reindexed-source',
+      match: (event) => {
+        if (event.type === 'assistant/live-chunk' && event.data.chunk.type === 'tool-call-delta') {
+          return { id: String(event.data.chunk.id), role: 'start' }
+        }
+        return event.type === 'tool/call' ? { id: String(event.data.callId), role: 'start' } : null
+      },
+      start: (_context, match) => match.event.seq,
+      update: context => context.state,
+      target: 'test', buildViewNode: () => null,
+    }
+    const consumer: ConversationNodeDefinition<number> = {
+      kind: 'consumer',
+      match: event => event.type === 'step/end' ? { id: String(event.seq), role: 'start' } : null,
+      start: (_context, _match, reader) => reader.previous<number>('reindexed-source')?.state ?? -1,
+      update: context => context.state,
+      target: 'test', buildViewNode: context => node(context, context.state),
+    }
+    const assembler = new ConversationNodeAssembler(
+      new TestEventDefinitions([source, consumer]), new TestViewDefinitions([testView()]),
+    )
+    assembler.replaceWindow([], false)
+    for (const [index, id] of ['a', 'b'].entries()) {
+      assembler.append(transientChunk(1.1 + index / 10, 1, 1, {
+        type: 'tool-call-delta', index, id: ToolCallId(id), name: 'write', argumentsDelta: '',
+      }))
+    }
+    assembler.append(input(at(SessionSeq(3), 'tool/call', { turn: 1, step: 1, callId: ToolCallId('b'), name: 'write', arguments: '{}' })))
+    assembler.append(input(at(SessionSeq(4), 'tool/call', { turn: 1, step: 1, callId: ToolCallId('a'), name: 'write', arguments: '{}' })))
+    assembler.append(input(at(SessionSeq(5), 'step/end', { turn: 1, step: 1 })))
+    assembler.flush()
+    expect([...testSnapshot(assembler)!.nodes.values()][0]?.data).toBeCloseTo(1.2)
+    assembler.settleAssistant(LlmAttemptId('test-attempt'))
+    assembler.flush()
+    expect([...testSnapshot(assembler)!.nodes.values()][0]?.data).toBe(4)
   })
 
   it('replays direct dependents when an append revises their predecessor Context', () => {
@@ -1291,7 +1653,7 @@ describe('ConversationNodeAssembler', () => {
   it('carries explicit coordinates across coordinate-free events in a partial window and live tail', () => {
     const definition: ConversationNodeDefinition<null> = {
       kind: 'location-probe',
-      match: event => (event.type as string) === 'tool/code-dispatch-start'
+      match: event => (event.type as string) === 'tool/ptc-dispatch-start'
         ? { id: String(event.seq), role: 'start' }
         : null,
       start: () => null,
@@ -1310,11 +1672,11 @@ describe('ConversationNodeAssembler', () => {
     )
     assembler.replaceWindow([
       input(at(SessionSeq(10), 'tool/call', { turn: 2, step: 3, callId: 'root', name: 'x', arguments: '{}' })),
-      input(at(SessionSeq(11), 'tool/code-dispatch-start', { rootCallId: 'root', subCallId: 'a' })),
+      input(at(SessionSeq(11), 'tool/ptc-dispatch-start', { rootCallId: 'root', subCallId: 'a' })),
     ], true)
     assembler.flush()
 
-    assembler.append(input(at(SessionSeq(12), 'tool/code-dispatch-start', { rootCallId: 'root', subCallId: 'b' })))
+    assembler.append(input(at(SessionSeq(12), 'tool/ptc-dispatch-start', { rootCallId: 'root', subCallId: 'b' })))
     assembler.flush()
 
     expect([...testSnapshot(assembler)?.nodes.values() ?? []].map(value => value.data))
@@ -1515,12 +1877,14 @@ describe('ConversationNodeAssembler', () => {
     )).toThrow(/Definition "undefined-update" returned undefined from update/)
   })
 
-  it('rejects a duplicate start before mutating the existing Context', () => {
-    const definition: ConversationNodeDefinition<number> = {
+  it('updates the same Context for later start matches and reselects an earlier prepended start', () => {
+    const start = vi.fn((_context: ConversationNodeContext<number[]>, match: ConversationMatch) => [match.event.seq])
+    const update = vi.fn((context: { state: number[] }, match: ConversationMatch) => [...context.state, match.event.seq])
+    const definition: ConversationNodeDefinition<number[]> = {
       kind: 'single-start',
       match: event => (event.type as string) === 'command/run' ? { id: 'one', role: 'start' } : null,
-      start: (_context, match) => match.event.seq,
-      update: context => context.state,
+      start,
+      update,
       target: 'test',
       buildViewNode: context => node(context, context.state),
     }
@@ -1533,10 +1897,16 @@ describe('ConversationNodeAssembler', () => {
     ], false)
     assembler.flush()
 
-    expect(() => assembler.append(
+    assembler.append(
       input(at(SessionSeq(2), 'command/run', { commandId: 'two', name: 'x' })),
-    )).toThrow(/received more than one start Match/)
+    )
     assembler.flush()
-    expect([...testSnapshot(assembler)?.nodes.values() ?? []][0]?.data).toBe(1)
+    expect(start).toHaveBeenCalledOnce()
+    expect(update).toHaveBeenCalledOnce()
+    expect([...testSnapshot(assembler)?.nodes.values() ?? []][0]?.data).toEqual([1, 2])
+    assembler.prepend([input(at(SessionSeq(0), 'command/run', { commandId: 'zero', name: 'x' }))], false)
+    assembler.flush()
+    expect(start).toHaveBeenCalledTimes(2)
+    expect([...testSnapshot(assembler)?.nodes.values() ?? []][0]?.data).toEqual([0, 1, 2])
   })
 })

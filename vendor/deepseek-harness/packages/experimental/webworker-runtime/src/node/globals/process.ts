@@ -9,13 +9,16 @@
 import { requireActiveModuleLoader } from '../../module-system/module-loader.ts'
 import { processAlive, signalProcess } from '../process-table.ts'
 
+/** Virtual executable identity; the worker has no Node binary behind it. */
+const EXEC_PATH = '/dsh/bin/node'
+
 /** Construction inputs for {@link installProcessGlobal}. */
 export interface ProcessShimOptions {
   /** Virtual root reported by `cwd()`. */
   readonly cwd: string
   /** Environment the tree reads; `DSH_HOME` belongs here. */
   readonly env: Readonly<Record<string, string>>
-  /** Argument vector reported to the tree. */
+  /** Argument vector reported to the tree; defaults to the executable alone, since no entry script exists. */
   readonly argv?: readonly string[]
 }
 
@@ -24,6 +27,8 @@ export interface ProcessShim {
   readonly env: Record<string, string>
   readonly argv: string[]
   readonly execArgv: string[]
+  /** Virtual host identity; spawning this path reports ENOENT because Node execution is unavailable. */
+  readonly execPath: string
   /** Node process identity used by dependencies for environment detection. */
   readonly title: string
   /**
@@ -87,8 +92,9 @@ export function installProcessGlobal(options: ProcessShimOptions): ProcessShim {
   }
   const shim: ProcessShim = {
     env: { ...options.env },
-    argv: [...(options.argv ?? ['node', 'dsh-webworker'])],
+    argv: [...(options.argv ?? [EXEC_PATH])],
     execArgv: [],
+    execPath: EXEC_PATH,
     title: 'dsh-webworker',
     platform: 'linux',
     arch: 'x64',

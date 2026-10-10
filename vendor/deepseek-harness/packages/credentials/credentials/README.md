@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-credentials` keeps secret values out of configuration: you store an API key once and reference it by name (`DEEPSEEK_API_KEY`) from settings or `cordis.yml`, and the product supplies the value when a provider request needs it. Beside those references it also keeps durable credential records — per-plugin entries such as an authorization grant or provider environment values — so a plugin holds what it manages for its own ids across restarts. A rotated key takes effect on the very next request — no restart, no configuration edit. Configuration UIs can tell you whether a key or record is set, where it comes from, and whether you can change it, without ever showing a value. Storing an empty value counts as "no key", so a blank can never masquerade as a configured secret; a record's presence is the whole fact, so an entry carrying no value is a deliberate statement, not a blank.
+`dsh-credentials` keeps secret values out of configuration by letting settings and `cordis.yml` refer to key names such as `DEEPSEEK_API_KEY`. It also stores durable per-plugin credential records, including authorization grants and provider environment values. A rotated stored key applies to the next request without a restart or configuration edit. Configuration UIs can report whether a key or record is set, its source, and whether it is writable without exposing values. Empty key values count as absent, while an empty record remains a deliberate stored credential.
 
 ## Table of Contents
 
@@ -114,7 +114,7 @@ One doctrine and four consequences:
 - **Consumers resolve per operation.** Resolution is a per-call read with no cross-operation cache; that read is the hot-update mechanism.
 - **An empty stored value is absent.** `resolve` skips it, `describe` reports it unconfigured — a blank can never masquerade as a configured secret.
 - **Records are durable, and presence is the fact.** A record is stored per `<scope>/<id>` and survives restarts; the empty-value rule does not apply, so an `api-key` record carrying neither a key nor environment values is a deliberate statement, not a blank.
-- **Listener failures are contained.** `notifyUpdated` fans `credentials/reference-updated` out so every listener runs; a sync throw or async rejection is logged without changing the committed operation's outcome, except `INVARIANT`-coded failures, which rethrow after every listener ran.
+- **Listener failures are contained.** `notifyUpdated` fans `credentials/reference-updated` out so every listener runs; a sync throw or async rejection is logged without changing the committed operation's outcome.
 
 ### The credentials/reference-updated event
 
@@ -132,7 +132,6 @@ One doctrine and four consequences:
 |---|---|
 | [`src/index.ts`](src/index.ts) | Service Definition: the `credentialRef`/`credentialKey` brands, `ResolvedCredential`/`CredentialRecordInfo`, the abstract provider over both key spaces, contained fan-out |
 | [`src/types.ts`](src/types.ts) | Client-safe type surface: the `CredentialRef` and `CredentialKey` brands, the stored-record union, the `CredentialInfo` reference view, the `credentials/reference-updated` and `credentials/record-updated` declarations |
-| [`src/invariant.ts`](src/invariant.ts) | Invariant companion: `credentials/reference-updated` only fires while a credentials service is live |
 
 ### Client-safe types
 
@@ -140,7 +139,7 @@ The `./types` subpath export holds the event declarations together with the `Cre
 
 ### Lifecycle
 
-The service is a Cordis `Service` registered by the provider: disposing the mounting fiber removes `ctx.credentials`. The invariant companion checks that `credentials/reference-updated` never fires without a live service — an emission after disposal means a provider leaked work past its teardown quiescence.
+The service is a Cordis `Service` registered by the provider: disposing the mounting fiber removes `ctx.credentials`.
 
 </details>
 
@@ -151,7 +150,7 @@ The service is a Cordis `Service` registered by the provider: disposing the moun
 
 Read these pages when the package-level contract is not enough. They move from the shared subsystem vocabulary to the shipped store and the capability architecture.
 
-- [Credentials subsystem reference](../../../docs/subsystems/credentials.md) — `CredentialRef`/`CredentialKey`, per-operation resolution, UI-safe info, provider layers, and the generated cordis surface.
+- [Credentials subsystem reference](../../../docs/subsystems/credentials.md) — `CredentialRef`/`CredentialKey`, per-operation resolution, UI-safe info, provider layers, and the generated Cordis surface.
 - [Local credentials store](../credentials-local/README.md) — the default on-machine store: where keys and records live and how the environment layers rank.
 - [Capability seams](../../../docs/capability-seams.md) — the Service Definition / Service Provider / Consumer split this package follows.
 

@@ -1,208 +1,127 @@
 /** Locale bundles for the agent-preset hero chip, header label, and management section. */
 
+import { guideEn, guideZh, type PresetGuideKey } from './guide-locales.ts'
+
 /** Locale keys these surfaces render. */
 export type AgentPresetSettingsKey =
-  | 'error' | 'userTrust' | 'seatHint' | 'headerHint'
-  | 'nav' | 'sectionIntro' | 'builtIn' | 'setDefault' | 'view'
-  | 'presetStandardName' | 'presetStandardDescription'
-  | 'presetPtcName' | 'presetPtcDescription'
-  | 'presetMinimalName' | 'presetMinimalDescription'
-  | 'presetCordisName' | 'presetCordisDescription'
-  | 'duplicate' | 'duplicateUnavailable' | 'delete' | 'presetId' | 'presetIdPlaceholder' | 'copyOf'
-  | 'displayName' | 'displayNamePlaceholder'
-  | 'inUse' | 'noDescription' | 'builtInGroup' | 'customGroup'
-  | 'brokenBadge' | 'brokenNoCopy' | 'switchRefused'
-  | 'composition' | 'cancel' | 'close' | 'retry'
-  | 'copyTitle' | 'copyIntro' | 'create' | 'creating' | 'creatorDraft'
-  | 'openLocation' | 'showLocation' | 'revealedPathLabel'
-  | 'idRequired' | 'idInvalid' | 'idTaken'
-  | 'deleteTitle' | 'deleteDescription' | 'deleteConfirm' | 'deleting'
+  | PresetGuideKey
+  | 'builtInGroup'
+  | 'customGroup'
+  | 'seatHint'
+  | 'headerHint'
+  | 'nav'
+  | 'sectionIntro'
+  | 'setDefault'
+  | 'view'
+  | 'presetStandardName'
+  | 'presetStandardDescription'
+  | 'presetPtcName'
+  | 'presetPtcDescription'
+  | 'presetMinimalName'
+  | 'presetMinimalDescription'
+  | 'presetCordisName'
+  | 'presetCordisDescription'
+  | 'inUse'
+  | 'noDescription'
+  | 'brokenBadge'
+  | 'switchRefused'
+  | 'standardUnavailable'
+  | 'close'
+  | 'creatorDraft'
+  | 'createPlugin'
+  | 'createPluginDescription'
+  | 'createPluginChecking'
+  | 'createPluginUnavailable'
+  | 'createPluginMissing'
 
 /** English copy. */
 export const en: Record<AgentPresetSettingsKey, string> = {
-  error: 'Could not load agent presets.',
-  userTrust: 'Custom',
-  seatHint: 'Agent preset for the session you are about to start',
-  headerHint: 'The agent preset this session runs, fixed when it started',
+  ...guideEn,
+  builtInGroup: 'Built-in', customGroup: 'Custom',
+  sectionIntro: 'Choose the agent’s tools and how it works. Use Standard mode for everyday tasks, or Creator mode to add capabilities to DSH.',
+
+  seatHint: 'Choose the agent preset for your new task',
+  headerHint: 'The agent preset chosen when this task started',
   nav: 'Agent presets',
-  sectionIntro:
-    'A preset is the plugin composition one session\'s agent runs — its tools, prompt, and capabilities. '
-    + 'Duplicate an existing one and make it yours, or let the agent draft one for you in Creator mode.',
-  builtIn: 'Built-in',
-  setDefault: 'Set as default',
-  view: 'View',
+
+  setDefault: 'Set as new task default',
+  view: 'View configuration',
+
   presetStandardName: 'Standard mode',
   presetStandardDescription:
-    'Full coding agent with file editing, shell, file and web search, skills, planning, goals, subagents, and workflows.',
+    'Work with code, files, and information. Suitable for most tasks, with search, editing, terminal commands, and other tools available as needed.',
   presetPtcName: 'PTC mode',
   presetPtcDescription:
-    'Full coding agent without the workflow tool; other tools are exposed through the PTC mode SDK so the model can combine multi-step operations in one TypeScript program.',
+    'Includes all Standard mode capabilities. Better suited to tasks that call tools in batches and then filter, organize, deduplicate, count, or summarize the results.',
   presetMinimalName: 'Minimal mode',
   presetMinimalDescription:
-    'Two-tool coding agent with persistent bash and str_replace_editor.',
+    'The agent works using only a terminal tool. Useful for testing and comparing its basic performance.',
   presetCordisName: 'Creator mode',
   presetCordisDescription:
-    'Built for creating custom agent presets, with all Standard mode capabilities plus runtime inspection, plugin experiments, and preset-authoring guidance.',
-  duplicate: 'Duplicate',
-  duplicateUnavailable: 'This deployment has no writable preset directory',
-  delete: 'Delete',
-  presetId: 'Identifier',
-  presetIdPlaceholder: 'my-agent',
-  displayName: 'Name',
-  displayNamePlaceholder: 'Shown in the picker; defaults to the identifier',
-  inUse: 'In use',
-  builtInGroup: 'Built-in',
-  customGroup: 'Custom',
+    'Customize DSH through conversation. Let the agent write plugins that add features or UI, or combine tools and prompts to create your own mode.',
+
+  inUse: 'New task default',
+
   noDescription: 'No description.',
   brokenBadge: 'Failed to load',
-  brokenNoCopy: 'A preset that failed to load cannot be duplicated',
-  switchRefused: 'Could not switch to {name}: {reason}',
-  copyOf: 'Copied from',
-  composition: 'Composition (agent.cordis.yml)',
-  cancel: 'Cancel',
-  close: 'Close',
-  retry: 'Retry',
-  copyTitle: 'Duplicate preset',
-  copyIntro:
-    'The whole preset is copied on this machine. The identifier becomes its directory name and cannot '
-    + 'be changed later; everything else is edited in the preset\'s own files.',
-  create: 'Create',
-  creating: 'Creating…',
-  creatorDraft: 'Draft a custom preset with Creator mode',
-  openLocation: 'Open folder',
-  showLocation: 'Show location',
-  revealedPathLabel: 'Preset files:',
-  idRequired: 'Give the preset an identifier.',
-  idInvalid: 'Use lowercase letters, digits, and hyphens, starting with a letter or digit.',
-  idTaken: 'A preset with this identifier already exists.',
-  deleteTitle: 'Delete this preset?',
-  deleteDescription:
-    'The preset directory is deleted. Sessions already running on it keep working; new sessions cannot select it.',
-  deleteConfirm: 'Delete',
-  deleting: 'Deleting…',
-}
 
-/** Spanish copy. */
-export const es: Record<AgentPresetSettingsKey, string> = {
-  error: 'No se pudieron cargar los presets de agente.',
-  userTrust: 'Personalizado',
-  seatHint: 'Preset de agente para la sesión que está por iniciar',
-  headerHint: 'El preset de agente que ejecuta esta sesión, fijado al iniciarla',
-  nav: 'Presets de agente',
-  sectionIntro:
-    'Un preset es la composición de complementos que ejecuta el agente de una sesión — sus herramientas, instrucciones y capacidades. '
-    + 'Duplique uno existente y hágalo suyo, o deje que el agente redacte uno por usted en modo Creador.',
-  builtIn: 'Integrado',
-  setDefault: 'Establecer como predeterminado',
-  view: 'Ver',
-  presetStandardName: 'Modo estándar',
-  presetStandardDescription:
-    'Agente de programación completo con edición de archivos, shell, búsqueda de archivos y web, habilidades, planificación, objetivos, subagentes y flujos de trabajo.',
-  presetPtcName: 'Modo PTC',
-  presetPtcDescription:
-    'Agente de programación completo sin la herramienta de flujos de trabajo; las demás herramientas se exponen mediante el SDK del modo PTC para que el modelo combine operaciones de varios pasos en un programa TypeScript.',
-  presetMinimalName: 'Modo mínimo',
-  presetMinimalDescription:
-    'Agente de programación de dos herramientas con bash persistente y str_replace_editor.',
-  presetCordisName: 'Modo creador',
-  presetCordisDescription:
-    'Diseñado para crear presets de agente personalizados, con todas las capacidades del modo estándar más inspección en tiempo de ejecución, experimentos con complementos y guía de autoría de presets.',
-  duplicate: 'Duplicar',
-  duplicateUnavailable: 'Esta instalación no tiene un directorio de presets con escritura',
-  delete: 'Eliminar',
-  presetId: 'Identificador',
-  presetIdPlaceholder: 'my-agent',
-  displayName: 'Nombre',
-  displayNamePlaceholder: 'Se muestra en el selector; por defecto usa el identificador',
-  inUse: 'En uso',
-  builtInGroup: 'Integrados',
-  customGroup: 'Personalizados',
-  noDescription: 'Sin descripción.',
-  brokenBadge: 'Error al cargar',
-  brokenNoCopy: 'Un preset que no se pudo cargar no se puede duplicar',
-  switchRefused: 'No se pudo cambiar a {name}: {reason}',
-  copyOf: 'Copiado de',
-  composition: 'Composición (agent.cordis.yml)',
-  cancel: 'Cancelar',
-  close: 'Cerrar',
-  retry: 'Reintentar',
-  copyTitle: 'Duplicar preset',
-  copyIntro:
-    'Todo el preset se copia en este equipo. El identificador se convierte en su nombre de directorio y no '
-    + 'se puede cambiar después; lo demás se edita en los archivos propios del preset.',
-  create: 'Crear',
-  creating: 'Creando…',
-  creatorDraft: 'Redactar un preset personalizado con el modo Creador',
-  openLocation: 'Abrir carpeta',
-  showLocation: 'Mostrar ubicación',
-  revealedPathLabel: 'Archivos del preset:',
-  idRequired: 'Asigne un identificador al preset.',
-  idInvalid: 'Use letras minúsculas, dígitos y guiones, comenzando con letra o dígito.',
-  idTaken: 'Ya existe un preset con este identificador.',
-  deleteTitle: '¿Eliminar este preset?',
-  deleteDescription:
-    'El directorio del preset se elimina. Las sesiones que ya lo usan siguen funcionando; las sesiones nuevas no podrán seleccionarlo.',
-  deleteConfirm: 'Eliminar',
-  deleting: 'Eliminando…',
+  switchRefused: 'Could not switch to {name}: {reason}',
+  standardUnavailable: 'Standard mode is unavailable. Restore it or choose another available mode.',
+
+  close: 'Close',
+
+  creatorDraft: 'Let the agent help me create a preset',
+  createPlugin: 'Let the agent create a plugin',
+  createPluginDescription: 'Enter Creator mode and make your own DSH plugin',
+  createPluginChecking: 'Checking whether Creator mode is available',
+  createPluginUnavailable: 'Temporarily unavailable. Reopen this menu to retry',
+  createPluginMissing: 'Creator mode is not included in this configuration',
+
 }
 
 /** Simplified Chinese copy. */
 export const zh: Record<AgentPresetSettingsKey, string> = {
-  error: '无法加载 Agent 预设。',
-  userTrust: '自定义',
-  seatHint: '即将开始的这个会话所用的 Agent 预设',
-  headerHint: '本会话运行的 Agent 预设，开始时即固定',
+  ...guideZh,
+  builtInGroup: '内置', customGroup: '自定义',
+  sectionIntro: '选择 Agent 的工具和工作方式。日常任务用「标准模式」，扩展 DSH 的能力用「创造模式」。',
+
+  seatHint: '选择新任务使用的 Agent 预设',
+  headerHint: '本任务的 Agent 预设，在任务开始时确定',
   nav: 'Agent 预设',
-  sectionIntro: '预设即一个会话的 Agent 所运行的插件组装 —— 它的工具、提示词与能力。复制一份既有预设改成自己的，或用「创造模式」让 Agent 帮你创建。',
-  builtIn: '内置',
-  setDefault: '设为默认',
-  view: '查看',
+
+  setDefault: '设为新任务默认',
+  view: '查看配置',
+
   presetStandardName: '标准模式',
-  presetStandardDescription: '功能完整的编码 Agent，支持文件编辑、Shell、文件与网页检索、Skills、计划、目标、子代理和工作流。',
+  presetStandardDescription: '处理代码、文件和资料，适合大多数任务。Agent 会按需使用检索、编辑和终端等工具。',
   presetPtcName: 'PTC 模式',
-  presetPtcDescription: '功能完整的编码 Agent，但默认不提供 workflow 工具；其他工具通过 PTC 模式 SDK 呈现，让模型用一个 TypeScript 程序组合多步操作。',
+  presetPtcDescription: '包含标准模式的所有能力，更适合批量调用工具，并对结果进行筛选、整理、去重、统计或汇总的任务。',
   presetMinimalName: '极简模式',
-  presetMinimalDescription: '仅提供持久 bash 与 str_replace_editor 的双工具编码 Agent。',
+  presetMinimalDescription: 'Agent 仅使用终端工具完成任务，适合测试和对比其基础表现。',
   presetCordisName: '创造模式',
-  presetCordisDescription: '用于创建自定义 Agent preset：具备标准模式的全部能力，并提供运行时检查、插件实验和 preset 创作指导。',
-  duplicate: '复制',
-  duplicateUnavailable: '此部署未配置可写的预设目录',
-  delete: '删除',
-  presetId: '标识符',
-  presetIdPlaceholder: 'my-agent',
-  displayName: '名称',
-  displayNamePlaceholder: '选择器中显示的名字，缺省用标识符',
-  inUse: '当前使用',
-  builtInGroup: '内置',
-  customGroup: '自定义',
+  presetCordisDescription: '用对话定制 DSH：让 Agent 编写插件，添加新功能或界面；也能组合工具和提示词，创建自己的模式。',
+
+  inUse: '新任务默认',
+
   noDescription: '暂无描述。',
   brokenBadge: '加载失败',
-  brokenNoCopy: '预设加载失败，不能复制',
+
   switchRefused: '无法切换到「{name}」：{reason}',
-  copyOf: '复制自',
-  composition: '组装（agent.cordis.yml）',
-  cancel: '取消',
+  standardUnavailable: '标准模式不可用，请恢复该模式或选择其他可用模式。',
+
   close: '关闭',
-  retry: '重试',
-  copyTitle: '复制预设',
-  copyIntro: '整个预设会在本机复制一份。标识符将成为目录名，事后无法更改；其余内容之后直接在预设自己的文件里编辑。',
-  create: '创建',
-  creating: '正在创建…',
-  creatorDraft: '用「创造模式」创作自定义预设',
-  openLocation: '打开目录',
-  showLocation: '查看路径',
-  revealedPathLabel: '预设文件：',
-  idRequired: '请填写标识符。',
-  idInvalid: '只能使用小写字母、数字与连字符，且以字母或数字开头。',
-  idTaken: '该标识符已被占用。',
-  deleteTitle: '删除该预设？',
-  deleteDescription: '预设目录将被删除。已在其上运行的会话不受影响；新会话将无法再选择它。',
-  deleteConfirm: '删除',
-  deleting: '正在删除…',
+
+  creatorDraft: '让 Agent 帮我创建预设模式',
+  createPlugin: '让 Agent 创建插件',
+  createPluginDescription: '进入创造模式，制作属于你的 DSH 插件',
+  createPluginChecking: '正在确认创造模式是否可用',
+  createPluginUnavailable: '暂时不可用，请重新打开菜单重试',
+  createPluginMissing: '当前配置未提供创造模式',
+
 }
 
-// The resolution itself is the shared fold in `dsh-agent-presets/display`,
+// The resolution itself is the shared fold in `dsh-agent-preset-registry/display`,
 // re-exported here so every surface in this plugin reads one path; the
 // Settings plugin list inlines the same fold over this plugin's dictionaries.
-export { presetDisplayText } from '@deepseek-ai/dsh-agent-presets/display'
-export type { PresetDisplaySource, PresetDisplayText } from '@deepseek-ai/dsh-agent-presets/display'
+export { isBuiltInPreset, presetDisplayText } from '@deepseek-ai/dsh-agent-preset-registry/display'
+export type { PresetDisplaySource, PresetDisplayText } from '@deepseek-ai/dsh-agent-preset-registry/display'

@@ -7,7 +7,7 @@
  * at Enter, so the editor can clear immediately and accept another message
  * while earlier admissions remain in flight.
  */
-import type { InputSubmitMode } from '../contract/composer-submission.ts'
+import type { InputSubmitMode, MessageSubmission } from '../contract/composer-submission.ts'
 import type { CommandClaim, InputEffect, InputEvent, InputState, SubmitAttempt } from '../contract/input.ts'
 
 /** Exhaustiveness backstop for the closed InputEvent union. */
@@ -25,6 +25,11 @@ function argsAfter(draft: string, token: string): string {
     return /^\s/.test(rest) ? rest.slice(1) : rest
   }
   return ''
+}
+
+/** A claimed name may stand alone; arguments require the token's separator. */
+function retainsClaim(draft: string, token: string): boolean {
+  return draft.startsWith(token) || draft === token.trimEnd()
 }
 
 /** The submit-plane slice of the published InputState. */
@@ -53,6 +58,7 @@ export class SubmitMachine {
       ...(c
         ? {
           claim: {
+            name: c.name,
             token: c.token,
             ...(c.hint !== undefined ? { hint: c.hint } : {}),
             ...(c.attachments === true ? { attachments: true } : {}),
@@ -71,7 +77,7 @@ export class SubmitMachine {
     switch (ev.type) {
       case 'draft-changed': return this.onDraftChanged(ev.draft)
       case 'claim': return this.onClaim(ev.claim)
-      case 'enter': return this.onEnter(ev.mode, ev.draft)
+      case 'enter': return this.onEnter(ev.mode, ev.draft, ev.submission)
       case 'adjudicated': return this.onAdjudicated(ev.attempt, ev.outcome)
       case 'adjudication-failed': return this.onAdjudicationFailed(ev.attempt, ev.message)
       case 'submit-settled': return this.onSubmitSettled(ev)
@@ -82,9 +88,9 @@ export class SubmitMachine {
     }
   }
 
-  /** Claimed integrity watch: a draft that breaks the token prefix releases the claim. */
+  /** The complete command name retains its claim with or without the argument separator. */
   private onDraftChanged(draft: string): readonly InputEffect[] {
-    if (this.phase === 'claimed' && this.claim !== undefined && !draft.startsWith(this.claim.token)) {
+    if (this.phase === 'claimed' && this.claim !== undefined && !retainsClaim(draft, this.claim.token)) {
       this.phase = 'plain'
       this.claim = undefined
     }
@@ -100,28 +106,28 @@ export class SubmitMachine {
   }
 
   /** Mint an attempt and controller without assigning its lifecycle owner. */
-  private mintAttempt(mode: InputSubmitMode, draft: string): {
+  private mintAttempt(mode: InputSubmitMode, draft: string, submission?: MessageSubmission): {
     readonly attempt: SubmitAttempt
     readonly controller: AbortController
   } {
     const controller = new AbortController()
     this.seq += 1
     return {
-      attempt: { seq: this.seq, signal: controller.signal, draftSnapshot: draft, mode },
+      attempt: { seq: this.seq, signal: controller.signal, draftSnapshot: draft, mode, ...submission === undefined ? {} : { submission } },
       controller,
     }
   }
 
   /** Mint the frozen command/adjudication attempt. */
-  private beginAttempt(mode: InputSubmitMode, draft: string): SubmitAttempt {
-    const flight = this.mintAttempt(mode, draft)
+  private beginAttempt(mode: InputSubmitMode, draft: string, submission?: MessageSubmission): SubmitAttempt {
+    const flight = this.mintAttempt(mode, draft, submission)
     this.inflight = flight
     return flight.attempt
   }
 
   /** Mint an ordinary send that leaves the phase plain. */
-  private beginDetached(mode: InputSubmitMode, draft: string): SubmitAttempt {
-    const flight = this.mintAttempt(mode, draft)
+  private beginDetached(mode: InputSubmitMode, draft: string, submission?: MessageSubmission): SubmitAttempt {
+    const flight = this.mintAttempt(mode, draft, submission)
     this.detached.set(flight.attempt.seq, flight.controller)
     this.claim = undefined
     this.phase = 'plain'
@@ -136,21 +142,21 @@ export class SubmitMachine {
     ]
   }
 
-  private onEnter(mode: InputSubmitMode, draft: string): readonly InputEffect[] {
+  private onEnter(mode: InputSubmitMode, draft: string, submission?: MessageSubmission): readonly InputEffect[] {
     if (this.phase === 'adjudicating' || this.phase === 'submitting') return []
     if (this.phase === 'claimed' && this.claim !== undefined) {
-      const attempt = this.beginAttempt(mode, draft)
+      const attempt = this.beginAttempt(mode, draft, submission)
       this.phase = 'submitting'
       return [{ type: 'begin-submit', attempt, claim: this.claim, args: argsAfter(draft, this.claim.token) }]
     }
     const trimmed = draft.trim()
     if (trimmed === '') return []
     if (trimmed.startsWith('/')) {
-      const attempt = this.beginAttempt(mode, draft)
+      const attempt = this.beginAttempt(mode, draft, submission)
       this.phase = 'adjudicating'
       return [{ type: 'adjudicate', attempt, draft }]
     }
-    return this.detachedEffects(this.beginDetached(mode, draft))
+    return this.detachedEffects(this.beginDetached(mode, draft, submission))
   }
 
   private onAdjudicated(
@@ -199,7 +205,7 @@ export class SubmitMachine {
     }
     const text = ev.message ?? ev.outcome?.text
     if (ev.draft === flight.attempt.draftSnapshot
-      && this.claim !== undefined && ev.draft.startsWith(this.claim.token)) {
+      && this.claim !== undefined && retainsClaim(ev.draft, this.claim.token)) {
       this.phase = 'claimed'
       return text === undefined ? [] : [{ type: 'notice', level: 'error', text }]
     }

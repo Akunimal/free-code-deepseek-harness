@@ -1,11 +1,8 @@
 - banner:
-  - navigation "Session hierarchy":
-    - button "Reply with a one-sentence description" [disabled]
-  - img
+  - navigation "Session hierarchy": Reply with a one-sentence description
   - text: Standard mode
-  - button "Session log":
-    - text: Session log
-    - img
+  - button "More actions"
+  - button "Open right sidebar"
   - tablist:
     - tab "Chat" [selected]
     - tab "Trajectory"
@@ -13,78 +10,43 @@
   - button "Jump to turn 1"
   - button "Jump to turn 2"
   - button "Jump to turn 3"
-- button "System prompt":
-  - img
-  - img
-  - text: System prompt
 - text: Reply with a one-sentence description of event sourcing, then stop. {{clock}}
-- button "Copy":
-  - img
-- button "Thought for a while":
-  - text: Thought for a while
-  - img
+- button "Copy"
+- status: Stopped
+- button "Stopped" [disabled]
 - paragraph: partial
 - text: Stopped
-- button "Copy":
-  - img
-- button "Good response":
-  - img
-- button "Bad response":
-  - img
-- button "Branch into a new conversation":
-  - img
-- button "Ran for {{duration}}":
-  - img
-  - text: Ran for {{duration}}
+- button "Copy"
+- button "Good response"
+- button "Bad response"
+- button "Branch into a new conversation"
 - text: {{clock}}
 - button "queued.png, click to view original":
   - img "queued.png"
 - text: Compare with this screenshot {{clock}}
-- button "Copy":
-  - img
-- button "Thought for a while":
-  - text: Thought for a while
-  - img
+- button "Copy"
+- status: Completed
+- button "Completed in {{duration}}"
 - paragraph: Event sourcing is a pattern where all changes to an application's state are stored as an immutable, append-only sequence of events, rather than persisting only the current state, enabling full auditability, temporal queries, and event-driven architectures.
-- button "Copy":
-  - img
-- button "Good response":
-  - img
-- button "Bad response":
-  - img
-- button "Branch into a new conversation":
-  - img
-- button "Ran for {{duration}}":
-  - img
-  - text: Ran for {{duration}}
+- button "Copy"
+- button "Good response"
+- button "Bad response"
+- button "Branch into a new conversation"
 - text: {{clock}} Continue with the queued comparison {{clock}}
-- button "Copy":
-  - img
-- button "Thought for a while":
-  - text: Thought for a while
-  - img
+- button "Copy"
+- status: Completed
+- button "Completed in {{duration}}"
 - paragraph: Event sourcing is a pattern where all changes to an application's state are stored as an immutable, append-only sequence of events, rather than persisting only the current state, enabling full auditability, temporal queries, and event-driven architectures.
-- button "Copy":
-  - img
-- button "Good response":
-  - img
-- button "Bad response":
-  - img
-- button "Branch into a new conversation":
-  - img
-- button "Ran for {{duration}}":
-  - img
-  - text: Ran for {{duration}}
+- button "Copy"
+- button "Good response"
+- button "Bad response"
+- button "Branch into a new conversation"
 - text: {{clock}}
-- textbox "Message or run a task... / commands, @ files or sessions"
-- button "Commands":
-  - img
-- button "Add attachment":
-  - img
+- textbox "Message or run a task, / commands, @ files or sessions"
+- button "Add files or run commands"
 - 'button "Access mode, current: Workspace Write"': Workspace Write
-- button "Select model, current DeepSeek-V4-Flash":
-  - text: DeepSeek-V4-Flash
-  - img
-- button "6% of context used"
+- button "Select model, current DeepSeek-V4-Flash": DeepSeek-V4-Flash
 - button "Send message" [disabled]
-- text: 3 turns · 3 steps LLM {{duration}} TTFT avg {{duration}} · {{throughput}} tok/s Cache hit 99% Input 15.6K tok · Output 158 tok
+- button "3 turns 3 steps · {{throughput}} tok/s": 3 turns 3 steps{{throughput}} tok/s
+- button "15.7K tok · Cache hit 99%": 15.7K tokCache hit 99%
+- button "6% of context used": 6%

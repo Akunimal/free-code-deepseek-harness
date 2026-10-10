@@ -14,7 +14,7 @@ export function assertNever(value: never, context?: string): never {
   throw new Error(`unreachable variant${context ? ` in ${context}` : ''}: ${rendered}`)
 }
 
-/** Whether a realm-owned intrinsic prototype is backed by its native constructor. */
+/** Whether a realm-owned intrinsic prototype has a native constructor matching this engine's representation. */
 function hasIntrinsicConstructor(prototype: object, name: 'Array' | 'Object'): boolean {
   const descriptor = Object.getOwnPropertyDescriptor(prototype, 'constructor')
   const constructor: unknown = descriptor?.value
@@ -22,7 +22,7 @@ function hasIntrinsicConstructor(prototype: object, name: 'Array' | 'Object'): b
   try {
     return constructor.name === name
       && constructor.prototype === prototype
-      && Function.prototype.toString.call(constructor) === `function ${name}() { [native code] }`
+      && Function.prototype.toString.call(constructor) === Function.prototype.toString.call(name === 'Array' ? Array : Object)
   } catch {
     return false
   }
@@ -237,3 +237,72 @@ export function deepFreeze<T>(value: T): T {
   }
   return value
 }
+
+/**
+ * Weak-key lookup with a strongly retained iterable set of associated values.
+ *
+ * Each value must belong to only one key. The container performs no automatic
+ * cleanup; owners delete associations or clear the container at lifecycle end.
+ */
+export class WeakMapWithValues<Key extends object, Value> {
+  private keys = new WeakMap<Key, Value>()
+  private readonly valueSet = new Set<Value>()
+  /** Live strongly retained values in insertion order. */
+  readonly values: ReadonlySet<Value> = this.valueSet
+
+  /**
+   * Read the value associated with a key.
+   * @param key - weakly held lookup key.
+   * @returns the associated value, or absence.
+   */
+  get(key: Key): Value | undefined {
+    return this.keys.get(key)
+  }
+
+  /**
+   * Test whether a key has an association.
+   * @param key - weakly held lookup key.
+   * @returns whether the key is present.
+   */
+  has(key: Key): boolean {
+    return this.keys.has(key)
+  }
+
+  /**
+   * Associate one key with one caller-unique value.
+   * @param key - weakly held lookup key.
+   * @param value - strongly retained value that belongs to no other key.
+   * @returns this container.
+   */
+  set(key: Key, value: Value): this {
+    if (this.keys.has(key)) {
+      const previous = this.keys.get(key) as Value
+      if (previous === value) return this
+      this.valueSet.delete(previous)
+    }
+    this.keys.set(key, value)
+    this.valueSet.add(value)
+    return this
+  }
+
+  /**
+   * Remove one association and its strongly retained value.
+   * @param key - weakly held lookup key.
+   * @returns whether an association was removed.
+   */
+  delete(key: Key): boolean {
+    if (!this.keys.has(key)) return false
+    const value = this.keys.get(key) as Value
+    const deleted = this.keys.delete(key)
+    this.valueSet.delete(value)
+    return deleted
+  }
+
+  /** Remove every association and strongly retained value. */
+  clear(): void {
+    this.keys = new WeakMap()
+    this.valueSet.clear()
+  }
+}
+
+export { PartialArguments, type LengthReadOptions } from './partial-json.ts'

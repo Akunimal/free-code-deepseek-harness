@@ -7,17 +7,30 @@ import { pathToFileURL } from 'node:url'
 const root = resolve(import.meta.dirname, '..')
 const OUT = 'packages/session/session-format-catalog/src/generated.ts'
 
-/** One adjacent migration declaration read from a workspace manifest. */
-export interface SessionFormatMigrationManifest {
+/** Internal adjacent migration metadata discovered only in workspace migration packages. */
+interface SessionFormatMigrationDeclaration {
+  /** Non-negative safe integer source version; negative zero is rejected. */
+  from: number
+  /** Non-negative safe integer target version, exactly from + 1. */
+  to: number
+  /** Non-empty package export path, such as `.` or `./migration`. */
+  export: string
+  /** Non-empty named export of the migration implementation. */
+  migration: string
+  /** Non-empty named export of the source version codec. */
+  sourceCodec: string
+  /** Non-empty named export of the target version codec. */
+  targetCodec: string
+  /** Non-empty named export of the target header validator. */
+  targetHeaderValidator: string
+  /** Non-empty named export of the target version restorer. */
+  targetRestorer: string
+}
+
+/** Validated adjacent migration metadata with its resolved package import path. */
+export interface SessionFormatMigrationManifest extends Readonly<Omit<SessionFormatMigrationDeclaration, 'export'>> {
   readonly packageName: string
   readonly importPath: string
-  readonly from: number
-  readonly to: number
-  readonly migration: string
-  readonly sourceCodec: string
-  readonly targetCodec: string
-  readonly targetHeaderValidator: string
-  readonly targetRestorer: string
 }
 
 interface RawManifest {
@@ -78,7 +91,7 @@ export function collectSessionFormatMigrations(
     if (metadata === undefined) {
       throw new Error(`gen-session-format-catalog: ${rel} lacks dsh.sessionFormatMigration`)
     }
-    const allowed = new Set([
+    const allowed: ReadonlySet<string> = new Set<keyof SessionFormatMigrationDeclaration>([
       'from', 'to', 'export', 'migration', 'sourceCodec', 'targetCodec',
       'targetHeaderValidator', 'targetRestorer',
     ])
@@ -190,26 +203,37 @@ export function renderSessionFormatCatalog(
     '',
     "import { KNOWN_SESSION_EVENT_TYPES } from '@deepseek-ai/dsh-session'",
     "import { createSessionFormatCatalog } from '@deepseek-ai/dsh-session-format'",
+    "import type { SessionFormatCatalogOptions } from '@deepseek-ai/dsh-session-format'",
     "import { validateInstalledCurrentSessionArtifact, validateInstalledCurrentSessionHeader } from './current.ts'",
     ...imports,
     '',
-    '/** Physical codec dispatch and complete adjacent chain, independent of mounted plugins. */',
-    'export const sessionFormatCatalog = createSessionFormatCatalog({',
+    '/** Static assembly shared by current reads and parent-specific historical restoration. */',
+    'export const sessionFormatCatalogOptions: SessionFormatCatalogOptions = {',
     `  currentVersion: ${currentVersion},`,
-    `  codecs: [${codecs.join(', ')}],`,
-    `  encodeCurrentArtifact: artifact => ${currentCodec}.encodeArtifact(artifact),`,
-    `  migrations: [${declarations.map(item => item.migration).join(', ')}],`,
+    '  codecs: [',
+    ...codecs.map(codec => `    ${codec},`),
+    '  ],',
+    `  currentEncoder: ${currentCodec},`,
+    '  migrations: [',
+    ...declarations.map(item => `    ${item.migration},`),
+    '  ],',
     '  restoreCurrent(artifact) {',
     `    const restored = ${restorer}(artifact, KNOWN_SESSION_EVENT_TYPES)`,
     '    validateInstalledCurrentSessionArtifact(restored)',
     '    return restored',
+    '  },',
+    '  restoreTransformedCurrent(artifact) {',
+    `    return ${restorer}(artifact, KNOWN_SESSION_EVENT_TYPES)`,
     '  },',
     '  restoreCurrentHeader(header) {',
     `    ${headerValidator}(header)`,
     '    validateInstalledCurrentSessionHeader(header)',
     '    return header',
     '  },',
-    '})',
+    '}',
+    '',
+    '/** Physical codec dispatch and complete adjacent chain, independent of mounted plugins. */',
+    'export const sessionFormatCatalog = createSessionFormatCatalog(sessionFormatCatalogOptions)',
     '',
   ].join('\n')
 }

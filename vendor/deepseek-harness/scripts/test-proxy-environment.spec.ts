@@ -25,7 +25,7 @@ describe('ambient proxy environment', () => {
 
   // A runtime assertion that this process is clear would pass either way: importing the module
   // above already ran it. What can actually regress is the wiring — a new Vitest project, or a
-  // config that lists only the invariant host — so that is what this pins.
+  // config that omits the proxy setup — so that is what this pins.
   const declared = vitestConfigFiles()
     .map(config => ({ config, slots: readFileSync(config, 'utf8').match(/setupFiles: \[[^\]]*\]/g) ?? [] }))
     .filter(entry => entry.slots.length > 0)
@@ -33,7 +33,8 @@ describe('ambient proxy environment', () => {
   it('finds the configurations that declare a setup at all', () => {
     // Guards the discovery itself: a glob that stopped matching would make every case below vacuous.
     expect(declared.map(entry => entry.config)).toEqual([
-      'vitest.config.ts', 'vitest.e2e.config.ts', 'vitest.expected.config.ts', 'vitest.snapshot.config.ts',
+      'vitest.bench.config.ts', 'vitest.config.ts', 'vitest.e2e.config.ts', 'vitest.expected.config.ts',
+      'vitest.snapshot.config.ts',
     ])
   })
 

@@ -11,6 +11,7 @@ function assistantEvent(
 ): SessionEvent<'assistant/message'> {
   return {
     type: 'assistant/message',
+    surfaceOp: 'append',
     seq: SessionSeq(0),
     time: 0,
     data: {
@@ -64,6 +65,7 @@ describe('standard ACP update projection', () => {
     })
     const result = await toolResultUpdate({ get: () => undefined } as unknown as Context, {
       type: 'tool/result',
+      surfaceOp: 'append',
       seq: SessionSeq(0),
       time: 0,
       data: {
@@ -71,14 +73,11 @@ describe('standard ACP update projection', () => {
         step: 1,
         message: {
           id: MessageId('tool-message'),
-          role: 'user',
+          role: 'tool',
+          toolCallId: ToolCallId('call-bad'),
+          isError: true,
           source: { kind: 'tool', callId: ToolCallId('call-bad') },
-          content: [{
-            type: 'tool-result',
-            toolCallId: ToolCallId('call-bad'),
-            isError: true,
-            content: [{ type: 'reasoning', text: 'hidden' }],
-          }],
+          content: [{ type: 'reasoning', text: 'hidden' }],
         },
       },
     })

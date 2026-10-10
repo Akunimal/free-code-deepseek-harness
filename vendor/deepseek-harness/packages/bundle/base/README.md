@@ -47,7 +47,19 @@ Run `dsh --profile my-profile "your task"` and you get a working agent with mode
 
 ### What you get
 
-Out of the box, every profile built on this core provides: a DeepSeek model connection (the provider and model are configurable, and you can enable extra providers from your settings), the full tool set — file editing, shell commands, web search, public HTTP(S) fetch, subagents, task and goal tracking — durable sessions that survive restarts, and the default permission policy that confines file writes to your workspace and asks before risky actions. Web fetch runs without per-call approval; its provider rejects non-public destinations. Telemetry stays off unless you opt in.
+Out of the box, every profile built on this core provides: a DeepSeek model connection (the provider and model are configurable, and you can enable extra providers from your settings), the full tool set — file editing, shell commands, web search, public HTTP(S) fetch, subagents, task and goal tracking — durable sessions that survive restarts, and the default permission policy that confines file writes to your workspace and asks before risky actions. Web fetch runs without per-call approval; its provider rejects non-public destinations. Feedback stays in the Session log. [OTel session upload](../../session/session-telemetry-otel/README.md) defaults to `FEEDBACK_ONLY` for all users, including `deepseek-official`: new text feedback, message ratings, edits, and withdrawals release the complete canonical prefix through that event, including context. Later records wait for the next explicit feedback; sending an authorized batch needs no further interaction or model call. `DISABLED` prevents OTel capture. The default-on [DeepSeek session-log contributor](../../session/session-log-deepseek/README.md) remains a separate request path.
+
+Default file editing uses `read`, `write`, and `edit`. The `str_replace_editor` tool remains available as an explicit opt-in. To add it to a base-backed profile, put this entry in the profile, home, or invocation patch:
+
+```yaml
+- insert:
+    - id: tool-str-replace-editor
+      name: '@deepseek-ai/dsh-tool-str-replace-editor'
+      config:
+        maxOutputChars: 16000
+```
+
+The bundle mounts [MCP resources](../../mcp/mcp-resources/README.md) once. Configure only [MCP client entries](../../mcp/mcp-client/README.md) for the servers you need. Clients mounted by another provider also count as configured in their scope. Callers with no configured server in scope receive no MCP tools or prompt text.
 
 ### Shell tools per platform
 
@@ -81,12 +93,7 @@ The patch gates the two shell stacks by platform on its own rows: `bash-sandbox`
 |---|---|
 | [`cordis.patch.yml`](cordis.patch.yml) | The bundle substance: the base plugin rows, with per-row rationale as inline comments |
 | [`src/index.ts`](src/index.ts) | Package entry; carries no runtime API |
-| — | No runtime invariant companion is published; the package is a static patch-list carrier (a YAML document of loader rows owned by other packages); it mounts no service, emits no events, and owns no mutable relation to check. Each inserted row's own package carries that row's invariants. |
 | [`tests/base.spec.ts`](tests/base.spec.ts) | Manifest declaration and platform-gating checks |
-
-### Invariant ownership
-
-No invariant companion is published because the package is a static patch-list carrier: each inserted row's package owns that row's invariants, and the bundle owns no mutable relation to check.
 
 </details>
 
@@ -135,3 +142,5 @@ These limits tell you when the core needs extra care or where an override must g
 None.
 
 </details>
+
+The base composition mounts authorization and the platform account provider alongside credentials. The provider opens a callback listener only during an explicit login attempt.

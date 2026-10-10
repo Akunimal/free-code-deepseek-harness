@@ -44,7 +44,7 @@ The complete supported method matrix, MCP trust model, update mapping, and stop 
 
 #### What the model sees
 
-The profile supplies `You are a coding agent powered by the {{model}} model. Your working directory is {{cwd}}.` before the base tool and context contributions. The ACP row's route and each `session/new` cwd resolve the placeholders.
+The profile supplies `You are a coding agent powered by the {{model}} model.` before first-party guidance and `Your working directory is {{cwd}}.` in a separate persona suffix. The ACP row's route and each `session/new` cwd resolve the placeholders.
 
 #### Token effect
 
@@ -60,7 +60,7 @@ Stable for a fixed profile, provider, model, and tool roster. Profile changes ta
 
 - **A profile can omit the ACP bridge** — a custom ACP launch profile must retain this bundle or another `dsh-acp` row; otherwise no peer answers the client.
 - **User plugins can violate stdout purity** — profile and per-launch patches are trusted application composition. The shipped bundle writes no non-protocol stdout, but it cannot contain an arbitrary inserted plugin.
-- **Configuration changes require restart** — the shipped `acp` profile uses `patchReload: startup` so one stdio connection never observes a replacement bridge or Agent dependency.
+- **Configuration changes require restart** — the `acp-app` bundle disables HMR in YAML so one stdio connection never observes a replacement bridge or Agent dependency.
 
 
 <a id="dev-note"></a>
@@ -72,5 +72,3 @@ Stable for a fixed profile, provider, model, and tool roster. Profile changes ta
 None.
 
 </details>
-
-**Runtime invariant:** No companion is published. The bundle adds a process transport and startup latch; source/built stdio tests own frame purity, help exclusion, and shutdown.

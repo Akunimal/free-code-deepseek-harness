@@ -1,7 +1,7 @@
 /**
  * The worker bundle's module proxy table: the ONLY platform fork of the host
- * tree. Every entry replaces a Node builtin or an external npm package;
- * workspace and vendored modules are always mounted as they ship.
+ * tree. Entries replace Node builtins, external npm packages, and the native
+ * flock subpath; other workspace and vendored modules are mounted as they ship.
  *
  * The build turns these into bundler aliases, and `node/builtins.ts` turns the
  * same modules into the loader's static table — one list, two consumers.
@@ -16,9 +16,9 @@
  */
 
 /**
- * Module proxy table — the ONLY platform fork of the worker host. Every entry
- * replaces a Node builtin or an external npm package; workspace and vendored
- * modules are always mounted as-is. Keys are exact module specifiers.
+ * Module proxy table — the ONLY platform fork of the worker host. Keys are
+ * exact module specifiers; the native system package's Landlock entry stays
+ * unmodified while its flock subpath is replaced.
  */
 export const MODULE_PROXIES: Record<string, string> = {
   // VFS-backed real implementations.
@@ -44,6 +44,8 @@ export const MODULE_PROXIES: Record<string, string> = {
   // Sync-stack AsyncLocalStorage semantics.
   'node:async_hooks': './node/builtin_modules/implemented/async_hooks.ts',
   // Real implementations over browser primitives.
+  'node:assert/strict': './node/builtin_modules/implemented/assert/strict.ts',
+  'assert/strict': './node/builtin_modules/implemented/assert/strict.ts',
   'node:util': './node/builtin_modules/implemented/util.ts',
   'node:util/types': './node/builtin_modules/implemented/util/types.ts',
   'node:events': './node/builtin_modules/implemented/events.ts',
@@ -61,14 +63,19 @@ export const MODULE_PROXIES: Record<string, string> = {
   'dns/promises': './node/builtin_modules/mock/dns/promises.ts',
   'node:net': './node/builtin_modules/mock/net.ts',
   'node:stream': './node/builtin_modules/implemented/stream.ts',
+  'node:stream/promises': './node/builtin_modules/implemented/stream/promises.ts',
+  'stream/promises': './node/builtin_modules/implemented/stream/promises.ts',
   'node:vm': './node/builtin_modules/mock/vm.ts',
   'node:worker_threads': './node/builtin_modules/mock/worker_threads.ts',
   'node:sqlite': './node/builtin_modules/mock/sqlite.ts',
   // External npm replacements, named after the package each stands in for.
-  'fs-ext': './node/external_packages/fs-ext.ts',
+  '@deepseek-ai/libreoffice-kit': './node/external_packages/libreoffice-kit.ts',
+  '@deepseek-ai/node-addon-system/flock': './node/external_packages/node-addon-system-flock.ts',
   'koffi': './node/external_packages/koffi.ts',
   'sharp': './node/external_packages/sharp.ts',
   'node-pty': './node/external_packages/node-pty.ts',
+  'execa': './node/external_packages/execa.ts',
+  'got': './node/external_packages/got.ts',
   '@vscode/ripgrep': './node/external_packages/ripgrep.ts',
   '@earendil-works/pi-ai': './node/external_packages/pi-ai.ts',
   // Constructible fakes whose methods are never reached.

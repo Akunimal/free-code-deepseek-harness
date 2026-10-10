@@ -1,45 +1,26 @@
 - button "New session"
-- button "Collapse sidebar":
-  - img
-- button "New session":
-  - img
-  - text: New Session
+- button "Collapse sidebar"
+- button "New session": New Session
+- navigation "Global panels":
+  - button "Plugins"
+  - button "Automation tasks"
 - text: Workspaces
-- button "Search sessions":
-  - img
-- textbox "Search sessions..."
-- button "View options":
-  - img
-- button "Add workspace":
-  - img
+- button "Search sessions"
+- textbox "Search session names"
+- button "View options"
+- button "Add workspace"
 - tree "Sessions":
-  - treeitem "workspace" [expanded]:
-    - img
-    - text: workspace
+  - treeitem "workspace" [expanded]
   - treeitem "New Session" [selected]
-- button "Settings":
-  - img
-  - text: Settings
+- button "Settings"
+- banner:
+  - button "Open right sidebar"
 - text: Into the Unknown Preview
-- button "Choose workspace":
-  - img
-  - text: workspace
-  - img
-- button "Standard mode":
-  - img
-  - text: Standard mode
-  - img
-- textbox "Describe what you want to build... / commands, @ files or sessions":
+- button "Choose workspace": workspace
+- button "Standard mode"
+- textbox "Describe what you want to build, / commands, @ files or sessions":
   - paragraph
-- button "Commands":
-  - img
-- button "Add attachment":
-  - img
+- button "Add files or run commands"
 - 'button "Access mode, current: Workspace Write"': Workspace Write
-- button "Select model, current DeepSeek-V4-Flash":
-  - text: DeepSeek-V4-Flash
-  - img
+- button "Select model, current DeepSeek-V4-Flash": DeepSeek-V4-Flash
 - button "Send message" [disabled]
-- text: Details
-- button "Close details"
-- text: Click a tool row in the message flow to view its details

@@ -26,7 +26,6 @@
  * @module dsh-llm-pi-ai/adapter
  */
 
-import { createModels, getSupportedThinkingLevels } from '@earendil-works/pi-ai'
 import type {
   Api,
   AuthContext,
@@ -60,6 +59,7 @@ import type { AttachmentStore, ImageAttachmentRef } from '@deepseek-ai/dsh-attac
 import { idleWatchdog, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import type { ResolvedPiAiProviderProfile } from './config.ts'
 import { toPiContext } from './context.ts'
+import { createModels, getSupportedThinkingLevels } from './models.ts'
 import { toStreamChunks } from './stream.ts'
 
 /** One resolution's frozen view: the profiles and the collection built from them. */
@@ -190,19 +190,12 @@ function reasoningInfo(
 ): Pick<LlmResolvedModelInfo, 'reasoning'> | Record<string, never> {
   if (!model.reasoning) return {}
   const levels = getSupportedThinkingLevels(model)
-  const compat = model.compat as { thinkingFormat?: string; supportsReasoningEffort?: boolean } | undefined
-  const control = compat?.thinkingFormat === 'deepseek' && compat.supportsReasoningEffort === false
-    ? 'toggle' as const
-    : 'effort' as const
   return {
     reasoning: {
       efforts: levels.map(level => ({
         id: ReasoningEffortId(level),
-        name: control === 'toggle'
-          ? level === 'off' ? 'Off' : 'On'
-          : `${level.charAt(0).toUpperCase()}${level.slice(1)}`,
+        name: `${level.charAt(0).toUpperCase()}${level.slice(1)}`,
       })),
-      control,
       ...defaultLevel === undefined ? {} : { defaultEffort: ReasoningEffortId(defaultLevel) },
     },
   }
@@ -240,7 +233,9 @@ export class PiAiAdapter extends LlmAdapter {
     const profiles = this.config.profiles()
     if (this.snapshot?.profiles === profiles) return this.snapshot
     const models: MutableModels = createModels(this.config.auth)
-    for (const profile of profiles.values()) models.setProvider(profile.piProvider)
+    for (const profile of profiles.values()) {
+      if (profile.piProvider !== undefined) models.setProvider(profile.piProvider)
+    }
     this.snapshot = { profiles, models }
     return this.snapshot
   }
@@ -256,7 +251,10 @@ export class PiAiAdapter extends LlmAdapter {
 
   /** The configured descriptor for one exact route/model pair within one snapshot. */
   private modelOf(snapshot: PiAiSnapshot, provider: string, model: string): Model<Api> {
-    this.profileOf(snapshot, provider)
+    const profile = this.profileOf(snapshot, provider)
+    const failure = profile.modelErrors.get(model)
+      ?? (profile.piProvider === undefined ? profile.catalogError : undefined)
+    if (failure !== undefined) throw new LlmError(failure, 'INVALID_CONFIG')
     const resolved = snapshot.models.getModel(provider, model)
     if (resolved === undefined) {
       throw new LlmError(`pi-ai provider "${provider}" has no configured model "${model}"`, 'UNKNOWN_MODEL')
@@ -389,7 +387,7 @@ export class PiAiAdapter extends LlmAdapter {
         // Harness-owned and therefore win collisions.
         headers: requestHeaders(profile.headers),
       })
-      const iterator = toStreamChunks(events, model.contextWindow, options.signal)[Symbol.asyncIterator]()
+      const iterator = toStreamChunks(events, model.contextWindow, options.signal, model.id)[Symbol.asyncIterator]()
       let exhausted = false
       try {
         while (true) {

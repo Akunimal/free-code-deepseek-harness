@@ -1,11 +1,14 @@
 import { brandNumber, brandString, type Branded, type BrandedNumber } from '@deepseek-ai/dsh-brand'
 import type {
   AssistantMessage,
+  DeveloperMessage,
   AssistantStreamRecord,
   ToolCallId,
   LlmCallConfig,
   LlmCallConfigAdapterDefaults,
   LlmFailure,
+  SystemMessage,
+  SystemPromptUpdate,
   TokenUsage,
   ToolResultMessage,
   ToolSchema,
@@ -83,7 +86,7 @@ export type OptionalSessionSeq = SessionSeq | null
  * immutable prior-generation, and current fast-path rules are recorded in
  * `.agents/notes/implemented/architecture/2026-08-31-released-session-format-migrations.md`.
  */
-export const SESSION_FORMAT_VERSION = 2
+export const SESSION_FORMAT_VERSION = 4
 
 /**
  * Immutable validated storage metadata, kept outside the conversation event log.
@@ -136,9 +139,9 @@ export interface CreateSessionOptions {
   /** Initial replay or fork history supplied at construction. */
   readonly seed?: readonly SessionEvent[]
   /**
-   * Exact fork-inherited prefix length when `meta.isSeeded` is true. In v2 the
-   * constructor seed is exactly this inherited prefix; the constructor
-   * appends the child-owned tagged marker at the cut.
+   * Exact fork-inherited prefix length when `meta.isSeeded` is true. The
+   * constructor appends the child-owned tagged marker at the cut unless
+   * the seed already includes it followed by child-owned fork closers.
    */
   readonly inheritedEventCount?: SessionLogOffset
   /**
@@ -157,23 +160,29 @@ export interface CreateSessionOptions {
 }
 
 /**
- * Fresh storage values transferred to {@link SessionStore.prepare} without a
- * second serialization copy. Callers retain no mutable aliases.
+ * Aliasing state of an adoptable Session seed. `shared-frozen` permits deeply
+ * frozen aliases plus independently owned unfrozen values in the same seed.
+ */
+export type SessionSeedEventState = 'detached' | 'shared-frozen'
+
+/**
+ * Adoptable storage values transferred to {@link SessionStore.prepare}
+ * without another copy or freeze pass.
  */
 export interface RestoredSessionOptions {
-  /** Fresh detached storage events to validate and freeze in place. */
+  /** Events that are independently owned or already deeply frozen. */
   readonly seed: SessionEvent[]
-  /** Fresh detached storage metadata to validate and freeze in place. */
+  /** Independently owned storage metadata to validate and freeze in place. */
   readonly meta: SessionHeader
   /** Exact number of fork-inherited leading events decoded from storage. */
   readonly inheritedEventCount: SessionLogOffset
-  /** Select the persistence ownership-transfer path. */
-  readonly seedSource: 'persistence'
+  /** Aliasing state carried from the operation that produced the seed. */
+  readonly eventState: SessionSeedEventState
 }
 
 /** Inputs accepted while constructing an unpublished Session. */
 export type PrepareSessionOptions =
-  | (CreateSessionOptions & { readonly seedSource?: undefined })
+  | (CreateSessionOptions & { readonly eventState?: undefined })
   | RestoredSessionOptions
 
 /** Why an active agent driver was cancelled. */
@@ -210,14 +219,22 @@ export interface TurnEndReasonMap {
    * the events recorded before the crash remain intact.
    */
   interrupted: { kind: 'interrupted' }
+  /**
+   * Fork-seed construction closed a turn that was still open at the fork
+   * boundary in the source session. Only fork seeds carry this marker — the
+   * loop never emits it — and the source events before the boundary remain
+   * intact in the child.
+   */
+  forked: { kind: 'forked' }
 }
 
 /** The union over {@link TurnEndReasonMap} — why a turn ended; plugins extend it by merging variants into the map. */
 export type TurnEndReason = TurnEndReasonMap[keyof TurnEndReasonMap]
 
 /**
- * Logged request state outside derived history: call config, system prompt, and
- * tools. The latest full `request/header` snapshot reconstructs it; canonical
+ * Logged request state outside derived history: call config and tools. The
+ * system prompt is derived history — surface node 0, a `system/message` event.
+ * The latest full `request/header` snapshot reconstructs the header; canonical
  * empty optional fields are absent.
  */
 export interface EpochHeader {
@@ -225,10 +242,12 @@ export interface EpochHeader {
   config: LlmCallConfig
   /** Effective config fields materialized from the exact adapter rather than proposed by a caller. */
   adapterDefaults?: LlmCallConfigAdapterDefaults
-  /** Rendered system prompt text; absent for a system-less request. */
-  system?: string
   /** Assembled tool schemas; absent for a tool-less request. */
   tools?: ToolSchema[]
+  /** Retired request text; system prompts belong to system/message events.
+   * @persistenceReserved
+   */
+  system?: never
 }
 
 /** Registration-bound metadata for one resolved model route. */
@@ -239,15 +258,17 @@ export interface RequestContext {
   model: string
   /** Maximum combined request and response context in tokens, when advertised. */
   contextWindow?: number
+  /** `'in-history'` when the route reads the latest `system` message at any position as the effective system prompt. */
+  systemPromptUpdate?: SystemPromptUpdate
 }
 
 /**
  * Why a `request/header` snapshot was appended: `'initial'` — the log's first
  * header (a new conversation); `'resume'` — a loop instance's first request
  * over a log that already has header events (process restart, fork seed);
- * `'change'` — a later request used a different header, with `startsSeries`
- * preserving a coincident series boundary; `'series'` — an unchanged header
- * began an explicitly distinct message series or followed a surface replacement.
+ * `'change'` — a later request used a different header; `'series'` — an unchanged
+ * header began an explicitly distinct message series or followed a surface
+ * replacement. Other reasons carry `startsSeries` when a new series coincides.
  */
 export type RequestHeaderReason = 'initial' | 'resume' | 'change' | 'series'
 
@@ -286,6 +307,27 @@ export interface SessionEventMap {
    * project their `content` verbatim; `source` tells them apart.
    */
   'user/message': UserMessage
+  /** An incremental agent session change admitted at the named turn and step. */
+  'developer/message': {
+    turn: number
+    step: number
+    message: DeveloperMessage
+    /** Earlier request/header defining every tool addition; required exactly when additions are present. */
+    headerSeq?: SessionSeq
+  }
+  /**
+   * The rendered system prompt on the model-visible surface. The loop appends
+   * the first one as surface node 0 before the step's first `user/message`.
+   * A prepared in-history route can append nonempty changes in a continuing
+   * series. An incapable route or new series normalizes text to the first system
+   * node. Normalization empties nonempty later nodes, then rewrites the head if
+   * needed, through logged per-node replacements. An empty rendering always
+   * clears all active system nodes, leaving no older instructions model-visible.
+   * Empty later nodes are dormant and project to no message; an empty head with
+   * no active later node records "no system prompt". Restored nonempty text follows
+   * the same route and series rule; empty nodes never restore older text.
+   */
+  'system/message': { turn: number; step: number; message: SystemMessage }
   /**
    * Assembled assistant message for one step (derived history uses this).
    * Carries the step's `usage` when the adapter reported token accounting, so
@@ -319,7 +361,9 @@ export interface SessionEventMap {
   'tool/call': { turn: number; step: number; callId: ToolCallId; name: string; arguments: string }
   /**
    * A completed tool call's model-facing result, optional internal failure
-   * identity, and optional tool-private `meta` presentation payload. `meta` is
+   * identity and user-facing reason, and optional tool-private `meta`
+   * presentation payload. The reason remains outside the model-facing message.
+   * `meta` is
    * opaque to the core (the producing tool owns its shape and reads it back in
    * `presentResult`) but MUST be JSON-serializable: `Session.append`
    * runtime-validates all event data with `isJsonValue`, so a non-serializable
@@ -332,7 +376,11 @@ export interface SessionEventMap {
     turn: number
     step: number
     message: ToolResultMessage
-    error?: { name: string; code: string }
+    /**
+     * Optional failure identity and raw user-facing reason, outside model content;
+     * allowed only when the message has `isError: true`.
+     */
+    error?: { name: string; code: string; reason?: string }
     meta?: JsonValue
   }
   /**
@@ -342,27 +390,31 @@ export interface SessionEventMap {
   'request/header': {
     header: EpochHeader
     reason: RequestHeaderReason
-    /** A changed header also begins a distinct model-message series. */
+    /** This request begins a distinct model-message series, independently of the header reason. */
     startsSeries?: true
   }
   /**
-   * Route metadata for the next request, logged only when the route or capacity
-   * changes. It does not participate in request reconstruction or header equality.
+   * Route metadata for the next request, logged only when the route, capacity,
+   * or system prompt update mode changes. It does not participate in request
+   * reconstruction or header equality. Prompt admission uses the bound prepared
+   * call's capability, not this snapshot from an earlier request.
    */
   'request/context': RequestContext
   /**
-   * Marks the end of a constructor seed. Events before it have smaller seq
-   * values and came from the seed (resume, fork, or replay); this lifecycle
-   * produced none of them. This log-only event is the durable projection of
-   * {@link Session.firstLiveSeq}.
+   * Separates inherited or restored history from later lifecycle-owned work.
+   * This log-only marker need not be at {@link Session.firstLiveSeq}: a fork
+   * seed can already contain its tagged marker and child-owned synthetic
+   * closers before construction.
    *
    * A fresh fork child owns one `{ inherited: true }` marker at its exact
    * inherited-prefix cut, even when that prefix ends in an ancestor marker.
-   * The last tagged marker is the current Session's cut; untagged markers keep
-   * ordinary restore and replay lifecycle boundaries.
+   * `buildForkSeed` appends that marker before any synthetic closers; the
+   * `Session` constructor supplies it when given only the inherited prefix.
+   * The last tagged marker is the current Session's cut; untagged markers
+   * keep ordinary restore and replay lifecycle boundaries.
    *
-   * `Session`'s constructor is the only legitimate writer. The invariant
-   * companion deliberately constrains nothing here, so a plugin appending one
+   * Only the `Session` constructor and `buildForkSeed` may create this marker.
+   * Session append does not reject other writers, so a plugin appending one
    * would silently classify every live bracket before it as seed history.
    *
    * An owner of a standalone open/close bracket (`compaction/start` …
@@ -381,24 +433,18 @@ export type SessionEventType = keyof SessionEventMap
 /**
  * The subset of {@link SessionEventType} values whose events produce LLM
  * messages and are eligible to appear on the ordered surface. Only these
- * event types may carry {@link SurfaceOp}; user and tool events may also cite
+ * event types may carry {@link SurfaceOp}; system, user, and tool events may also cite
  * earlier sources through {@link SessionEvent.sourceEventSeqs}.
  */
 export type SurfaceEventType =
+  | 'system/message'
+  | 'developer/message'
   | 'user/message'
   | 'assistant/message'
   | 'tool/result'
 
-/**
- * A {@link SessionEvent} that is **on** the ordered surface — its
- * `surfaceOp` is guaranteed present (mandatory), narrowed from a
- * surface-eligible {@link SessionEvent} by checking both `type` and
- * `surfaceOp` at runtime.
- *
- * Use the `isSurfaceEvent` type guard (in `surface.ts`) to narrow a
- * `SessionEvent` to this type.
- */
-export type SurfaceEvent = SessionEvent<SurfaceEventType> & { surfaceOp: SurfaceOp }
+/** A message-producing event carrying its required surface operation. */
+export type SurfaceEvent = SessionEvent<SurfaceEventType>
 
 /**
  * How a session event entered the ordered surface. Only valid on
@@ -406,16 +452,16 @@ export type SurfaceEvent = SessionEvent<SurfaceEventType> & { surfaceOp: Surface
  *
  * - `'append'`: added to the tail — normal path for user/assistant/tool
  *   messages.
- * - `{ op: 'replace', start, end }`: replaces surface nodes from `start`
- *   (inclusive) through `end` (inclusive) with this node. Both must exist as
- *   surface nodes in the current surface. `start === end` replaces a single
+ * - `{ op: 'replace', startSeq, endSeq }`: replaces surface nodes from `startSeq`
+ *   (inclusive) through `endSeq` (inclusive) with this node. Both must exist as
+ *   surface nodes in the current surface. `startSeq === endSeq` replaces a single
  *   node. The node's {@link SessionEvent.sourceEventSeqs} must include every
  *   shadowed surface node. Used by compaction; any surface-replacing producer
  *   may use it.
  */
 export type SurfaceOp =
   | 'append'
-  | { op: 'replace'; start: SessionSeq; end: SessionSeq }
+  | { op: 'replace'; startSeq: SessionSeq; endSeq: SessionSeq }
 
 /**
  * Surface placement and cited source-event seqs for {@link Session.append}. Required on
@@ -424,7 +470,7 @@ export type SurfaceOp =
 export type SurfaceIntent<T extends SurfaceEventType = SurfaceEventType> = {
   surfaceOp: SurfaceOp
 } & (T extends 'assistant/message' ? {
-  /** V2 Assistant messages embed their provider stream instead of citing source events. */
+  /** Assistant messages embed their provider stream instead of citing source events. */
   sourceEventSeqs?: never
 } : {
   /** Complete non-empty set of known earlier source-event seqs. */
@@ -438,7 +484,7 @@ export type SurfaceIntent<T extends SurfaceEventType = SurfaceEventType> = {
  * unions), so `switch (event.type)` narrows `event.data` without casts.
  *
  * The {@link sourceEventSeqs} and {@link surfaceOp} fields are conditional:
- * they only exist on {@link SurfaceEventType} variants (`user/message`,
+ * they only exist on {@link SurfaceEventType} variants (`system/message`, `user/message`,
  * `assistant/message`, `tool/result`).
  * Non-surface events (boundary markers, attempts, errors) never carry
  * surface metadata — the compiler enforces this at `Session.append()`
@@ -463,16 +509,10 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
      * inconvenience) rather than silently resuming a gutted session.
      */
     ignorable?: true
-  } & (K extends SurfaceEventType ? {
-    /**
-     * Seq numbers of earlier events that this event cites as sources, such as
-     * the surface nodes shadowed by a compaction replacement. A v2
-     * `assistant/message` embeds its provider stream and cannot carry this field.
-     */
-    sourceEventSeqs?: SessionSeq[]
-    /** How this event entered the surface; absent for non-surface events. */
-    surfaceOp?: SurfaceOp
-  } : object)
+  } & (K extends SurfaceEventType ? SurfaceIntent<K> : {
+    surfaceOp?: never
+    sourceEventSeqs?: never
+  })
 }[T]
 
 declare module '@deepseek-ai/dsh-typert-protocol' {

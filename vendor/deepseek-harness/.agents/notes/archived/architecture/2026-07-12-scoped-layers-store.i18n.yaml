@@ -1,0 +1,12 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+<<<<<<<< HEAD:vendor/deepseek-harness/.agents/notes/implemented/architecture/2026-08-26-local-submission-echoes.i18n.yaml
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-26-local-submission-echoes.md
+2026-08-26-local-submission-echoes.md: 258df8f3f4bdd0441b714c7602273897d2d79fc7
+2026-08-26-local-submission-echoes.zh.md: 57a9523a1eaa399e596f0c8eb6f8913545976f87
+========
+#   pnpm run verify-translation-pairing --write .agents/notes/archived/architecture/2026-07-12-scoped-layers-store.md
+2026-07-12-scoped-layers-store.md: d3060696ef54c8d06cd0724179dec49682c721e1
+2026-07-12-scoped-layers-store.zh.md: f5482a5a76724128fb445fbd7c21a2f61b8634c1
+>>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/.agents/notes/archived/architecture/2026-07-12-scoped-layers-store.i18n.yaml

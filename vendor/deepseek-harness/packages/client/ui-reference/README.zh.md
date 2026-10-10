@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-client-ui-reference` 是统一的 Web `@file` 与 `@session` 引用 source：它把 `reference` 条目注册进编辑器的行内建议机制，让用户在输入 `@` 时于同一个列表中看到文件与会话候选。文件排在会话之前，分组标题使用注册在 locale 字典中的标签，任一候选领域失败都会独立降级、不阻塞另一领域。每一行只承载能区分它的信息：文件显示其父目录、位于工作区根目录时不显示；会话仅在其工作区不是当前工作区时显示该工作区；下钻后的目录列表不显示位置，因为面包屑已经承载了它。选择一项会插入原子行内引用——文件、文件夹与会话皆然——其隐藏的序列化与剪贴板形式就是共享 `@path` 语法所定义的自然文本；目录行额外携带一个钻取动词（Tab 或行尾 chevron），保持可编辑的路径纯文本并让菜单在尾部斜杠处保持活跃，用户可以继续进入下一层。选择会话会经 session-reference 服务路由，该服务校验 mention 并在 pre-step 边界捕获模型上下文；本包自身不注册任何提示词或工具。
+Web 用户需要从同一个 `@` 补全菜单提及文件、文件夹或会话时，可以使用 `dsh-client-ui-reference`。菜单先列出文件，再列出会话；其中一组无法加载时，另一组仍然可用。选择文件、文件夹或会话会插入带稳定剪贴板形式的原子引用；文件夹行还允许用户在不关闭补全的情况下继续下钻。文件行省略多余的根目录位置，会话行仅在工作区与当前工作区不同时显示该工作区。会话 mention 会在捕获模型上下文前接受校验，而浏览候选项不会影响模型。
 
 ## 目录
 
@@ -37,6 +37,8 @@ kind: "package-reference"
 
 某个候选领域不可用或失败时，该领域不产生任何行，另一领域仍正常列出。会话引用准备失败发生在提示词接受后，并会终止该 agent 轮次。
 
+点击输入框中的文件引用，可在右侧栏预览文件当前的内容。带引号路径中的空格会保留，路径按输入框所属 Session 解析。文件夹和 Session 引用保留原有的编辑行为。
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -49,7 +51,9 @@ kind: "package-reference"
 
 ### 候选流程
 
-对于未加引号的 token，浏览器会同时启动 `fileReferences/list` 与 `sessionReferenceResolver/candidates` Remote 调用，再以确定性顺序把文件排在会话之前，并使用注册在 locale 字典中的文件夹、文件与会话标签。各行分别渲染在不可选择的文件与会话分组标题下，不显示重复的原始 `reference` source 标题。会话行用宿主会话列表的 `updatedAt` 经该列表相同的相对时间分档标注时间，因此同一个会话在两处读到的时长一致；列表中没有的会话回落到候选自带的创建时间。下钻后的查询会发布一条从工作区根目录到当前所列目录的面包屑；每一节携带的下钻载荷与文件夹行相同，因此「回到某一步」与「进入某一层」是同一个结果。
+对于未加引号的 token，浏览器会同时启动 `fileReferences/list` 与 `sessionReferenceResolver/candidates` Remote 调用，再按文件、当前 Session 的直接 subagent、其他 Session 的确定性顺序排列。各行使用 resolver 的显示标题；subagent 优先使用创建标签，普通 Session 保持投影标题，并渲染在 locale 管理的分组标题下，不显示重复的原始 `reference` source 标题。会话行用宿主会话列表的 `updatedAt` 经该列表相同的相对时间分档标注时间，因此同一个会话在两处读到的时长一致；列表中没有的会话回落到候选自带的创建时间。下钻后的查询会发布一条从工作区根目录到当前目录的面包屑；每一节携带的下钻载荷与文件夹行相同，因此「回到某一步」与「进入某一层」是同一个结果。
+
+候选请求要求客户端已持有该会话，并共用一个临时的 `referenceCandidates` 引用。两个发现调用都等待该会话首次历史打开成功；未持有会话或打开失败时，均不发送 RPC。候选请求的取消信号同时覆盖历史等待和两个调用，查询结束时释放临时引用。
 
 ### 序列化
 
@@ -67,7 +71,7 @@ kind: "package-reference"
 - [ui-input-trigger](../ui-input-trigger/README.zh.md)——该 source 注册进的行内建议机制。
 - [file-reference](../../context/file-reference/README.zh.md)——`@file` seam 及其提供方约定。
 - [session-reference](../../context/session-reference/README.zh.md)——`@session` seam 与准备后快照的语义。
-- [Web 输入机器与 slash 流水线](../../../.agents/notes/implemented/architecture/2026-07-25-web-input-machine-and-slash-pipeline.zh.md)——引用与命令如何共享输入机器。
+- [Web 输入机器与 slash 流水线](../../../.agents/notes/archived/architecture/2026-07-25-web-input-machine-and-slash-pipeline.md)——引用与命令如何共享输入机器。
 
 -----
 
@@ -100,5 +104,3 @@ kind: "package-reference"
 无。
 
 </details>
-
-**运行时不变式：** 不发布伴生入口。插件只注册一个 slash source，HMR 测试覆盖释放；它不发出 Cordis 事件，也不持有跨插件可变状态。

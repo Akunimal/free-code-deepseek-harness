@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 /** FontSizeRow behavior: value display, arrow clicks drive setFontSize,
  * bound-value arrows disable, display follows the store mirror. */
+import type { GlobalStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -10,6 +11,10 @@ import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { FontSizeRow } from '../src/client/FontSizeRow.tsx'
 import type { FontSizeRowComponentProps } from '../src/client/FontSizeRow.tsx'
 import { createFontSizeRowStore } from '../src/client/settings-store.ts'
+
+// Every fixture carries the resource hook the resources plugin merges into GlobalStandardProps.
+const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined, reload: () => {} })) as GlobalStandardProps['useResource']
+const usePanelInfo: GlobalStandardProps['usePanelInfo'] = selector => selector({ activePanelId: null })
 
 afterEach(cleanup)
 
@@ -23,19 +28,19 @@ const COPY: Record<string, string> = {
 /** Empty global standard-kit hooks (the row reads neither). */
 function emptySessions() {
   const store = createSnapshotStore<SessionListState>(
-    { ids: [], byId: {}, current: undefined, phase: 'ready', subagentsByParent: {}, jobsBySession: {}, currentAddress: undefined })
+    { ids: [], byId: {}, phase: 'ready', projectionsBySession: {} })
   return bindSnapshotSelector(store)
 }
 function emptyWorkspaces() {
   const store = createSnapshotStore<WorkspaceSnapshot>({
-    items: [], archivedSessionIds: [], state: 'idle', phase: 'ready', error: null,
+    items: [], archivedSessionIds: [], pinnedSessionIds: [], state: 'idle', phase: 'ready', error: null,
   })
   return bindSnapshotSelector(store)
 }
 
-type AttentionSnapshot = Parameters<Parameters<FontSizeRowComponentProps['useSessionPendingInteraction']>[0]>[0]
+type AttentionSnapshot = Parameters<Parameters<FontSizeRowComponentProps['useSessionStatus']>[0]>[0]
 const noAttention: AttentionSnapshot = new Map()
-const useSessionPendingInteraction: FontSizeRowComponentProps['useSessionPendingInteraction'] = selector => selector(noAttention)
+const useSessionStatus: FontSizeRowComponentProps['useSessionStatus'] = selector => selector(noAttention)
 
 function mount(fontSize = 14) {
   // Real store instance — the sanctioned zero-machinery path for tests.
@@ -44,7 +49,8 @@ function mount(fontSize = 14) {
   const setFontSize = vi.fn()
   const props: FontSizeRowComponentProps = {
     useSessions: emptySessions(),
-    useSessionPendingInteraction,
+    useSessionStatus,
+    usePanelInfo, useSessionRetainInfo: () => undefined, useResource,
     useWorkspaces: emptyWorkspaces(),
     useStore: bindSnapshotSelector(store),
     actions: store.actions,
@@ -81,11 +87,19 @@ describe('FontSizeRow', () => {
   })
 
   it('disables the outward arrow at each bound', () => {
-    mount(17)
+    const b = mount(21)
+    fireEvent.click(arrow('Increase font size'))
+    expect(b.setFontSize).toHaveBeenCalledWith(22)
+    act(() => { b.store.actions.sync(22, 1) })
+    expect(screen.getByText('22')).toBeDefined()
     expect(arrow('Increase font size').disabled).toBe(true)
     expect(arrow('Decrease font size').disabled).toBe(false)
     cleanup()
-    mount(12)
+    const c = mount(11)
+    fireEvent.click(arrow('Decrease font size'))
+    expect(c.setFontSize).toHaveBeenCalledWith(10)
+    act(() => { c.store.actions.sync(10, 1) })
+    expect(screen.getByText('10')).toBeDefined()
     expect(arrow('Increase font size').disabled).toBe(false)
     expect(arrow('Decrease font size').disabled).toBe(true)
   })

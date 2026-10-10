@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-user-approval` lets a sensitive tool action pause for a one-shot allow/reject decision: `ctx.approval.request(req)` asks the composed answerers whether one specific action may proceed and returns `allowed-once`, `rejected`, `cancelled`, or `unavailable`. Missing, non-owning, or throwing answerers fail closed to `unavailable`, and a grant applies only to the requested action. A per-session policy — `ask` (the default) or `never` — decides what happens before any answerer runs: `ask` delegates to the composed answerers, `never` rejects every request deterministically without prompting anyone. Each request is recorded in the requesting session's audit log, and the model sees only the asking consumer's tool outcome plus the current policy in the runtime-context snapshot. UI channels provide human answerers; the ACP automation bridge answers for its own agents.
+Use this package to require a one-shot decision before a sensitive tool action proceeds. The `ask` policy sends each request to the deployment's human or machine answerers; `never` rejects it without prompting. Missing or failed answerers return `unavailable`, so the action fails closed, and an approval applies only to that request. Every request and outcome is recorded in the requesting session's audit log. The model sees the resulting tool outcome and current policy, but not the human permission UI or audit events.
 
 ## Table of Contents
 
@@ -49,7 +49,7 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 
 ### Requesting a decision
 
-`request(req)` names the agent, tool, optional call id and reason, and an abort signal. It requires an open turn: an idle or between-turn caller throws before auditing anything. Aborting withdraws the question — the request settles `cancelled` and a late answer is discarded. A failure that prevents either audit append from committing rejects instead of returning an unlogged decision.
+`request(req)` names the agent, tool, optional call id and reason, and an abort signal. Optional `displayReason` supplies localized presentation text without changing the logged reason. It requires an open turn: an idle or between-turn caller throws before auditing anything. Aborting withdraws the question — the request settles `cancelled` and a late answer is discarded. A failure that prevents either audit append from committing rejects instead of returning an unlogged decision.
 
 ### What the model and user see
 
@@ -71,7 +71,6 @@ The observable behavior is covered in [Use this package](#use-this-package); thi
 |---|---|
 | [`src/index.ts`](src/index.ts) | `ApprovalService`: request dispatch, policy fold and write path, runtime-context contribution |
 | [`src/types.ts`](src/types.ts) | `ApprovalRequestId` brand and outcome types |
-| [`src/invariant.ts`](src/invariant.ts) | Invariant companion pairing `approval/asked` with `approval/decided` inside an open turn |
 
 ### Dispatch
 
@@ -83,7 +82,7 @@ The system-prompt contribution `approval:policy` states the complete current mea
 
 ### Audit
 
-`request()` appends `approval/asked` with the request identity and tool, then `approval/decided` with the closed outcome; the exact appended fields live in [`src/index.ts`](src/index.ts). Both are log-only; the invariant validates the pair by id within one open turn and the closed outcome vocabulary.
+`request()` appends `approval/asked` with the request identity and tool, then `approval/decided` with the closed outcome; the exact appended fields live in [`src/index.ts`](src/index.ts). Both are log-only.
 
 </details>
 
@@ -94,9 +93,9 @@ The system-prompt contribution `approval:policy` states the complete current mea
 
 Read these pages when the package-level contract is not enough. They move from the approval vocabulary to the consumers and the design rationale.
 
-- [Approval subsystem reference](../../../docs/subsystems/approval.md) — the shared request/outcome vocabulary and the `ctx.approval` cordis surface.
+- [Approval subsystem reference](../../../docs/subsystems/approval.md) — the shared request/outcome vocabulary and the `ctx.approval` Cordis surface.
 - [Approval seam Agent Note](../../../.agents/notes/implemented/feature/2026-07-06-approval-seam.md) — design rationale for the seam.
-- [Sandbox Agent Note](../../../.agents/notes/implemented/feature/2026-07-06-sandbox.md) — how the sandboxed bash tool consumes approvals for escalated retries.
+- [Sandbox reference](../../shell/tool-bash/README.md) — how the sandboxed bash tool consumes approvals for escalated retries.
 - [Interaction group map](../README.md) — adjacent permission preset and question packages.
 
 -----

@@ -68,7 +68,7 @@ export function formatEditOutput(displayPath: string, replaceAll: boolean): stri
 }
 
 /**
- * Register the `edit` tool and its system-prompt guidance.
+ * Register the `edit` tool and its scope-aware system-prompt guidance.
  * @param ctx - the plugin context; registrations are effects scoped to it, and execution uses its `fs` service.
  * @param sandbox - the shared sandbox-escalation API (advertisement, mode stamping, denial mapping).
  */
@@ -76,15 +76,21 @@ export function applyEditTool(ctx: Context, sandbox: FsSandboxController): void 
   ctx.systemPrompt.section({
     name: 'tool:edit',
     order: ctx.systemPrompt.getSectionOrder('TOOL_EDIT'),
-    text: 'Use the edit tool for targeted changes to existing UTF-8 text files. It replaces literal old_string with new_string; by default old_string must appear exactly once. If old_string appears multiple times, provide a more specific old_string or set replace_all to true. Read the file first (the default fs-observation-policy requires it), unless you just created or edited it in this session.',
+    text: ({ scope }) => ctx.tools.get('edit', scope) === undefined
+      ? ''
+      : 'Read a file before editing it (the default fs-observation-policy requires it), unless you just created or edited it in this session.',
   })
 
   ctx.tools.register(defineTool({
     name: 'edit',
     description: 'Edit an existing UTF-8 text file by replacing literal text.',
     parameters: {
-      file_path: { type: 'string', required: true, description: 'Path to edit, resolved by the filesystem backend.' },
-      old_string: { type: 'string', required: true, description: 'Literal text to replace. Must match exactly.' },
+      file_path: {
+        type: 'string', required: true,
+        description: 'Path to edit, resolved by the filesystem backend. '
+          + 'Provide `file_path` before `old_string` and `new_string` in the arguments.',
+      },
+      old_string: { type: 'string', required: true, description: 'Literal text to replace.' },
       new_string: { type: 'string', required: true, description: 'Literal replacement text. Use an empty string to delete the match.' },
       replace_all: { type: 'boolean', description: 'Replace all matches. Defaults to false; when false, old_string must appear exactly once.' },
       ...sandbox.escalationModes.length > 0 ? sandbox.schemaFields() : {},
@@ -113,7 +119,7 @@ export function applyEditTool(ctx: Context, sandbox: FsSandboxController): void 
       // Resolve the per-call sandbox policy (approved mode > session override
       // > backend default, plus the session cwd root) BEFORE anything executes.
       const sandboxPolicy = await sandbox.resolvePolicy('edit', args, exec)
-      const target = await ctx.fs.resolve(input.filePath, sessionResolveOptions(exec, input.filePath, sandboxPolicy?.workspaceRoot))
+      const target = await ctx.fs.resolve(input.filePath, sessionResolveOptions(exec, sandboxPolicy?.workspaceRoot))
       // Single-slot decision: the policy plugin returns { version: vObserved } or
       // throws FS_NOT_OBSERVED; the bare default is undefined (unconditional edit).
       // No stat — the bare default never manufactures a version basis. The intent

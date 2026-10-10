@@ -13,10 +13,8 @@
     { "path": "../../llm/llm" },
     { "path": "../../core/session" },
     { "path": "../../core/agent" },
-    { "path": "../../typert/protocol" },
     { "path": "../../subagent/subagent" },
     { "path": "../../session/session-persistence" },
-    { "path": "../../session/session-projection" },
-    { "path": "../../runtime-diagnostics/invariants" }
+    { "path": "../../session/session-projection" }
   ]
 }

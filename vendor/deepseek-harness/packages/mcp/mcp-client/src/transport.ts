@@ -6,14 +6,11 @@
  * @module
  */
 
-import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
+import type { Transport } from '@modelcontextprotocol/client'
+import { StdioClientTransport } from '@modelcontextprotocol/client/stdio'
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/client'
 import { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
 import type { Config } from './index.ts'
-
-/** A transport may expose a diagnostic stderr stream for its child process. */
-export type McpTransport = Transport & { stderr?: NodeJS.ReadableStream | null }
 
 /**
  * The subprocess seam's scrubbed parent env (credential-shaped and stale
@@ -31,7 +28,7 @@ function buildChildEnv(extra: Record<string, string>): Record<string, string> {
  * @param config - Resolved plugin config discriminated on `transport`.
  * @returns A connected-ready MCP Transport (stdio or Streamable HTTP).
  */
-export function createTransport(config: Config): McpTransport {
+export function createTransport(config: Config): Transport {
   switch (config.transport) {
     case 'stdio':
       return new StdioClientTransport({
@@ -39,19 +36,11 @@ export function createTransport(config: Config): McpTransport {
         args: config.args,
         env: buildChildEnv(config.env),
         cwd: config.cwd,
-        // Do not inherit MCP stderr into Electron. It is not a tool protocol
-        // stream, can surface as a transient console on Windows, and otherwise
-        // makes startup failures invisible to the application logger.
-        stderr: 'pipe',
-      }) as McpTransport
+      })
     case 'streamable-http':
-      // The MCP SDK's StreamableHTTPClientTransport has optional callback
-      // properties typed without `| undefined` (exactOptionalPropertyTypes
-      // mismatch with the Transport interface); the SDK constructed the
-      // object, so the cast records only that widening.
       return new StreamableHTTPClientTransport(
         new URL(config.url),
         { requestInit: { headers: config.headers } },
-      ) as McpTransport
+      )
   }
 }

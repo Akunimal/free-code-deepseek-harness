@@ -1,0 +1,12 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+<<<<<<<< HEAD:vendor/deepseek-harness/.agents/notes/implemented/architecture/2026-08-24-browser-token-authentication.i18n.yaml
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-24-browser-token-authentication.md
+2026-08-24-browser-token-authentication.md: cdfed1f250de6def39e386cf9fcd2e536c6c97e4
+2026-08-24-browser-token-authentication.zh.md: 29f3a6c0a2d83ed1c17b9c0bc5988c9472741f3f
+========
+#   pnpm run verify-translation-pairing --write .agents/notes/archived/bug-fix/2026-07-31-same-basename-workspace-adoption.md
+2026-07-31-same-basename-workspace-adoption.md: 2d58900917389c1f60ef2cd65ce751ef3d9326fd
+2026-07-31-same-basename-workspace-adoption.zh.md: bfc9e4def2fd76e88e47d7f06c80b864adf301e7
+>>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/.agents/notes/archived/bug-fix/2026-07-31-same-basename-workspace-adoption.i18n.yaml

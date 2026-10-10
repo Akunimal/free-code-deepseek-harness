@@ -14,6 +14,8 @@ Client Session 既维护传输窗口、连接状态和待处理交互，也在�
 
 ## 决策
 
+start 的瞬态创建入口、同 ID 多次 start 及工具准备阶段以[工具调用三阶段](2026-09-22-tool-call-three-phases.zh.md)为准；本记录的其他节点组装职责继续适用。
+
 Client Runtime 提供 target-neutral 的 Conversation Node 组装引擎，业务插件注册 Event Definition，视图插件注册 per-Session View Builder。`ui-conversation` 注册第一批内建 Definition 和 `chat` builder；Session 只负责把当前连续 `SessionEventLikeEntry` window 送入引擎并发布它的 snapshot，且不解释具体 conversation 业务。entry 的外层 discriminator 区分标准与 packed record，两者都携带字段对齐的内部 `SessionEventLike`，供 Definition dispatch。
 
 本 Note 保留实现后仍有价值的方案推导、逐业务适配、职责、算法和取舍。
@@ -263,7 +265,7 @@ Chat `order` 的结构性变化仍可能重排当前可见 key；纯 data 更新
 | Message / `input-message` | message ID | append-surface `user/message` | 无 | 根据 source 生成 context message，或读取最近 next-step Inbox 判断 user/steering |
 | Request Prompt / `request-prompt` | header Event seq | 每条 `request/header` | 无 | 通过 Reader 读取前一条 Request Prompt，保留完整 prompt 状态，并判定 system/tool 变化 |
 | Assistant / `assistant-step` | `turn:step` | `step/start` | Live `assistant/live-chunk`、持久 `assistant/message` 或 `assistant/attempt`、同 step Retry | 聚合 block、usage、首 token 时间、settlement 证据与 retry-hidden state，再发布同 key Step data |
-| Tool / `tool-call` | root call ID | root `tool/call` | root result、Code Dispatch start/result | 聚合 root、children 和 parent Map；Dispatch Event 用 `rootCallId` 精确路由 |
+| Tool / `tool-call` | root call ID | root `tool/call` | root result、PTC dispatch start/result | 聚合 root、children 和 parent Map；Dispatch Event 用 `rootCallId` 精确路由 |
 | Command / `command` | command ID | `command/run` | `command/done`、带 source command ID 的 compact lifecycle/checkpoint | 聚合 command outcome 和手动压缩证据 |
 | Automatic Compaction / `compaction` | compaction ID | 无 source command ID 的 `compaction/start` | summary、end、replacement checkpoint | 聚合 summary/checkpoint；checkpoint 足够时可在缺 start 下 fallback |
 | Retry / `model-retry` | retry ID | attempt 1 的 `llm/retry` | 后续 `llm/retry` 与 `llm/retry-started` | 聚合同一 RetryId 的 attempts 与 scheduled/started 状态 |
@@ -278,7 +280,7 @@ Chat `order` 的结构性变化仍可能重排当前可见 key；纯 data 更新
 |---|---|---|---|
 | Inbox | `none` | 不生成 Node | prepend 补前序 splice 时沿 Reader 链重算 next-step ID state；next-turn 不创建 Chat Context |
 | Message | 默认 immediate | `user`、`steering` 或 `context` | window gap 修复可让同一 message key 重新分类 |
-| Request Prompt | 默认 immediate | 每条带非空 system 字段的 header 都生成一个 `system-prompt` | Step 首条 header 锚定在请求消息之前；同 step 后续序列锚定在表层改写之后；prepend 补入前序 header 后可纠正部分窗口的锚点 |
+| Request Prompt | 默认 immediate | 初始请求、每个显式序列或真实 system 变化各生成一个非空 `system-prompt` | Step 首条 header 锚定在请求消息之前；prepend 补入前序 header 并证明 system 未变后，可隐藏此前保守渲染的 resume |
 | Assistant | scalar chunk 与 packed run 为 RAF，final immediate，纯 usage/finish 为 none | 同 key `assistant-step`，状态为 running/settled/interrupted | scalar 与 packed reducer 等价；缺 `step/start` 可先用 Matches fallback；Location close 生成中断表现 |
 | Tool | 默认 immediate | 一个递归 `tool-call` root，包含全部 `subCalls` | result-only 历史窗口可 fallback；running→settled 保持 key |
 | Command | 默认 immediate | 普通 `command` 或集成 `manual-compaction` | checkpoint 到达可改变 anchor，但不改变 Context key |
@@ -291,7 +293,7 @@ Chat `order` 的结构性变化仍可能重排当前可见 key；纯 data 更新
 
 Inbox 展示了“每条 Event 都是一个 start-only 瞬间态 Context”，不是所有业务都需要 start/update 配对。每个 next-step state 通过 Reader 与前一个同 kind Context 形成连续 fold，而非给整个 Inbox 人工制造生命周期 ID。state 自身共享不可变 pending splice 节点和一个当前 claimed-batch Set；未消费的 next-turn input 不进入 Conversation，因为 Chat 与 Trajectory 都不读取它来分类。
 
-Request Prompt 展示了如何在不共享 target State 的前提下共用纯解释逻辑：Chat 与 Trajectory 各自在自己的 Definition 中调用 `inspectRequestPrompt()`。该函数规范化完整 header，并判定面向模型的 system/tool 差异；随后每个 target 自行选择产物。Chat 会物化每条带非空 system 字段的 header，包括为显式声明的序列或表层替换后的请求重复未变 header 的 `series` 快照；Trajectory 则保留完整请求事实及其变化分类。普通的仅追加后续 Turn 不会再次写入未变 header。一个 Step 中的首条 header 遵循提供方信封，而不是 header Event 位置：step one 使用所属 Turn start，后续 step 使用各自的 Step start，把 system 字段放到该请求的 user-role 消息之前；同一 Step 的后续 header 保留在开启新序列的表层改写之后。部分窗口未包含前序 header 时，非 `initial` header 会保留在自身 Event，直到 prepend 补入该前序 header。每条 header 都是完整快照，因此已加载窗口中的首条 `resume`、`change` 或 `series` header 无需凭空构造与未加载历史的比较，也能渲染其 system 字段。
+Request Prompt 展示了如何在不共享 target State 的前提下共用纯解释逻辑：Chat 与 Trajectory 各自在自己的 Definition 中调用 `inspectRequestPrompt()`。该函数规范化完整 header，并判定面向模型的 system/tool 差异；随后每个 target 自行选择产物。Chat 会物化非空的初始 system 字段、真实 system 变化，以及每个显式开启消息序列或紧随表层替换的 `series` 快照。即使 system 文本未变化，resume header 仍保留 Chat prompt 卡片。普通的仅追加后续 Turn 不会再次写入未变 header。一个 Step 中的首条 header 遵循提供方信封，而不是 header Event 位置：step one 使用所属 Turn start，后续 step 使用各自的 Step start，把 system 字段放到该请求的 user-role 消息之前；同一 Step 的后续 header 保留在开启新序列的表层改写之后。部分窗口未包含前序 header 时，非 `initial` header 会保留在自身 Event 并保守渲染。prepend 补入相同的前序 header 后，内容未变的 `change` header 可以隐藏，但不撤回其稳定 Node key；resume 和显式序列起点的卡片仍然可见。每条 header 都是完整快照，因此已加载窗口中的首条 `resume`、`change` 或 `series` header 无需凭空构造与未加载历史的比较，也能渲染其 system 字段（[request-prompt Definition](../../../../packages/client/ui-chat/src/client/conversation-nodes/request-prompt.ts)）。
 
 Retry、Assistant 和 Turn Tail 展示了同一 Event 被多个 Definition 独立认领。每个 Definition 只更新自己的 State，最终分别生成原子 Chat Node。
 
@@ -315,7 +317,7 @@ Session binding 可用、缓存的 binding 成为 current 或 View roster 变化
 
 普通 prepend 与 append flush 只对 active target 调用 `apply({ upserts, timeline })`。完整 window replace 与 Registry rebuild 只对 active target 调用 `replace()`。取消订阅不会移除 target，因此返回已打开的 View 不会重建。
 
-[`ChatSnapshotBuilder`](../../../../packages/client/ui-chat/src/client/conversation-nodes/chat-snapshot-builder.ts) 维护 `order`、带身份稳定 Node 与 Turn-process source 的 keyed `nodes` store、turn/step `locations` index、`timeline`，以及由 StatsLine 使用并镜像到顶层公共兼容字段的 `legacy` slice。
+[`ChatSnapshotBuilder`](../../../../packages/client/ui-chat/src/client/conversation-nodes/chat-snapshot-builder.ts) 维护 `order`、带身份稳定 Node 与 Turn-process source 的 keyed `nodes` store、turn/step `locations` index、`timeline`，以及由 StatsPills 使用并镜像到顶层公共兼容字段的 `legacy` slice。
 
 Chat 结构变化只由新 key、`anchorSeq`、visibility 或 Location identity 变化触发。普通内容变化不重建 `order`；keyed Node store 只替换该 key 的 value 并发布其 source。Turn-process projector 仅为结构、规格或状态发生变化的 Turn 重算跨 Node 呈现，再只发布该 Turn 的 process source。
 
@@ -335,11 +337,11 @@ Assistant streaming 到 final、Tool running 到 settled 始终留在同一个 S
 
 业务主动把已发布 Node 改成 hidden 时，它会退出 visible order，恢复 visible 时会重新 mount。这是明确的业务撤显语义，与 running→settled 的稳定 Seat 保证不同。
 
-具体 Tool renderer 仍由 [`ui-tool ownership decision`](2026-08-08-client-tool-presentation-ownership.zh.md) 约束。Tool Definition 只交付递归 root/subcall data，`ui-tool` 再按 Tool name keyed slot 分发具体表现。
+具体 Tool renderer 仍由 [`ui-tool ownership decision`](../../archived/architecture/2026-08-08-client-tool-presentation-ownership.md) 约束。Tool Definition 只交付递归 root/subcall data，`ui-tool` 再按 Tool name keyed slot 分发具体表现。
 
 Trajectory 针对与 Chat 相同的 Assembler 和 `SessionEventLikeEntry` window 注册自己的 target 与业务 Definition。它的 target builder 保留 stage-oriented read model，既不消费 Chat Builder 的 legacy slice，也不运行独立 history fold。Chat 与 Trajectory 分别维护独立的 scalar 和 packed Assistant reducer；target 专属 Definition 不改变共享的 Context、Reader 或 Location 契约。
 
-target 专属 Trajectory Definition、保留的 stage model、Steering 适配、复杂度上界与表现层热点由 [Trajectory Context 组装决策](2026-08-11-trajectory-conversation-context-assembly.zh.md)负责。
+target 专属 Trajectory Definition、保留的 stage model、Steering 适配、复杂度上界与表现层热点由 [Trajectory Context 组装决策](../../archived/architecture/2026-08-11-trajectory-conversation-context-assembly.md)负责。
 
 ## 运行时与渲染链路
 
@@ -360,7 +362,7 @@ SessionEventLike window
 
 Runtime tests 固定 Definition 生命周期注册、exact-ID append、update-before-start 收集与 start 后正序 replay、prepend identity、Reader window-gap 修复、传递依赖、Location closure、Step→Turn data phase order、Location data replacement、publication cadence、非法撤回、首次订阅 activation、单调 active target 和 per-target Builder。
 
-Conversation tests 覆盖全部内建 Chat Definition、Assistant Step data、Turn Tail 与 Deliverables Turn data、Chat 排序和结构共享、selector isolation、Assistant/Tool running-to-settled identity、nested Code Dispatch、steering、Compaction、Retry、interruption、load-older anchoring 和 slot dispatch。Trajectory tests 则覆盖它独立注册的 Message、Assistant、Tool、Compaction、Request-header 与 boundary Definition，以及继续保留的 stage-oriented view model。
+Conversation tests 覆盖全部内建 Chat Definition、Assistant Step data、Turn Tail 与 Deliverables Turn data、Chat 排序和结构共享、selector isolation、Assistant/Tool running-to-settled identity、nested PTC dispatch、steering、Compaction、Retry、interruption、load-older anchoring 和 slot dispatch。Trajectory tests 则覆盖它独立注册的 Message、Assistant、Tool、Compaction、Request-header 与 boundary Definition，以及继续保留的 stage-oriented view model。
 
 Slot type/runtime tests 固定父注册必须提供声明的 common inject、`hookContext` 类型、不同 Node context 的 Hook 隔离、factory/Hook identity 稳定，以及无关 Session publication 不重渲染业务 renderer。原 entry-owned Observable Hook 测试继续固定未使用 contextual factory 的路径。
 
@@ -424,4 +426,4 @@ Inbox Context 的保留量随 splice 数和已 claim 消息数增长，不再随
 
 代价是 Runtime 新增 Registry、Assembler、Location data、依赖重放和 per-target Builder 契约，UI Slots 也新增 parent-owned common inject 与 per-occurrence `hookContext`。消费 Assistant delta 的 Definition 还需要维护等价的 scalar 与 packed update 分支。Definition 作者必须理解稳定 ID、唯一 scalar start、正序 replay、Step→Turn 发布顺序、只读 Reader 和 Node 不撤回规则。
 
-`useTurnData()` 不撤销 session-scoped renderer 的标准 `useSession`，因此该边界依靠 API 引导和测试，而不是能力隔离。Registry 变化仍是低频完整 rebuild；Chat Builder 继续为 StatsLine 和顶层公共字段维护 legacy slice，Trajectory 则在共享 Session 窗口上拥有 target 专属 Definition 与 Builder。内建 Definition 分别留在所属 UI package；这些兼容边界不把业务解释权交还给 Session。
+`useTurnData()` 不撤销 session-scoped renderer 的标准 `useSession`，因此该边界依靠 API 引导和测试，而不是能力隔离。Registry 变化仍是低频完整 rebuild；Chat Builder 继续为 StatsPills 和顶层公共字段维护 legacy slice，Trajectory 则在共享 Session 窗口上拥有 target 专属 Definition 与 Builder。内建 Definition 分别留在所属 UI package；这些兼容边界不把业务解释权交还给 Session。

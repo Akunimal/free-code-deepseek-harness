@@ -20,7 +20,7 @@ Default mode, active Plan Mode, and an active goal share ordinary queue, follow-
 
 - **Store uploads in the project root** (the OpenHands / ChatGPT `/mnt/data` shape). Rejected: files in the user's tree can be edited, moved, or deleted, which breaks the session log's stable reference, pollutes `git status`, and requires a workspace to exist. `DSH_HOME` keeps frozen read-only bytes with content addressing; execution-world visibility is served by the projected path and can gain a copy-into-workspace step later.
 - **A dedicated `read_file` tool.** Rejected: the handle line points at an ordinary path, so the existing `read` tool (and the model's other file tools) already covers it; a second read tool would split model behavior without adding capability.
-- **Eager content injection into the prompt.** Rejected for files exactly as it was for `@` mentions ([web file references](2026-07-27-web-file-and-session-references.md)): relevance is unknown at attach time, and lazy tool reads keep every content access logged.
+- **Eager content injection into the prompt.** Rejected for files exactly as it was for `@` mentions ([web file references](../../archived/feature/2026-07-27-web-file-and-session-references.md)): relevance is unknown at attach time, and lazy tool reads keep every content access logged.
 - **Type whitelist and size caps.** Rejected for now: DeepSeek Chat's whitelist exists because its server parses uploads, while this harness only stores bytes and lets the model read them. The streaming carrier and store keep memory proportional to bounded chunks, so a cap would govern disk and transfer policy rather than request safety.
 - **A new attachment/file session event.** Rejected: the block-inside-`user/message` pattern images already use satisfies model-visible ⟺ logged without widening the event vocabulary.
 - **Block every command while attachments are present.** Rejected: `/goal` objectives and `/plan` entry need reference files, so a global refusal would leave those files with no command route to the model.
@@ -48,3 +48,9 @@ Default mode, active Plan Mode, and an active goal share ordinary queue, follow-
 ## Testing
 
 Unit and integration coverage pins verbatim and streamed storage, name sanitization, a declared 2.19 GiB request passing through the streaming bridge without aggregate buffering, raw and RPC wire admission, Blob and transferable `ReadableStream` carriers, bounded background-upload concurrency, progress and cancellation, cross-Session upload residency, command file-receipt submission without a second byte read, native and PTC projection under read-only and workspace-write permissions, upload staging, ordered queue and steer submission, queue-to-steer conversion, pending echo retirement and failure recovery, active plan and goal intake, `/plan` and `/goal` mixed attachments, subagent refusal, composer and Chat attachment layouts, and Trajectory file summaries. The keyless `file-upload-round` snapshot records the browser upload, model file read, and rendered answer.
+
+## Related
+
+The [Trajectory reference](../../../../packages/client/ui-trajectory/README.md) documents ledger counts and inspector attachment layouts.
+
+The [input echo admission reference](../../../../packages/api/session-controller/README.md) owns placement-specific retirement and delayed Inbox suppression for submissions with or without attachments.

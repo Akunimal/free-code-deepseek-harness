@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-tool-fs` 提供面向模型的文件系统工具——`read`、`read_image`、`write` 与 `edit`——及其执行器。借助它们，模型可以带行号读取文件、原子地创建或替换文件，并执行有针对性的字面量编辑；结果都有上限，失败携带稳定错误码与恢复指令，所有文件操作都运行在已挂载的 `ctx.fs` 后端之上。编辑前读取策略位于独立插件（`dsh-fs-observation-policy`）中，因此省略它只会得到无条件、依然原子的变更。`read_image` 在持久附件存储已挂载时出现，并且只在路由模型声明图片输入时允许执行。当模型需要读取、创建、替换或编辑 UTF-8 文本文件时选择本包；发现工具（`glob`/`grep`）在同级包中。
+使用 `dsh-tool-fs` 可让模型带行号读取 UTF-8 文件、读取受支持的图片、创建或原子地替换文件，以及执行有针对性的字面量编辑。结果都有上限，失败会提供稳定错误码与恢复指令。当写入和编辑必须在成功读取后执行时，请添加 `dsh-fs-observation-policy`；省略它时，变更仍是原子的，但不受此条件约束。图片读取需要持久附件存储和支持图片输入的路由模型。glob 或 grep 搜索请选择同级的发现工具包。
 
 ## 目录
 
@@ -48,7 +48,7 @@ kind: "package-reference"
 | `write` | `file_path`、`content` | 创建或完整替换文件；有策略插件时，覆盖要求先在未变版本上执行 `read`，创建不需要 |
 | `edit` | `file_path`、`old_string`、`new_string`、`replace_all?` | 字面量替换，除非 `replace_all` 为 true 否则要求唯一匹配；有策略插件时，要求先执行 `read` 且文件未变 |
 
-字段名使用 snake_case，与 Claude Code 和现有 harness 工具 schema 一致。成功返回紧凑信封——读取窗口、图像引用或 `Created file`/`Updated file` 确认——`write`/`edit` 还会派生可回放的 diff 卡片元数据供 UI 展示。
+字段名使用 snake_case，与 Claude Code 和现有 harness 工具 schema 一致。`write` 和 `edit` 的路径描述要求模型先输出 `file_path`，再输出内容或替换字符串；这用于引导流式展示，不强制 JSON 成员顺序。成功返回紧凑信封——读取窗口、图像引用或 `Created file`/`Updated file` 确认——`write`/`edit` 还会派生可回放的 diff 卡片元数据供 UI 展示。
 
 ### 配置
 
@@ -67,7 +67,7 @@ kind: "package-reference"
 
 `read` 与 `read_image` 的路径授权完全由 `ctx.fs` 负责；媒体类型声明和文件签名只决定 `read_image` 是否接受该后端返回的字节。
 
-挂载策略插件后，`write` 与 `edit` 从 `fs/*` 意图槽位取得防护，因此未读目标或陈旧观察会以 `FS_NOT_OBSERVED` 或 `FS_STALE_VERSION` 及恢复指令失败。使用施加沙箱限制的后端（`fs-sandbox`）时，`write`/`edit` 还会公开 `sandbox_permissions` 与 `justification`；被拒绝的变更返回 `[sandbox: file access denied under <mode> mode]` 标记与同轮次升级提示，获批的重试可以在该次调用中加盖严格更宽的模式。
+挂载策略插件后，`write` 与 `edit` 从 `fs/*` 意图槽位取得防护，因此未读目标或陈旧观察会以 `FS_NOT_OBSERVED` 或 `FS_STALE_VERSION` 及恢复指令失败。使用施加沙箱限制的后端（`fs-sandbox`）时，`write`/`edit` 还会公开 `sandbox_permissions` 与 `justification`；被拒绝的变更返回 `[sandbox: file access denied under <mode> mode]` 标记与同轮次升级提示，获批的重试可以在该次调用中加盖严格更宽的模式。理由字段提示模型使用用户当前提问的语言。
 
 ### 失败与恢复
 
@@ -133,33 +133,33 @@ kind: "package-reference"
 
 #### 模型看到的内容
 
-该插件注册作用域内的每个请求都会收到下方独立注册的 read、write 与 edit 指导。作用域工具限制可以隐藏 schema，而不移除这些段。
+组装时，每个指导段落通过 `ctx.tools.get(name, scope)` 检查对应工具，仅在该 agent 可见时输出。write 段落仅在 edit 可见时推荐 edit。三个工具都可用时，下方原文保持不变；限制的施加、解除和工具注册变化在下次组装时生效。同一检查适用于直接限制 agent 和 subagent 的 `toolFilter`，也适用于通过 `run_code` 暴露的 PTC 能力。 write/edit 中的先读后改句子描述观察策略，并非要求调用名为 `read` 的工具。隐藏 `read` 时仍保留这些句子：策略继续保护修改操作，其他产生观察记录的操作（例如 `str_replace_editor` 的 `command: view`）也能建立同一文件观察记录。工具可见性不会禁用该前置条件。
 
 ##### Read 指导
 
 ```markdown
-Use the read tool — not shell commands like cat — to inspect text files. Results include line numbers. Use offset and limit to continue reading large files.
+Use the read tool — not shell commands like cat — to inspect text files. Use offset and limit to continue reading large files.
 ```
 
 ##### Write 指导
 
 ```markdown
-Use the write tool to create files or completely replace file contents. Existing files are overwritten, so read an existing file first (the default fs-observation-policy requires it) and prefer edit for targeted changes.
+Read an existing file before overwriting it with write (the default fs-observation-policy requires it) and prefer edit for targeted changes.
 ```
 
 ##### Edit 指导
 
 ```markdown
-Use the edit tool for targeted changes to existing UTF-8 text files. It replaces literal old_string with new_string; by default old_string must appear exactly once. If old_string appears multiple times, provide a more specific old_string or set replace_all to true. Read the file first (the default fs-observation-policy requires it), unless you just created or edited it in this session.
+Read a file before editing it (the default fs-observation-policy requires it), unless you just created or edited it in this session.
 ```
 
 #### Token 影响
 
-插件启用期间，每个请求支付固定指导成本；即使限制隐藏了一个或多个工具也一样。
+指导成本取决于可见工具及其适用的跨工具推荐。
 
 #### KV Cache 影响
 
-只要插件作用域和指导文本不变，前缀就保持稳定。工具限制不会移除该段，但插件启用或 dispose（资源释放）可能从该段开始使复用失效。
+可见工具集合、插件作用域和指导文本不变时，前缀保持稳定。限制或插件生命周期变化可能从首个变化的段落开始使复用失效。
 
 ### 工具 schema
 
@@ -255,5 +255,3 @@ Use the edit tool for targeted changes to existing UTF-8 text files. It replaces
 无。
 
 </details>
-
-**运行时不变式：** 不发布伴生入口。这个模型侧 adapter 没有独立 lifecycle stream；执行关系由它调用的 capability seam 负责。

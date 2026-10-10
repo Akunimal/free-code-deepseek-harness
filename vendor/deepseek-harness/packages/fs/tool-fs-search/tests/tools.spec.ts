@@ -12,8 +12,10 @@
 
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
+import { createScope, type Scope } from '@deepseek-ai/dsh-scope'
 import { join, sep } from 'node:path'
 import { createUserMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
+import type { ContextFormed } from '@deepseek-ai/dsh-llm'
 import SystemPrompt, { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { TOOL_ABORTED_BEFORE_DISPATCH, type ToolExecution, type ToolExecutionToken } from '@deepseek-ai/dsh-tools'
 import { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
@@ -38,6 +40,12 @@ import {
   sampleAcrossTopLevel,
   toWorkdirRelative,
 } from '@deepseek-ai/dsh-tool-fs-search'
+
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    'test': { kind: 'test' } & ContextFormed
+  }
+}
 
 const testToolSignal = new AbortController().signal
 
@@ -96,7 +104,7 @@ class FakeReader implements SubprocessOutputReader {
  * abort→terminate escalation.
  */
 class FakeHandle implements SubprocessHandle {
-  readonly pid = 4242
+  readonly control = undefined
   readonly stdin = undefined
   readonly stdout = undefined
   readonly stderr = undefined
@@ -147,6 +155,7 @@ class FakeHandle implements SubprocessHandle {
  * assert on the exact spawn specs and settled handles.
  */
 class FakeSubprocess extends SubprocessRuntime {
+  async terminalEnvironment() { return { platform: 'posix' as const } }
   spawns: SubprocessSpawnSpec[] = []
   override async resolveExecutable(command: string): Promise<string> { return command }
   override spawnTerminal(): Promise<never> { throw new Error('search tools spawn pipes, never terminals') }
@@ -241,8 +250,6 @@ describe('registration', () => {
     const prompt = renderPrompt(await ctx.systemPrompt.assemble())
     expect(prompt).toContain('Use the glob tool')
     expect(prompt).toContain('Use the grep tool')
-    expect(prompt).toContain('sampled across top-level entries')
-    expect(prompt).not.toContain('sampled across top-level directories')
     const glob = ctx.tools.schemas().find(schema => schema.name === 'glob')
     expect(glob?.description).toContain('sampled across top-level entries')
   })
@@ -279,11 +286,8 @@ describe('registration', () => {
 
   it('describes the modification-time head when over-cap sampling is disabled', async () => {
     const { ctx } = await setup({ config: { sampleOverCapGlobResults: false } })
-    const prompt = renderPrompt(await ctx.systemPrompt.assemble())
-    expect(prompt).toContain('a larger one keeps the modification-time-ordered head')
-    expect(prompt).not.toContain('sampled across top-level entries')
     const glob = ctx.tools.schemas().find(schema => schema.name === 'glob')
-    expect(glob?.description).toContain('a larger result returns the first 100 paths in modification-time order')
+    expect(glob?.description).toContain('Returns up to 100 paths in modification-time order; a larger result keeps the first paths')
     expect(glob?.description).not.toContain('sampled across top-level entries')
   })
 })
@@ -472,10 +476,9 @@ describe('workdir derivation and signal forwarding', () => {
       .toMatchObject({ name: 'SearchError', code: 'SEARCH_ABORTED' })
   })
 
-  it('translates a spawn rejection into SEARCH_FAILED even when the signal aborts concurrently', async () => {
-    // The seam rejects only for infrastructure failures (unusable workdir,
-    // missing binary); the abort happened after dispatch, so the launch
-    // failure is the reportable cause with the original error chained.
+  it('translates a provider rejection without claiming the search command never started', async () => {
+    // The public seam does not expose whether a done rejection happened before
+    // or after target execution; the original provider error remains chained.
     const { ctx, subprocess } = await setup()
     const controller = new AbortController()
     subprocess.handler = () => {
@@ -487,7 +490,8 @@ describe('workdir derivation and signal forwarding', () => {
 
     expect(result.isError).toBe(true)
     expect(result.error).toMatchObject({ info: { name: 'SearchError', code: 'SEARCH_FAILED' } })
-    expect(text(result)).toContain('could not start')
+    expect(text(result)).toContain('subprocess failed before reporting an outcome')
+    expect(text(result)).not.toContain('could not start')
   })
 
   it('classifies a synchronous spawn-creation throw as SEARCH_FAILED', async () => {
@@ -763,7 +767,7 @@ describe('glob results', () => {
     ctx.on('tools/post-execute', async () => ({
       kind: 'accept',
       additionalContexts: [createUserMessage({
-        content: [{ type: 'text', text: 'glob context' }], source: { kind: 'plugin', plugin: 'test' },
+        content: [{ type: 'text', text: 'glob context' }], source: { kind: 'test' },
       })],
     }))
     subprocess.handler = () => runResult('a.ts\nb.ts\nc.ts\nd.ts\n')
@@ -779,7 +783,8 @@ describe('glob results', () => {
       suggestedName: 'glob-results.txt',
       content: 'a.ts\nb.ts\nc.ts\nd.ts',
     })
-    expect(spill?.saves[0]?.source.callId).toBeDefined()
+    const source = spill?.saves[0]?.source
+    expect(source?.kind === 'tool' && source.callId).toBeTypeOf('string')
     expect(result.additionalContexts?.[0]?.content).toEqual([{ type: 'text', text: 'glob context' }])
   })
 
@@ -974,7 +979,7 @@ describe('grep results', () => {
     ctx.on('tools/post-execute', async () => ({
       kind: 'accept',
       additionalContexts: [createUserMessage({
-        content: [{ type: 'text', text: 'grep context' }], source: { kind: 'plugin', plugin: 'test' },
+        content: [{ type: 'text', text: 'grep context' }], source: { kind: 'test' },
       })],
     }))
     subprocess.handler = () => runResult([
@@ -1207,3 +1212,58 @@ describe('helpers', () => {
     expect(grouped).toBe('b.ts\nLine 2: x\nLine 5: z\n\na.ts\nLine 1: y')
   })
 })
+
+/** Create a real per-agent scope over the mounted tool plugins. */
+async function guidanceScope(ctx: Context) {
+  const key = {}
+  let scope!: Scope
+  await ctx.plugin(Object.assign((inner: Context) => { scope = createScope(inner, key) },
+    { inject: ['tools', 'systemPrompt'] }))
+  return { key, scope }
+}
+
+const originalSearchGuidance = {
+  glob: 'Use the glob tool — not shell find — to discover files by path pattern.',
+  grep: 'Use the grep tool — not shell grep or rg — to search file contents. Use read on a matched file when you need surrounding context.',
+}
+
+describe('scope-aware search guidance', () => {
+  it.each([[], ['glob'], ['grep'], ['glob', 'grep']].map(allow => ({ allow })))('renders only visible search guidance: $allow', async ({ allow }) => {
+    const { ctx } = await setup()
+    const { key, scope } = await guidanceScope(ctx)
+    scope.ctx.tools.restrict({ allow })
+    try {
+      const assembly = await ctx.systemPrompt.assemble({ scope: key })
+      expect(assembly.tools.map(tool => tool.name)).toEqual([...allow].sort())
+      expect(renderPrompt(assembly)).toBe(withPersona(...allow.map(name => name === 'glob'
+        ? originalSearchGuidance.glob
+        : originalSearchGuidance.grep.replace(' Use read on a matched file when you need surrounding context.', ''))))
+    } finally {
+      await scope.dispose()
+    }
+  })
+
+  it('reuses the unchanged grep paragraph when read is visible', async () => {
+    const { ctx } = await setup()
+    ctx.tools.register({
+      name: 'read', description: 'read fixture', parameters: {},
+      output: { schema: { type: 'string' }, render: () => [{ type: 'text', text: '' }] },
+      execute: () => Promise.resolve(''),
+    })
+    const { key, scope } = await guidanceScope(ctx)
+    try {
+      expect(renderPrompt(await ctx.systemPrompt.assemble({ scope: key })))
+        .toBe(withPersona(originalSearchGuidance.glob, originalSearchGuidance.grep))
+      scope.ctx.tools.restrict({ deny: ['read'] })
+      expect(renderPrompt(await ctx.systemPrompt.assemble({ scope: key })))
+        .toBe(withPersona(originalSearchGuidance.glob, originalSearchGuidance.grep.split(' Use read')[0]!))
+    } finally {
+      await scope.dispose()
+    }
+  })
+})
+
+/** Preserve the default persona and exact section separators in the oracle. */
+function withPersona(...sections: string[]): string {
+  return ['You are an AI agent powered by DeepSeek Harness.', ...sections].join('\n\n')
+}

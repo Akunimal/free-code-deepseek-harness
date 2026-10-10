@@ -21,6 +21,7 @@
  * other import. Deferring a shim's own start-up cost therefore belongs inside
  * that shim, on the path that first needs it.
  */
+import * as nodeAssertStrict from './builtin_modules/implemented/assert/strict.ts'
 import * as nodeAsyncHooks from './builtin_modules/implemented/async_hooks.ts'
 import * as nodeBuffer from './builtin_modules/implemented/buffer.ts'
 import * as nodeCrypto from './builtin_modules/implemented/crypto.ts'
@@ -34,6 +35,7 @@ import * as nodeOs from './builtin_modules/implemented/os.ts'
 import * as nodePath from './builtin_modules/implemented/path.ts'
 import * as nodePerfHooks from './builtin_modules/implemented/perf_hooks.ts'
 import * as nodeStream from './builtin_modules/implemented/stream.ts'
+import * as nodeStreamPromises from './builtin_modules/implemented/stream/promises.ts'
 import * as nodeTimersPromises from './builtin_modules/implemented/timers/promises.ts'
 import * as nodeTty from './builtin_modules/implemented/tty.ts'
 import * as nodeUrl from './builtin_modules/implemented/url.ts'
@@ -45,9 +47,12 @@ import * as nodeNet from './builtin_modules/mock/net.ts'
 import * as nodeSqlite from './builtin_modules/mock/sqlite.ts'
 import * as nodeVm from './builtin_modules/mock/vm.ts'
 import * as nodeWorkerThreads from './builtin_modules/mock/worker_threads.ts'
-import * as fsExt from './external_packages/fs-ext.ts'
+import * as systemFlock from './external_packages/node-addon-system-flock.ts'
 import * as koffi from './external_packages/koffi.ts'
+import * as libreofficeKit from './external_packages/libreoffice-kit.ts'
 import * as nodePty from './external_packages/node-pty.ts'
+import * as execa from './external_packages/execa.ts'
+import * as got from './external_packages/got.ts'
 import * as piAi from './external_packages/pi-ai.ts'
 import * as ripgrep from './external_packages/ripgrep.ts'
 import * as sharp from './external_packages/sharp.ts'
@@ -57,6 +62,7 @@ import type { StaticModuleFactory } from '../module-system/module-loader.ts'
 
 /** Builtin modules, keyed with and without the `node:` prefix. */
 const BUILTINS: Record<string, StaticModuleFactory> = {
+  'assert/strict': () => nodeAssertStrict,
   async_hooks: () => nodeAsyncHooks,
   buffer: () => nodeBuffer,
   child_process: () => nodeChildProcess,
@@ -74,6 +80,7 @@ const BUILTINS: Record<string, StaticModuleFactory> = {
   perf_hooks: () => nodePerfHooks,
   sqlite: () => nodeSqlite,
   stream: () => nodeStream,
+  'stream/promises': () => nodeStreamPromises,
   'timers/promises': () => nodeTimersPromises,
   tty: () => nodeTty,
   url: () => nodeUrl,
@@ -84,12 +91,15 @@ const BUILTINS: Record<string, StaticModuleFactory> = {
   zlib: () => nodeZlib,
 }
 
-/** External npm packages replaced wholesale (structural not-implemented stubs and fakes). */
+/** Exact package or subpath specifiers served by worker stubs and fakes. */
 const EXTERNALS: Record<string, StaticModuleFactory> = {
-  'fs-ext': () => fsExt,
+  '@deepseek-ai/libreoffice-kit': () => libreofficeKit,
+  '@deepseek-ai/node-addon-system/flock': () => systemFlock,
   'koffi': () => koffi,
   'sharp': () => sharp,
   'node-pty': () => nodePty,
+  'execa': () => execa,
+  'got': () => got,
   'ws': () => ws,
   '@vscode/ripgrep': () => ripgrep,
   '@earendil-works/pi-ai': () => piAi,

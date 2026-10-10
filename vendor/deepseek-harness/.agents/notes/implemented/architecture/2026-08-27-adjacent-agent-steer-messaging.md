@@ -6,7 +6,7 @@ English | [中文](2026-08-27-adjacent-agent-steer-messaging.zh.md)
 
 ## Problem
 
-Continuable Agents originally used direction-specific model controls. A parent called `send_message({ subagent_id, message })`, which delegated to a FIFO `followup` service operation. A child instead received a child-scoped `report({ output })` tool, a `tool:report` system-prompt section, and deployment-selected quiet or waking delivery. The tools described one adjacent-Agent operation through different schemas, service paths, provenance, and scheduling.
+Continuable Agents originally used direction-specific model controls. A parent called `send_message({ subagent_id, message })`, which delegated to a FIFO `followup` service operation. A child instead received a child-scoped `report({ output })` tool, a `tool:report` system-prompt section, and deployment-selected quiet or waking delivery. The tools described one adjacent-Agent operation through different schemas, service paths, source attribution, and scheduling.
 
 A continuable child owns its own Session, so its parent does not automatically receive the child's transcript, tool output, or reasoning. The return path must therefore remain explicit and repeatable: a child may send progress before it finishes, remain available after sending, or fail before it can cooperate. Turning every final assistant message into an implicit result would conflate turn completion with model-selected communication and would not cover abnormal endings.
 
@@ -79,4 +79,4 @@ The standalone `@deepseek-ai/dsh-tool-subagent-report` package, `report` schema,
 - The initial task carries JSON-encoded dynamic parent addressing after a fork prefix, while the request-head system prompt and tool ordering remain reusable.
 - Human prompts, settlement notices, QueueDock, and the base bundle's one-shot fork policy remain separate decisions.
 
-This decision consolidates and removes the fully superseded report-tool and child-report-obligation records. It supersedes the `followup` naming choice in [Intent-named subagent continuation operations](../simplification/2026-07-27-intent-named-subagent-continuation-operations.md) and retains the accepted-order guarantee in [Child Agent messages precede their settlement notices](../bug-fix/2026-08-17-subagent-message-settlement-ordering.md).
+This decision consolidates and removes the fully superseded report-tool and child-report-obligation records. It supersedes the `followup` naming choice in [Intent-named subagent continuation operations](../../archived/simplification/2026-07-27-intent-named-subagent-continuation-operations.md) and retains the accepted-order guarantee in [Child Agent messages precede their settlement notices](../../../../packages/subagent/subagent/README.md).

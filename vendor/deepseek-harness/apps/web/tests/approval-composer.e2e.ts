@@ -17,7 +17,7 @@ import {
 import { connectFreshWorkspace, newEnglishPage, saveFailureShot } from './support.ts'
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('../../../snapshots/web/approval-composer', import.meta.url))
-const FIXTURE = join(SNAPSHOT_DIR, 'session.v2.jsonl')
+const FIXTURE = join(SNAPSHOT_DIR, 'session.v3.jsonl')
 // The golden covers the stable waiting panel; direct assertions cover its answer.
 const UI_EXPECTED = join(SNAPSHOT_DIR, 'ui.expected.md')
 const MODE = webSnapshotMode()
@@ -30,7 +30,7 @@ const PROMPT = `Write a file named notes.txt in the workspace containing exactly
 /** Draft used to measure the composer's own text cap: enough lines to pass it. */
 const CAP_PROBE = Array.from({ length: 40 }, (_, index) => `line ${index}`).join('\n')
 
-describe('web e2e: approval takeover keeps its actions reachable', () => {
+describe.each(MODE === 'record' ? ['button'] as const : ['button', 'keyboard'] as const)('web e2e: approval takeover through %s', (method) => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page
@@ -119,7 +119,11 @@ describe('web e2e: approval takeover keeps its actions reachable', () => {
       await page.setViewportSize(original)
     }
 
-    await panel.getByRole('button', { name: 'Allow once' }).click()
+    if (method === 'button') await panel.getByRole('button', { name: 'Allow once' }).click()
+    else {
+      await scroll.focus()
+      await page.keyboard.press('Enter')
+    }
 
     const sessionId = await settled
     if (MODE === 'record') {
@@ -142,6 +146,6 @@ describe('web e2e: approval takeover keeps its actions reachable', () => {
   }, 300_000)
 
   it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {
-    await assertFixtureInventory(SNAPSHOT_DIR, ['session.v2.jsonl', 'ui.expected.md', 'workspace.expected'])
+    await assertFixtureInventory(SNAPSHOT_DIR, ['session.v3.jsonl', 'ui.expected.md', 'workspace.expected'])
   })
 })

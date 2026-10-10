@@ -1,7 +1,7 @@
 /**
  * The `read_image` tool over the REAL local filesystem and attachment store:
  * extension routing, extension-less content sniffing (attachment object paths
- * included), the vision/OCR route gate, durable
+ * included), the strict image-modality gate (every refusal arm), durable
  * commit + image-block rendering, attachment admission failures, and the
  * regression that `read` keeps its text-only contract.
  */
@@ -11,9 +11,9 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
-import { CodeRuntime } from '@deepseek-ai/dsh-code-runtime'
-import type { CodeRunRequest, CodeRunResult } from '@deepseek-ai/dsh-code-runtime'
-import { ToolCallId, LlmAdapter, LlmRuntime, setOcrRunnerForTests } from '@deepseek-ai/dsh-llm'
+import { PtcRuntime } from '@deepseek-ai/dsh-ptc-runtime'
+import type { PtcRunRequest, PtcRunResult } from '@deepseek-ai/dsh-ptc-runtime'
+import { ToolCallId, LlmAdapter, LlmRuntime } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, LlmModelInfo, LlmResolvedModelInfo, Message, StreamChunk } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { RUN_CODE_NAME } from '@deepseek-ai/dsh-tools'
@@ -70,12 +70,14 @@ class CatalogAdapter extends LlmAdapter {
 }
 
 /** In-process PTC mode seam fake that invokes the real registry bindings. */
-class FakeRuntime extends CodeRuntime {
+class FakeRuntime extends PtcRuntime {
+  resolve(request: import('@deepseek-ai/dsh-ptc-runtime').PtcRunRequest): import('@deepseek-ai/dsh-ptc-runtime').PtcRunSpec { return { ...request, cwd: request.cwd ?? process.cwd(), timeoutMs: request.timeoutMs ?? 120_000 } }
+
   readonly language = 'typescript'
   readonly isolation = 'fake'
-  behavior: (request: CodeRunRequest) => Promise<CodeRunResult> = () => Promise.resolve({ logs: [] })
+  behavior: (request: PtcRunRequest) => Promise<PtcRunResult> = () => Promise.resolve({ logs: [] })
 
-  run(request: CodeRunRequest): Promise<CodeRunResult> {
+  run(request: PtcRunRequest): Promise<PtcRunResult> {
     return this.behavior(request)
   }
 }
@@ -288,7 +290,7 @@ describe('read_image happy path', () => {
   it('forwards a nested PTC mode image through the outer run_code context', async () => {
     await writeFile(join(dir, 'red.png'), PNG_1X1)
     const ctx = await setup({ toolMode: 'ptc' })
-    const runtime = ctx.codeRuntime as FakeRuntime
+    const runtime = ctx.ptcRuntime as FakeRuntime
     runtime.behavior = async (request) => {
       const value = await request.bindings[0]!.functions.read_image!({ file_path: 'red.png' })
       return { logs: [], value }
@@ -450,7 +452,7 @@ describe('extension-less paths', () => {
   })
 })
 
-describe('vision and OCR route gate', () => {
+describe('strict image-modality gate', () => {
   it('accepts an exact visual route even when the advisory model catalog omits it', async () => {
     await writeFile(join(dir, 'red.png'), PNG_1X1)
     const ctx = await setup({
@@ -467,27 +469,12 @@ describe('vision and OCR route gate', () => {
     ['a text-only model', 'text-model'],
     ['a model without declared modalities', 'legacy-model'],
     ['a model absent from the catalog', 'unknown-model'],
-  ])('uses the bounded OCR bridge on %s', async (_label, model) => {
+  ])('refuses on %s', async (_label, model) => {
     await writeFile(join(dir, 'red.png'), PNG_1X1)
     const ctx = await setup()
     const result = await readImage(ctx, { file_path: 'red.png' }, agentOn(model))
     expect(result.isError).toBe(true)
-    expect(text(result)).toContain('OCR process could not start')
-  })
-
-  it('returns OCR text instead of an image for a text-only route', async () => {
-    await writeFile(join(dir, 'red.png'), PNG_1X1)
-    const restore = setOcrRunnerForTests(async () => 'text extracted from image')
-    try {
-      const ctx = await setup()
-      const result = await readImage(ctx, { file_path: 'red.png' }, agentOn('text-model'))
-      expect(result.isError).toBe(false)
-      expect(result.content).toHaveLength(1)
-      expect(text(result)).toContain('<type>ocr</type>')
-      expect(text(result)).toContain('text extracted from image')
-    } finally {
-      restore()
-    }
+    expect(text(result)).toContain('does not declare image input')
   })
 
   it('refuses when the route cannot be resolved (no agent, or no header and no options)', async () => {

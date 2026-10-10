@@ -1,5 +1,8 @@
 /** `settings.permission` namespace dictionaries (the Permission row's copy). */
 
+/** Locale namespace shared by both current-session permission pickers. */
+export const PERMISSION_ACCESS_NS = 'permission.access'
+
 /** Simplified Chinese dictionary (the key-set source of truth). */
 export const zh = {
   'title': '权限',
@@ -35,24 +38,10 @@ export const en = {
   'confirm.enable': 'Enable Full access',
 } satisfies Record<PermissionSettingsKey, string>
 
-/** Spanish dictionary. */
-export const es = {
-  'title': 'Permisos',
-  'description': 'Elija el modo de permisos predeterminado para las sesiones nuevas',
-  'loading': 'Cargando',
-  'unavailable': 'No disponible',
-  'preset.readOnly': 'Solo lectura',
-  'preset.workspaceWrite': 'Escritura en el espacio de trabajo',
-  'preset.fullAccess': 'Acceso total',
-  'confirm.title': '¿Activar el acceso total?',
-  'confirm.description': 'El acceso total permite que las sesiones nuevas reduzcan los pasos de confirmación y realicen más acciones directamente, incluidas operaciones sensibles, cambios de archivos o comandos externos. Úselo solo cuando confíe en las tareas siguientes.',
-  'confirm.acknowledge': 'Entiendo los riesgos y deseo continuar',
-  'confirm.cancel': 'Cancelar',
-  'confirm.enable': 'Activar acceso total',
-} satisfies Record<PermissionSettingsKey, string>
-
 /** Simplified Chinese dictionary for the current-session popup gate. */
 export const accessZh = {
+  'mode': '访问模式，当前：{name}',
+  'close': '关闭',
   'preset.readOnly': '仅可查看',
   'preset.workspaceWrite': '工作区内修改',
   'preset.fullAccess': '完全权限',
@@ -61,6 +50,13 @@ export const accessZh = {
   'confirm.acknowledge': '我已了解风险，并愿意继续',
   'confirm.cancel': '取消',
   'confirm.enable': '启用完全权限',
+  'auto.label': 'Auto review',
+  'auto.badge': 'EXP',
+  'auto.description': '无沙箱运行；每次原生工具调用和 PTC 内层调用前由同一模型进行实验性审查。',
+  'auto.confirm.title': '确认启用 Auto review（实验）？',
+  'auto.confirm.description': 'Auto review 不使用沙箱。每次原生工具调用和 PTC 内层调用前，都会由与当前 agent 相同的模型进行审查；审查拒绝的调用由你批准或拒绝。此功能仍属实验性，可能误放行或误拒绝，并会消耗额外 token。',
+  'auto.confirm.acknowledge': '我已了解这些风险，并愿意继续',
+  'auto.confirm.enable': '启用 Auto review',
 } satisfies Record<string, string>
 
 /** Current-session popup-gate key union. */
@@ -68,6 +64,8 @@ export type PermissionAccessKey = keyof typeof accessZh
 
 /** English dictionary for the current-session popup gate. */
 export const accessEn = {
+  'mode': 'Access mode, current: {name}',
+  'close': 'Close',
   'preset.readOnly': 'Read Only',
   'preset.workspaceWrite': 'Workspace Write',
   'preset.fullAccess': 'Full access',
@@ -76,16 +74,11 @@ export const accessEn = {
   'confirm.acknowledge': 'I understand the risks and want to continue',
   'confirm.cancel': 'Cancel',
   'confirm.enable': 'Enable Full access',
-} satisfies Record<PermissionAccessKey, string>
-
-/** Spanish dictionary for the current-session popup gate. */
-export const accessEs = {
-  'preset.readOnly': 'Solo lectura',
-  'preset.workspaceWrite': 'Escritura en el espacio de trabajo',
-  'preset.fullAccess': 'Acceso total',
-  'confirm.title': '¿Activar el acceso total?',
-  'confirm.description': 'El acceso total reduce los pasos de confirmación y permite que el agente realice más acciones directamente, incluidas operaciones sensibles, cambios de archivos o comandos externos. Úselo solo cuando confíe en la tarea actual.',
-  'confirm.acknowledge': 'Entiendo los riesgos y deseo continuar',
-  'confirm.cancel': 'Cancelar',
-  'confirm.enable': 'Activar acceso total',
+  'auto.label': 'Auto review',
+  'auto.badge': 'EXP',
+  'auto.description': 'Run without a sandbox after an experimental same-model review of every native tool call and PTC inner call.',
+  'auto.confirm.title': 'Enable Auto review (experimental)?',
+  'auto.confirm.description': 'Auto review runs without a sandbox. Before every native tool call and PTC inner call, the same model as the current agent reviews whether to allow it; you approve or reject each call it denies. This feature is experimental, can falsely allow or deny actions, and uses additional tokens.',
+  'auto.confirm.acknowledge': 'I understand these risks and want to continue',
+  'auto.confirm.enable': 'Enable Auto review',
 } satisfies Record<PermissionAccessKey, string>

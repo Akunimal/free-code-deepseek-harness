@@ -5,7 +5,7 @@
 // target — outside searchRoot. The package-level jsdom test cannot replay
 // that continuation (fireEvent does not re-bubble through listeners mounted
 // mid-dispatch), so the guard that keeps the gesture alive
-// (.agents/notes/implemented/bug-fix/2026-08-18-rail-search-outside-click-self-dismissal.md)
+// (.agents/notes/archived/bug-fix/2026-08-18-rail-search-outside-click-self-dismissal.md)
 // is pinned here, in the assembled application under a real browser click.
 //
 // Zero model calls: collapsing the sidebar and expanding the search are pure
@@ -53,7 +53,7 @@ describe('web e2e: rail search click survives its own document-level bubble', ()
 
     const wideSearch = page.getByRole('button', { name: 'Search sessions' })
     await expect.poll(async () => wideSearch.getAttribute('aria-expanded'), { timeout: 10_000 }).toBe('true')
-    const input = page.getByPlaceholder('Search sessions...')
+    const input = page.getByPlaceholder('Search session names')
     await expect.poll(
       async () => input.evaluate(el => document.activeElement === el),
       { timeout: FOCUS_SETTLE_MS + 10_000 },

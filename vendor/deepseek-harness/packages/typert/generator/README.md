@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-typert-generator` turns source TypeScript into compiler-independent data and runnable artifacts at build time: it analyzes a workspace's package type trees, produces a `FaceModel` and type graph, and emits executable JavaScript with supported Zod schemas and a `TYPERT` reflection contribution, plus matching declarations. It is a build-time library, not a plugin — it never runs inside a live agent session. The repository's Host tsdown runs it automatically; a business package opts in by exporting `./typert` and `./client/typert` entries, and the generator validates those exports and published file lists. Static consumers can also call the analyzer directly for type inspection or catalog generation without publishing anything.
+`dsh-typert-generator` lets maintainers turn public TypeScript types into build artifacts and compiler-independent models. Packages opt in through the `./typert` and optional `./client/typert` exports, and generation rejects declarations, publish lists, Remote exports, or Zod projections that it cannot represent correctly. Repository builds emit executable schema factories and matching declarations, while tools can call `WorkspaceAnalyzer` for inspection or catalog generation without publishing artifacts. Generation runs only at build time and never in a live agent session.
 
 ## Table of Contents
 
@@ -47,6 +47,8 @@ After the build, `lib/typert.host.js` and `lib/typert.host.d.ts` exist and the [
 
 Static consumers call `WorkspaceAnalyzer` directly against the workspace's `tsconfig.host.json` and `tsconfig.client.json` aggregates, select a face and package subset, and read the resulting `FaceModel` and type graph without emitting or loading runtime artifacts. `analyzeInBatches()` processes a large package selection through bounded compiler programs with the same model shape, and `discoverPackages()` finds contributing packages without building a type-checker program.
 
+JSON, YAML, SVG, PNG, JPEG, and WebP resource exports contribute no TypeScript declarations and are excluded from the API model. Missing JavaScript or TypeScript export sources remain errors.
+
 ### Running generation inside a tsdown build
 
 The package's `./tsdown` subpath provides `typertPlugin()` for the root tsdown config: it lowers standard decorators in TypeScript dependencies before bundling and emits the model-driven face artifacts at the package output root. In `package` mode it emits only the bundled package; in `workspace` mode it emits every explicit contributor once.
@@ -79,13 +81,17 @@ The generator is built on one separation: extraction and emission are decoupled 
 
 ### Analysis and faces
 
-Host and client are independent TypeScript programs. Direct project references establish compiler-face membership, while `dsh.client` package subpaths establish runtime-face contribution; `package.json#exports` marks every cross-package public boundary, and imports or re-exports are the only cross-face edges. `check` mode fails on syntax or semantic diagnostics, missing public annotations, private cross-package references, and reachable declaration merges the model cannot retain losslessly; `write` mode inserts checker-derived annotations and returns a clean check-mode model. Types owned by NPM dependencies remain `external` references instead of being expanded.
+Host and Client are independent TypeScript programs. Direct project references establish compiler-face membership, while `dsh.client` package subpaths establish runtime-face contribution; `package.json#exports` marks every cross-package public boundary, and imports or re-exports are the only cross-face edges. A relative import that resolves inside the referencing package is followed through that module's re-exports until a package specifier appears, so package-local forwarding modules keep their original declaration references; a relative import that resolves into another package fails. `check` mode fails on syntax or semantic diagnostics, missing public annotations, private cross-package references, and reachable declaration merges the model cannot retain losslessly; `write` mode inserts checker-derived annotations and returns a clean check-mode model. Types owned by NPM dependencies remain `external` references instead of being expanded. A stream method's return type may be `Iterable<Out>`, `AsyncIterable<Out>`, or the protocol's `RemoteStream<Out, In>`, recognized by symbol and declaring package like the standard-library wrappers; a second type argument other than `never` yields the descriptor's uplink codec, and the generated Client signature returns `RemoteStreamHandle<Out, In>`.
 
 ### Emission and publication contract
 
-`FaceModelEmitter` emits executable JavaScript containing supported Zod schemas and the `TYPERT` contribution, plus a declaration file whose schemas are typed `z.ZodType<SourceType>` through the package's public export; unsupported Zod projections fail. The Host face with Remote methods additionally emits `typert.remote-client.*` projections of Host Remote contracts for the Client. `WorkspaceTypertGenerator` validates each contributor's `package.json`: `./typert` and `./client/typert` (and `./remote` when Remote methods exist) must point at the exact generated files, and the `files` list must include them.
+`FaceModelEmitter` emits executable JavaScript containing success-cached Zod schema factories and the `TYPERT` contribution, plus a declaration file whose factories return `z.ZodType<SourceType>` through the package's public export; unsupported Zod projections fail. The Host face with Remote methods additionally emits `typert.remote-client.*` projections of Host Remote contracts for the Client. `WorkspaceTypertGenerator` validates each contributor's `package.json`: `./typert` and `./client/typert` (and `./remote` when Remote methods exist) must point at the exact generated files, and the `files` list must include them.
+
+[Unary binary results](../protocol/README.md) are recognized after generic type resolution. Their codecs validate the byte-array type and JSON metadata without iterating, copying, or freezing the byte payload; generated Client declarations retain the authored metadata and narrow the byte backing to `ArrayBuffer`.
 
 ### Catalog projection
+
+The runtime type closure indexes exported workspace declarations and referenced framework enums. Vendored declarations stay outside business API discovery; their enums remain available when a public result refers to them.
 
 The root export includes the model-driven extraction, completeness checks, and deterministic text renderers used by this repository's Cordis catalogs. They accept a `CordisCatalogPolicy`; repository-owned type links, foundation and exemption classifications, and inherited Cordis entries stay in `scripts/gen-cordis-catalog.ts` and are passed in explicitly, so this package contains projection mechanics, not a hidden copy of the repository's documentation taxonomy.
 
@@ -137,5 +143,3 @@ These limits define what the generator cannot model or emit; they are current pa
 None.
 
 </details>
-
-**Runtime invariant:** No companion is published. This source-project analyzer and build-time emitter runs outside any cordis runtime; model snapshots, executable artifacts, and consuming-package typechecks enforce its output contract.

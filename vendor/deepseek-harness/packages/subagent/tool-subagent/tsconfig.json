@@ -30,9 +30,6 @@
       "path": "../../core/scope"
     },
     {
-      "path": "../../settings/settings"
-    },
-    {
       "path": "../../llm/llm"
     },
     {
@@ -46,9 +43,6 @@
     },
     {
       "path": "../../jobs/jobs"
-    },
-    {
-      "path": "../../runtime-diagnostics/invariants"
     }
   ]
 }

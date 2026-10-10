@@ -5,22 +5,25 @@
  * output and error material from the settled result node. A supported terminal
  * call gets its expanded body from `terminalCardModel` instead.
  */
-// The block union's defining home is runtime (fold-product types); this
-// contract only forwards it (type-definition authority stays with the layer
-// that produces the values).
-import type { ToolCallBlock, ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { ToolArgs, ToolCallBlock, ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { LocaleKeysOf } from '@deepseek-ai/dsh-client-ui-slots'
-import { abbreviateHomePath } from '@deepseek-ai/dsh-util-workspace-path'
+import { abbreviateHomePath, relativizeToCwd } from '@deepseek-ai/dsh-util-workspace-path'
 
 export type { ToolCallBlock } from '@deepseek-ai/dsh-client-ui-chat/client'
 
 /** Tool-call row variants selected by the generic atomic renderer. */
 export type ToolRowVariant = 'search' | 'read' | 'bash' | 'write' | 'edit' | 'code' | 'others'
 
-/** Row state semantic; colors self-supplied via StateDot (design gives none). */
-export type ToolRowState = 'running' | 'ok' | 'error' | 'stopped'
+/** Row lifecycle state used by summary styling and accessible status text. */
+export type ToolRowState = 'preparing' | 'running' | 'ok' | 'error' | 'stopped'
 
-type ToolTitleKey = Extract<LocaleKeysOf<'conversation'>, `tool.title.${string}`>
+/** Locale-neutral structured fact consumed only by the user-facing Tool row. */
+export interface AutoReviewDenial {
+  /** Raw persisted reviewer reason; display normalization happens at render time. */
+  reason: string | null
+}
+
+type ToolTitleKey = Extract<LocaleKeysOf<'conversation'>, `tool.title.${string}` | 'ask.rowTitle' | 'todo.rowTitle'>
 
 /** Locale key per generic row variant. */
 export const VARIANT_TITLE_KEYS = {
@@ -76,6 +79,45 @@ const TOOL_TITLE_KEYS: Record<string, ToolTitleKey> = {
   cordis_undefine: 'tool.title.removeCordis',
   pwsh: 'tool.title.pwsh',
   read_image: 'tool.title.readImage',
+  todo_write: 'todo.rowTitle',
+  ask_user_question: 'ask.rowTitle',
+  create_goal: 'tool.title.createGoal',
+  get_goal: 'tool.title.getGoal',
+  update_goal: 'tool.title.updateGoal',
+  schedule_create: 'tool.title.createSchedule',
+  schedule_list: 'tool.title.listSchedules',
+  schedule_delete: 'tool.title.deleteSchedule',
+  schedule_update: 'tool.title.updateSchedule',
+  cordis_inspect_list: 'tool.title.inspectProviders',
+  cordis_inspect_query: 'tool.title.queryRuntime',
+  cordis_inspect_self: 'tool.title.inspectPlugins',
+  workflow: 'tool.title.workflow',
+  ralph: 'tool.title.ralph',
+  session_event_read: 'tool.title.readEvent',
+  session_event_search: 'tool.title.searchEvents',
+  session_event_trace: 'tool.title.traceEvent',
+  session_search: 'tool.title.searchSessions',
+  session_trace: 'tool.title.traceSession',
+  list_subagent_models: 'tool.title.listModels',
+  subagent: 'tool.title.subagent',
+  list_agents: 'tool.title.listAgents',
+  send_message: 'tool.title.sendMessage',
+  interrupt_agent: 'tool.title.interruptAgent',
+  job_list: 'tool.title.listJobs',
+  job_output: 'tool.title.readJob',
+  job_kill: 'tool.title.killJob',
+  terminal_open: 'tool.title.openTerminal',
+  terminal_read: 'tool.title.readTerminal',
+  terminal_list: 'tool.title.listTerminals',
+  terminal_signal: 'tool.title.signalTerminal',
+  terminal_close: 'tool.title.closeTerminal',
+  lsp: 'tool.title.lsp',
+  spawn_teammate: 'tool.title.spawnTeammate',
+  team_task_create: 'tool.title.createTeamTask',
+  team_task_get: 'tool.title.getTeamTask',
+  team_task_update: 'tool.title.updateTeamTask',
+  team_task_list: 'tool.title.listTeamTasks',
+  wait_agent: 'tool.title.waitAgent',
 }
 
 /**
@@ -87,15 +129,26 @@ export function classifyTool(toolName: string): ToolRowVariant {
   return TOOL_VARIANTS[toolName] ?? 'others'
 }
 
+/**
+ * Select a tool-owned or generic title without reading arguments.
+ * @param toolName - wire tool name.
+ * @returns the localized title key.
+ */
+export function toolTitleKey(toolName: string): ToolTitleKey {
+  return TOOL_TITLE_KEYS[toolName] ?? VARIANT_TITLE_KEYS[classifyTool(toolName)]
+}
+
 /** Everything ToolRow needs, derived once from the frozen slice. */
 export interface ToolRowModel {
   variant: ToolRowVariant
   titleKey: ToolTitleKey
+  /** Generic rows retain the wire tool name; available arguments append their summary. */
   summary: string
   /**
    * Filesystem path from args (`path` / `file_path`) when the row is a file
-   * tool; absent for URL reads and non-file tools. The chat view resolves
-   * relative values against the session cwd before opening.
+   * tool; absent for URL reads and non-file tools. A `file_path` argument
+   * supplies it at every stage once its string is complete. The chat view
+   * resolves relative values against the session cwd before opening.
    */
   filePath: string | undefined
   /** Original argument JSON retained for expansion-time body formatting. */
@@ -104,7 +157,18 @@ export interface ToolRowModel {
   output: string | null
   /** First line of the result text on an error row; null for every other state. */
   errorSummary: string | null
+  /** Structured Auto-review denial identity; null for every ordinary result. */
+  autoReviewDenial: AutoReviewDenial | null
   state: ToolRowState
+}
+
+function deriveAutoReviewDenial(block: ToolCallBlock): AutoReviewDenial | null {
+  if (!('kind' in block) || !block.isError) return null
+  const error = block.error
+  if (error?.name !== 'AutoReviewDeniedError' || error.code !== 'AUTO_REVIEW_DENIED') return null
+  // A durable record reaches this renderer without a type check on `reason`, so
+  // a non-string value degrades to the no-reason copy exactly as a missing one.
+  return { reason: typeof error.reason === 'string' ? error.reason : null }
 }
 
 /**
@@ -130,7 +194,7 @@ function parseArgs(argsRaw: string): unknown {
   try {
     return JSON.parse(argsRaw)
   } catch {
-    // Non-JSON args (mid-stream truncation): summary/body fall back to the raw string.
+    // Non-JSON args (mid-stream truncation or a rejected call kept verbatim): summary/body fall back to the raw string.
     return undefined
   }
 }
@@ -159,25 +223,13 @@ const SUMMARY_KEYS: Record<ToolRowVariant, readonly string[]> = {
   others: [],
 }
 
-/**
- * Strip the workspace root from a workspace-rooted absolute path (display only).
- * @param text - the path to shorten.
- * @param cwd - session workspace root; absent or empty leaves the path unchanged.
- * @returns the path relative to the workspace root, or unchanged when it is not rooted there.
- */
-export function relativizeToCwd(text: string, cwd: string | undefined): string {
-  if (cwd === undefined || cwd === '') return text
-  const root = cwd.replace(/[/\\]+$/, '')
-  if (text.startsWith(`${root}/`) || text.startsWith(`${root}\\`)) return text.slice(root.length + 1)
-  return text
-}
 
 function deriveSummary(variant: ToolRowVariant, argsRaw: string): string {
   const parsed = parseArgs(argsRaw)
   if (typeof parsed !== 'object' || parsed === null) return firstLine(argsRaw)
   const args = parsed as Record<string, unknown>
   if (variant === 'search' && Array.isArray(args.queries)) {
-    const queries = args.queries.filter((query): query is string => typeof query === 'string' && query !== '')
+    const queries = args.queries.filter((query: unknown): query is string => typeof query === 'string' && query !== '')
     if (queries.length > 0) return queries.map(firstLine).join(', ')
   }
   const picked = pickString(args, SUMMARY_KEYS[variant])
@@ -193,6 +245,24 @@ const FILE_PATH_KEYS = ['path', 'file_path'] as const
 
 /** File-tool variants whose summary may be an openable workspace path. */
 const FILE_PATH_VARIANTS: ReadonlySet<ToolRowVariant> = new Set(['read', 'write', 'edit'])
+
+/**
+ * Summary material read the same way at every stage from the argument view: a
+ * complete `file_path` for file tools, otherwise the `description` text so far.
+ * Empty when the view carries neither, so the caller falls back to the raw text.
+ */
+function argumentSummary(
+  variant: ToolRowVariant, args: ToolArgs, cwd?: string, home?: string,
+): { summary: string; filePath: string | undefined } {
+  if (FILE_PATH_VARIANTS.has(variant)) {
+    const path = args.complete('file_path') ? args.text('file_path') : undefined
+    // Decoding text can discover an invalid escape and make complete() false.
+    const filePath = path !== undefined && path !== '' && args.complete('file_path') ? firstLine(path) : undefined
+    return { summary: filePath === undefined ? '' : abbreviateHomePath(relativizeToCwd(filePath, cwd), home), filePath }
+  }
+  const description = args.text('description')
+  return { summary: description === undefined ? '' : firstLine(description), filePath: undefined }
+}
 
 function deriveFilePath(variant: ToolRowVariant, argsRaw: string): string | undefined {
   if (!FILE_PATH_VARIANTS.has(variant)) return undefined
@@ -224,27 +294,25 @@ export function formatToolBody(variant: ToolRowVariant, argsRaw: string): string
 /**
  * Derive the full row model from a frozen call slice.
  * @param toolName - wire tool name (dispatch-supplied; survives windowless results).
- * @param block - RunningToolCall or ToolResultNode off the snapshot caches.
+ * @param block - preparing call, dispatched call, or result from the snapshot.
  * @param cwd - session workspace root; workspace-rooted path summaries display relative to it.
  * @param home - host account home; a leftover POSIX home path displays as `~`.
  * @returns the row model.
  */
 export function toolRowModel(toolName: string, block: ToolCallBlock, cwd?: string, home?: string): ToolRowModel {
   const variant = classifyTool(toolName)
+  const titleKey = toolTitleKey(toolName)
   const done = 'kind' in block
-  const argsRaw = (done ? block.call?.argsRaw : block.argsRaw) ?? ''
-  const state: ToolRowState = !done ? 'running'
+  const argsRaw = done ? block.call?.argsRaw ?? '' : block.phase === 'start' ? block.argsRaw : null
+  const state: ToolRowState = !done ? block.phase === 'preparing' ? 'preparing' : 'running'
     : block.error?.code === 'interrupted' ? 'stopped'
       : block.isError ? 'error' : 'ok'
-  const base = argsRaw === ''
-    ? block.callId
-    : abbreviateHomePath(relativizeToCwd(deriveSummary(variant, argsRaw), cwd), home)
-  const toolTitleKey = TOOL_TITLE_KEYS[toolName]
-  // Others keeps the static "Tool call" title (figma literal); the real tool
-  // name rides the mutable summary slot unless the tool owns a specific title.
-  const summary = variant === 'others' && toolName !== '' && toolTitleKey === undefined
-    ? `${toolName} · ${base}`
-    : base
+  const primary = argumentSummary(variant, block.args, cwd, home)
+  // The argument view serves every stage; the raw text is the fallback when it carries nothing useful.
+  const base = primary.summary !== '' || argsRaw === null ? primary.summary
+    : argsRaw === '' ? block.callId
+      : abbreviateHomePath(relativizeToCwd(deriveSummary(variant, argsRaw), cwd), home)
+  const summary = [titleKey === 'tool.title.generic' ? toolName : '', base].filter(Boolean).join(' · ')
   // The empty string is "no text" for both derived result fields: a settled
   // call with blank content has nothing to expand, and a blank first line
   // would erase the collapsed error row's summary slot.
@@ -253,12 +321,13 @@ export function toolRowModel(toolName: string, block: ToolCallBlock, cwd?: strin
   const bodyRaw = argsRaw === '' ? null : argsRaw
   return {
     variant,
-    titleKey: toolTitleKey ?? VARIANT_TITLE_KEYS[variant],
+    titleKey,
     summary,
-    filePath: deriveFilePath(variant, argsRaw),
+    filePath: primary.filePath ?? (argsRaw === null ? undefined : deriveFilePath(variant, argsRaw)),
     bodyRaw,
     output,
     errorSummary,
+    autoReviewDenial: deriveAutoReviewDenial(block),
     state,
   }
 }

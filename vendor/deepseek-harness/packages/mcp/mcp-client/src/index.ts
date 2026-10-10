@@ -17,12 +17,14 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { scopeOf } from '@deepseek-ai/dsh-scope'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
-import { RECONNECT_DEFAULTS, resolveReconnectPolicy, startConnection } from './connection.ts'
+import { DEFAULT_MAX_INSTRUCTION_BYTES, RECONNECT_DEFAULTS, resolveReconnectPolicy, startConnection } from './connection.ts'
 import type { ReconnectConfig } from './connection.ts'
+import { registerServerContext } from './server-context.ts'
 // Side-effect type import: declaration-merges `ctx.tools` onto Context.
 import type {} from '@deepseek-ai/dsh-tools'
 
-export type { McpResult } from './tools.ts'
+export { createMcpToolDefinition } from './tools.ts'
+export type { McpResult, McpToolDefinitionOptions } from './tools.ts'
 export type { ReconnectConfig, ResolvedReconnectPolicy } from './connection.ts'
 
 /** Cordis plugin name used by loader diagnostics. */
@@ -31,25 +33,11 @@ export const name = 'mcp-client'
 /** Services required by this plugin. */
 export const inject = ['tools']
 
-/** Default timeout for individual MCP tool calls (ms). */
+/** Default timeout for individual MCP tool calls and resource requests (ms). */
 const DEFAULT_TOOL_CALL_TIMEOUT_MS = 60_000
 
 /** Valid `serverName`, kept below the public tool-name budget. */
 const SERVER_NAME_PATTERN = /^[A-Za-z0-9_-]{1,32}$/
-
-/**
- * Optional per-session project activation for MCP servers whose state is
- * scoped to one active workspace (for example Serena).
- *
- * The bridge supplies the selected session cwd immediately before a tool call;
- * it never derives a project from the MCP child process cwd.
- */
-export interface ProjectActivationConfig {
-  /** Raw MCP tool that activates one project. */
-  toolName: string
-  /** Required string argument receiving the selected session cwd. */
-  pathArgument: string
-}
 
 /**
  * Live `serverName` reservations per registration scope. Agent-scoped MCP
@@ -78,14 +66,14 @@ export interface StdioConfig {
   env: Record<string, string>
   /** Working directory for the child process. */
   cwd: string
-  /** Per-tool-call timeout in milliseconds. */
+  /** Timeout per tool call or resource request in milliseconds. */
   toolCallTimeoutMs: number
   /** Fail plugin activation when the initial connection or tool synchronization fails. */
   failOnStartupError: boolean
+  /** Maximum UTF-8 bytes of attributed server instructions (default 32768). */
+  maxInstructionBytes?: number
   /** Automatic reconnect policy after a lost connection; omission uses the defaults. */
   reconnect?: ReconnectConfig
-  /** Optional automatic project activation contract for this MCP server. */
-  projectActivation?: ProjectActivationConfig
 }
 
 /** Config for connecting to an MCP server over Streamable HTTP (SSE). */
@@ -102,14 +90,14 @@ export interface StreamableHttpConfig {
   url: string
   /** Additional headers attached to MCP requests. */
   headers: Record<string, string>
-  /** Per-tool-call timeout in milliseconds. */
+  /** Timeout per tool call or resource request in milliseconds. */
   toolCallTimeoutMs: number
   /** Fail plugin activation when the initial connection or tool synchronization fails. */
   failOnStartupError: boolean
+  /** Maximum UTF-8 bytes of attributed server instructions (default 32768). */
+  maxInstructionBytes?: number
   /** Automatic reconnect policy after a lost connection; omission uses the defaults. */
   reconnect?: ReconnectConfig
-  /** Optional automatic project activation contract for this MCP server. */
-  projectActivation?: ProjectActivationConfig
 }
 
 /** Configuration for one stdio or Streamable HTTP MCP server. */
@@ -128,16 +116,6 @@ const Reconnect: z<ReconnectConfig> = z.object({
   maxAttempts: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(RECONNECT_DEFAULTS.maxAttempts),
 })
 
-const PROJECT_ACTIVATION_NAME = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/
-const ProjectActivation: z<ProjectActivationConfig> = z.object({
-  toolName: z.string().required().pattern(PROJECT_ACTIVATION_NAME),
-  pathArgument: z.string().required().pattern(PROJECT_ACTIVATION_NAME),
-})
-const OptionalProjectActivation: z<ProjectActivationConfig | undefined> = z.union([
-  ProjectActivation,
-  z.const(undefined),
-])
-
 export const Config = z.union([
   z.object({
     transport: z.const('stdio'),
@@ -148,8 +126,8 @@ export const Config = z.union([
     cwd: z.string().default(''),
     toolCallTimeoutMs: z.number().default(DEFAULT_TOOL_CALL_TIMEOUT_MS),
     failOnStartupError: z.boolean().default(false),
+    maxInstructionBytes: z.number().step(1).min(1).default(DEFAULT_MAX_INSTRUCTION_BYTES),
     reconnect: Reconnect,
-    projectActivation: OptionalProjectActivation,
   }),
   z.object({
     transport: z.const('streamable-http'),
@@ -158,10 +136,10 @@ export const Config = z.union([
     headers: z.dict(String).default({}),
     toolCallTimeoutMs: z.number().default(DEFAULT_TOOL_CALL_TIMEOUT_MS),
     failOnStartupError: z.boolean().default(false),
+    maxInstructionBytes: z.number().step(1).min(1).default(DEFAULT_MAX_INSTRUCTION_BYTES),
     reconnect: Reconnect,
-    projectActivation: OptionalProjectActivation,
   }),
-]) as unknown as z<ConfigInput, Config>
+]) as z<ConfigInput, Config>
 
 // ---- Plugin apply ----
 
@@ -201,10 +179,17 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   // loop, and the live tool registrations; disposal stops reconnection,
   // quiesces in-flight work, and unregisters the current generation.
   const connection = startConnection(ctx, config, reconnect)
-
-  ctx.effect(() => {
-    return () => connection.dispose()
-  }, 'mcp-client.connection')
+  registerServerContext(ctx, config.serverName, connection)
+  let stopping: Promise<void> | undefined
+  const dispose = (): Promise<void> => stopping ??= connection.dispose()
+  // Cordis announces unload before awaiting an unfinished apply(). Closing
+  // the transport here releases startup requests that are still awaiting a reply.
+  // oxlint-disable-next-line typescript/no-misused-promises -- Cordis contains observer failures; the effect also awaits this promise.
+  ctx.on('internal/plugin', (fiber) => {
+    if (fiber !== ctx.fiber || fiber.uid !== null) return
+    return dispose()
+  }, { global: true })
+  ctx.effect(() => dispose, 'mcp-client.connection')
 
   // Block plugin activation on the initial connection + tool discovery so
   // Cordis consumers observe the tools immediately after the fiber activates.

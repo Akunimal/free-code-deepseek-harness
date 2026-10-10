@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-cordis-host-runner` makes dynamic packages runnable in this process: definitions the model records with `cordis_define` stay here, host halves run in a `node:vm` sandbox, a package with a browser half waits for a person to approve or decline it on a page, and the model can inspect the live runtime and its definitions here. The model-facing tools live in `@deepseek-ai/dsh-tool-cordis`, and the browser half loads through `@deepseek-ai/dsh-cordis-client-runner`. Definitions live only in process memory, so a DSH restart clears them and nothing is written to disk. One config field, `vmTimeoutMs`, bounds synchronous sandbox evaluation.
+`dsh-cordis-host-runner` exposes runtime inspection and keeps process-local dynamic definitions available to programmatic callers and browser controls. Host halves run in a `node:vm` realm; browser halves use the Client runner and approval UI. Definitions disappear on restart. Agents discover APIs through `tool-cordis` and install persistent bundles through Plugin Manager; no model tool creates dynamic definitions.
 
 ## Table of Contents
 
@@ -25,7 +25,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount this plugin in any composition that should support dynamic packages — it powers the model's `cordis_*` tools, and packages with a browser half additionally need the client runner plus the UI package composed on the client side. The common path is explicit: load this package, optionally set `vmTimeoutMs`, and let the tools and the browser do the rest.
+Mount this plugin for the inspection registry or programmatic dynamic-package lifecycle. Browser lifecycle consumers also require the Client runner and UI package. The shipped Creator workflow uses installed bundles instead of this definition registry.
 
 ### Minimal configuration
 
@@ -38,20 +38,28 @@ Mount this plugin in any composition that should support dynamic packages — it
 | Field | Default | Meaning |
 |---|---|---|
 | `vmTimeoutMs` | `5000` | Milliseconds the synchronous portion of a host half may run in the vm before evaluation is aborted |
+| `clientInspectTimeoutMs` | `10000` | Maximum wait for a valid Client inspect response; an integer from 1 to 2147483647 milliseconds |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-cordis-host-runner) is the exhaustive source for every accepted field.
 
+<a id="client-inspection"></a>
+### Client inspection
+
+When Gateway is mounted, a Client query with no live event stream fails before dispatch. This check does not subscribe to disconnections: queries already dispatched retain their original deadline. Standalone event transports without Gateway retain the same timeout behavior.
+
+Client queries accept the first valid page response within `clientInspectTimeoutMs`. A failed page does not prevent another page from answering successfully. If no valid result arrives, the query rejects with the first Client failure or output-validation diagnostic; when no page answers, it asks the caller to open or reconnect the Harness page and retry. Cancellation and registry disposal also end pending queries. Reconnecting a page does not replay a missed request, so retry after the connection is restored. Host queries are unaffected by this timeout.
+
 ### What a run does
 
-A definition is recorded by `cordis_define` and activated by `cordis_run`. A package with only a host half activates directly in this process: its code runs in the sandbox. A package with a browser half becomes a request: it waits until a person allows or declines it on a page, or the asking turn is cancelled; the answering page then loads the host half first and the browser half second. `mode: "run"` starts the current package or restarts it, `mode: "update"` switches to a different package version. `cordis_stop` ends the live run — removing the package's handlers and any loaded browser UI — while keeping the definition runnable; `cordis_undefine` stops and forgets it.
+Programmatic callers use `define`, `run`, `stop`, and `undefine`; the browser panel operates existing definitions. Host-only packages activate in this process. A package with a browser half waits for approval or cancellation, then loads Host before Client. `mode: "run"` starts the current version; `mode: "update"` replaces it. Stop disposes the live effects and retains the definition; undefine also forgets it.
 
 ### What happens to definitions
 
-Definitions are session-scoped and process-local: a package is visible only to the session that defined it, other sessions read it as absent, and everything disappears on DSH restart. The session log keeps the define call's arguments — including the code it submitted — and the receipt; only the in-memory registry holds the parsed definition. A browser half reaches a page only through a run, so a reloaded page holds nothing until someone runs the package again.
+Definitions are session-scoped and process-local: other sessions read them as absent, and restart clears them. Historical logs retain tool arguments and receipts but do not restore the registry. Reloading a browser page requires another explicit run to load its Client half.
 
 ### Trust stance
 
-The sandbox isolates globals but is not a security boundary: Node globals are absent or redirect to Cordis services (`ctx.fs`, `ctx.web`, `ctx.bash`, the timer helpers), and a host half receives a façade without framework internals, yet the services it declares reach the live runtime. Treat a dynamic package like bash access — see the [self-referential toolset Agent Note](../../../.agents/notes/implemented/feature/2026-07-08-self-referential-cordis-toolset.md).
+The sandbox isolates globals but is not a security boundary: Node globals are absent or redirect to Cordis services (`ctx.fs`, `ctx.web`, `ctx.bash`, the timer helpers), and a host half receives a façade without framework internals, yet the services it declares reach the live runtime. Treat a dynamic package like bash access — see the [self-referential toolset reference](README.md).
 
 -----
 
@@ -92,12 +100,12 @@ The runner is built on two separations. **Registry and sandbox are one service.*
 
 Read these pages when the package-level contract is not enough. They move from the runner to the tools that call it, the browser half that answers it, and the generated surface.
 
-- [Tool package](../tool-cordis/README.md) — the model-facing tools that call this service.
+- [Tool package](../tool-cordis/README.md) — the read-only tools that use its inspection registry.
 - [Client runner](../cordis-client-runner/README.md) — the browser half that answers run requests and loads browser-half code.
 - [UI package](../ui-cordis/README.md) — the panel users approve and operate runs with.
 - [Generated configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-cordis-host-runner) — every accepted config field.
 - [Extensions subsystem](../../../docs/subsystems/extensions.md) — the generated `ctx.cordisInspect` and `ctx.dynamicCordisRunner` API and `cordis/*` events.
-- [Self-referential Cordis toolset Agent Note](../../../.agents/notes/implemented/feature/2026-07-08-self-referential-cordis-toolset.md) — sandbox semantics, lifecycle, and composition rationale.
+- [historical Self-referential Cordis toolset Agent Note](../../../.agents/notes/archived/feature/2026-07-08-self-referential-cordis-toolset.md) — sandbox semantics, lifecycle, and composition rationale.
 
 -----
 
@@ -108,7 +116,7 @@ Read these pages when the package-level contract is not enough. They move from t
 
 #### What the model sees
 
-Nothing directly: this package registers no tool and injects no prompt. It steers the owning session when a run settles — a success names the current package and says to continue, a user rejection says not to request the same activation again, and a technical failure names the reason, the version pointers, and the inspect-then-correct-and-update path. It also steers post-settle render failures (slot, whether the entry was removed), host guard rejections, and host handler failures. Panel stop and remove gestures inject a user-role message naming what the user did. Refusals from `run` or `stop` also reach the model through the calling tool's result.
+This package registers no tool or prompt. Programmatic `run` calls and browser controls can steer the owning session with outcomes and diagnostics; stop and remove gestures inject a user message. Shipped model tools cannot create or update dynamic definitions.
 
 #### Token effect
 
@@ -125,7 +133,7 @@ None of its own. A host half that registers tools changes the next request's too
 
 These limits define when the runner needs special care. They are current package constraints, not a task backlog.
 
-- **A successful run does not mean the UI rendered** — `run` returns once the answering page has loaded the browser half; React renders afterwards, so a component that throws cannot appear in the run receipt. The failure surfaces through steering and `cordis_inspect_self` diagnostics.
+- **A successful run does not mean the UI rendered** — React renders after the load receipt; failures reach the owning session through steering and appear in the browser panel.
 - **A browser-half package suspends where no page is connected** — headless and ACP deployments hold the run until the asking turn is cancelled; host-only packages are unaffected.
 - **A suspended run request has no timeout** — it waits for a person until the asking turn is cancelled, so unattended automation cannot use packages with a browser half.
 - **`vmTimeoutMs` bounds only synchronous evaluation** — an async host-half body escapes it, matching the toolset's cooperative trust stance.
@@ -142,5 +150,3 @@ These limits define when the runner needs special care. They are current package
 None.
 
 </details>
-
-**Runtime invariant:** No companion is published. The definition registry is process memory with no event stream to observe, and its one owned relation (a running definition owns a settled host-half fiber and its handler table) is established and unwound inside single awaited verbs, so package tests assert it directly.

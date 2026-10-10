@@ -42,8 +42,8 @@ The command turns each expected failure into a stable message you can show direc
 | Situation | Message you see |
 |---|---|
 | Compaction already running, or the agent is mid-turn | `Compaction is unavailable because this process has an active compaction, or the agent is not idle.` |
-| The history changed while condensing | `The history selected for compaction changed before it could be replaced. The conversation is unchanged; the attempt is recorded in the session log.` |
-| No useful summary could be produced | `Compaction could not produce a useful summary. The conversation is unchanged; the attempt is recorded in the session log.` |
+| The history changed while condensing | `The history selected for compaction changed before it could be replaced. The attempt is recorded in the session log.` |
+| No useful summary could be produced | `Compaction could not produce a useful summary. The attempt is recorded in the session log.` |
 | Condensation did not finish cleanly | `Compaction did not finish cleanly; some session history may have changed. Inspect the current session state before retrying.` |
 | The conversation could not be saved | `Compaction finished, but the session could not be saved.` |
 
@@ -95,7 +95,6 @@ Every resolved invocation records the executor-owned log-only pair `command/run`
 | File | Role |
 |---|---|
 | [`src/index.ts`](src/index.ts) | Plugin entry: `/compact` registration, argument rejection, error-code mapping, lifecycle drain |
-| — | No runtime invariant companion is published; this command adapter owns no state or event stream; the compaction seam owns the balanced durable transaction and the command registry owns registration and dispatch lifecycle. |
 
 </details>
 
@@ -110,7 +109,7 @@ Read these pages when the package-level contract is not enough; they move from t
 - [Compaction basic backend](../compaction-basic/README.md) — the shipped backend that condenses automatically and on demand.
 - [Commands package](../../interaction/commands/README.md) — the registry and dispatch contract behind chat commands.
 - [Compaction subsystem reference](../../../docs/subsystems/compaction.md) — the condensation vocabulary, results, and service behavior.
-- [Queued manual compaction Agent Note](../../../.agents/notes/implemented/feature/2026-07-30-queued-manual-compaction.md) — how on-demand condensation serializes against running turns.
+- [Queued manual compaction reference](../compaction/README.md) — how on-demand condensation serializes against running turns.
 
 -----
 

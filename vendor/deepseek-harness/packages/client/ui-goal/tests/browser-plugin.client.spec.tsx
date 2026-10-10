@@ -10,18 +10,19 @@
  * plugin fiber (HMR safety), and the node half stays inert.
  */
 import { Context, Service } from '@deepseek-ai/cordis'
-import { describe, expect, it, vi } from 'vitest'
-import { cleanup, render } from '@testing-library/react'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach } from 'vitest'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { UiConversation } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { GoalProjection } from '@deepseek-ai/dsh-goal/client'
+import type { GoalActivation, GoalId, GoalProjection, GoalView } from '@deepseek-ai/dsh-goal/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
-import { makeTranslate, RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
+import { makeTranslate, RemoteError, TestSessions } from '@deepseek-ai/dsh-client-test-runtime'
+import type { SessionFixture } from '@deepseek-ai/dsh-client-test-runtime'
 import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
-import type { GoalBarActions } from '../src/client/slots.ts'
+import type { GoalActivationSnapshot, GoalBarActions, GoalBarInjected } from '../src/client/slots.ts'
 import { apply, inject } from '../src/client/index.ts'
 import { GoalDock } from '../src/client/GoalBar.tsx'
 import { zh } from '../src/client/locales.ts'
@@ -30,11 +31,12 @@ import { apply as nodeApply } from '../src/index.ts'
 afterEach(cleanup)
 
 const sid = (k: string): SessionId => k as SessionId
+const GOAL_ID = 'g-1' as GoalId
 
 function makeProjection(revision = 3): GoalProjection {
   return {
     goal: {
-      id: 'g-1' as GoalProjection['goal']['id'],
+      id: GOAL_ID,
       revision,
       objective: 'Ship it',
       phase: 'active',
@@ -49,22 +51,27 @@ function makeProjection(revision = 3): GoalProjection {
 /** Boot the plugin over fake faces; Goal Remote methods record arguments and answer per the script. */
 async function bench(options: {
   projection?: GoalProjection | null | undefined
+  activation?: GoalActivation
   failWith?: RemoteFailure
+  initialOpen?: SessionFixture['initialOpen']
+  snapshot?: SessionFixture['snapshot']
 } = {}) {
   const ctx = new Context()
   const calls: { method: string; args: unknown[] }[] = []
-  const sessions = {
-    binding: (id: SessionId) => ({
-      sessionId: id,
-      session: { projections: { faceOf: (key: string) => ({
-        getSnapshot: () => (key === 'goal' ? options.projection : undefined),
-        subscribe: () => () => {},
-      }) } },
-      ctx,
-    }),
-  }
+  const sessions = new TestSessions(async (action) => { await action() }, ctx)
+  onTestFinished(async () => {
+    await sessions.disposeScopes()
+    await ctx.fiber.dispose()
+  })
+  await sessions.add({
+    id: 's1',
+    ...options.initialOpen === undefined ? {} : { initialOpen: options.initialOpen },
+    ...options.snapshot === undefined ? {} : { snapshot: options.snapshot },
+  })
+  await sessions.setProjection('s1', 'goal', options.projection)
+  const owner = sessions.retainFor(ctx, sid('s1'))
   ctx.provide('sessions', sessions)
-  const conversationEvents = new UiConversation(ctx, sessions as never).events
+  const conversationEvents = new UiConversation(ctx, sessions).events
   function answer<T>(method: string, value: T) {
     return (...args: unknown[]) => {
       calls.push({ method, args })
@@ -73,7 +80,18 @@ async function bench(options: {
     }
   }
   const ref = { id: 'g-1', revision: 3 }
+  const goalView = (): GoalView | undefined => {
+    if (options.projection === null || options.projection === undefined) return undefined
+    return {
+      ...options.projection.goal,
+      roundsStarted: options.projection.roundsStarted,
+      createdAt: options.projection.createdAt,
+      updatedAt: options.projection.updatedAt,
+      activation: options.activation ?? 'armed',
+    }
+  }
   const goals = (prefix: string) => ({
+    get: answer(`${prefix}/get`, goalView()),
     edit: answer(`${prefix}/edit`, { ref }),
     pause: answer(`${prefix}/pause`, { ref }),
     resume: answer(`${prefix}/resume`, { ref }),
@@ -81,12 +99,35 @@ async function bench(options: {
   })
   let activeGoals: ReturnType<typeof goals> | undefined = goals('goals')
   class RemoteService extends Service {
+    readonly activationListeners = new Set<(event: {
+      sessionId: SessionId
+      goal?: { id: string; revision: number; activation: GoalActivation }
+    }) => void>()
+
     constructor(serviceCtx: Context) {
       super(serviceCtx, 'remote')
     }
+
+    $on(_event: string, listener: (event: {
+      sessionId: SessionId
+      goal?: { id: string; revision: number; activation: GoalActivation }
+    }) => void): () => void {
+      this.activationListeners.add(listener)
+      return () => { this.activationListeners.delete(listener) }
+    }
+
+    emitActivation(
+      sessionId: SessionId,
+      goal: { id: string; revision: number; activation: GoalActivation } | undefined,
+    ): void {
+      for (const listener of this.activationListeners) {
+        listener({ sessionId, ...goal === undefined ? {} : { goal } })
+      }
+    }
   }
-  new RemoteService(ctx)
+  const remote = new RemoteService(ctx)
   ctx.provide('remote.goals', {
+    get get() { return activeGoals?.get },
     get edit() { return activeGoals?.edit },
     get pause() { return activeGoals?.pause },
     get resume() { return activeGoals?.resume },
@@ -105,6 +146,9 @@ async function bench(options: {
     ctx,
     fiber,
     calls,
+    sessions,
+    owner,
+    emitActivation: remote.emitActivation.bind(remote),
     definitions: () => conversationEvents.entries(),
     remountGoals: () => { activeGoals = goals('remounted-goals') },
     unmountGoals: () => { activeGoals = undefined },
@@ -114,7 +158,7 @@ async function bench(options: {
       return {
         ...entry.options,
         locale: entry.locale,
-        inject: entry.inject as unknown as ((sessionId: SessionId) => GoalBarActions) | undefined,
+        inject: entry.inject as unknown as ((sessionId: SessionId) => GoalBarInjected) | undefined,
       }
     },
     chatEntry: () => ctx.slots.entries('conversation.chat.node')[0],
@@ -122,11 +166,71 @@ async function bench(options: {
 }
 
 describe('ui-goal browser plugin', () => {
+  it('waits for initial history before reading activation and releases the read reference', async () => {
+    const opened = Promise.withResolvers<undefined>()
+    const b = await bench({ projection: makeProjection(), activation: 'disarmed', initialOpen: () => opened.promise })
+    await b.fiber.await()
+    const source = b.entry()!.inject!(sid('s1')).hooks.goalActivation
+    const dispose = source.subscribe(() => {})
+    try {
+      expect(b.calls).toEqual([])
+      expect(b.sessions.retainInfo(sid('s1')).getSnapshot().retainedBy.goalActivation).toBe(1)
+      opened.resolve(undefined)
+      await waitFor(() => { expect(source.getSnapshot().activation).toBe('disarmed') })
+      expect(b.calls).toEqual([{ method: 'goals/get', args: [sid('s1')] }])
+      expect(b.sessions.retainInfo(sid('s1')).getSnapshot().referenceCount).toBe(1)
+    } finally {
+      opened.resolve(undefined)
+      dispose()
+    }
+  })
+
+  it.each([true, false])('keeps projected goal state after an unsuccessful history open (reported error: %s)', async (reported) => {
+    const error = new RemoteError('gateway/internal', 'history unavailable', {})
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    onTestFinished(() => { warn.mockRestore() })
+    const b = await bench({ projection: makeProjection(), snapshot: { openState: 'error', openError: reported ? error : null } })
+    await b.fiber.await()
+    const source = b.entry()!.inject!(sid('s1')).hooks.goalActivation
+    const dispose = source.subscribe(() => {})
+    try {
+      await waitFor(() => { expect(warn).toHaveBeenCalledOnce() })
+      expect(warn).toHaveBeenCalledWith('[ui-goal] goal activation read failed:', expect.objectContaining({
+        message: reported ? 'history unavailable' : 'session "s1" is not open',
+      }))
+      expect(source.getSnapshot()).toEqual({ id: GOAL_ID, revision: 3 })
+      expect(b.calls).toEqual([])
+      expect(b.sessions.retainInfo(sid('s1')).getSnapshot().referenceCount).toBe(1)
+    } finally {
+      dispose()
+    }
+  })
+
+  it('refuses activation reads captured from a replaced Session binding', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    onTestFinished(() => { warn.mockRestore() })
+    const b = await bench({ projection: makeProjection() })
+    await b.fiber.await()
+    const source = b.entry()!.inject!(sid('s1')).hooks.goalActivation
+    b.owner.release()
+    b.sessions.retainFor(b.ctx, sid('s1'))
+    const dispose = source.subscribe(() => {})
+    try {
+      await waitFor(() => { expect(warn).toHaveBeenCalledWith('[ui-goal] goal activation read failed:', expect.objectContaining({
+        message: 'ui-goal: session "s1" is unavailable',
+      })) })
+      expect(b.calls).toEqual([])
+    } finally {
+      dispose()
+    }
+  })
+
   it('registers the GoalBar dock, command input Definition, and keyed Chat renderer', async () => {
     const b = await bench()
     await b.fiber.await()
     expect(b.entry()).toMatchObject({ id: 'goal', order: 10, locale: 'goal' })
     expect(b.entry()?.inject).toBeTypeOf('function')
+    expect(() => b.entry()!.inject!(sid('missing'))).toThrow(/unavailable/)
     expect(b.definitions().map(definition => definition.kind)).toEqual(['goal-command-input'])
     expect(b.chatEntry()?.options).toMatchObject({ key: 'command-input' })
     expect(b.chatEntry()?.locale).toBe('goal')
@@ -159,6 +263,26 @@ describe('ui-goal browser plugin', () => {
 
     expect(await verbs.onPause()).toEqual({ ok: true, value: { ref: { id: 'g-1', revision: 3 } } })
     expect(b.calls).toMatchObject([{ method: 'remounted-goals/pause' }])
+  })
+
+  it('binds the activation hook and forwards only this session activation events', async () => {
+    const b = await bench({ projection: makeProjection(), activation: 'disarmed' })
+    await b.fiber.await()
+    const injected = b.entry()!.inject!(sid('s1'))
+    const source = injected.hooks.goalActivation
+    const seen: unknown[] = []
+    const dispose = source.subscribe(() => { seen.push(source.getSnapshot()) })
+    await waitFor(() => {
+      expect(source.getSnapshot()).toMatchObject({ id: 'g-1', revision: 3, activation: 'disarmed' })
+    })
+    expect(b.calls.at(-1)).toMatchObject({ method: 'goals/get', args: ['s1'] })
+
+    b.emitActivation(sid('s2'), { id: 'g-1', revision: 3, activation: 'armed' })
+    expect(source.getSnapshot().activation).toBe('disarmed')
+    b.emitActivation(sid('s1'), { id: 'g-1', revision: 3, activation: 'armed' })
+    expect(source.getSnapshot().activation).toBe('armed')
+    dispose()
+    expect(seen.length).toBeGreaterThan(0)
   })
 
   it('rejects every verb once the Remote namespace is gone', async () => {
@@ -216,6 +340,9 @@ describe('GoalDock adapter', () => {
   it('renders the projected goal snapshot and nothing for absent/null', () => {
     const projection = makeProjection()
     const useProjection = vi.fn(() => projection)
+    const useGoalActivation = (
+      selector: (snapshot: GoalActivationSnapshot) => unknown,
+    ) => selector({ id: GOAL_ID, revision: 3, activation: 'armed' })
     const actions: GoalBarActions = {
       onEdit: () => Promise.resolve({ ok: true, value: undefined }),
       onPause: () => Promise.resolve({ ok: true, value: undefined }),
@@ -224,7 +351,7 @@ describe('GoalDock adapter', () => {
     }
     const t = makeTranslate(zh, commonZh)
     const dockProps = (up: () => GoalProjection | null | undefined) =>
-      ({ useProjection: up, ...actions, t }) as unknown as Parameters<typeof GoalDock>[0]
+      ({ useProjection: up, useGoalActivation, ...actions, t }) as unknown as Parameters<typeof GoalDock>[0]
     const shown = render(<GoalDock {...dockProps(useProjection)} />)
     expect(shown.getByText('Ship it')).toBeTruthy()
     cleanup()
@@ -235,6 +362,26 @@ describe('GoalDock adapter', () => {
 
     const absent = render(<GoalDock {...dockProps(() => undefined)} />)
     expect(absent.container.firstChild).toBeNull()
+  })
+
+  it('matches activation by goal id and revision from the injected hook', () => {
+    const projection = makeProjection()
+    const useProjection = vi.fn(() => projection)
+    const useGoalActivation = (
+      selector: (snapshot: GoalActivationSnapshot) => unknown,
+    ) => selector({ id: GOAL_ID, revision: 3, activation: 'disarmed' })
+    const actions: GoalBarActions = {
+      onEdit: () => Promise.resolve({ ok: true, value: undefined }),
+      onPause: () => Promise.resolve({ ok: true, value: undefined }),
+      onResume: () => Promise.resolve({ ok: true, value: undefined }),
+      onClear: () => Promise.resolve({ ok: true, value: undefined }),
+    }
+    const t = makeTranslate(zh, commonZh)
+    const props = { useProjection, useGoalActivation, ...actions, t } as unknown as Parameters<typeof GoalDock>[0]
+    const rendered = render(<GoalDock {...props} />)
+    expect(rendered.getByText('已暂停的目标')).toBeTruthy()
+    expect(screen.getByRole('button', { name: '恢复目标' })).toBeTruthy()
+    expect(rendered.queryByRole('button', { name: '暂停目标' })).toBeNull()
   })
 })
 

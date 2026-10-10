@@ -215,8 +215,6 @@ export class HarnessClient {
       cwd: this.runtime.cwd,
       env: this.runtime.environment(),
       stdio: ['pipe', 'pipe', 'pipe'],
-      // hidden on Windows just like the dsh-subprocess service does.
-      windowsHide: process.platform === 'win32',
     })
     this.child = child
     child.once('error', (error) => {
@@ -470,7 +468,7 @@ export class HarnessClient {
 
 /** Construct the transport against a generic process for package-local fake-runtime tests. */
 export function createProcessHarnessClient(options: RuntimeProcessOptions): HarnessClient {
-  const Constructor = HarnessClient as unknown as new (
+  const Constructor = HarnessClient as new (
     publicOptions: HarnessClientOptions,
     runtime: RuntimeProcessOptions,
   ) => HarnessClient

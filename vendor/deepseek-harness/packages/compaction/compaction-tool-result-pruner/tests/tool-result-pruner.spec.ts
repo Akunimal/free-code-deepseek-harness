@@ -1,14 +1,14 @@
+import { imageOffloadProjection } from '@deepseek-ai/dsh-compaction-image-offload/projection'
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { ToolCallId , createMessage, createToolResultMessage } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import SessionStore, {
+import {
   Session,
   SessionId,
+  SessionSeq,
 } from '@deepseek-ai/dsh-session'
 import type { SurfaceEvent } from '@deepseek-ai/dsh-session'
-import * as SessionInvariant from '@deepseek-ai/dsh-session/invariant'
-import InvariantRegistry from '@deepseek-ai/dsh-invariants'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import TokenMeter from '@deepseek-ai/dsh-token-meter'
 import ToolResultPruner, {
@@ -69,7 +69,7 @@ function appendToolStep(
   const result = session.append('tool/result', {
     turn,
     step: 1,
-    message: createToolResultMessage({ callId, content, isError: false }),
+    message: createToolResultMessage({ callId, content, isError: extra['error'] !== undefined }),
     ...extra,
   }, { surfaceOp: 'append' })
   session.append('step/end', { turn, step: 1 })
@@ -78,6 +78,24 @@ function appendToolStep(
 }
 
 describe('tool-result pruning configuration', () => {
+  it('preserves a logged image offload when pruning the same result later', () => {
+    const session = Session.create(SessionId('prune-offloaded'), undefined, undefined, undefined, [imageOffloadProjection])
+    const seq = appendToolStep(session, 1, 'shot', [
+      { type: 'text', text: 'x'.repeat(200) },
+      { type: 'image', attachment: {
+        attachmentId: `sha256:${'a'.repeat(64)}` as never, mediaType: 'image/png', bytes: 1, width: 1, height: 1,
+      } },
+    ])
+    session.append('image/offload', { targets: [{ seq: SessionSeq(seq), imageIndexes: [0] }] })
+    const pruned = service().pruneSession(session)
+    expect(pruned.pruned).toHaveLength(1)
+    const replacement = session.snapshotEvents().at(-1)!
+    expect(replacement.type).toBe('tool/result')
+    expect(JSON.stringify(session.deriveEventMessage(replacement))).toContain('"offloaded":true')
+    expect(JSON.stringify(Session.create(SessionId('restored-offloaded'), session.snapshotEvents(), undefined, undefined, [imageOffloadProjection]).deriveMessages())).toContain('"offloaded":true')
+    expect(JSON.stringify(session.eventAt(SessionSeq(seq)))).not.toContain('offloaded')
+  })
+
   it('resolves detached immutable defaults and partial overrides', () => {
     const raw = { thresholdChars: 100, headChars: 20, tailChars: 10 }
     const resolved = resolveConfig(raw)
@@ -192,10 +210,7 @@ describe('ToolResultPruner session transaction', () => {
       type: 'tool/result',
       data: {
         message: {
-          content: [{
-            type: 'tool-result',
-            content: [{ type: 'text', text: 'x'.repeat(100) }],
-          }],
+          content: [{ type: 'text', text: 'x'.repeat(100) }],
         },
       },
     })
@@ -207,12 +222,15 @@ describe('ToolResultPruner session transaction', () => {
         isError: true,
         message: {
           source: { kind: 'tool', callId: ToolCallId('one') },
+          role: 'tool',
+          toolCallId: ToolCallId('one'),
+          isError: true,
         },
         error: { name: 'ExitError', code: 'EXIT_1' },
         meta: { diff: ['a', 'b'] },
         futureField: { nested: true },
       },
-      surfaceOp: { op: 'replace', start: originalSeq, end: originalSeq },
+      surfaceOp: { op: 'replace', startSeq: originalSeq, endSeq: originalSeq },
       sourceEventSeqs: [originalSeq],
     })
     expect(session.surface.nodes).not.toContain(originalSeq)
@@ -258,22 +276,5 @@ describe('ToolResultPruner session transaction', () => {
     const replay = Session.create(session.id, session.snapshotEvents())
     expect(replay.deriveMessages()).toEqual(session.deriveMessages())
     expect(replay.surface.replaceGeneration).toBe(session.surface.replaceGeneration)
-  })
-
-  it('runs under real invariants between closed steps but not outside a turn', async () => {
-    const ctx = new Context()
-    await ctx.plugin(SessionStore)
-    await ctx.plugin(SessionProjectionRegistry)
-    await ctx.plugin(InvariantRegistry)
-    await ctx.plugin(SessionInvariant)
-    await ctx.plugin(TokenMeter)
-    const prune = new ToolResultPruner(ctx, SMALL)
-    const session = ctx.sessions.create(SessionId('invariants'))
-    appendToolStep(session, 1, 'a', [{ type: 'text', text: 'A'.repeat(100) }])
-    expect(() => prune.pruneSession(session)).toThrow(/outside any open turn/)
-    session.append('turn/start', {
-      turn: 2,
-    })
-    expect(() => prune.pruneSession(session)).not.toThrow()
   })
 })

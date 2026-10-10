@@ -304,7 +304,7 @@ describe('automation-only ACP bridge', () => {
     await harness.client.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} })
     const created = await harness.client.newSession({ cwd: process.cwd(), mcpServers: [] })
     const agent = harness.ctx.agents.get(SessionId(created.sessionId))!
-    agent.session.append('session/title', { title: 'materialized', messageSeqs: [], source: { kind: 'fallback' } })
+    agent.session.append('session/title', { title: 'materialized', messageSeqs: [], source: { kind: 'user' } })
     await harness.client.closeSession({ sessionId: created.sessionId })
 
     const resumed = await harness.client.resumeSession({ sessionId: created.sessionId, cwd: process.cwd() })
@@ -942,7 +942,9 @@ describe('automation-only ACP bridge', () => {
     await harness.client.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} })
     const { sessionId } = await harness.client.newSession({ cwd: process.cwd(), mcpServers: [] })
     await harness.client.prompt({ sessionId, prompt: [{ type: 'text', text: 'go' }] })
-    expect(harness.adapter.requests[0]?.system).toContain(`Automation persona for mock in ${process.cwd()}.`)
+    const head = harness.adapter.requests[0]?.messages[0]
+    expect(head?.role).toBe('system')
+    expect(head?.content).toContainEqual({ type: 'text', text: expect.stringContaining(`Automation persona for mock in ${process.cwd()}.`) as unknown })
   })
 
   it('requires one absolute primary workspace', async () => {

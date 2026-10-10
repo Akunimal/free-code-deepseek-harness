@@ -58,7 +58,7 @@
 }
 
 .tab:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: 2px;
   border-radius: 2px;
   color: var(--dsw-alias-label-primary);
@@ -84,106 +84,25 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
-.mcpPanel {
+/* Configurable tab: the card list. */
+
+.configurable {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
-.mcpHeading,
-.mcpDescription,
-.mcpMeta,
-.mcpPath {
+/* Preset detail page: the settings section over the same cards. */
+
+.presetSettings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.presetSettingsTitle {
   margin: 0;
-}
-
-.mcpHeading {
-  font-size: 16px;
+  font-size: 15px;
+  line-height: 22px;
   font-weight: 600;
-}
-
-.mcpDescription,
-.mcpMeta span,
-.mcpPath {
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-}
-
-.mcpRows {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.mcpRow {
-  align-items: center;
-  border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
-  display: flex;
-  gap: 12px;
-  justify-content: space-between;
-  padding: 10px 12px;
-}
-
-.mcpMeta {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-
-.mcpMeta code {
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 11px;
-  max-width: 520px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mcpMeta small {
-  color: var(--dsw-alias-label-danger, #f27676);
-  font-size: 11px;
-  max-width: 520px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mcpToggle,
-.mcpActions button,
-.mcpError button {
-  background: var(--dsw-alias-fill-l2);
-  border: 0;
-  border-radius: 6px;
-  color: var(--dsw-alias-label-primary);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-  padding: 7px 10px;
-}
-
-.mcpToggle[aria-pressed='true'] {
-  background: var(--dsw-alias-state-business-primary);
-  color: white;
-}
-
-.mcpToggle:disabled {
-  cursor: wait;
-  opacity: 0.6;
-}
-
-.mcpActions {
-  display: flex;
-  gap: 8px;
-}
-
-.mcpError {
-  align-items: flex-start;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }

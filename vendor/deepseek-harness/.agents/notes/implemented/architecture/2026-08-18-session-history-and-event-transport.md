@@ -8,7 +8,7 @@ English | [中文](2026-08-18-session-history-and-event-transport.zh.md)
 
 The browser consumes three kinds of data with different lifecycles: persistable, paginated Session logs; process-local state that needs an opening baseline to converge after reconnect; and immediate notifications that need no replay.
 
-These kinds of data cannot share one recovery rule. Session logs have stable sequence numbers and persistence, so a cursor can fill gaps; queue, jobs, and Workspace lists need a complete snapshot to replace an old mirror; ordinary notifications only promise delivery within the current Connection generation.
+These kinds of data cannot share one recovery rule. Session logs have stable sequence numbers and persistence, so a cursor can fill gaps; jobs, projection values, and Workspace lists need a complete snapshot to replace an old mirror; ordinary notifications only promise delivery within the current Connection generation.
 
 Observing Session history, lists, and projections must allow cold reads. If transport performs a general Typert lookup whenever an argument contains a Session or Agent, opening a page, switching tabs, or reconnecting the network implicitly resumes an Agent, so observation gains execution side effects.
 
@@ -64,7 +64,8 @@ The browser's Client Remote plugin starts `RemoteStreamMuxClient` idempotently o
 
 The Host sends one RFC 6455 Ping control frame to every open mux socket at the configured `websocketHeartbeatIntervalMs` interval (two seconds by default). The browser replies with Pong at the protocol layer; neither control frame enters the Remote stream JSON union or changes Connection generation state. Before each Ping, the Host marks the socket as awaiting Pong and terminates it at the next interval if no Pong arrived.
 
-After an initial connection failure or the loss of a connected socket, open logical streams end their current physical generation with `RemoteStreamCarrierError`. `ConnectionController` owns the bounded exponential retry schedule; each attempt asks the mux to replace any candidate or active socket exactly once before reopening `$events`. A user-requested reconnect resets the attempt sequence and bypasses the delay through the same path ([decision](../feature/2026-08-28-web-connection-recovery-control.md)).
+After an initial connection failure or the loss of a connected socket, open logical streams end their current physical generation with `RemoteStreamCarrierError`. `ConnectionController` owns the continuous exponential retry schedule with a capped delay; each attempt asks the mux to replace any candidate or active socket exactly once before reopening `$events`. A user-requested reconnect resets the attempt sequence and bypasses the delay through the same path ([decision](../../archived/feature/2026-08-28-web-connection-recovery-control.md)).
+
 
 The browser's network-status events are inputs to the same Controller. `offline` withdraws the Connection generation and suspends automatic retries; the next `online` transition restarts the base backoff. These events never establish connectivity: only a fresh `$events` ready frame publishes a Connection generation.
 
@@ -157,7 +158,8 @@ Each method explicitly selects a cold inspection, live-only lookup, or resume-ca
 | `session.follow(address)` | one live or prepared observation carrying the opening page and projections | Publishes the snapshot first, then promotes an ordinary cold Session once in the background |
 | `session.control()` | current attached Agents, pending registry, and process-local registries | Baseline and reconnect do not resume an Agent |
 | `session.attachment`, fork source read | authorized durable Session data | A read does not resume an Agent |
-| `session.updateQueue`, `cancel` | only the current live Agent | Does not resume vanished state |
+| `session.updateQueue` | live Agent or ordinary persisted Session | Resumes an ordinary cold Session before mutating its Inbox |
+| `session.cancel` | only the current live Agent | Does not resume vanished state |
 | `models`, `selectModel`, `rename`, `prompt` | command resolves the target Session | Resumes only when the method explicitly permits it |
 | `create` and fork target | new Session/Agent | The user command supplies creation authority |
 
@@ -203,9 +205,9 @@ A terminal failure from the initial page, repair page, or follow enters the curr
 
 `session.control()` is a Host-wide snapshot stream. One browser can observe transient state for all current live Sessions without opening a journal for every transcript.
 
-Each generation emits a complete baseline first, followed by queue, jobs, and projection deltas. The baseline reads attached Agents and process-local registries without resuming cold Agents.
+Each generation emits a complete baseline first, followed by jobs and projection deltas. The baseline reads process-local registries and folded projection values without resuming cold Agents.
 
-Queue and jobs use complete replacement values and apply last-wins. Agent attach, detach, Session disposal, and owner disposal can all clear a stale mirror through an empty value or a new baseline.
+Jobs use complete replacement values and apply last-wins. Projection updates carry monotonically increasing revisions, while a new baseline replaces the complete projection map. Session and owner disposal clear stale mirrors.
 
 The original `approval/request` and `user-questions/request` events are forwardable waterfalls. If an Agent-scoped Client listener claims a request, it returns directly. If all delivered Clients call `next()`, the original Cordis waterfall continues to later Host listeners. Session control neither stores nor replays these requests.
 
@@ -219,7 +221,7 @@ Session-list `updatedAt` is `max(header.createdAt, sessionListMetadata.lastPromp
 
 `packages/api/workspace-controller` provides Host `ctx.workspaceController` and the generated `ctx.remote.workspace` namespace.
 
-It owns create, rename, delete, insertBefore, insertSessionBefore, archiveSession, and `follow`. Workspace registry remains the durable source of truth; the Controller owns Remote commands, projection, and error mapping.
+It owns create, rename, delete, insertBefore, insertSessionBefore, archiveSession, unarchiveSession, and `follow`. Workspace registry remains the durable source of truth; the Controller owns Remote commands, projection, and error mapping.
 
 `WorkspaceFeed` synchronously observes storage `domain/changed`, and each follow generation emits a complete baseline before `upsert`, `remove`, `order`, and `archived` deltas.
 
@@ -312,7 +314,7 @@ API Proxy carries only independent business APIs it owns. Session, Workspace, Re
 
 **Split Session transport and Session commands into two public packages.** Both depend on Session address, Agent activation policy, subagent ownership, error mapping, and Client mount ordering. One public Controller preserves unified ownership while internal classes can evolve independently.
 
-**Move queue, jobs, projection, Workspace, and logs to ordinary `$on`.** Ordinary events have no reconnect baseline, cursor, or gap repair, so one missed delivery leaves permanently stale state. Only notifications that need no recovery, can be repaired by an independent query, or carry their own lifetime as a waterfall fit `$on`.
+**Move jobs, projections, Workspace, and logs to ordinary `$on`.** Ordinary events have no reconnect baseline, cursor, or gap repair, so one missed delivery leaves permanently stale state. Only notifications that need no recovery, can be repaired by an independent query, or carry their own lifetime as a waterfall fit `$on`.
 
 **Make every domain Controller inherit a page/follow/retry base class.** Session journals and Workspace snapshots have different opening, recovery, and ordering rules. Gateway's three compositional stream objects reuse transport lifecycle while domain adapters declare only their own frame semantics.
 
@@ -344,7 +346,7 @@ Connection tests pin missing, duplicate, and withdrawn generation sources, readi
 
 Session Host tests pin cold page/follow without increasing attached Agents, contiguous events reaching a cold follow after an explicit prompt, direct-subagent ownership, message-aligned pagination, and terminal-error projection.
 
-Session control tests pin baseline-first delivery, no cold-Session resume, attach/detach cleanup, queue and jobs replacement, and the projection watermark.
+Session control tests pin baseline-first delivery, no cold-Session resume, jobs replacement, and the projection watermark.
 
 Session Client tests pin one journal owner per Session, no writeback from stale open epochs, independent cancellation of control and journal, and retaining the published window during carrier retry.
 
@@ -378,6 +380,6 @@ The general stream objects add three explicit layers while deleting the retry, c
 
 Remote waterfalls preserve first claim across multiple Clients, continuation of the Host chain after every Client calls `next`, reconnect replay of pending calls, and end-to-end cancellation. The current protocol supports only top-level Agent scope and lossless-JSON requests and results.
 
-This decision extends the allowlist and single Cordis-signature design from [Remote event delivery](2026-08-10-remote-event-delivery.md): ordinary notifications use `emit`, while Agent-scoped async waterfalls use the same `ctx.remote.$on` surface with explicit `waterfall` mode. It creates no second invocation map.
+This decision extends the allowlist and single Cordis-signature design from [Remote event delivery](../../../../packages/api/remotes/README.md): ordinary notifications use `emit`, while Agent-scoped async waterfalls use the same `ctx.remote.$on` surface with explicit `waterfall` mode. It creates no second invocation map.
 
-This decision takes over the Session, Workspace, and Host-event carriers retained by [simple unary API Proxy migration](2026-08-10-unary-apiproxy-remote-migration.md) while preserving the complete jobs snapshot, process-local lifecycle, and “observation does not resume an Agent” semantics required by [background job display](../feature/2026-08-08-web-background-job-display.md).
+This decision takes over the Session, Workspace, and Host-event carriers retained by [simple unary API Proxy migration](../../archived/architecture/2026-08-10-unary-apiproxy-remote-migration.md) while preserving the complete jobs snapshot, process-local lifecycle, and “observation does not resume an Agent” semantics required by [background job display](../../../../packages/api/session-controller/README.md).

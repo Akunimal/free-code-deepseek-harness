@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-client-locale` localizes the web GUI: users choose from the registered languages in Settings → General, and the UI copy switches immediately. The package ships `zh` and `en`, while external client plugins can add languages and their namespace dictionaries. On a loopback page, the choice persists as `locale.preference` in `$DSH_HOME/settings.yaml`; a non-loopback page keeps its selection process-local even though Connection authenticates every API method. A fresh browser starts provisionally in the first registered language requested by `navigator` until an allowed Host preference arrives and replaces it live. Plugin authors receive full type checking for the built-in dictionary form and translate through the framework `t` seat; copy rendered through slots follows language switches without a reload.
+Use `dsh-client-locale` to switch the web GUI between the shipped English and Chinese locales or languages added by client plugins. User selections take effect immediately; loopback pages persist them in `$DSH_HOME/cordis.patch.yml`, while non-loopback pages keep them only for the current process. New browsers use the first supported language requested by the browser until an allowed stored preference arrives. Plugin authors add typed namespace dictionaries and translate through the public locale API; slot-rendered copy updates without a reload.
 
 ## Table of Contents
 
@@ -31,9 +31,15 @@ Use it wherever the web GUI needs a language switch or translated copy: the ship
 
 Open Settings → General and select a registered language. The active locale is applied immediately: the UI copy switches, `<html lang>` points at the external id or built-in document tag, and the choice is written to the durable settings section. A browser without an explicit Host preference selects the first registered language that matches `navigator` by full tag and then primary subtag, falling back to English. A stored external locale waits for its definition to register instead of becoming active while unavailable.
 
+Native shells may provide `__DSH_LOCALE__` with an asynchronous `read()` and an `onChange(locale)` callback. Initialization supplies the current Host preference and ordered OS languages before the Client mounts. Automatic selection stays provisional; only Settings selections write `locale.preference`. A fresh read on each page load prevents a stale preload preference after reload. Ordinary browsers keep navigator-based detection and their existing settings-scope policy.
+
 ### Registering a dictionary
 
 Call `ctx.locale.register(ns, { zh, en })` with a namespace merged into `LocaleNamespaceMap`; the compiler checks every key against the namespace's typed key union and requires both shipped locales. Consumers translate through `ctx.locale.bind(ns)` or the framework-injected `t` seat. A dictionary registered after the UI is already mounted is picked up without a remount.
+
+### Resolving package text
+
+Use `ctx.locale.resolveText(text)` for [`LocalizedText`](../../util/package-manifest/README.md), such as installed plugin titles and descriptions. Literal strings are returned unchanged. Translation maps use lowercase language ids, require an `en` fallback, and follow the active language's declared fallback chain. They do not consult or register namespace dictionaries.
 
 ### Registering a language pack
 
@@ -83,6 +89,8 @@ The provisional locale comes from the browser (`navigator.languages` matched by 
 
 ### Dictionary lookup
 
+Document language synchronization writes `<html lang>` only when its value changes; dictionary-only revisions leave the attribute untouched.
+
 The typed object form requires complete dictionaries for both built-in locales. The per-locale form lets language packs register each namespace independently. For each key, lookup walks the active language's declared fallback chain in the requested namespace, repeats that chain in `common`, then displays the key itself. Bound translate functions retain stable identity per namespace so they can ride inject surfaces without breaking memoization.
 
 ### Source map
@@ -104,7 +112,7 @@ The typed object form requires complete dictionaries for both built-in locales. 
 Read these when the locale contract is not enough: the slot face it implements, the settings surface it rides, and the persistence decision behind the preference.
 
 - [Client slot system](../ui-slots/README.md) — the slot model and the `LocaleFace` seat this package implements.
-- [Host-backed preferences decision](../../../.agents/notes/implemented/bug-fix/2026-08-06-host-backed-web-preferences.md) — why the preference persists in Host settings instead of the browser.
+- [historical Host-backed preferences decision](../../../.agents/notes/archived/bug-fix/2026-08-06-host-backed-web-preferences.md) — why the preference persists in Host settings instead of the browser.
 - [Settings group map](../../settings/README.md) — the settings service that stores the preference.
 - [Client group map](../README.md) — the browser half this package belongs to.
 
@@ -138,5 +146,3 @@ These limits define where localization is incomplete or frozen at registration t
 None.
 
 </details>
-
-**Runtime invariant:** No companion is published. The locale catalog and dictionaries have no independent runtime source to compare against; registration disposal, preference resolution, and fallback lookup are asserted by behavior specs.

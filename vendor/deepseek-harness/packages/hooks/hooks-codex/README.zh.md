@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-hooks-codex` 在 agent（智能体）运行期间执行你现有 Codex 配置（`hooks.json`）中的钩子，让你已经写好的行为无需重写即可继续生效。Codex 的 5 个 hook 点会在对应时刻触发：会话开始时、提示词提交时、工具运行前后，以及运行即将停止时。钩子可以带一条模型可见的消息阻塞提示词或工具调用、向对话附加额外上下文，或强制运行继续。当你持有 Codex command 钩子、希望它们原样在 harness 中工作时选择它；没有 Codex 对应物的行为应放入原生插件。
+`dsh-hooks-codex` 在 agent（智能体）运行期间执行现有 Codex `hooks.json` 中的 command 钩子，让提示词与工具把关逻辑无需重写即可生效。它支持 5 个 Codex hook 点：会话开始、提示词提交、工具执行前后以及停止。钩子可以用模型可见的原因阻塞提示词或工具调用、添加对话上下文，或强制 agent 再执行一步。需要在 harness 中复用 Codex command 钩子时选择本包；超出这一受支持子集的行为应使用原生插件。
 
 ## 目录
 
@@ -43,7 +43,7 @@ kind: "package-reference"
 | 字段 | 默认值 | 含义 |
 |---|---|---|
 | `configPath` | 必填 | Codex `hooks.json` 的路径 |
-| `model` | `''` | 盖在每个 payload 上的模型名称（Codex 在每个事件中都包含 `model`） |
+| `model` | `''` | 写入每个 payload 的模型名称（Codex 在每个事件中都包含 `model`） |
 | `defaultTimeoutMs` | `600,000` | hook 未设置时的每 hook 超时（即 Codex 默认值） |
 | `stderrSummaryMaxChars` | `500` | 持久化 `hook/result` stderr 摘要的字符上限 |
 
@@ -80,7 +80,7 @@ kind: "package-reference"
 
 ### Hook 点映射
 
-每个受支持事件都面向一个 harness 扩展点：`SessionStart` 向新会话发射上下文（`agent/session-start`），`UserPromptSubmit` 与 `PreToolUse` 是能拒绝传入动作的 waterfall（瀑布式事件）（`agent/pre-step`、`tools/pre-execute`），`PostToolUse` 是能带反馈阻塞或向下游决策添加上下文的 waterfall（`tools/post-execute`），`Stop` 是串行监听器，其阻塞结果通过 `steer()` 强制再执行一步（`agent/turn-stopping`）。仅提供上下文的 hook 总是先通过 `next()` 委托，再把带来源的消息折叠进下游决策，因此后续监听器仍可拒绝或改写；阻塞决策映射为 `deny`（`PreToolUse` 没有 `allow` 或 `ask`）。逐事件接线位于 [`src/index.ts`](src/index.ts)。
+每个受支持事件都面向一个 harness 扩展点：`SessionStart` 在首个轮次前通过需等待的 `agent/created` 初始化加入上下文，`UserPromptSubmit` 与 `PreToolUse` 是能拒绝传入动作的 waterfall（瀑布式事件）（`agent/pre-step`、`tools/pre-execute`），`PostToolUse` 是能带反馈阻塞或向下游决策添加上下文的 waterfall（`tools/post-execute`），`Stop` 是串行监听器，其阻塞结果通过 `steer()` 强制再执行一步（`agent/turn-stopping`）。仅提供上下文的 hook 总是先通过 `next()` 委托，再把带来源的消息折叠进下游决策，因此后续监听器仍可拒绝或改写；阻塞决策映射为 `deny`（`PreToolUse` 没有 `allow` 或 `ask`）。逐事件接线位于 [`src/index.ts`](src/index.ts)。
 
 ### 载荷与环境
 
@@ -102,7 +102,7 @@ matcher subject 是工具名称（`PreToolUse`／`PostToolUse`）或会话源（
 - **dispose 必须达到完全停稳。** 脱离运行会被跟踪并在释放时排空，因此不会有 hook 进程或迟到回调超出 fiber 存活。
 - **保持方言形状，而非最大化。** payload 保持 snake_case 并带 `turn_id`／`model`，stdin 不带尾随换行符，桥接也不实现工具前审批或改写路径——即使 harness 本可以做得更多，也保留协议的形状。
 
-[hook-bridges Agent Note](../../../.agents/notes/implemented/feature/2026-06-30-hook-bridges.zh.md) 记录了桥接设计与延期缺口；[hook-protocol-lib Agent Note](../../../.agents/notes/implemented/feature/2026-06-30-hook-protocol-lib.zh.md) 记录了共享与逐方言的划分。
+[hook-bridges Agent Note](../../../.agents/notes/archived/feature/2026-06-30-hook-bridges.md) 记录了桥接设计与延期缺口；[hook-protocol-lib Agent Note](../../../.agents/notes/archived/feature/2026-06-30-hook-protocol-lib.md) 记录了共享与逐方言的划分。
 
 ### 源码地图
 
@@ -110,7 +110,6 @@ matcher subject 是工具名称（`PreToolUse`／`PostToolUse`）或会话源（
 |---|---|
 | [`src/index.ts`](src/index.ts) | 插件入口：配置校验、监听器注册、逐事件 payload、决策映射 |
 | [`src/config.ts`](src/config.ts) | Codex 配置解析：五个受支持事件、matcher 校验、跳过原因 |
-| — | 不发布运行时不变式伴生入口；`hook/*` 配对检查位于 `dsh-hook-protocol`。 |
 
 </details>
 
@@ -123,8 +122,8 @@ matcher subject 是工具名称（`PreToolUse`／`PostToolUse`）或会话源（
 
 - [hooks 组地图](../README.zh.md)——同级组页面及其包表。
 - [hook 协议库](../hook-protocol/README.zh.md)——本桥接应用的共享钩子规则。
-- [钩子桥接 Agent Note](../../../.agents/notes/implemented/feature/2026-06-30-hook-bridges.zh.md)——桥接设计、决策映射与延期缺口。
-- [拦截扩展点 Agent Note](../../../.agents/notes/implemented/feature/2026-06-30-interception-extension-points.zh.md)——桥接所映射的类型化 Decision 接口面。
+- [钩子桥接 Agent Note](../../../.agents/notes/archived/feature/2026-06-30-hook-bridges.md)——桥接设计、决策映射与延期缺口。
+- [拦截扩展点 参考](../../../docs/tool-execution-pipeline.zh.md)——桥接所映射的类型化 Decision 接口面。
 - [生成的配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-hooks-codex)——每个受支持配置字段及其源声明。
 
 -----

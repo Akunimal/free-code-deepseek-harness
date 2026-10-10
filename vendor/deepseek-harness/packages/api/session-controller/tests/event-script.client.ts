@@ -12,6 +12,19 @@ import type {
   SessionWireEvent,
 } from '../src/types.ts'
 
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    'compact-checkpoint': { kind: 'compact-checkpoint'; compactionId: string }
+  }
+}
+
+type CheckpointSource = { kind: 'compact-checkpoint'; compactionId: string }
+
+/** Build a typed checkpoint source for the history event script. */
+function checkpointSource(): CheckpointSource {
+  return { kind: 'compact-checkpoint', compactionId: 'event-script-compaction' }
+}
+
 /** One text content block (local helper). */
 const text = (t: string): ContentBlock[] => [{ type: 'text', text: t }]
 
@@ -66,8 +79,8 @@ export const ev = {
     }),
   codeDispatchStart: (seq: SessionSeq, parentCallId: string, n: number, name: string, args: unknown): SessionEvent =>
     at(seq, {
-      type: 'tool/code-dispatch-start',
-      data: { rootCallId: parentCallId, parentCallId, subCallId: `${parentCallId}:code:${n}`, name, arguments: args },
+      type: 'tool/ptc-dispatch-start',
+      data: { rootCallId: parentCallId, parentCallId, subCallId: `${parentCallId}:ptc:${n}`, name, arguments: args },
     }),
   codeDispatch: (
     seq: SessionSeq,
@@ -79,8 +92,8 @@ export const ev = {
     isError = false,
   ): SessionEvent =>
     at(seq, {
-      type: 'tool/code-dispatch',
-      data: { rootCallId: parentCallId, parentCallId, subCallId: `${parentCallId}:code:${n}`, name, arguments: args, isError, content: text(body) },
+      type: 'tool/ptc-dispatch',
+      data: { rootCallId: parentCallId, parentCallId, subCallId: `${parentCallId}:ptc:${n}`, name, arguments: args, isError, content: text(body) },
     }),
   stepEnd: (seq: SessionSeq, turn: number, step = 0): SessionEvent =>
     at(seq, { type: 'step/end', data: { turn, step } }),
@@ -145,11 +158,11 @@ export const ev = {
   ): SessionEvent =>
     at(seq, {
       type: 'user/message',
-      surfaceOp: { op: 'replace', start, end },
+      surfaceOp: { op: 'replace', startSeq: start, endSeq: end },
       sourceEventSeqs: [summarySeq, start, end],
       data: createUserMessage({
         content: text('<context_checkpoint>model only</context_checkpoint>'),
-        source: { kind: 'plugin', plugin: 'compact' },
+        source: checkpointSource(),
       }),
     }),
 }

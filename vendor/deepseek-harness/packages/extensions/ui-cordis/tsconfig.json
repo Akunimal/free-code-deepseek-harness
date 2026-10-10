@@ -12,7 +12,7 @@
       "path": "../../../vendor/cordis"
     },
     {
-      "path": "../../client/locale"
+      "path": "../../client/locale/tsconfig.client.json"
     },
     {
       "path": "../cordis-client-runner"
@@ -27,10 +27,13 @@
       "path": "../../client/ui-sidebar"
     },
     {
-      "path": "../../client/ui-input-trigger"
+      "path": "../../client/ui-primitives"
     },
     {
-      "path": "../../client/ui-primitives"
+      "path": "../../client/ui-renderer"
+    },
+    {
+      "path": "../../client/ui-session"
     },
     {
       "path": "../../client/ui-renderer"

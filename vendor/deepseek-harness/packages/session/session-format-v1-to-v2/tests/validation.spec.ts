@@ -8,10 +8,10 @@ import type {
 } from '@deepseek-ai/dsh-session-format'
 import {
   RELEASED_V2_EVENT_TYPES,
-  assertReleasedV2Artifact,
   assertReleasedV2Header,
   restoreReleasedV2Artifact,
 } from '@deepseek-ai/dsh-session-format-v1-to-v2'
+import { assertReleasedV2Artifact } from '../src/testing/validation.ts'
 
 const textBlock = { type: 'text', text: 'hello' } as const
 const usage = { inputTokens: 3, outputTokens: 2 } as const
@@ -208,6 +208,22 @@ describe('released v2 event envelopes and payloads', () => {
     expect(() => { assertReleasedV2Artifact(value) }).toThrow(message)
   })
 
+  it.each([
+    ['inherited count beyond events', artifact([], { inheritedEventCount: 1 }), /exceeds its events/],
+    ['unseeded inherited count', artifact([
+      event('feedback/record', 0, { text: 'x' }),
+    ], { inheritedEventCount: 1 }), /unseeded.*inherited events/],
+    ['non-string type', artifact([
+      { type: 1, seq: 0, time: 1, data: {} } as unknown as SessionFormatEvent,
+    ]), /type must be a string/],
+    ['non-dense seq', artifact([event('feedback/record', 1, { text: 'x' })]), /not dense/],
+    ['false ignorable marker', artifact([
+      event('feedback/record', 0, { text: 'x' }, { ignorable: false }),
+    ]), /ignorable must be true/],
+  ])('rejects production artifact drift before payload restoration: %s', (_name, value, message) => {
+    expect(() => { restoreReleasedV2Artifact(value, new Set(RELEASED_V2_EVENT_TYPES)) }).toThrow(message)
+  })
+
   it('validates present and absent opaque payload members before relationship checks', () => {
     for (const includeMeta of [false, true]) {
       const value = artifact([
@@ -298,6 +314,16 @@ describe('released v2 seed and surface relationships', () => {
     expect(() => { assertReleasedV2Artifact(value) }).toThrow(message)
   })
 
+  it('rejects production seed lineage disagreement', () => {
+    const known = new Set(RELEASED_V2_EVENT_TYPES)
+    expect(() => { restoreReleasedV2Artifact(artifact([], {
+      header: { version: 2, id: 'seeded', createdAt: 1, isSeeded: true, delegationDepth: 0 },
+    }), known) }).toThrow(/seeded header disagrees/)
+    expect(() => { restoreReleasedV2Artifact(artifact([
+      event('session/end-seed', 0, { inherited: true }),
+    ]), known) }).toThrow(/unseeded.*inherited end-seed/)
+  })
+
   it('accepts append and exact replacement surface operations', () => {
     expect(() => { assertReleasedV2Artifact(artifact([
       event('user/message', 0, userData('one'), { surfaceOp: 'append' }),
@@ -311,30 +337,30 @@ describe('released v2 seed and surface relationships', () => {
   })
 
   it.each([
-    ['assistant chunk provenance', artifact([
+    ['assistant chunk references', artifact([
       event('user/message', 0, userData(), { surfaceOp: 'append' }),
       event('assistant/message', 1, assistantData({ content: [], stream: [], usage: null, replayState: null }), {
         surfaceOp: 'append', sourceEventSeqs: [0],
       }),
-    ]), /obsolete chunk provenance/],
-    ['non-array provenance', artifact([
+    ]), /obsolete chunk references/],
+    ['non-array source-event references', artifact([
       event('feedback/record', 0, { text: 'x' }),
       event('user/message', 1, userData(), { surfaceOp: 'append', sourceEventSeqs: 0 }),
     ]), /must be an array/],
-    ['invalid provenance member', artifact([
+    ['invalid source-event reference', artifact([
       event('feedback/record', 0, { text: 'x' }),
       event('user/message', 1, userData(), { surfaceOp: 'append', sourceEventSeqs: [-1] }),
     ]), /sourceEventSeqs member/],
-    ['current provenance member', artifact([
+    ['current source-event reference', artifact([
       event('feedback/record', 0, { text: 'x' }),
       event('user/message', 1, userData(), { surfaceOp: 'append', sourceEventSeqs: [1] }),
     ]), /unique earlier seqs/],
-    ['duplicate provenance member', artifact([
+    ['duplicate source-event reference', artifact([
       event('feedback/record', 0, { text: 'x' }),
       event('feedback/record', 1, { text: 'y' }),
       event('user/message', 2, userData(), { surfaceOp: 'append', sourceEventSeqs: [0, 0] }),
     ]), /unique earlier seqs/],
-    ['empty provenance', artifact([
+    ['empty source-event references', artifact([
       event('feedback/record', 0, { text: 'x' }),
       event('user/message', 1, userData(), { surfaceOp: 'append', sourceEventSeqs: [] }),
     ]), /must be non-empty/],

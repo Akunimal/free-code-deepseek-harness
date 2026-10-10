@@ -50,7 +50,6 @@ export async function setup(toolConfig: SetupConfig, mockConfig: Partial<mock.Co
       allowedModels: TEST_ALLOWED_MODELS,
     })
     await mountAgentLoopTestDependencies(ctx)
-    await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(AgentLoop, { agents: [] })
     await ctx.plugin(SubagentRuntime)
     const provider = await mock.mountScriptedProvider(ctx, { name: 'mock', ...mockConfig })
@@ -58,8 +57,11 @@ export async function setup(toolConfig: SetupConfig, mockConfig: Partial<mock.Co
     const handle = await ctx.agents.create({
       sessionId: SessionId(`model-selection-setup-${++setupAgentCounter}`),
       ...parentAgentOptions !== undefined ? { agentOptions: parentAgentOptions } : {},
-      setup: async (agentCtx) => {
-        await agentCtx.plugin(tool, { ...config, modelSelectionSettings: true })
+      setup: async (agentCtx, agent) => {
+        const fiber = agentCtx.inject(tool.inject, (runtimeCtx) => {
+          tool.apply(runtimeCtx, { ...config, modelSelectionSettings: true }, agent.session)
+        })
+        await fiber.await()
       },
     })
     setupAgents.set(ctx, handle.agent)
@@ -114,6 +116,6 @@ export function callSubagent(
 }
 
 /** Join text blocks from one rendered tool result. */
-export function text(result: { content: { type: string; text?: string }[] }): string {
+export function text(result: { content: readonly { type: string; text?: string }[] }): string {
   return result.content.filter(block => block.type === 'text').map(block => block.text).join('')
 }

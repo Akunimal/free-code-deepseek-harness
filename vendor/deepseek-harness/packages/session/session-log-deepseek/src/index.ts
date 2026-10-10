@@ -5,11 +5,12 @@
  * @module @deepseek-ai/dsh-session-log-deepseek
  */
 
-import type { Context } from '@deepseek-ai/cordis'
+import { Buffer } from 'node:buffer'
+import type { Context, Volatile } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type {} from '@deepseek-ai/dsh-deepseek-llm-api-extensions'
-import { isSurfaceEvent, SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
+import { KNOWN_SESSION_EVENT_TYPES, SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
 import type {
   Session,
   SessionEvent,
@@ -17,12 +18,14 @@ import type {
   SessionLogOffset as SessionLogOffsetType,
   SessionSeq as SessionSeqType,
   SessionSeqCursor,
+  SurfaceOp,
 } from '@deepseek-ai/dsh-session'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type {
   DeepSeekSessionLogExtension,
   DeepSeekSessionLogWireEvent,
   DeepSeekSessionLogWireHeader,
+  DeepSeekSessionLogWireSurfaceOp,
 } from './types.ts'
 
 export type * from './types.ts'
@@ -34,13 +37,20 @@ export const inject = ['deepseekLlmApiExtensions', 'sessions']
 
 /** Session-log request contribution configuration. */
 export interface Config {
-  /** Contribute `dsh_session_log` to official DeepSeek requests. Defaults to `false`. */
-  enabled?: boolean
+  /** Contribute `dsh_session_log` to official DeepSeek requests. Defaults to `true`. */
+  enabled: Volatile<boolean>
+  /**
+   * Largest serialized `dsh_session_log` field, in UTF-8 bytes, that one request carries.
+   * A request uploads the longest pending event prefix that fits; later requests continue
+   * after its acceptance. Defaults to 8 MiB.
+   */
+  maxBytes: number
 }
 
 /** Validated Session-log request contribution configuration. */
-export const Config: z<Config> = z.object({
-  enabled: z.boolean().default(false),
+export const Config = z.object({
+  enabled: z.boolean().default(true).volatile(),
+  maxBytes: z.number().step(1).min(1).default(8 * 1024 * 1024),
 })
 
 interface AcceptanceFold {
@@ -68,23 +78,59 @@ function wireHeader(session: Session): DeepSeekSessionLogWireHeader {
 
 /** Translate compile-time sequence brands to raw numeric request fields. */
 function wireEvent(event: SessionEvent): DeepSeekSessionLogWireEvent {
-  const surfaceEvent = isSurfaceEvent(event) ? event : undefined
-  const surfaceOp = surfaceEvent?.surfaceOp
-  return {
-    type: event.type,
+  const common = {
     seq: Number(event.seq),
     time: event.time,
     data: event.data as JsonValue,
     ...event.ignorable === undefined ? {} : { ignorable: event.ignorable },
-    ...surfaceEvent?.sourceEventSeqs === undefined
-      ? {}
-      : { sourceEventSeqs: surfaceEvent.sourceEventSeqs.map(Number) },
-    ...surfaceOp === undefined
-      ? {}
-      : surfaceOp === 'append'
-        ? { surfaceOp }
-        : { surfaceOp: { op: 'replace' as const, start: Number(surfaceOp.start), end: Number(surfaceOp.end) } },
   }
+  switch (event.type) {
+    case 'developer/message':
+    case 'system/message':
+    case 'user/message':
+    case 'tool/result':
+      return {
+        ...common,
+        type: event.type,
+        surfaceOp: wireSurfaceOp(event.surfaceOp),
+        ...event.sourceEventSeqs === undefined ? {} : { sourceEventSeqs: event.sourceEventSeqs.map(Number) },
+      }
+    case 'assistant/message':
+      return { ...common, type: event.type, surfaceOp: wireSurfaceOp(event.surfaceOp) }
+    default: {
+      // Restored unknown ignorable records are opaque, not current surface events.
+      if (!KNOWN_SESSION_EVENT_TYPES.has(event.type) && event.ignorable === true) {
+        const opaque = event as { surfaceOp?: JsonValue; sourceEventSeqs?: JsonValue }
+        return {
+          ...common, type: event.type, ignorable: true,
+          ...opaque.surfaceOp === undefined ? {} : { surfaceOp: opaque.surfaceOp },
+          ...opaque.sourceEventSeqs === undefined ? {} : { sourceEventSeqs: opaque.sourceEventSeqs },
+        }
+      }
+      return { ...common, type: event.type }
+    }
+  }
+}
+
+function wireSurfaceOp(op: SurfaceOp): DeepSeekSessionLogWireSurfaceOp {
+  return op === 'append'
+    ? op
+    : { op: 'replace', startSeq: Number(op.startSeq), endSeq: Number(op.endSeq) }
+}
+
+/**
+ * UTF-8 length of one value's JSON text as the request body encodes it.
+ * @returns `Infinity` when the value fails to serialize, which counts as exceeding every limit.
+ */
+function jsonBytes(value: DeepSeekSessionLogExtension | DeepSeekSessionLogWireEvent): number {
+  let text: string
+  try {
+    text = JSON.stringify(value)
+  } catch (_unserializable) {
+    // No request can carry a value that fails to serialize.
+    return Number.POSITIVE_INFINITY
+  }
+  return Buffer.byteLength(text)
 }
 
 /**
@@ -98,6 +144,7 @@ export function acceptedThrough(session: Session): SessionSeqCursor {
   const length = session.seq
   const start = previous?.scannedEvents ?? SessionLogOffset(0)
   for (let index = start; index < length; index++) {
+    // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
     const event = session.eventAt(SessionSeq(index))
     if (event === undefined) {
       throw new Error(`session-log-deepseek: missing event ${String(index)} below captured length ${String(length)}`)
@@ -128,32 +175,59 @@ export function acceptedThrough(session: Session): SessionSeqCursor {
 }
 
 /**
- * Register the incremental `dsh_session_log` request contribution when enabled.
+ * Register the incremental request contribution; enablement is read for each request.
  * @param ctx - plugin context carrying Sessions and the DeepSeek request-extension registry.
- * @param config - validated opt-in configuration.
+ * @param config - validated configuration.
  */
 export function apply(ctx: Context, config: Config): void {
-  if (config.enabled !== true) return
+  // Schemastery validates and fills the defaults before `apply` runs.
+  const { maxBytes } = config
   ctx.deepseekLlmApiExtensions.register('dsh_session_log', {
     prepare: (request) => {
+      if (!config.enabled.get()) return undefined
       // TODO: Define an explicit wire result for direct or stale-session calls if they become a supported product path.
       if (request.sessionId === undefined) return undefined
       const session = ctx.sessions.get(brandString<SessionId>(request.sessionId))
       if (session === undefined) return undefined
 
       const afterSeq = acceptedThrough(session)
-      const snapshot = session.snapshotEvents()
-      const throughSeq = snapshot.at(-1)?.seq
-      if (throughSeq === undefined) return undefined
-      const suffix = session.snapshotEvents(SessionLogOffset(afterSeq + 1))
-      const value: DeepSeekSessionLogExtension = {
+      // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
+      const pending = session.snapshotEvents(SessionLogOffset(afterSeq + 1))
+      const envelope = {
         version: 1,
         sessionFormatVersion: session.header.version,
         session: wireHeader(session),
         afterSeq: Number(afterSeq),
-        throughSeq: Number(throughSeq),
-        events: suffix.map(wireEvent),
+      } as const
+      // Field bytes without events or throughSeq digits; each candidate prefix adds its own.
+      let bytes = jsonBytes({ ...envelope, throughSeq: 0, events: [] }) - 1
+      const events: DeepSeekSessionLogWireEvent[] = []
+      // Field bytes with the last examined event; when none fits, the first event's own field size.
+      let candidateBytes = 0
+      for (const event of pending) {
+        const wire = wireEvent(event)
+        const next = bytes + (events.length === 0 ? 0 : 1) + jsonBytes(wire)
+        candidateBytes = next + String(event.seq).length
+        if (candidateBytes > maxBytes) break
+        bytes = next
+        events.push(wire)
       }
+      const last = events.length === 0 ? undefined : pending[events.length - 1]
+      if (last === undefined) {
+        const first = pending[0]
+        if (first !== undefined) {
+          const seq = String(first.seq)
+          ctx.logger.warn(Number.isFinite(candidateBytes)
+            ? `session-log-deepseek: event ${seq} of session "${session.id}" needs a ${String(candidateBytes)}-byte`
+              + ` dsh_session_log field, above maxBytes ${String(maxBytes)}; this session's upload stays at event ${seq}`
+              + ' until maxBytes admits it'
+            : `session-log-deepseek: event ${seq} of session "${session.id}" is too large to serialize into a dsh_session_log field;`
+              + ` this session's upload stays at event ${seq}`)
+        }
+        return undefined
+      }
+      const throughSeq = last.seq
+      const value: DeepSeekSessionLogExtension = { ...envelope, throughSeq: Number(throughSeq), events }
       return {
         value,
         accept: () => {

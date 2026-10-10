@@ -7,7 +7,7 @@
 // row assembly lives here once instead of being copied per tool.
 
 import type { ReactNode } from 'react'
-import { IconBrowseOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconBrowseOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallViewProps } from '../../contract/slots.ts'
 import { toolRowModel } from '../models/tool-call-model.ts'
@@ -21,10 +21,11 @@ export type ReadImageRowProps = ReadFamilyRowProps & PropsRenderSlots<'tool.call
 
 /**
  * The card material one read-family row contributes: exactly the ToolRow card
- * props that row owns. `read` supplies `read`; `read_image` supplies `image`
- * together with the slot dispatcher and loader that draw it.
+ * props that row owns. `read` supplies `read` and the line its call named;
+ * `read_image` supplies `image` together with the slot dispatcher and loader
+ * that draw it.
  */
-export type ReadFamilyCard = Pick<ToolRowProps, 'read' | 'image' | 'renderSlot' | 'loadImage'>
+export type ReadFamilyCard = Pick<ToolRowProps, 'read' | 'image' | 'renderSlot' | 'loadImage' | 'filePathLine'>
 
 /**
  * Compose a read-family row: the shared chrome and model-derived fields, plus the
@@ -34,16 +35,17 @@ export type ReadFamilyCard = Pick<ToolRowProps, 'read' | 'image' | 'renderSlot' 
  * @returns the assembled ToolRow.
  */
 export function readFamilyRow(
-  { toolName, block, cwd, home, openFile, inspect, t }: ReadFamilyRowProps,
+  { toolName, block, cwd, home, openFile, inspect, useDisclosure, t }: ReadFamilyRowProps,
   card: ReadFamilyCard,
 ): ReactNode {
   const model = toolRowModel(toolName, block, cwd, home)
   return (
     <ToolRow
+      useDisclosure={useDisclosure}
       t={t}
       variant={model.variant}
       toolName={toolName}
-      icon={<IconBrowseOutline16 size={14} />}
+      icon={<IconBrowseOutlineRegular size={14} />}
       title={t(model.titleKey)}
       summary={model.summary}
       bodyRaw={null}

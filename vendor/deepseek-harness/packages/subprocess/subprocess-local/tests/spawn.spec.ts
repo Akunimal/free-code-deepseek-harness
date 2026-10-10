@@ -1,17 +1,20 @@
+import { logSpillFailure, OutputCollector, type SpillOptions } from '../src/output.ts'
 import { spawn as nodeSpawn, spawnSync as nodeSpawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, statSync, unlinkSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import {
+  bindManagedProcess,
   childEnv,
   killGroup,
-  OutputCollector,
   spawnSubprocess,
   taskkillProcessTree,
+  validateSubprocessSpec,
 } from '../src/spawn.ts'
 import type { SubprocessHandle, SubprocessOutputReader } from '@deepseek-ai/dsh-subprocess'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
+import { waitWithAbort } from '../src/managed-owner.ts'
 
 vi.mock('node:child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:child_process')>()
@@ -61,9 +64,12 @@ function shellArgv(command: string): string[] {
   }
 }
 
-const { failNextClose, failNextUnlink } = vi.hoisted(() => ({
+const { failNextClose, failNextUnlink, failNextWrite, failNextOpen, unlinked } = vi.hoisted(() => ({
   failNextClose: { value: false },
   failNextUnlink: { value: false },
+  failNextWrite: { value: false },
+  failNextOpen: { value: false },
+  unlinked: [] as string[],
 }))
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs')>()
@@ -77,16 +83,37 @@ vi.mock('node:fs', async (importOriginal) => {
       actual.closeSync(fd)
     },
     unlinkSync(path: Parameters<typeof actual.unlinkSync>[0]): void {
+      unlinked.push(String(path))
       if (failNextUnlink.value) {
         failNextUnlink.value = false
         throw Object.assign(new Error('simulated EIO on unlink'), { code: 'EIO' })
       }
       actual.unlinkSync(path)
     },
+    openSync(...args: Parameters<typeof actual.openSync>): number {
+      if (failNextOpen.value) {
+        failNextOpen.value = false
+        throw Object.assign(new Error('simulated EEXIST on open'), { code: 'EEXIST' })
+      }
+      return actual.openSync(...args)
+    },
+    writeSync(...args: Parameters<typeof actual.writeSync>): number {
+      if (failNextWrite.value) {
+        failNextWrite.value = false
+        throw Object.assign(new Error('simulated ENOSPC on write'), { code: 'ENOSPC' })
+      }
+      return actual.writeSync(...args)
+    },
   }
 })
 
 const spillDir = mkdtempSync(join(tmpdir(), 'dsh-subprocess-spec-'))
+
+/** Spill options for one collector test; failures are collected for assertions. */
+function spillOptions(maxBytes: number, dir = spillDir): { options: SpillOptions; failures: { error: unknown; label: string }[] } {
+  const failures: { error: unknown; label: string }[] = []
+  return { options: { maxBytes, dir, onFailure: (error, label) => { failures.push({ error, label }) } }, failures }
+}
 
 /** The per-process default spill dir captured by the default-spill test. */
 let defaultSpillDir: string | undefined
@@ -133,7 +160,8 @@ async function waitGone(pid: number, timeoutMs = 5_000): Promise<void> {
         const state = stat.slice(stat.lastIndexOf(')') + 2, stat.lastIndexOf(')') + 3)
         if (state === 'Z' || state === 'X') return
       } catch (error: unknown) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return
+        const code = (error as NodeJS.ErrnoException).code
+        if (code === 'ENOENT' || code === 'ESRCH') return
         throw error
       }
     }
@@ -179,7 +207,7 @@ describe('spawnSubprocess', () => {
   it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY, MAX_TIMER_DELAY_MS + 1])(
     'rejects an invalid grace before spawning: %s',
     (graceMs) => {
-      expect(() => spawnSubprocess(spec('true', { graceMs })))
+      expect(() => { validateSubprocessSpec(spec('true', { graceMs })) })
         .toThrow(`subprocess graceMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`)
     },
   )
@@ -267,10 +295,13 @@ describe('spawnSubprocess', () => {
     })
     const helper = await waitForPidFile(pidFile)
     const realKill: typeof process.kill = process.kill.bind(process)
+    let rootPid: number | undefined
     let termAt = 0
     let forceSignals = 0
     const killSpy = vi.spyOn(process, 'kill').mockImplementation((target, signal) => {
-      if (target !== -running.pid) return realKill(target, signal)
+      if (typeof target !== 'number' || target >= 0) return realKill(target, signal)
+      rootPid ??= -target
+      if (target !== -rootPid) return realKill(target, signal)
       if (signal === 'SIGTERM') {
         termAt = Date.now()
         return realKill(target, signal)
@@ -321,11 +352,25 @@ describe('spawnSubprocess', () => {
     expect(result.signal).toBe(process.platform === 'win32' ? null : 'SIGTERM')
   })
 
-  it('throws when the signal is already aborted before spawn', () => {
+  it('throws a stable Error when already aborted before spawn', () => {
+    for (const [reason, message] of [
+      ['too late', 'aborted before spawn: too late'],
+      [null, 'aborted before spawn: aborted'],
+    ] as const) {
+      const controller = new AbortController()
+      controller.abort(reason)
+      expect(() => { validateSubprocessSpec(spec('echo hi', { signal: controller.signal })) })
+        .toThrow(new Error(message))
+    }
+
     const controller = new AbortController()
-    controller.abort('too late')
-    expect(() => spawnSubprocess(spec('echo hi', { signal: controller.signal })))
-      .toThrow(/aborted before spawn: too late/)
+    controller.abort({
+      [Symbol.toPrimitive]() {
+        throw new Error('reason formatting must not escape')
+      },
+    })
+    expect(() => { validateSubprocessSpec(spec('echo hi', { signal: controller.signal })) })
+      .toThrow(new Error('aborted before spawn: aborted'))
   })
 
   it('rejects with a spawn error for a nonexistent cwd', async () => {
@@ -495,7 +540,7 @@ describe('output truncation and spill', () => {
 
 describe('OutputCollector', () => {
   it('keeps the tail of a single oversized chunk', () => {
-    const collector = new OutputCollector(10, 100, 'test', spillDir)
+    const collector = new OutputCollector(10, 'test', spillOptions(100).options)
     collector.push(Buffer.from('0123456789abcdef'))
     const out = collector.finalize()
     expect(out.text).toBe('6789abcdef')
@@ -506,7 +551,7 @@ describe('OutputCollector', () => {
   it('retains a byte-exact tail across uneven chunk boundaries', () => {
     // A diagnostic tail must be exactly the LAST maxBytes regardless of
     // chunking; dropping only whole chunks would under-retain.
-    const collector = new OutputCollector(10, undefined, 'exact-tail', spillDir)
+    const collector = new OutputCollector(10, 'exact-tail', undefined)
     collector.push(Buffer.from('aaaa'))
     collector.push(Buffer.from('bbbbbb'))
     collector.push(Buffer.from('cc'))
@@ -517,7 +562,7 @@ describe('OutputCollector', () => {
   })
 
   it('readFrom returns increments and flags lossy reads', () => {
-    const collector = new OutputCollector(10, 100, 'test', spillDir)
+    const collector = new OutputCollector(10, 'test', spillOptions(100).options)
     collector.push(Buffer.from('aaaaa'))
     const first = collector.readFrom(0)
     expect(first.text).toBe('aaaaa')
@@ -538,7 +583,7 @@ describe('OutputCollector', () => {
   })
 
   it('contains close failures and drops the spill path', () => {
-    const collector = new OutputCollector(4, 100, 'closefail', spillDir)
+    const collector = new OutputCollector(4, 'closefail', spillOptions(100).options)
     collector.push(Buffer.from('aaaa'))
     collector.push(Buffer.from('bbbb'))
     expect(collector.readFrom(0).spillPath).toBeDefined()
@@ -554,7 +599,7 @@ describe('OutputCollector', () => {
   })
 
   it('discards a spill that exceeds its configured cap', () => {
-    const collector = new OutputCollector(4, 8, 'bounded', spillDir)
+    const collector = new OutputCollector(4, 'bounded', spillOptions(8).options)
     collector.push(Buffer.from('aaaa'))
     collector.push(Buffer.from('bbbb'))
     const spillPath = collector.readFrom(0).spillPath!
@@ -570,7 +615,7 @@ describe('OutputCollector', () => {
   })
 
   it('does not create a spill when the first overflowing chunk exceeds the cap', () => {
-    const collector = new OutputCollector(4, 4, 'no-spill', spillDir)
+    const collector = new OutputCollector(4, 'no-spill', spillOptions(4).options)
     collector.push(Buffer.from('abcdefgh'))
     const out = collector.finalize()
     expect(out.text).toBe('efgh')
@@ -579,7 +624,7 @@ describe('OutputCollector', () => {
   })
 
   it('contains cleanup failures while disabling an oversize spill', () => {
-    const collector = new OutputCollector(4, 8, 'cleanup-fail', spillDir)
+    const collector = new OutputCollector(4, 'cleanup-fail', spillOptions(8).options)
     collector.push(Buffer.from('aaaa'))
     collector.push(Buffer.from('bbbb'))
     const spillPath = collector.readFrom(0).spillPath!
@@ -592,18 +637,135 @@ describe('OutputCollector', () => {
     expect(collector.finalize().spillPath).toBeUndefined()
     unlinkSync(spillPath)
   })
+
+  it('keeps collecting when the spill directory has been removed (ENOENT on open)', () => {
+    const removedDir = mkdtempSync(join(tmpdir(), 'dsh-subprocess-removed-'))
+    rmSync(removedDir, { recursive: true, force: true })
+    const { options, failures } = spillOptions(100, removedDir)
+    const collector = new OutputCollector(4, 'enoent', options)
+    collector.push(Buffer.from('aaaa'))
+    expect(() => { collector.push(Buffer.from('bbbb')) }).not.toThrow()
+    collector.push(Buffer.from('cc'))
+    expect(failures).toHaveLength(1)
+    expect((failures[0]!.error as NodeJS.ErrnoException).code).toBe('ENOENT')
+    expect(failures[0]!.label).toBe('enoent')
+    const out = collector.finalize()
+    expect(out.text).toBe('bbcc')
+    expect(out.truncated).toBe(true)
+    expect(out.spillPath).toBeUndefined()
+  })
+
+  it('keeps collecting when the spill directory is a file (ENOTDIR on open)', () => {
+    const fileAsDir = join(spillDir, `not-a-dir-${Date.now()}`)
+    writeFileSync(fileAsDir, '')
+    const { options, failures } = spillOptions(100, fileAsDir)
+    const collector = new OutputCollector(4, 'enotdir', options)
+    collector.push(Buffer.from('aaaa'))
+    expect(() => { collector.push(Buffer.from('bbbb')) }).not.toThrow()
+    expect(failures).toHaveLength(1)
+    expect(['ENOTDIR', 'ENOENT']).toContain((failures[0]!.error as NodeJS.ErrnoException).code)
+    expect(collector.finalize()).toEqual({ text: 'bbbb', truncated: true })
+  })
+
+  it('withdraws a spill whose append fails after the file exists (ENOSPC on write)', () => {
+    const { options, failures } = spillOptions(100)
+    const collector = new OutputCollector(4, 'enospc', options)
+    collector.push(Buffer.from('aaaa'))
+    collector.push(Buffer.from('bbbb'))
+    const spillPath = collector.readFrom(0).spillPath!
+    expect(readFileSync(spillPath, 'utf8')).toBe('aaaabbbb')
+
+    failNextWrite.value = true
+    expect(() => { collector.push(Buffer.from('cccc')) }).not.toThrow()
+    expect(failNextWrite.value).toBe(false)
+    expect(failures).toHaveLength(1)
+    expect((failures[0]!.error as NodeJS.ErrnoException).code).toBe('ENOSPC')
+    expect(() => readFileSync(spillPath)).toThrow()
+
+    collector.push(Buffer.from('dd'))
+    expect(failures).toHaveLength(1)
+    const out = collector.finalize()
+    expect(out.text).toBe('ccdd')
+    expect(out.truncated).toBe(true)
+    expect(out.spillPath).toBeUndefined()
+  })
+
+  it('does not unlink a path it never created when the exclusive open fails (EEXIST)', () => {
+    const { options, failures } = spillOptions(100)
+    const collector = new OutputCollector(4, 'eexist', options)
+    collector.push(Buffer.from('aaaa'))
+    unlinked.length = 0
+    failNextOpen.value = true
+    expect(() => { collector.push(Buffer.from('bbbb')) }).not.toThrow()
+    expect(failNextOpen.value).toBe(false)
+    expect((failures[0]!.error as NodeJS.ErrnoException).code).toBe('EEXIST')
+    expect(unlinked).toEqual([])
+    expect(collector.finalize()).toEqual({ text: 'bbbb', truncated: true })
+  })
+
+  it('contains a reporter that throws and keeps collecting', () => {
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    try {
+      const collector = new OutputCollector(4, 'loud-reporter', {
+        maxBytes: 100, dir: join(spillDir, `absent-${Date.now()}`), onFailure: () => { throw new Error('logger down') },
+      })
+      collector.push(Buffer.from('aaaa'))
+      expect(() => { collector.push(Buffer.from('bbbb')) }).not.toThrow()
+      collector.push(Buffer.from('cc'))
+      expect(stderr).toHaveBeenCalledOnce()
+      expect(String(stderr.mock.calls[0]![0])).toContain('spill failure reporter threw: Error: logger down')
+      expect(collector.finalize()).toEqual({ text: 'bbcc', truncated: true })
+    } finally {
+      stderr.mockRestore()
+    }
+  })
+})
+
+describe('logSpillFailure', () => {
+  it('names the removed directory only for ENOENT and appends the error for every code', () => {
+    const lines: unknown[][] = []
+    const report = logSpillFailure({ error: (...detail: unknown[]) => { lines.push(detail) } }, 'test owner')
+    report(Object.assign(new Error('gone'), { code: 'ENOENT' }), 'stdout')
+    report(Object.assign(new Error('full'), { code: 'ENOSPC' }), 'stderr')
+    expect(lines[0]![0]).toContain('test owner could not write the complete stdout stream')
+    expect(lines[0]![0]).toContain('temporary-file cleaner')
+    expect(lines[1]![0]).toContain('complete stderr stream')
+    expect(lines[1]![0]).not.toContain('temporary-file cleaner')
+    expect((lines[1]![1] as NodeJS.ErrnoException).code).toBe('ENOSPC')
+  })
+})
+
+describe('spill failure reporting without an owner logger', () => {
+  it('writes one stderr line for a bare spawn whose spill directory is gone', async () => {
+    const removedDir = mkdtempSync(join(tmpdir(), 'dsh-subprocess-removed-'))
+    rmSync(removedDir, { recursive: true, force: true })
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    try {
+      const result = await finish(spawnSubprocess(
+        spec('for i in $(seq 1 200); do printf "line-%04d\\n" $i; done', { stdoutMaxBytes: 500, stderrMaxBytes: 500 }),
+        { spillDir: removedDir },
+      ))
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout.truncated).toBe(true)
+      expect(result.stdout.text).toContain('line-0200')
+      expect(result.stdout.spillPath).toBeUndefined()
+      const lines = stderr.mock.calls.map(call => String(call[0])).filter(line => line.includes('dsh-subprocess-local:'))
+      expect(lines).toHaveLength(1)
+      expect(lines[0]).toContain('stdout spill failed; only the in-memory tail is retained')
+      expect(lines[0]).toContain('ENOENT')
+    } finally {
+      stderr.mockRestore()
+    }
+  })
 })
 
 describe('killGroup', () => {
-  it('ignores non-positive pids', () => {
-    expect(() => { killGroup(-1, 'SIGTERM') }).not.toThrow()
-    expect(() => { killGroup(0, 'SIGTERM') }).not.toThrow()
+  it('ignores an unpublished pid', () => {
+    expect(() => { killGroup(undefined, 'SIGTERM') }).not.toThrow()
   })
 
   it('swallows ESRCH for vanished groups', async () => {
-    const running = spawnSubprocess(spec('true'))
-    await running.done
-    expect(() => { killGroup(running.pid, 'SIGTERM') }).not.toThrow()
+    expect(() => { killGroup(2 ** 30, 'SIGTERM') }).not.toThrow()
   })
 
 })
@@ -685,7 +847,8 @@ describe('windows tree semantics (injected platform)', () => {
     })
     running.terminateForHostExit()
     await running.done
-    expect(killed).toEqual([running.pid])
+    expect(killed).toHaveLength(1)
+    expect(killed[0]).toBeGreaterThan(0)
   })
 
   it('terminate routes through taskkill by root pid', async () => {
@@ -705,7 +868,8 @@ describe('windows tree semantics (injected platform)', () => {
     })
     running.terminate()
     const outcome = await running.done
-    expect(killed).toContain(running.pid)
+    expect(killed).toHaveLength(1)
+    expect(killed[0]).toBeGreaterThan(0)
     expect(outcome.signal).toBe(process.platform === 'win32' ? null : 'SIGKILL')
   })
 
@@ -811,6 +975,173 @@ describe.skipIf(process.platform === 'win32')('tree-survivor escalation (termina
 })
 
 describe('coverage seams', () => {
+  it('preserves a non-Error managed direct rejection', async () => {
+    const direct = Promise.withResolvers<{ exitCode: number; signal: null }>()
+    const handle = bindManagedProcess(spec('true', {
+      graceMs: 1,
+      stdio: { stdin: 'ignore', stdout: 'inherit', stderr: 'inherit' },
+    }), {
+      stdin: null,
+      stdout: null,
+      stderr: null,
+      direct: direct.promise,
+      owner: {
+        signal: vi.fn(),
+        waitForExit: async () => { throw new Error('range unavailable') },
+        terminateForHostExit: vi.fn(),
+      },
+    })
+
+    direct.reject(null)
+    await expect(handle.done).rejects.toBeNull()
+    await Promise.resolve()
+  })
+
+  it('contains a managed-owner cleanup failure after direct and range settlement', async () => {
+    const direct = Promise.withResolvers<{ exitCode: number; signal: null }>()
+    const stopped = Promise.withResolvers<undefined>()
+    const cleanup = vi.fn(() => { throw new Error('protocol cleanup failed') })
+    const handle = bindManagedProcess(spec('true', {
+      stdio: { stdin: 'ignore', stdout: 'inherit', stderr: 'inherit' },
+    }), {
+      stdin: null,
+      stdout: null,
+      stderr: null,
+      direct: direct.promise,
+      owner: {
+        signal: vi.fn(),
+        waitForExit: () => stopped.promise,
+        terminateForHostExit: vi.fn(),
+        cleanup,
+      },
+    })
+
+    const waiting = handle.waitForExit()
+    stopped.resolve(undefined)
+    await expect(waiting).resolves.toBe(true)
+    expect(cleanup).not.toHaveBeenCalled()
+    direct.resolve({ exitCode: 0, signal: null })
+    await expect(handle.done).resolves.toEqual({ exitCode: 0, signal: null })
+    await vi.waitFor(() => { expect(cleanup).toHaveBeenCalledOnce() })
+  })
+
+  it('retries an early range read but cleans and retains a terminal range failure', async () => {
+    const direct = Promise.withResolvers<{ exitCode: number; signal: null }>()
+    const earlyFailure = new Error('temporary range read failure')
+    const terminalFailure = new Error('scope ended before launch request consumption')
+    const waitForExit = vi.fn()
+      .mockRejectedValueOnce(earlyFailure)
+      .mockRejectedValueOnce(terminalFailure)
+    const cleanup = vi.fn()
+    const handle = bindManagedProcess(spec('true', {
+      stdio: { stdin: 'ignore', stdout: 'inherit', stderr: 'inherit' },
+    }), {
+      stdin: null,
+      stdout: null,
+      stderr: null,
+      direct: direct.promise,
+      owner: {
+        signal: vi.fn(),
+        waitForExit,
+        terminateForHostExit: vi.fn(),
+        cleanup,
+      },
+    })
+
+    await expect(handle.waitForExit()).rejects.toBe(earlyFailure)
+    expect(cleanup).not.toHaveBeenCalled()
+
+    direct.resolve({ exitCode: 0, signal: null })
+    await expect(handle.done).resolves.toEqual({ exitCode: 0, signal: null })
+    await expect(handle.waitForExit()).rejects.toBe(terminalFailure)
+    await vi.waitFor(() => { expect(cleanup).toHaveBeenCalledOnce() })
+
+    await expect(handle.waitForExit()).rejects.toBe(terminalFailure)
+    expect(waitForExit).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not deliver a stale escalation after range exit wins the timer race', async () => {
+    vi.useFakeTimers()
+    const clearTimer = vi.spyOn(globalThis, 'clearTimeout').mockImplementation(() => {})
+    try {
+      const direct = Promise.withResolvers<{ exitCode: number; signal: null }>()
+      const stopped = Promise.withResolvers<undefined>()
+      const signal = vi.fn()
+      const handle = bindManagedProcess(spec('true', {
+        graceMs: 10,
+        stdio: { stdin: 'ignore', stdout: 'inherit', stderr: 'inherit' },
+      }), {
+        stdin: null,
+        stdout: null,
+        stderr: null,
+        direct: direct.promise,
+        owner: {
+          signal,
+          waitForExit: () => stopped.promise,
+          terminateForHostExit: vi.fn(),
+        },
+      })
+
+      handle.terminate()
+      expect(signal).toHaveBeenCalledExactlyOnceWith('SIGTERM', expect.any(Error))
+      stopped.resolve(undefined)
+      await expect(handle.waitForExit()).resolves.toBe(true)
+      await vi.advanceTimersByTimeAsync(10)
+      expect(signal).toHaveBeenCalledTimes(1)
+
+      direct.resolve({ exitCode: 0, signal: null })
+      await expect(handle.done).resolves.toEqual({ exitCode: 0, signal: null })
+    } finally {
+      clearTimer.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not restart managed termination after the escalation timer fires', async () => {
+    vi.useFakeTimers()
+    try {
+      const direct = Promise.withResolvers<{ exitCode: number; signal: null }>()
+      const stopped = Promise.withResolvers<undefined>()
+      const signal = vi.fn()
+      const handle = bindManagedProcess(spec('true', {
+        graceMs: 10,
+        stdio: { stdin: 'ignore', stdout: 'inherit', stderr: 'inherit' },
+      }), {
+        stdin: null,
+        stdout: null,
+        stderr: null,
+        direct: direct.promise,
+        owner: {
+          signal,
+          waitForExit: () => stopped.promise,
+          terminateForHostExit: vi.fn(),
+        },
+      })
+
+      handle.terminate()
+      await vi.advanceTimersByTimeAsync(10)
+      handle.terminate()
+      await vi.advanceTimersByTimeAsync(10)
+      expect(signal).toHaveBeenCalledTimes(2)
+      expect(signal).toHaveBeenNthCalledWith(1, 'SIGTERM', expect.any(Error))
+      expect(signal).toHaveBeenNthCalledWith(2, 'SIGKILL', undefined)
+
+      stopped.resolve(undefined)
+      await expect(handle.waitForExit()).resolves.toBe(true)
+      direct.resolve({ exitCode: 0, signal: null })
+      await expect(handle.done).resolves.toEqual({ exitCode: 0, signal: null })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('contains a late wait rejection after an already-aborted observation', async () => {
+    const pending = Promise.withResolvers<never>()
+    await expect(waitWithAbort(pending.promise, AbortSignal.abort())).resolves.toBe(false)
+    pending.reject(new Error('late observation failure'))
+    await Promise.resolve()
+  })
+
   it('hides the taskkill helper window', () => {
     const taskkill = vi.mocked(nodeSpawnSync)
     taskkill.mockReturnValueOnce({} as never)
@@ -822,7 +1153,8 @@ describe('coverage seams', () => {
     )
   })
 
-  it('taskkillProcessTree ignores non-positive pids and contains a missing binary', () => {
+  it('taskkillProcessTree ignores unpublished or non-positive pids and contains a missing binary', () => {
+    expect(() => { taskkillProcessTree(undefined) }).not.toThrow()
     expect(() => { taskkillProcessTree(-1) }).not.toThrow()
     expect(() => { taskkillProcessTree(0) }).not.toThrow()
     // On POSIX there is no taskkill; spawnSync reports the failure in its
@@ -841,10 +1173,12 @@ describe('coverage seams', () => {
       linuxProcessGroupHasLiveMembers: () => false,
     })
     const realKill = process.kill.bind(process)
+    let rootPid: number | undefined
     const killSpy = vi.spyOn(process, 'kill').mockImplementation((target, signal) => {
       if (typeof target === 'number' && target < 0) {
+        rootPid ??= -target
         if (signal === 0) return true
-        if (signal === 'SIGKILL') realKill(running.pid, 'SIGKILL')
+        if (signal === 'SIGKILL') realKill(-target, 'SIGKILL')
         return true
       }
       return realKill(target, signal)
@@ -861,8 +1195,10 @@ describe('coverage seams', () => {
   it('treats a vanished group probe as quiescent without signalling', async () => {
     const running = spawnSubprocess(spec('sleep 60'), { platform: 'linux' })
     const realKill = process.kill.bind(process)
+    let rootPid: number | undefined
     const killSpy = vi.spyOn(process, 'kill').mockImplementation((target, signal) => {
       if (typeof target === 'number' && target < 0) {
+        rootPid ??= -target
         throw Object.assign(new Error('simulated absent group'), { code: 'ESRCH' })
       }
       return realKill(target, signal)
@@ -870,11 +1206,33 @@ describe('coverage seams', () => {
     try {
       running.terminate()
       await new Promise(resolve => setTimeout(resolve, 20))
-      realKill(running.pid, 'SIGKILL')
+      if (rootPid === undefined) throw new Error('fallback owner did not probe its private process group')
+      realKill(rootPid, 'SIGKILL')
       await running.done
       await expect(running.waitForExit()).resolves.toBe(true)
     } finally {
       killSpy.mockRestore()
+    }
+  })
+
+  it('treats an EPERM group probe as still alive', async () => {
+    const running = spawnSubprocess(spec('sleep 60'), { platform: 'linux' })
+    const realKill = process.kill.bind(process)
+    let rootPid: number | undefined
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation((target, signal) => {
+      if (typeof target === 'number' && target < 0 && signal === 0) {
+        rootPid ??= -target
+        throw Object.assign(new Error('simulated permission denial'), { code: 'EPERM' })
+      }
+      return realKill(target, signal)
+    })
+    try {
+      await expect(running.waitForExit(AbortSignal.timeout(20))).resolves.toBe(false)
+    } finally {
+      killSpy.mockRestore()
+      if (rootPid === undefined) throw new Error('fallback owner did not probe its private process group')
+      realKill(-rootPid, 'SIGKILL')
+      await running.done
     }
   })
 
@@ -966,6 +1324,15 @@ describe('coverage seams', () => {
     await running.waitForExit()
   })
 
+  it('host-exit finalization synchronously terminates until range absence is observed', async () => {
+    const taskkill = vi.fn()
+    const running = spawnSubprocess(spec('true'), { platform: 'win32', taskkill })
+    await running.done
+    running.terminateForHostExit()
+    await expect(running.waitForExit()).resolves.toBe(true)
+    expect(taskkill).toHaveBeenCalledOnce()
+  })
+
   it('repeated terminate after exit never probes or signals a reused process group', async () => {
     const running = spawnSubprocess(spec('sleep 60'))
     running.terminate()
@@ -1014,14 +1381,19 @@ describe('coverage seams 2', () => {
     await expect(running.waitForExit(aborted.signal)).resolves.toBe(false) // alive branch
     running.terminate()
     await running.done
-    expect(killedPid).toBe(running.pid)
+    expect(killedPid).toBeGreaterThan(0)
     await expect(running.waitForExit()).resolves.toBe(true)
   })
 
   it('an inert win32 taskkill leaves the tree alive for a bounded wait to report', async () => {
     // An inert taskkill simulates a tree that never reports exit: terminate()
     // delivers nothing, so a bounded consumer wait must come back false.
-    const running = spawnSubprocess(spec('sleep 60'), { spillDir, platform: 'win32', taskkill: () => {} })
+    let rootPid: number | undefined
+    const running = spawnSubprocess(spec('sleep 60'), {
+      spillDir,
+      platform: 'win32',
+      taskkill: (pid) => { rootPid = pid },
+    })
     running.terminate()
     const bound = new AbortController()
     const timer = setTimeout(() => { bound.abort() }, 60)
@@ -1029,7 +1401,8 @@ describe('coverage seams 2', () => {
     clearTimeout(timer)
     // Real cleanup: the injected platform spawned without detachment, so the
     // child is a plain (group-less) POSIX process — kill it directly.
-    process.kill(running.pid, 'SIGKILL')
+    if (rootPid === undefined) throw new Error('fallback owner did not call its private taskkill adapter')
+    process.kill(rootPid, 'SIGKILL')
     await running.done
   })
 
@@ -1051,11 +1424,11 @@ describe('coverage seams 2', () => {
 
 describe('argv validation', () => {
   it('rejects an empty argv before spawning', () => {
-    expect(() => spawnSubprocess({ ...spec('true'), argv: [] })).toThrow(/non-empty program name/)
+    expect(() => { validateSubprocessSpec({ ...spec('true'), argv: [] }) }).toThrow(/non-empty program name/)
   })
 
   it('rejects an empty program name before spawning', () => {
-    expect(() => spawnSubprocess({ ...spec('true'), argv: [''] })).toThrow(/non-empty program name/)
+    expect(() => { validateSubprocessSpec({ ...spec('true'), argv: [''] }) }).toThrow(/non-empty program name/)
   })
 
   it.skipIf(process.platform === 'win32')('spawns argv verbatim without shell interpretation', async () => {
@@ -1065,17 +1438,15 @@ describe('argv validation', () => {
 })
 
 describe('abort edge cases', () => {
-  it('reports a fallback reason for reason-less pre-aborted signals', () => {
-    // Real AbortControllers always set a DOMException reason; signal-like
-    // objects from other libraries may not — the fallback covers them.
+  it('uses a stable fallback for a reason-less pre-aborted signal', () => {
     const bare = {
       aborted: true,
       reason: undefined,
       addEventListener() {},
       removeEventListener() {},
     } as unknown as AbortSignal
-    expect(() => spawnSubprocess(spec('echo hi', { signal: bare })))
-      .toThrow(/aborted before spawn: aborted/)
+    expect(() => { validateSubprocessSpec(spec('echo hi', { signal: bare })) })
+      .toThrow(new Error('aborted before spawn: aborted'))
   })
 
   it.skipIf(process.platform === 'win32')('reports the terminating signal of an externally self-killed command', async () => {

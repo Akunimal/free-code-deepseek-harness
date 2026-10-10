@@ -1,5 +1,5 @@
 ---
-description: "Shared in-process subagent run driver for maintainers and backend authors understanding or extending the spawn and fork run lifecycle."
+description: "Shared in-process subagent run driver for maintainers and backend authors who need to understand or extend the spawn and fork run lifecycle."
 kind: "package-library"
 ---
 
@@ -73,7 +73,6 @@ The required request signal covers both startup and the live run. Before publica
 |---|---|
 | [`src/index.ts`](src/index.ts) | Run driver: creation, one-turn drive, result reading, disposal |
 | [`src/structured.ts`](src/structured.ts) | Structured-output runtime: capture tool, prompt section, guard, commit |
-| — | No runtime invariant companion is published; this package exposes no independent event sequence or mutable data relation beyond contracts enforced at its owning seam. |
 
 </details>
 
@@ -87,7 +86,7 @@ Read these pages when the package-level contract is not enough; they move from t
 - [Subagent subsystem](../../../docs/subsystems/subagent.md) — start requests, results, provider contract, and in-process depth and seed.
 - [dsh-subagent-spawn-in-process](../subagent-spawn-in-process/README.md) — the fresh-child backend built on this driver.
 - [dsh-subagent-fork-in-process](../subagent-fork-in-process/README.md) — the seeded-child backend built on this driver.
-- [Delegation-policy decision](../../../.agents/notes/implemented/feature/2026-07-25-subagent-policy-inheritance.md) — how parent sandbox and approval policy reach the child.
+- [Delegation-policy reference](../subagent/README.md) — how parent sandbox and approval policy reach the child.
 
 -----
 
@@ -98,11 +97,11 @@ Read these pages when the package-level contract is not enough; they move from t
 
 #### What the model sees
 
-The shared driver sends the task verbatim as the child's user message and, when requested, shadows the persona and restricts global tool schemas, lookup, execution, and PTC mode SDK bindings in the unpublished child's fresh scope; parent restrictions are not inherited, and standalone tool-guidance sections remain. Spawn supplies no history; fork supplies its balanced seed.
+The shared driver sends the task verbatim as the child's user message and, when requested, shadows the persona and restricts global tool schemas, lookup, execution, and PTC mode SDK bindings in the unpublished child's fresh scope; parent restrictions are not inherited. Tool-guidance plugins can use the assembly scope to omit unavailable guidance; arbitrary static sections are not rewritten by the driver. Spawn supplies no history; fork supplies its balanced seed.
 
 #### Token effect
 
-Child input is isolated from the parent and grows through the child's own steps. A persona changes repeated prompt text; filtering changes schema or generated SDK cost but not independently registered guidance.
+Child input is isolated from the parent and grows through the child's own steps. A persona changes repeated prompt text; filtering changes schema or generated SDK cost, and scope-aware guidance changes with the visible capabilities.
 
 #### KV Cache effect
 

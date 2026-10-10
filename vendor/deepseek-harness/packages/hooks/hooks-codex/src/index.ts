@@ -4,8 +4,7 @@
  * matchers, snake_case payloads without a trailing newline, no hook environment
  * or command substitution, and no pre-tool approval or rewrite path; only
  * blocking decisions are honored. Shared execution and parsing live in
- * `dsh-hook-protocol`; see the
- * [hook-bridges Agent Note](../../../../.agents/notes/implemented/feature/2026-06-30-hook-bridges.md).
+ * `dsh-hook-protocol`.
  * @module @deepseek-ai/dsh-hooks-codex
  */
 
@@ -18,6 +17,13 @@ import z from '@deepseek-ai/schemastery'
 import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import type { ContextFormed } from '@deepseek-ai/dsh-llm'
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    'hooks-codex': { kind: 'hooks-codex' } & ContextFormed
+  }
+}
+
 import type { ContentBlock, MessageSource } from '@deepseek-ai/dsh-llm'
 import type { UserMessage } from '@deepseek-ai/dsh-session'
 import type { PostToolDecision, PreToolDecision, ToolExecution, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
@@ -69,7 +75,7 @@ function nextHandlerId(point: string): string {
   return `codex:${point}:${++handlerCounter}`
 }
 
-const PLUGIN_SOURCE: MessageSource = { kind: 'plugin', plugin: 'hooks-codex' }
+const CONTEXT_SOURCE: MessageSource = { kind: 'hooks-codex' }
 
 /** The summary cap bounds a persisted event field — a positive integer or the slice misbehaves silently. */
 function assertPositiveInteger(name: string, value: number): void {
@@ -174,7 +180,7 @@ export function apply(ctx: Context, config: Config): void {
   function contextFrom(merged: MergedHookOutcome): UserMessage | undefined {
     if (merged.additionalContext.length === 0) return undefined
     const content: ContentBlock[] = merged.additionalContext.map(text => ({ type: 'text', text }))
-    return createUserMessage({ content, source: PLUGIN_SOURCE })
+    return createUserMessage({ content, source: CONTEXT_SOURCE })
   }
 
   /** Prepend one context without flattening source fields or other downstream metadata. */
@@ -182,16 +188,16 @@ export function apply(ctx: Context, config: Config): void {
     return [ours, ...theirs ?? []]
   }
 
-  // SessionStart injects plain stdout when its detached hook resolves; a slow
-  // hook may miss the first request.
-  // TODO(session-start-gating): add a startup gate before promising first-turn delivery.
-  ctx.on('agent/session-start', ({ agent, source }) => {
-    detached.track(runPoint('SessionStart', source, { ...base(agent, 'SessionStart', model), source }, { agent, plainStdoutAsContext: true, signal: detached.signal })
+  ctx.on('agent/created', async ({ agent, source, signal }) => {
+    const ownerSignal = signal === undefined ? detached.signal : AbortSignal.any([signal, detached.signal])
+    const run = runPoint('SessionStart', source, { ...base(agent, 'SessionStart', model), source }, { agent, plainStdoutAsContext: true, signal: ownerSignal })
       .then((merged) => {
         const context = contextFrom(merged)
         if (context) agent.inject(context)
       })
-      .catch((error: unknown) => { ctx.logger.warn(`hooks-codex: SessionStart hook failed: ${String(error)}`) }))
+      .catch((error: unknown) => { ctx.logger.warn(`hooks-codex: SessionStart hook failed: ${String(error)}`) })
+    detached.track(run)
+    await run
     /* jscpd:ignore-end */
   })
 
@@ -265,7 +271,7 @@ export function apply(ctx: Context, config: Config): void {
       // empty stderr) still forces it — fall back to a generic steering line
       // rather than letting the turn stop.
       const text = merged.reason ?? 'continue: blocked by Stop hook'
-      agent.steer(createUserMessage({ content: [{ type: 'text', text }], source: PLUGIN_SOURCE }))
+      agent.steer(createUserMessage({ content: [{ type: 'text', text }], source: CONTEXT_SOURCE }))
     }
   })
 }

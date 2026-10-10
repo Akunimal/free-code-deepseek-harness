@@ -14,6 +14,8 @@ Changing event cardinality also changes Session sequence numbers. A released mig
 
 ## Decision
 
+The [V3 canonical-envelope decision](2026-09-06-v3-canonical-session-envelopes.md) owns current replacement-key and header-acceptance rules. It preserves the embedded streams, attempt settlements, and frozen v1-to-v2 conversion described here.
+
 Session format v2 has no top-level `assistant/chunk` event. Each model attempt commits one durable settlement containing `stream: AssistantStreamRecord[]`:
 
 - `assistant/message` is the surface settlement for a successful response or a cancelled response with visible assembled content. It embeds the exact compact timed stream beside the assembled message, optional usage, and optional `interrupted: true` marker.
@@ -21,19 +23,21 @@ Session format v2 has no top-level `assistant/chunk` event. Each model attempt c
 
 `AssistantStreamAccumulator` snapshots each chunk once. Consecutive text, reasoning, or tool-argument deltas for the same block become one compact run with its first timestamp, exact timestamp gaps, and one array member per original delta. Every other chunk remains a timestamped raw record. `expandAssistantStream()` strictly validates and reconstructs the exact timed sequence; compaction never joins delta boundaries.
 
-The current v2 validator requires the embedded stream to reproduce a non-empty `assistant/message`'s content, usage, and replay state. An empty stream remains valid for a migrated legacy message that had no source chunks. `assistant/message` cannot carry obsolete chunk `sourceEventSeqs`; ordinary user and tool surface provenance remains available.
+The migration publication verifier and frozen v2 fixture validator require the embedded stream to reproduce a non-empty `assistant/message`'s content, usage, and replay state. An empty stream remains valid for a migrated legacy message that had no source chunks. Ordinary Session restoration validates the settlement fields needed by the runtime without expanding every historical stream; consumers that expand a compact stream validate its records when they read it. `assistant/message` cannot carry obsolete chunk `sourceEventSeqs`; ordinary user and tool source-event references remain available.
 
 ### Live presentation and durable replay
 
 `agent/assistant-stream` publishes process-local start, transient chunk, and end frames. The loop appends the complete `assistant/message` or `assistant/attempt` before a committed end frame names its type and sequence. An abandoned end has no settlement.
 
-The Web follow adapter opts into these process-local frames and adds the last durable sequence observed at each start. It presents chunks as Client-only `assistant/live-chunk` updates between durable cursors, stages only a later matching settlement until the committed end, and reopens follow on a revision gap. A committed end publishes a named settlement delta that removes the attempt's transient matches, adds the durable entry, and replays only affected Conversation Contexts; an abandoned end publishes the same delta without an entry. A reconnect baseline carries the active attempt's durable start cursor and compact prefix. Paged history, replay, telemetry, token accounting, and cold UI assembly read the durable embedded stream rather than the live frames.
+The Web follow adapter opts into these process-local frames and adds the last durable sequence observed at each start. It presents chunks as Client-only `assistant/live-chunk` updates between durable cursors, stages only a later matching settlement until the committed end, and reopens follow on a revision gap. A committed end publishes a named settlement delta that removes the attempt's transient matches, adds the durable entry, and replays only affected Conversation Contexts; an abandoned end publishes the same delta without an entry. A reconnect baseline carries the active attempt's durable start cursor and compact prefix.
+
+The Client event source passes durable settlements through unchanged. Chat and Trajectory fold `assistant/live-chunk` while an attempt is active and build settled output directly from `assistant/message`. Chat does not reconstruct first-token timing after settlement retires the transient chunks. Trajectory reads timing from the [compact stream records](../../../../packages/llm/llm/README.md) in `assistant/message` and `assistant/attempt`, including when opening history. Neither target expands settled streams into per-delta objects for presentation; other consumers may expand the durable stream when they require its exact evidence.
 
 ### Released v1 to v2 migration
 
-The adjacent migration validates the complete frozen v1 artifact, groups chunks by turn, step, terminal boundary, and exact message provenance, and then substitutes one settlement per attempt. A successful group's chunks move into its message. An unclaimed group becomes `assistant/attempt` at the last consumed chunk's position. Unrelated interleaved events retain their relative order, and survivors receive dense v2 sequence numbers. The edge compacts, expands, and re-assembles embedded streams through the runtime `AssistantStreamAccumulator`, `expandAssistantStream`, and `BlockAssembler` from `dsh-llm` instead of frozen copies, because that package owns the v2 stream encoding. Target validation re-checks agreement between each migrated `assistant/message` and its embedded stream itself, so a disagreeing v1 log is refused as an unsupported migration with its source artifact retained instead of surfacing as corruption from the installed Session restoration. A later format that changes the stream encoding must freeze copies of these helpers into this edge.
+The adjacent migration validates the complete frozen v1 artifact, groups chunks by turn, step, terminal boundary, and exact message chunk references, and then substitutes one settlement per attempt. A successful group's chunks move into its message. An unclaimed group becomes `assistant/attempt` at the last consumed chunk's position. Unrelated interleaved events retain their relative order, and survivors receive dense v2 sequence numbers. The edge compacts embedded streams through the runtime `AssistantStreamAccumulator` from `dsh-llm` instead of a frozen copy, because that package owns the v2 stream encoding. The isolated publication verifier expands and re-assembles the written stream through `expandAssistantStream()` and `BlockAssembler`, then checks each migrated `assistant/message` against it before publication. A later format that changes the stream encoding must freeze copies of these helpers into this edge.
 
-The edge remaps the finite declared reference inventory: envelope provenance, surface replacement endpoints, command source events, compaction ranges and shadowed lists, and title message lists. The model-visible text of a validated `session/title-llm-request` remains byte-identical in the source sequence namespace while its `messageSeqs` field moves to the v2 namespace; target validation therefore does not reconstruct that text from remapped sequences. A reference to a consumed chunk refuses migration; it is never redirected to a settlement with different meaning. The edge also refuses an inherited cut that splits an attempt.
+The edge remaps the finite declared reference inventory: envelope source-event references, surface replacement endpoints, command source events, compaction ranges and shadowed lists, and title message lists. The model-visible text of a validated `session/title-llm-request` remains byte-identical in the source sequence namespace while its `messageSeqs` field moves to the v2 namespace; target validation therefore does not reconstruct that text from remapped sequences. A reference to a consumed chunk refuses migration; it is never redirected to a settlement with different meaning. The edge also refuses an inherited cut that splits an attempt.
 
 The v2 physical header requires `isSeeded` and stores no numeric cut. A seeded artifact marks its exact cut with `session/end-seed { inherited: true }`; decoding derives the cut from the last tagged marker. The v2 codec writes one durable event per physical row, range-encodes only `sourceEventSeqs`, and validates physical envelopes without freezing ordinary event vocabulary or payload additions. The v1-to-v2 target validator separately freezes the released-v2 inventory, while current restoration uses the installed Session vocabulary. Frozen v0 and v1 codecs retain packed-row decoding for their immutable historical generations.
 
@@ -45,11 +49,11 @@ Generation selection and publication follow the [released Session migration deci
 
 ## Verification
 
-The compact-stream tests pin exact accumulation and expansion for text, reasoning, tool arguments, raw chunks, timestamp gaps, malformed records, and detached snapshots. The v1-to-v2 tests cover successful and failed attempts, interleaving, dense sequence and reference remapping, source-sequence title framing, seed-cut insertion and split refusal, strict source and target validation, one-row v2 encoding, backend-compatible provenance ranges, raw and Zstandard publication, and no-write current reads.
+The compact-stream tests pin exact accumulation and expansion for text, reasoning, tool arguments, raw chunks, timestamp gaps, malformed records, and detached snapshots. The v1-to-v2 tests cover successful and failed attempts, interleaving, dense sequence and reference remapping, source-sequence title framing, seed-cut insertion and split refusal, strict source and target validation, one-row v2 encoding, backend-compatible source-event ranges, raw and Zstandard publication, and no-write current reads.
 
 The pre-merge performance acceptance measured static catalog-routing overhead against direct released-v2 restoration of the same already parsed physical rows across three runs, 100 warmup pairs, and 600 measured pairs; it did not compare v1 with v2 or time backend I/O. Every pooled median and p95 regression stayed within the 5% budget, with a worst p95 regression of 3.150%.
 
-Agent-loop tests pin durable-before-end ordering, interrupted visible prefixes, failed and retry attempts, abandonment, usage, and replay metadata. Session Controller and Conversation tests pin live transient display, reconnect baselines, committed settlement release, history replay, Chat and Trajectory parity, while TypeScript and Python SDK snapshots pin the external event representation.
+Agent-loop tests pin durable-before-end ordering, interrupted visible prefixes, failed and retry attempts, abandonment, usage, and replay metadata. Session Controller and Conversation tests pin live transient display, reconnect baselines, committed settlement release, and history replay. Chat and Trajectory tests pin live partial presentation and direct final-message projection, while TypeScript and Python SDK snapshots pin the external event representation.
 
 ## Alternatives considered
 
@@ -59,13 +63,15 @@ Agent-loop tests pin durable-before-end ordering, interrupted visible prefixes, 
 
 **Carry packed chunk rows through the history API.** This reduces wire and Client work for v1 but gives the Client a second event vocabulary and keeps transport coupled to token-row cardinality. The current API carries scalar durable settlements plus a separate live transient stream.
 
+**Strip embedded streams in Session Controller.** This reduces retained Client memory but creates a second durable event type and makes a transport-facing owner decide which evidence presentation consumers need. The measured bottleneck is repeated expansion, so each UI consumer decides whether to inspect the unchanged settlement.
+
 **Store the stream in a sidecar or replay-only fixture.** This splits one attempt's message and evidence across durability owners and cannot give ordinary resumed sessions the same failed-output and timing facts. The settlement is the atomic owner.
 
 **Redirect references from consumed chunks to their settlement.** A chunk and an attempt settlement are not interchangeable facts. Refusal prevents a migration from silently changing the meaning of plugin-owned references.
 
 ## Consequences
 
-Current logs, telemetry, history pages, and cold Client assembly scale by model attempts rather than token chunks while retaining exact stream evidence inside each settlement. Live presentation remains incremental and intentionally process-local.
+Current logs, telemetry, and history pages scale by model attempts rather than token chunks while retaining exact stream evidence inside each settlement. The Client event window retains that compact evidence, but the Chat and Trajectory Assistant nodes do not expand settled streams into per-delta objects. Live presentation remains incremental and intentionally process-local.
 
 Unlike v1 top-level chunks, which the buffered persistence writer could flush before an attempt ended, v2 has no durable attempt evidence until settlement. A hard process or host loss before settlement discards the complete in-flight stream; `agent/assistant-stream` is not a write-ahead log. This tradeoff avoids a second durability owner for live output.
 

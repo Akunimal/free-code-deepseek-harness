@@ -31,7 +31,7 @@ function messageEvent(
   seq: number,
   turn = 1,
   step = 1,
-  surfaceOp: 'append' | { readonly op: 'replace'; readonly start: number; readonly end: number } = 'append',
+  surfaceOp: 'append' | { readonly op: 'replace'; readonly startSeq: number; readonly endSeq: number } = 'append',
 ): SessionLiveEventEntry {
   return entry({
     type: 'assistant/message',
@@ -48,7 +48,7 @@ function messageEvent(
     },
     surfaceOp: surfaceOp === 'append'
       ? surfaceOp
-      : { ...surfaceOp, start: SessionSeq(surfaceOp.start), end: SessionSeq(surfaceOp.end) },
+      : { ...surfaceOp, startSeq: SessionSeq(surfaceOp.startSeq), endSeq: SessionSeq(surfaceOp.endSeq) },
   })
 }
 
@@ -127,7 +127,7 @@ describe('ClientAssistantStream', () => {
     stream.acceptFrame(start(ATTEMPT, 1))
     for (const durable of [
       ordinary(1),
-      messageEvent(2, 1, 1, { op: 'replace', start: 0, end: 0 }),
+      messageEvent(2, 1, 1, { op: 'replace', startSeq: 0, endSeq: 0 }),
       attemptEvent(0),
       attemptEvent(3, 2, 1),
       attemptEvent(4, 1, 2),
@@ -136,14 +136,48 @@ describe('ClientAssistantStream', () => {
     }
   })
 
-  it('stages one owned settlement and releases it from the matching end frame', () => {
+  it('publishes a successful message at stream end and retires its chunks at its Step end', () => {
     const stream = opened()
     const durable = messageEvent(2)
     expect(stream.acceptDurable(durable)).toBeUndefined()
     expect(stream.acceptFrame(chunkFrame(0))).toEqual(expect.objectContaining({ type: 'transient' }))
     expect(stream.acceptFrame(end(1, {
       kind: 'committed', eventType: 'assistant/message', seq: 2,
-    }))).toEqual({ type: 'settlement', attemptId: String(ATTEMPT), entry: durable })
+    }))).toEqual({ type: 'publish', entry: durable })
+    for (const [turn, step] of [[2, 1], [1, 2]]) {
+      const unrelated = entry({ type: 'step/end', seq: SessionSeq(3), time: 3, data: { turn: turn!, step: step! } })
+      expect(stream.acceptDurable(unrelated)).toEqual({ type: 'publish', entry: unrelated })
+    }
+    const closed = entry({ type: 'step/end', seq: SessionSeq(4), time: 4, data: { turn: 1, step: 1 } })
+    expect(stream.acceptDurable(closed)).toEqual({ type: 'publish', entry: closed, retireAttemptId: ATTEMPT })
+    expect(stream.acceptDurable(ordinary(5))).toEqual({ type: 'publish', entry: ordinary(5) })
+    expect(stream.acceptFrame(start(LlmAttemptId('session:2'), 4))).toBeUndefined()
+  })
+
+  it('clears retained chunks on replacement and refuses a new attempt before Step completion', () => {
+    const stream = opened()
+    const durable = messageEvent(2)
+    stream.acceptDurable(durable)
+    stream.acceptFrame(end(0, { kind: 'committed', eventType: 'assistant/message', seq: 2 }))
+    expect(stream.acceptFrame(start(LlmAttemptId('session:2')))).toEqual({ type: 'rebaseline' })
+    expect(stream.replace([durable])).toEqual([durable])
+    const closed = entry({ type: 'step/end', seq: SessionSeq(3), time: 3, data: { turn: 1, step: 1 } })
+    expect(stream.acceptDurable(closed)).toEqual({ type: 'publish', entry: closed })
+    expect(stream.acceptFrame(start(LlmAttemptId('session:2'), 3))).toBeUndefined()
+  })
+
+  it('retires failed attempts and interrupted messages at stream end', () => {
+    const message = messageEvent(2)
+    if (message.event.type !== 'assistant/message') throw new Error('expected assistant message')
+    const interrupted = entry({ ...message.event, data: { ...message.event.data, interrupted: true as const } })
+    for (const durable of [attemptEvent(2), interrupted]) {
+      const stream = opened()
+      stream.acceptDurable(durable)
+      expect(stream.acceptFrame(end(0, {
+        kind: 'committed', eventType: durable.event.type as 'assistant/message' | 'assistant/attempt', seq: 2,
+      }))).toEqual({ type: 'settlement', attemptId: ATTEMPT, entry: durable })
+      expect(stream.acceptFrame(start(LlmAttemptId('session:2'), 2))).toBeUndefined()
+    }
   })
 
   it('rebaselines duplicate durable settlements or starts', () => {

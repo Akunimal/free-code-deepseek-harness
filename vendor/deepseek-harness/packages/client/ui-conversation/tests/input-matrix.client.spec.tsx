@@ -5,6 +5,8 @@
  * hint / pending), edit freedom, and the published currency's claim seat.
  * React over jsdom per the client testing discipline; the machine is real.
  */
+import './control-row-dom.ts'
+import type { GlobalStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import type { Context } from '@deepseek-ai/cordis'
@@ -13,7 +15,7 @@ import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import {
   bindSnapshotSelector, conversationSnapshot, sessionSnapshot,
 } from '@deepseek-ai/dsh-client-test-runtime'
-import type { SessionPendingInteractionSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
+import type { SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SubmitAttachment, SubmitOutcome } from '../src/client/contract/input.ts'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
@@ -23,6 +25,9 @@ import { SessionInputShell } from '../src/client/input/facade.ts'
 import { InputBar } from '../src/client/skeleton/InputBar.tsx'
 import type { InputBarProps } from '../src/client/skeleton/InputBar.tsx'
 import { zh } from '../src/client/locales.ts'
+
+// Every fixture carries the resource hook the resources plugin merges into GlobalStandardProps.
+const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined })) as GlobalStandardProps['useResource']
 
 // jsdom implements no Range geometry (Lexical's scroll-into-view measures the
 // caret with one once the surface is genuinely contenteditable).
@@ -44,18 +49,21 @@ function mountBar(shell: SessionInputShell, over?: { running?: boolean; disabled
     removed: over?.disabled ?? false,
   })
   const props: InputBarProps = {
+    usePanelInfo: selector => selector({ activePanelId: null }),
     sessionId: SID,
     SessionProvider: ({ children }) => children,
     useSession: bindSnapshotSelector(session),
     useSessions: bindSnapshotSelector(createSnapshotStore({
       ids: [], byId: {}, current: undefined, phase: 'ready',
-      subagentsByParent: {}, jobsBySession: {}, currentAddress: undefined,
+      projectionsBySession: {}, currentAddress: undefined,
     })),
-    useSessionPendingInteraction: bindSnapshotSelector(
-      createSnapshotStore<SessionPendingInteractionSnapshot>(new Map()),
+    useSessionStatus: bindSnapshotSelector(
+      createSnapshotStore<SessionStatusSnapshot>(new Map()),
     ),
+    useSessionRetainInfo: () => undefined,
+    useResource,
     useWorkspaces: bindSnapshotSelector(createSnapshotStore({
-      items: [], archivedSessionIds: [], state: 'idle', phase: 'ready', error: null,
+      items: [], archivedSessionIds: [], pinnedSessionIds: [], state: 'idle', phase: 'ready', error: null,
       baselinesReady: true, recentWorkspaceId: undefined,
     })),
     useProjection: (() => undefined),
@@ -73,14 +81,14 @@ function mountBar(shell: SessionInputShell, over?: { running?: boolean; disabled
       file: new File([Uint8Array.of(1)], `${id}.png`, { type: 'image/png' }),
       previewUrl: `blob:${id}`,
     })),
-    resolveSubmitMode: () => 'queue',
     toggleCommandMenu: vi.fn(),
+    useBusyEnter: bindSnapshotSelector(createSnapshotStore<'queue' | 'steer'>('queue')),
+    useStopShortcut: bindSnapshotSelector(createSnapshotStore<readonly string[]>([])),
     useNotices: bindSnapshotSelector(shell.notices),
     useLexicon: bindSnapshotSelector(shell.lexicon),
     useMenuLauncher: bindSnapshotSelector(createSnapshotStore<string | null>(null)),
     renderSlot: (() => null) as InputBarProps['renderSlot'],
     stop: vi.fn(),
-    command: () => Promise.resolve(true),
     t: makeTranslate(zh, commonZh),
     variant: 'composer',
   }
@@ -105,7 +113,7 @@ function bench(over?: {
       shell.setDraft(token)
       shell.beginCommand(
         {
-          token, hint,
+          name: token.slice(1).trim(), token, hint,
           ...(attachments === true ? { attachments: true } : {}),
           submit: over?.submit ?? (() => Promise.resolve({ kind: 'success' as const, source: 'command', name: 'goal' })),
         },
@@ -117,6 +125,25 @@ function bench(over?: {
 }
 
 describe('matrix row: plain', () => {
+  it('unsubscribes from the Inbox projection when disposed', () => {
+    const unsubscribe = vi.fn()
+    const subscribe = vi.fn(() => unsubscribe)
+    const shell = new SessionInputShell({
+      actx: SCTX,
+      defaultSink: () => Promise.resolve({ kind: 'success' }),
+      inbox: { getSnapshot: () => undefined, subscribe },
+      commandAttachments: {
+        serialize: () => Promise.resolve([]),
+        release: () => {},
+        unsupportedNotice: token => `${token.trim()} attachments-unsupported`,
+      },
+    })
+
+    expect(subscribe).toHaveBeenCalledOnce()
+    shell.dispose()
+    expect(unsubscribe).toHaveBeenCalledOnce()
+  })
+
   it('enter falls to the default sink; no claim on the currency; edits free', async () => {
     const { textarea, shell, sink } = bench()
     act(() => { shell.setDraft('普通消息') })
@@ -135,8 +162,8 @@ describe('matrix row: claimed', () => {
     const { view, textarea, shell, claim } = bench()
     claim()
     act(() => { shell.editor.update(() => {}, { discrete: true }) }) // flush the queued decoration refresh
-    expect(shell.snapshot.claim).toEqual({ token: '/goal ', hint: '目标' })
-    expect(view.container.querySelector('[data-lexical-text][style*="warn-label"]')?.textContent).toBe('/goal ')
+    expect(shell.snapshot.claim).toEqual({ name: 'goal', token: '/goal ', hint: '目标' })
+    expect(view.container.querySelector('[data-lexical-text][style*="business-primary"]')?.textContent).toBe('/goal ')
     // The zh dictionary owns a hint.goal entry, which overrides the raw claim hint (production behavior).
     expect(textarea.style.getPropertyValue('--dsh-composer-hint')).toBe(JSON.stringify('输入目标，智能体将持续执行'))
     expect(textarea.getAttribute('contenteditable')).toBe('true')
@@ -166,7 +193,7 @@ describe('matrix row: claimed', () => {
     expect(shell.snapshot.phase).toBe('plain')
     expect(shell.snapshot.claim).toBeUndefined()
     act(() => { shell.editor.update(() => {}, { discrete: true }) }) // flush the queued decoration refresh
-    expect(view.container.querySelector('[data-lexical-text][style*="warn-label"]')).toBeNull()
+    expect(view.container.querySelector('[data-lexical-text][style*="business-primary"]')).toBeNull()
   })
 })
 
@@ -195,7 +222,7 @@ describe('matrix row: claimed with attachments', () => {
     const { textarea, shell, claim, serialize, release } = bench({ submit, serialize: () => Promise.resolve([png, file]) })
     claim('/goal ', '目标', true)
     // The claim currency carries the acceptance flag the pre-gate reads.
-    expect(shell.snapshot.claim).toEqual({ token: '/goal ', hint: '目标', attachments: true })
+    expect(shell.snapshot.claim).toEqual({ name: 'goal', token: '/goal ', hint: '目标', attachments: true })
     act(() => { shell.addAttachments([img]) })
     fireEvent.keyDown(textarea, { key: 'Enter' })
     await vi.waitFor(() => { expect(submit).toHaveBeenCalledWith('', SCTX, [png, file]) })
@@ -258,6 +285,11 @@ describe('matrix row: claimed with attachments', () => {
     act(() => { shell.addAttachments([img]) })
     fireEvent.keyDown(textarea, { key: 'Enter' })
     expect(shell.snapshot.phase).toBe('submitting')
+    const draft = shell.snapshot.draft
+    expect(shell.addFiles([{
+      source: 'reference', ref: '@note.txt', label: 'note.txt', clipboardText: '@note.txt',
+    }], ['new-file' as DraftAttachmentId])).toBe(false)
+    expect(shell.snapshot.draft).toBe(draft)
     let removed = true
     act(() => { removed = shell.removeAttachment(img) })
     expect(removed).toBe(false)
@@ -312,7 +344,7 @@ describe('matrix row: locked (session disabled)', () => {
   it('disables the textarea and chrome; the machine currency is untouched', () => {
     const { view, textarea, shell } = bench({ disabled: true })
     expect(textarea.getAttribute('aria-disabled')).toBe('true')
-    expect((view.getByLabelText('指令') as HTMLButtonElement).disabled).toBe(true)
+    expect((view.getByLabelText('添加文件或调用指令') as HTMLButtonElement).disabled).toBe(true)
     expect(shell.snapshot.phase).toBe('plain')
   })
 

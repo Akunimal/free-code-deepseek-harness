@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import LlmRuntime, { createUserMessage, ToolCallId, LlmError, ReasoningEffortId, StreamChunk, expandAssistantStream } from '@deepseek-ai/dsh-llm'
+import type { ContextFormed } from '@deepseek-ai/dsh-llm'
+import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId, TurnEndReason } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
@@ -9,6 +11,18 @@ import AgentRegistry, { type Agent, type AssistantStreamFrame } from '@deepseek-
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { MockAdapter, maxTokensResponse, textResponse, toolCallResponse } from './mock-adapter.ts'
+
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    'loop-test': { kind: 'loop-test' } & ContextFormed
+    'max-tokens-test': { kind: 'max-tokens-test' } & ContextFormed
+    'test': { kind: 'test' } & ContextFormed
+    'test-compaction': { kind: 'test-compaction' } & ContextFormed
+    'test-context': { kind: 'test-context' } & ContextFormed
+    'watcher': { kind: 'watcher' } & ContextFormed
+    'x': { kind: 'x' } & ContextFormed
+  }
+}
 
 function driverDone(agent: Agent): Promise<void> {
   return (agent as Agent & { done: Promise<void> }).done
@@ -19,7 +33,7 @@ async function harness(adapter: MockAdapter, persona = '') {
   await ctx.plugin(LlmRuntime)
   await ctx.plugin(SessionStore)
   await ctx.plugin(SessionProjectionRegistry)
-  await ctx.plugin(SystemPrompt, { persona })
+  await ctx.plugin(SystemPrompt, { personaPrefix: persona })
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(AgentRegistry)
   await ctx.plugin(AgentLoop, { agents: [] })
@@ -41,6 +55,13 @@ function waitForIdle(ctx: Context, agent: Agent): Promise<void> {
 
 function send(agent: Agent, text: string) {
   agent.followup(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }))
+}
+
+/** The rendered system prompt a request carried as its leading system-role message. */
+function systemOf(request: GenerateOptions | undefined): string | undefined {
+  const head = request?.messages[0]
+  if (head?.role !== 'system') return undefined
+  return head.content.flatMap(block => block.type === 'text' ? [block.text] : []).join('')
 }
 
 /** All user-message texts recorded in the log (to assert what actually ran). */
@@ -458,10 +479,10 @@ describe('agent loop', () => {
     expect(assistantMessage?.type === 'assistant/message' && assistantMessage.data.usage).toEqual({ inputTokens: 10, outputTokens: 'hello there'.length })
     expect(types.at(-1)).toBe('turn/end')
 
-    // derived history: user + assistant
+    // derived history: system prompt (surface node 0) + user + assistant
     const messages = agent.session.deriveMessages()
-    expect(messages.map(m => m.role)).toEqual(['user', 'assistant'])
-    expect(messages[1]!.content).toEqual([{ type: 'text', text: 'hello there' }])
+    expect(messages.map(m => m.role)).toEqual(['system', 'user', 'assistant'])
+    expect(messages[2]!.content).toEqual([{ type: 'text', text: 'hello there' }])
   })
 
   it('round-trips tool calls: model requests tool → executes → result in next request', async () => {
@@ -488,12 +509,11 @@ describe('agent loop', () => {
 
     // the second request's derived history contains the tool result
     const secondMessages = adapter.requests[1]!.messages
-    const toolResultMessage = secondMessages.find(m =>
-      m.content.some(b => b.type === 'tool-result'))
+    const toolResultMessage = secondMessages.find(m => m.role === 'tool')
     expect(toolResultMessage).toBeDefined()
-    const block = toolResultMessage!.content.find(b => b.type === 'tool-result')!
-    expect(block).toMatchObject({ toolCallId: 'c1', isError: false })
-    expect((block).content).toEqual([{ type: 'text', text: 'echo: ping' }])
+    const message = toolResultMessage!
+    expect(message).toMatchObject({ toolCallId: 'c1', isError: false })
+    expect(message.content).toEqual([{ type: 'text', text: 'echo: ping' }])
 
     // session log records call + result
     const types = agent.session.snapshotEvents().map(e => e.type)
@@ -521,7 +541,7 @@ describe('agent loop', () => {
     await waitForIdle(ctx, agent)
 
     const request = adapter.requests[0]
-    expect(request!.system).toBe('You are an AI agent powered by DeepSeek Harness.\n\nYou are a test agent on mock.\n\nUse the noop tool wisely.')
+    expect(systemOf(request)).toBe('You are an AI agent powered by DeepSeek Harness.\n\nYou are a test agent on mock.\n\nUse the noop tool wisely.')
     expect(request!.tools?.map(t => t.name)).toEqual(['noop'])
   })
 
@@ -538,7 +558,7 @@ describe('agent loop', () => {
     send(agent, 'hi')
     await waitForIdle(ctx, agent)
 
-    expect(adapter.requests[0]!.system).toBe('You are an AI agent powered by DeepSeek Harness.\n\nWorking in /work/space.')
+    expect(systemOf(adapter.requests[0])).toBe('You are an AI agent powered by DeepSeek Harness.\n\nWorking in /work/space.')
   })
 
   it('contains a strict-variable render failure: the turn errors, the loop keeps serving turns', async () => {
@@ -556,7 +576,7 @@ describe('agent loop', () => {
 
     expect(adapter.requests).toHaveLength(0) // the request was never sent
     expect(errors.map(error => error.message)).toEqual([
-      'prompt variable "{{cwd}}" has no value for this assembly (section "deployment:persona")',
+      'prompt variable "{{cwd}}" has no value for this assembly (section "deployment:persona-prefix")',
     ])
     const turnEnd = agent.session.snapshotEvents().find(e => e.type === 'turn/end')
     expect(turnEnd?.type === 'turn/end' && turnEnd.data.reason.kind).toBe('error')
@@ -574,7 +594,7 @@ describe('agent loop', () => {
     await waitForIdle(ctx, agent)
 
     expect(adapter.requests).toHaveLength(1)
-    expect(adapter.requests[0]!.system).toBe('You are an AI agent powered by DeepSeek Harness.\n\nIn /rescued.')
+    expect(systemOf(adapter.requests[0])).toBe('You are an AI agent powered by DeepSeek Harness.\n\nIn /rescued.')
     const turnEnds = agent.session.snapshotEvents().filter(e => e.type === 'turn/end')
     expect(turnEnds).toHaveLength(2)
     expect(turnEnds[1]?.type === 'turn/end' && turnEnds[1].data.reason.kind).toBe('completed')
@@ -604,10 +624,10 @@ describe('agent loop', () => {
 
     expect(adapter.requests).toHaveLength(1)
     expect(adapter.requests[0]!.model).toBe('mock')
-    expect(adapter.requests[0]!.system).toBe('You are an AI agent powered by DeepSeek Harness.\n\nYou run on mock.')
+    expect(systemOf(adapter.requests[0])).toBe('You are an AI agent powered by DeepSeek Harness.\n\nYou run on mock.')
   })
 
-  it('omits the system field when system-prompt/assemble short-circuits with an empty assembly', async () => {
+  it('sends no system message when system-prompt/assemble short-circuits with an empty assembly', async () => {
     // The documented escape valve: a deployment that must drop the harness
     // openers short-circuits the assemble waterfall; the request then carries
     // NO system field at all (not an empty string).
@@ -621,6 +641,44 @@ describe('agent loop', () => {
 
     expect(adapter.requests).toHaveLength(1)
     expect('system' in adapter.requests[0]!).toBe(false)
+    expect(adapter.requests[0]!.messages.map(message => message.role)).toEqual(['user'])
+    expect(agent.session.snapshotEvents().filter(event => event.type === 'system/message')).toMatchObject([
+      { data: { message: { role: 'system', content: [] } }, surfaceOp: 'append' },
+    ])
+  })
+
+  it('keeps a later nonempty prompt ahead of history after an initially empty assembly', async () => {
+    const adapter = new MockAdapter([textResponse('one'), textResponse('two')])
+    const ctx = await harness(adapter)
+    try {
+      const emptyAssembly = ctx.on('system-prompt/assemble', async () => ({ sections: [], contexts: [], tools: [], variables: {} }))
+      const agent = await ctx.agentLoop.create(SessionId('a-empty-system-head'), { provider: 'mock', model: 'mock' })
+      const firstIdle = waitForIdle(ctx, agent)
+      send(agent, 'first')
+      await firstIdle
+      const head = agent.session.snapshotEvents().find(event => event.type === 'system/message')
+      expect(adapter.requests[0]?.messages.map(message => message.role)).toEqual(['user'])
+      expect(head).toMatchObject({ data: { message: { content: [] } }, surfaceOp: 'append' })
+      expect(agent.session.surface.nodes[0]).toBe(head?.seq)
+
+      emptyAssembly()
+      const secondIdle = waitForIdle(ctx, agent)
+      send(agent, 'second')
+      await secondIdle
+      expect(adapter.requests).toHaveLength(2)
+      expect(systemOf(adapter.requests[1])).toBe('You are an AI agent powered by DeepSeek Harness.')
+      expect(adapter.requests[1]?.messages.map(message => message.role)).toEqual(['system', 'user', 'assistant', 'user'])
+      const replacement = agent.session.snapshotEvents().findLast(event => event.type === 'system/message')
+      expect(replacement).toMatchObject({
+        surfaceOp: { op: 'replace', startSeq: head?.seq, endSeq: head?.seq },
+        sourceEventSeqs: [head?.seq],
+      })
+      expect(agent.session.surface.nodes[0]).toBe(replacement?.seq)
+      expect(agent.session.snapshotEvents().flatMap(event =>
+        event.type === 'request/header' ? [event.data.reason] : [])).toEqual(['initial', 'series'])
+    } finally {
+      await ctx.fiber.dispose()
+    }
   })
 
   it('materializes changed runtime context at the history tail without rewriting the system header', async () => {
@@ -637,8 +695,7 @@ describe('agent loop', () => {
     const agent = await ctx.agentLoop.create(SessionId('a-runtime-context'), { provider: 'mock', model: 'mock' })
     const contextEvents = () => agent.session.snapshotEvents().flatMap(event =>
       event.type === 'user/message'
-        && event.data.source.kind === 'plugin'
-        && event.data.source.plugin === '@deepseek-ai/dsh-system-prompt'
+        && event.data.source.kind === 'runtime-context'
         ? [event]
         : [])
 
@@ -675,7 +732,8 @@ describe('agent loop', () => {
     send(agent, 'still clear')
     await waitForIdle(ctx, agent)
     expect(contextEvents()).toHaveLength(3)
-    expect(adapter.requests.map(request => request.system)).toEqual(Array(5).fill(adapter.requests[0]?.system))
+    expect(adapter.requests.map(systemOf)).toEqual(Array(5).fill(systemOf(adapter.requests[0])))
+    expect(agent.session.snapshotEvents().filter(event => event.type === 'system/message')).toHaveLength(1)
     expect(agent.session.snapshotEvents().flatMap(event =>
       event.type === 'request/header' ? [event.data.reason] : [])).toEqual(['initial'])
   })
@@ -690,14 +748,13 @@ describe('agent loop', () => {
     await waitForIdle(ctx, agent)
     const contextEvent = agent.session.snapshotEvents().find(event =>
       event.type === 'user/message'
-      && event.data.source.kind === 'plugin'
-      && event.data.source.plugin === '@deepseek-ai/dsh-system-prompt')
+      && event.data.source.kind === 'runtime-context')
     if (contextEvent?.type !== 'user/message') throw new Error('first turn did not materialize runtime context')
     agent.session.append('user/message', createUserMessage({
       content: [{ type: 'text', text: 'compacted summary' }],
-      source: { kind: 'plugin', plugin: 'test-compaction' },
+      source: { kind: 'test-compaction' },
     }), {
-      surfaceOp: { op: 'replace', start: contextEvent.seq, end: contextEvent.seq },
+      surfaceOp: { op: 'replace', startSeq: contextEvent.seq, endSeq: contextEvent.seq },
       sourceEventSeqs: [contextEvent.seq],
     })
 
@@ -705,14 +762,12 @@ describe('agent loop', () => {
     await waitForIdle(ctx, agent)
     const runtimeContexts = agent.session.snapshotEvents().flatMap(event =>
       event.type === 'user/message'
-        && event.data.source.kind === 'plugin'
-        && event.data.source.plugin === '@deepseek-ai/dsh-system-prompt'
+        && event.data.source.kind === 'runtime-context'
         ? [event]
         : [])
     expect(runtimeContexts).toHaveLength(2)
     expect(adapter.requests[1]?.messages.some(message =>
-      message.source.kind === 'plugin'
-      && message.source.plugin === '@deepseek-ai/dsh-system-prompt')).toBe(true)
+      message.role === 'user' && message.source?.kind === 'runtime-context')).toBe(true)
   })
 
   it('clears compacted runtime context after the active set becomes empty', async () => {
@@ -725,14 +780,13 @@ describe('agent loop', () => {
     await waitForIdle(ctx, agent)
     const contextEvent = agent.session.snapshotEvents().find(event =>
       event.type === 'user/message'
-      && event.data.source.kind === 'plugin'
-      && event.data.source.plugin === '@deepseek-ai/dsh-system-prompt')
+      && event.data.source.kind === 'runtime-context')
     if (contextEvent?.type !== 'user/message') throw new Error('first turn did not materialize runtime context')
     agent.session.append('user/message', createUserMessage({
       content: [{ type: 'text', text: 'summary retaining old mode: read-only' }],
-      source: { kind: 'plugin', plugin: 'test-compaction' },
+      source: { kind: 'test-compaction' },
     }), {
-      surfaceOp: { op: 'replace', start: contextEvent.seq, end: contextEvent.seq },
+      surfaceOp: { op: 'replace', startSeq: contextEvent.seq, endSeq: contextEvent.seq },
       sourceEventSeqs: [contextEvent.seq],
     })
     dispose()
@@ -740,8 +794,7 @@ describe('agent loop', () => {
     send(agent, 'after compaction')
     await waitForIdle(ctx, agent)
     const clearing = adapter.requests[1]?.messages.find(message =>
-      message.source.kind === 'plugin'
-      && message.source.plugin === '@deepseek-ai/dsh-system-prompt')
+      message.role === 'user' && message.source?.kind === 'runtime-context')
     expect(clearing?.content).toEqual([{
       type: 'text',
       text: 'Current runtime context: none. Earlier runtime-context snapshots no longer apply.',
@@ -754,21 +807,20 @@ describe('agent loop', () => {
     const agent = await ctx.agentLoop.create(SessionId('a-runtime-context-unrelated-compaction'), { provider: 'mock', model: 'mock' })
     const original = agent.session.append('user/message', createUserMessage({
       content: [{ type: 'text', text: 'old context' }],
-      source: { kind: 'plugin', plugin: 'test-context' },
+      source: { kind: 'test-context' },
     }), { surfaceOp: 'append' })
     agent.session.append('user/message', createUserMessage({
       content: [{ type: 'text', text: 'compacted summary' }],
-      source: { kind: 'plugin', plugin: 'test-compaction' },
+      source: { kind: 'test-compaction' },
     }), {
-      surfaceOp: { op: 'replace', start: original.seq, end: original.seq },
+      surfaceOp: { op: 'replace', startSeq: original.seq, endSeq: original.seq },
       sourceEventSeqs: [original.seq],
     })
 
     send(agent, 'after compaction')
     await waitForIdle(ctx, agent)
     expect(adapter.requests[0]?.messages.some(message =>
-      message.source.kind === 'plugin'
-      && message.source.plugin === '@deepseek-ai/dsh-system-prompt')).toBe(false)
+      message.role === 'user' && message.source?.kind === 'runtime-context')).toBe(false)
   })
 
   it('replaces a malformed retained runtime-context message with the current complete snapshot', async () => {
@@ -778,15 +830,14 @@ describe('agent loop', () => {
     const agent = await ctx.agentLoop.create(SessionId('a-runtime-context-malformed'), { provider: 'mock', model: 'mock' })
     agent.session.append('user/message', createUserMessage({
       content: [{ type: 'text', text: 'broken' }, { type: 'text', text: 'snapshot' }],
-      source: { kind: 'plugin', plugin: '@deepseek-ai/dsh-system-prompt' },
+      source: { kind: 'runtime-context' },
     }), { surfaceOp: 'append' })
 
     send(agent, 'repair context')
     await waitForIdle(ctx, agent)
     const runtimeContexts = agent.session.snapshotEvents().flatMap(event =>
       event.type === 'user/message'
-        && event.data.source.kind === 'plugin'
-        && event.data.source.plugin === '@deepseek-ai/dsh-system-prompt'
+        && event.data.source.kind === 'runtime-context'
         ? [event]
         : [])
     expect(runtimeContexts).toHaveLength(2)
@@ -912,7 +963,7 @@ describe('agent loop', () => {
     const ctx = await harness(adapter)
     const agent = await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
 
-    agent.inject(createUserMessage({ content: [{ type: 'text', text: 'file changed: a.ts' }], source: { kind: 'plugin', plugin: 'watcher' } }))
+    agent.inject(createUserMessage({ content: [{ type: 'text', text: 'file changed: a.ts' }], source: { kind: 'watcher' } }))
     expect(agent.status).toBe('idle')
     expect(adapter.requests).toHaveLength(0)
     expect(agent.session.snapshotEvents().filter(event => event.type === 'turn/start')).toHaveLength(0)
@@ -923,7 +974,7 @@ describe('agent loop', () => {
         inserted: [{
           role: 'user',
           content: [{ type: 'text', text: 'file changed: a.ts' }],
-          source: { kind: 'plugin', plugin: 'watcher' },
+          source: { kind: 'watcher' },
         }],
       },
     })
@@ -941,13 +992,13 @@ describe('agent loop', () => {
     const ctx = await harness(adapter)
     const agent = await ctx.agentLoop.create(SessionId('raw-context'), { provider: 'mock', model: 'mock' })
     const text = '<system-reminder>Additional instructions from: pkg/AGENTS.md</system-reminder>'
-    agent.inject(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'plugin', plugin: 'agent-instructions' } }))
+    agent.inject(createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'agent-instructions', form: 'instructions', changes: [] } }))
     send(agent, 'go')
     await waitForIdle(ctx, agent)
 
-    const contextEvent = agent.session.snapshotEvents().find(event => event.type === 'user/message' && event.data.source.kind === 'plugin')
+    const contextEvent = agent.session.snapshotEvents().find(event => event.type === 'user/message' && event.data.source.kind === 'agent-instructions')
     expect(contextEvent?.type === 'user/message' && contextEvent.data.source)
-      .toEqual({ kind: 'plugin', plugin: 'agent-instructions' })
+      .toEqual({ kind: 'agent-instructions', form: 'instructions', changes: [] })
     const requestText = JSON.stringify(adapter.requests[0]!.messages)
     expect(requestText).toContain('Additional instructions from: pkg/AGENTS.md')
     expect(requestText).not.toContain('<context source=')
@@ -968,10 +1019,10 @@ describe('agent loop', () => {
       async execute() {
         await Promise.resolve()
         const first = { type: 'text' as const, text: 'mid-turn notice' }
-        agent.inject(createUserMessage({ content: [first], source: { kind: 'plugin', plugin: 'x' } }))
+        agent.inject(createUserMessage({ content: [first], source: { kind: 'x' } }))
         first.text = 'mutated after inject'
-        agent.inject(createUserMessage({ content: [{ type: 'text', text: 'second notice' }], source: { kind: 'plugin', plugin: 'x' } }))
-        visibleDuringTool = agent.session.snapshotEvents().some(e => e.type === 'user/message' && e.data.source.kind === 'plugin')
+        agent.inject(createUserMessage({ content: [{ type: 'text', text: 'second notice' }], source: { kind: 'x' } }))
+        visibleDuringTool = agent.session.snapshotEvents().some(e => e.type === 'user/message' && e.data.source.kind === 'x')
         return [{ type: 'text', text: 'ok' }]
       },
     }))
@@ -986,7 +1037,7 @@ describe('agent loop', () => {
     const turnStarts = agent.session.snapshotEvents().filter(e => e.type === 'turn/start')
     expect(turnStarts).toHaveLength(1)
     const result = agent.session.snapshotEvents().find(e => e.type === 'tool/result')!
-    const contexts = agent.session.snapshotEvents().filter(e => e.type === 'user/message' && e.data.source.kind === 'plugin')
+    const contexts = agent.session.snapshotEvents().filter(e => e.type === 'user/message' && e.data.source.kind === 'x')
     expect(contexts).toHaveLength(2)
     expect(result.seq).toBeLessThan(contexts[0]!.seq)
     expect(contexts.flatMap(event => event.type === 'user/message' ? event.data.content : []))
@@ -996,8 +1047,7 @@ describe('agent loop', () => {
       ])
 
     const secondRequest = adapter.requests[1]!.messages
-    const resultIndex = secondRequest.findIndex(message =>
-      message.content.some(block => block.type === 'tool-result'))
+    const resultIndex = secondRequest.findIndex(message => message.role === 'tool')
     const contextIndexes = secondRequest.flatMap((message, index) =>
       message.content.some(block => block.type === 'text'
         && (block.text.includes('mid-turn notice') || block.text.includes('second notice')))
@@ -1021,7 +1071,7 @@ describe('agent loop', () => {
       parameters: {},
       async execute() {
         expect(() => {
-          agent.inject(createUserMessage({ content: [{ type: 'text', text: 'invalid' }], source: { kind: 'plugin', plugin: 'test', bigint: 1n } as never }))
+          agent.inject(createUserMessage({ content: [{ type: 'text', text: 'invalid' }], source: { kind: 'test', bigint: 1n } as never }))
         }).toThrow('agent context must be losslessly JSON-serializable')
         return [{ type: 'text', text: 'rejected invalid context' }]
       },
@@ -1030,7 +1080,7 @@ describe('agent loop', () => {
     send(agent, 'go')
     await waitForIdle(ctx, agent)
 
-    expect(agent.session.snapshotEvents().some(event => event.type === 'user/message' && event.data.source.kind === 'plugin')).toBe(false)
+    expect(agent.session.snapshotEvents().some(event => event.type === 'user/message' && event.data.source.kind === 'test')).toBe(false)
   })
 
   it('agent/turn-stopping can steer another step (/loop pattern)', async () => {
@@ -1046,7 +1096,7 @@ describe('agent loop', () => {
     ctx.on('session/event', (_session, event) => { if (event.type === 'step/end') steps++ })
     ctx.on('agent/turn-stopping', ({ agent: subject }) => {
       if (steps < 3) {
-        subject.steer(createUserMessage({ content: [{ type: 'text', text: 'continue' }], source: { kind: 'plugin', plugin: 'loop-test' } }))
+        subject.steer(createUserMessage({ content: [{ type: 'text', text: 'continue' }], source: { kind: 'loop-test' } }))
       }
     })
 
@@ -1274,7 +1324,7 @@ describe('agent loop', () => {
     // (step 2 is a plain stop with no tool calls → stops).
     ctx.on('agent/turn-stopping', ({ agent: subject }) => {
       if (steps < 2) {
-        subject.steer(createUserMessage({ content: [{ type: 'text', text: 'continue after truncation' }], source: { kind: 'plugin', plugin: 'max-tokens-test' } }))
+        subject.steer(createUserMessage({ content: [{ type: 'text', text: 'continue after truncation' }], source: { kind: 'max-tokens-test' } }))
       }
     })
 
@@ -1286,7 +1336,7 @@ describe('agent loop', () => {
 
     expect(steps).toBe(2)
     expect(adapter.requests).toHaveLength(2)
-    expect(adapter.requests[1]!.messages).toEqual([
+    expect(adapter.requests[1]!.messages.slice(1)).toEqual([
       {
         id: expect.any(String) as unknown,
         role: 'user',
@@ -1303,7 +1353,7 @@ describe('agent loop', () => {
         id: expect.any(String) as unknown,
         role: 'user',
         content: [{ type: 'text', text: 'continue after truncation' }],
-        source: { kind: 'plugin', plugin: 'max-tokens-test' },
+        source: { kind: 'max-tokens-test' },
       },
     ])
     // A max-token step is sticky: the later completed step must not
@@ -1359,7 +1409,7 @@ describe('agent loop', () => {
 
     expect(executions).toBe(0)
     expect(agent.session.snapshotEvents().some(e => e.type === 'tool/call')).toBe(false)
-    expect(agent.session.deriveMessages()).toEqual([{
+    expect(agent.session.deriveMessages().slice(1)).toEqual([{
       id: expect.any(String) as unknown,
       role: 'user',
       content: [{ type: 'text', text: 'go' }],
@@ -1421,7 +1471,7 @@ describe('agent loop', () => {
     })
     expect(assistant.sourceEventSeqs).toBeUndefined()
     expect(assistant.type === 'assistant/message' ? assistant.data.stream.length : 0).toBeGreaterThan(0)
-    expect(agent.session.deriveMessages()).toEqual([{
+    expect(agent.session.deriveMessages().slice(1)).toEqual([{
       id: expect.any(String) as unknown,
       role: 'user',
       content: [{ type: 'text', text: 'go' }],
@@ -1456,7 +1506,7 @@ describe('agent loop', () => {
     })
     expect(assistant.sourceEventSeqs).toBeUndefined()
     expect(assistant.type === 'assistant/message' ? assistant.data.stream.length : 0).toBe(1)
-    expect(agent.session.deriveMessages()).toEqual([{
+    expect(agent.session.deriveMessages().slice(1)).toEqual([{
       id: expect.any(String) as unknown,
       role: 'user',
       content: [{ type: 'text', text: 'go' }],
@@ -1489,13 +1539,13 @@ describe('agent loop', () => {
     expect(agent.session.snapshotEvents().some(e => e.type === 'tool/call')).toBe(false)
     // The follow-up request replays the truncated message with its replay
     // metadata pruned in step with the dropped tool call.
-    expect(adapter.requests[1]?.messages[1]?.source).toEqual({
+    expect(adapter.requests[1]?.messages[2]?.source).toEqual({
       kind: 'model',
       provider: 'mock',
       model: 'mock',
       replayState: { response: { responseId: 'resp-1' }, blocks: ['text-meta'] },
     })
-    expect(agent.session.deriveMessages()).toEqual([
+    expect(agent.session.deriveMessages().slice(1)).toEqual([
       {
         id: expect.any(String) as unknown,
         role: 'user',
@@ -1591,7 +1641,7 @@ describe('agent loop', () => {
     const idle = waitForIdle(ctx, agent)
     agent.followup(createUserMessage({ content: [{ type: 'text', text: 'user message' }], source: { kind: 'user' } }))
     await Promise.resolve()
-    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'plugin message' }], source: { kind: 'plugin', plugin: 'test' } }))
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'plugin message' }], source: { kind: 'test' } }))
     await idle
 
     const turns = agent.session.snapshotEvents().filter(event => event.type === 'turn/start')
@@ -1601,7 +1651,7 @@ describe('agent loop', () => {
     expect(turns).toHaveLength(2)
     expect(sources).toEqual([
       { kind: 'user' },
-      { kind: 'plugin', plugin: 'test' },
+      { kind: 'test' },
     ])
   })
 

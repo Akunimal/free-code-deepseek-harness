@@ -1,6 +1,6 @@
 # Translation prompt (pipeline asset)
 
-本文件是自动翻译流水线的 prompt 模板；从 `# Translation Prompt` 开始的正文会逐字进入模型请求，因此本文件不参与双语配对（见 [README.md](README.md) 排除清单）。模板正文与内嵌 few-shot 正误例由 jingtingxiang 基于对存量译文的质量评审撰写，是流水线行为的拍板基线。渲染时把 [terminology.md](terminology.md) 整表填入 `{{terminology}}`；除此之外不注入任何其他仓库文件（translation-rules.md 约束人和 agent 的翻译工作，不注入本模板）。[style-samples.md](style-samples.md) 定义文体，模板中的 Examples 只用于说明典型问题，两者冲突时以文体样例为准。本模板遵循 [提示词 v4 约定 Agent Note](../../.agents/notes/implemented/process/2026-07-23-translation-prompt-v4-contract.md) 记录的兼容协议。修改本文件会改变翻译行为，需正常经过 PR 评审。
+本文件是自动翻译流水线的 prompt 模板；从 `# Translation Prompt` 开始的正文会逐字进入模型请求，因此本文件不参与双语配对（见 [README.md](README.md) 排除清单）。模板正文与内嵌 few-shot 正误例由 jingtingxiang 基于对存量译文的质量评审撰写，是流水线行为的拍板基线。渲染时把 [terminology.md](terminology.md) 整表填入 `{{terminology}}`；除此之外不注入任何其他仓库文件（translation-rules.md 约束人和 agent 的翻译工作，不注入本模板）。[style-samples.md](style-samples.md) 定义文体，模板中的 Examples 只用于说明典型问题，两者冲突时以文体样例为准。本模板遵循 [提示词 v4 约定 Agent Note](../../.agents/notes/archived/process/2026-07-23-translation-prompt-v4-contract.md) 记录的兼容协议。修改本文件会改变翻译行为，需正常经过 PR 评审。
 
 ## 占位符约定
 
@@ -18,13 +18,13 @@
 
 ## Few-shot 金标
 
-流水线使用**整篇文档**的中英对照作为 few-shot，不是模板内嵌的句子级正误例。以下 5 组配对文档均经过人工评审，以仓库当前版本为准、随仓库更新：
+流水线使用**整篇文档**的中英对照作为 few-shot，不是模板内嵌的句子级正误例。以下 5 组配对文档均经过人工评审；前四组随当前文档更新，第五组保留冻结的历史样例：
 
 - `README.md` ↔ `README.zh.md`
 - `docs/development.md` ↔ `docs/development.zh.md`
 - `docs/i18n/README.md` ↔ `docs/i18n/README.zh.md`
 - `docs/i18n/translation-rules.md` ↔ `docs/i18n/translation-rules.zh.md`
-- `.agents/notes/implemented/process/2026-07-02-bilingual-docs-and-pairing-gate.md` ↔ 对应 `.zh.md`
+- `.agents/notes/archived/process/2026-07-02-bilingual-docs-and-pairing-gate.md` ↔ 对应 `.zh.md`
 
 注入方式：在系统消息（本模板）之后、待译文档之前，每组作为一轮示例对话——user 消息为源文档全文，assistant 消息为定稿译文全文（裸文本，不带三段 XML 包装；只有真实请求要求三段输出）。上下文不足时按上列顺序从后往前删减组数。这 5 组也是评审校准锚点（见 [style-samples.md](style-samples.md)），改动任何一组即改变流水线行为。
 

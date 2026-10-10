@@ -12,21 +12,24 @@
  * Picking stages; the choice reaches a session when one becomes current.
  */
 
-import { useEffect, useRef, useState } from 'react'
-import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ObservableSnapshot, SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  IconAgentPresetOutline16, IconChevronDownOutline14, IconWarningOutline16, Menu, Toast,
+  IconAgentPresetOutlineRegular, IconChevronDownOutlineRegular, IconWarningOutlineRegular, Menu, Toast,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 // Type-only: pulls the ui-conversation SlotMap merge (the hero seat).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { AgentPresetSeatState } from './seat-store.ts'
 import { presetDisplayText } from './locales.ts'
+import { requiresCodingTools } from './settings-store.ts'
 import css from './AgentPresetSeat.module.css'
 
 /** Registration-side business face for the hero chip. */
 export interface AgentPresetSeatInjected {
   hooks: {
+    /** Shared Developer tools preference; off hides the PTC and Minimal menu choices. */
+    developerTools: ObservableSnapshot<boolean>
     /** Seat snapshot bound by the renderer as useAgentPresetSeat. */
     agentPresetSeat: SnapshotStore<AgentPresetSeatState>
   }
@@ -34,6 +37,8 @@ export interface AgentPresetSeatInjected {
   load: () => Promise<void>
   /** Stage one preset for the next session; resolves to a refusal, or undefined. */
   select: (id: string) => Promise<string | undefined>
+  /** Acknowledge the refusal whose Toast finished. */
+  dismissRefusal: (error: AgentPresetSeatState['error']) => void
   /** Clear the one-shot introduce cue once the chip has played it. */
   introduced: () => void
 }
@@ -49,16 +54,7 @@ const INTRO_CHAR_STAGGER_MS = 40
 const INTRO_TEXT_REVEAL_MS = 200
 const INTRO_CHAR_FADE_MS = 400
 
-/**
- * How long a refused switch holds before fading.
- *
- * Longer than the primitive's default because this banner is the only place
- * the refusal appears. The chip's label has already snapped back to the
- * preset the session still runs, and a preset the host refuses to MOUNT is
- * one discovery reported healthy — its row on the settings page carries no
- * reason to go back and read, because there was nothing to see until the
- * rows actually ran.
- */
+/** Duration of a selection-refusal banner, including a revision becoming unavailable during a pick. */
 const REFUSAL_HOLD_MS = 8000
 
 /**
@@ -80,19 +76,40 @@ export type AgentPresetSeatProps =
 /**
  * Render the new-session agent-preset chip.
  * @param props - composed slot props.
- * @returns the chip, or null when the deployment composes no presets.
+ * @returns The chip and any pending selection refusal, or null outside the main view.
  */
-export function AgentPresetSeat({ load, select, introduced, useAgentPresetSeat, t }: AgentPresetSeatProps) {
+export function AgentPresetSeat({
+  sessionId, useSessionRetainInfo, load, select, dismissRefusal, introduced, useAgentPresetSeat, useDeveloperTools, t,
+}: AgentPresetSeatProps) {
+  const developerTools = useDeveloperTools(value => value)
   const state = useAgentPresetSeat(snapshot => snapshot)
+  const main = useSessionRetainInfo(info => sessionId === undefined
+    || (info?.retainedBy.mainView ?? 0) > 0)
   const [open, setOpen] = useState(false)
   // The seq keys the banner, so picking the same broken preset twice replays
   // it rather than leaving the first one silently in place.
   const toastSeq = useRef(0)
-  const [toast, setToast] = useState<{ seq: number; text: string } | null>(null)
+  const [toast, setToast] = useState<{ seq: number; error: Exclude<AgentPresetSeatState['error'], string | null> } | null>(null)
+
+  useEffect(() => {
+    if (state.error !== null && typeof state.error === 'object') {
+      toastSeq.current += 1
+      setToast({ seq: toastSeq.current, error: state.error })
+    } else setToast(null)
+  }, [state.error])
 
   useEffect(() => {
     void load()
   }, [load])
+
+  const options = useMemo(
+    () => state.options.filter(option => developerTools || !requiresCodingTools(option)),
+    [state.options, developerTools],
+  )
+
+  useEffect(() => {
+    setOpen(false)
+  }, [developerTools, options.length])
 
   const chosen = state.options.find(option => option.id === state.current)
   const chosenText = chosen === undefined ? undefined : presetDisplayText(chosen, t)
@@ -119,9 +136,8 @@ export function AgentPresetSeat({ load, select, introduced, useAgentPresetSeat, 
     return () => { window.clearTimeout(done) }
   }, [state.introduce, ready, label, introduced])
 
-  // Nothing to choose between: the deployment composes no presets and every
-  // session shares the host composition.
-  if (!ready) return null
+  // A refused initial composition still needs its Toast when there is no chip to show.
+  if (!main) return null
 
   // One wrapper span: the chip is a flex row with a gap, so loose character
   // spans would each pick up the gap between them.
@@ -145,10 +161,10 @@ export function AgentPresetSeat({ load, select, introduced, useAgentPresetSeat, 
 
   return (
     <>
-      <Menu
-        open={open}
+      {ready && <Menu
+        open={open && options.length > 0}
         onClose={() => { setOpen(false) }}
-        items={state.options.map((option) => {
+        items={options.map((option) => {
           const text = presetDisplayText(option, t)
           return {
             id: option.id,
@@ -165,50 +181,39 @@ export function AgentPresetSeat({ load, select, introduced, useAgentPresetSeat, 
         selectedId={state.current}
         onSelect={(id) => {
           setOpen(false)
-          const picked = state.options.find(option => option.id === id)
-          // The fallback is for the row shape `find` cannot promise; the menu's
-          // items ARE `state.options`, so an emitted id is always one of them.
-          /* v8 ignore next */
-          const name = picked === undefined ? id : presetDisplayText(picked, t).name
-          void select(id).then((refusal) => {
-            // Announced only for a pick a person just made: `apply()` also runs
-            // when a session becomes current, and a banner over that would
-            // report a refusal nobody asked for.
-            if (refusal === undefined) return
-            toastSeq.current += 1
-            setToast({ seq: toastSeq.current, text: t('switchRefused', { name, reason: refusal }) })
-          })
+          void select(id)
         }}
         align="start"
         portal
+        className={css.menuAnchor}
         anchor={(
           <button
             type="button"
             className={css.seat}
             aria-haspopup="menu"
-            aria-expanded={open}
-            title={state.error ?? t('seatHint')}
-            disabled={state.busy}
+            aria-expanded={open && options.length > 0}
+            title={(typeof state.error === 'object' ? state.error?.reason : state.error) ?? t('seatHint')}
+            disabled={state.busy || options.length === 0}
             onClick={() => { setOpen(value => !value) }}
           >
-            <IconAgentPresetOutline16 className={introducing ? `${css.seatIcon} ${css.introIcon}` : css.seatIcon} />
-            {shownLabel}
-            <IconChevronDownOutline14 className={css.chevron} />
+            <IconAgentPresetOutlineRegular className={introducing ? `${css.seatIcon} ${css.introIcon}` : css.seatIcon} />
+            <span className={css.seatLabel}>{shownLabel}</span>
+            <IconChevronDownOutlineRegular className={css.chevron} />
           </button>
         )}
-      />
+      />}
       {toast !== null && (
         <Toast
           key={toast.seq}
-          text={toast.text}
-          icon={<IconWarningOutline16 />}
+          text={t('switchRefused', { name: presetDisplayText(toast.error.preset, t).name, reason: toast.error.reason })}
+          icon={<IconWarningOutlineRegular />}
           holdMs={REFUSAL_HOLD_MS}
           // The composer card, which is the content column this chip sits
           // above rather than inside — hence a page query, not `closest`.
           // Absent, the banner centers on the window, which is off-center
           // whenever the sidebar is open.
           anchor={document.querySelector<HTMLElement>('[data-composer-card]')}
-          onDone={() => { setToast(null) }}
+          onDone={() => { dismissRefusal(toast.error) }}
         />
       )}
     </>

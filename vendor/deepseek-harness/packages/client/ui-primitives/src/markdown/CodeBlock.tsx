@@ -1,7 +1,8 @@
 import { Fragment, useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode, Ref } from 'react'
 import clsx from 'clsx'
 import { writeClipboard } from '../clipboard.ts'
+import { CodeToolbar, type CodeToolbarLabels } from '../CodeToolbar.tsx'
 import {
   StreamingHighlightSession, grammarLoadCount, highlightToHtml, subscribeGrammarLoaded,
 } from './highlight.ts'
@@ -25,10 +26,20 @@ export interface CodeBlockProps {
   streaming?: boolean | undefined
   /** Extra class merged onto the wrapper (callers position; this component draws). */
   className?: string | undefined
+  /** Ref for the stable source-content wrapper, for owners that use it as a scrollport. */
+  contentRef?: Ref<HTMLDivElement> | undefined
+  /** Show a numbered gutter without adding numbers to copied source. Defaults to false. */
+  lineNumbers?: boolean | undefined
+  /** Show the language and copy header; false when the caller supplies a toolbar. Defaults to true. */
+  showHeader?: boolean | undefined
   /** Copy-button idle label; the owner passes localized copy (this package is cordis-free, so copy arrives via props). */
   copyLabel: string
   /** Copy-button label during the post-copy confirmation window. */
   copiedLabel: string
+  /** Enable the shared card toolbar and spacing; omit for custom toolbar layouts. */
+  toolbarLabels?: CodeToolbarLabels | undefined
+  /** With toolbarLabels, use the owner's wrapping preference and omit the toolbar's local wrap action. */
+  wrap?: boolean | undefined
 }
 
 /**
@@ -57,8 +68,11 @@ function renderLine(line: readonly HighlightSpan[], index: number): ReactNode {
   )
 }
 
-export function CodeBlock({ code, lang, streaming, className, copyLabel, copiedLabel }: CodeBlockProps) {
+export function CodeBlock({
+  code, lang, streaming, className, contentRef, lineNumbers = false, showHeader = true, copyLabel, copiedLabel, toolbarLabels, wrap,
+}: CodeBlockProps) {
   const trimmed = code.endsWith('\n') ? code.slice(0, -1) : code
+  const sourceLines = lineNumbers ? trimmed.split('\n') : undefined
   const rootRef = useRef<HTMLDivElement>(null)
   const highlighting = useViewportHighlighting(rootRef, lang)
   // Re-render when a lazy grammar finishes loading, so a fence that showed plain
@@ -140,6 +154,8 @@ export function CodeBlock({ code, lang, streaming, className, copyLabel, copiedL
     [streaming, highlighting, streamedBody, trimmed, lang, loaded],
   )
   const [copied, setCopied] = useState(false)
+  const [localWrapped, setWrapped] = useState(true)
+  const wrapped = wrap ?? localWrapped
 
   const onCopy = useCallback(() => {
     if (copied) return
@@ -160,25 +176,37 @@ export function CodeBlock({ code, lang, streaming, className, copyLabel, copiedL
     ? streamedBody
     : html === undefined
       ? (
-        <pre className={css.plain}><code>{trimmed}</code></pre>
+        <pre className={css.plain}><code>{sourceLines === undefined ? trimmed : sourceLines.map((line, index) => (
+          <Fragment key={index}>{index > 0 && '\n'}<span className="line">{line}</span></Fragment>
+        ))}</code></pre>
       )
       : (
         <div dangerouslySetInnerHTML={{ __html: html }} />
       )
 
   return (
-    <div ref={rootRef} className={clsx(css.block, 'md-code-block', className)}>
-      <div className={css.bannerWrap}>
-        <div className={css.banner}>
+    <div ref={rootRef} className={clsx(css.block, 'md-code-block', lineNumbers && css.numbered, toolbarLabels !== undefined && css.card, className)}
+      data-line-numbers={lineNumbers || undefined}
+      data-code-wrap={toolbarLabels === undefined ? undefined : wrapped}
+      style={sourceLines === undefined ? undefined : {
+        '--dsl-code-block-line-number-width': `${Math.max(2, String(sourceLines.length).length)}ch`,
+      } as CSSProperties}>
+      {/* These paired attributes are stable semantic hooks for owner styling and DOM tests. */}
+      {showHeader && <div className={css.bannerWrap}>
+        {toolbarLabels !== undefined ? <CodeToolbar
+          lang={lang} labels={toolbarLabels} copyLabel={copyLabel} copiedLabel={copiedLabel}
+          copied={copied} wrapped={wrapped} onCopy={onCopy}
+          onWrap={wrap === undefined ? () => { setWrapped(value => !value) } : undefined}
+        /> : <div className={css.banner} data-code-block-banner>
           <div className={css.infostring}>{lang ?? ''}</div>
           <div className={css.action}>
             <button type="button" className={css.copyButton} onClick={onCopy}>
               {copied ? copiedLabel : copyLabel}
             </button>
           </div>
-        </div>
-      </div>
-      {body}
+        </div>}
+      </div>}
+      <div ref={contentRef} className={css.content} data-code-block-content>{body}</div>
     </div>
   )
 }

@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-fs` 定义 `ctx.fs` 文件系统服务：一个紧凑、与后端无关的约定，面向同一个执行世界，把路径解析为稳定身份、在受支持时映射共享宿主文件、在界内读取文本与原始字节、列出目录，并原子地执行写入与字面量编辑。它有意把存储机制留给实现它的后端——`fs-local` 面向宿主文件系统，`fs-sandbox` 面向策略强制的隔离，`fs-e2b` 面向远程执行世界。两个变更操作都带可选版本防护，因此即使不加载策略插件，挂载的后端依然提供完整、不受约束、原子的文件操作。本包还拥有由工具包分派、策略插件决策的 `fs/*` 策略事件词汇。当你需要可替换的文件系统表面时选择它；面向模型的工具本身位于 `dsh-tool-fs`。
+应用需要在宿主、受限或远程执行环境中使用一致的文件系统操作时，选择 `dsh-fs`。消费方可以解析稳定的文件身份、在受支持时映射共享宿主文件、执行有界的文本与字节读取、列出目录、监听目标，并原子地写入文本及执行字面量编辑。版本防护是可选的，因此后端无需策略强制也能工作；调用方可以提供防护，在文件变化后拒绝变更。在宿主执行时选择 `fs-local` 或 `fs-sandbox`。面向模型的文件系统工具由 `dsh-tool-fs` 单独提供。
 
 ## 目录
 
@@ -29,11 +29,13 @@ kind: "package-reference"
 
 ### 选择并挂载后端
 
-普通宿主文件选择 [`fs-local`](../fs-local/README.zh.md)，会话变更必须限制在工作区与临时根目录内时选择 [`fs-sandbox`](../fs-sandbox/README.zh.md)，文件状态必须位于远程执行世界时选择 [`fs-e2b`](../../e2b/fs-e2b/README.zh.md)。挂载任一后端都会填充 `ctx.fs`；更换后端不会改变策略插件、工具或工具 schema。未挂载任何后端的组合就没有 `ctx.fs`，工具会在注册时失败。
+普通宿主文件选择 [`fs-local`](../fs-local/README.zh.md)，会话变更必须限制在工作区与临时根目录内时选择 [`fs-sandbox`](../fs-sandbox/README.zh.md)。挂载任一后端都会填充 `ctx.fs`；更换后端不会改变策略插件、工具或工具 schema。未挂载任何后端的组合就没有 `ctx.fs`，工具会在注册时失败。
 
 ### 服务能做什么
 
-通过 `ctx.fs`，你可以把任意路径解析为稳定的目标身份、完整读取或分片流式读取文本文件、按显式上限读取原始字节、列出一层目录、原子地创建或替换文件，并原子地应用字面量文本编辑。两个变更操作上的版本防护都是可选的：省略它即无条件创建或覆盖，提供它则在文件自上次观察以来发生变化时失败。每个操作要么返回数据，要么抛出携带稳定错误码（如 `FS_NOT_FOUND`、`FS_STALE_VERSION`、`FS_AMBIGUOUS_EDIT`）的类型化 `FsError`，调用方依据错误码分支，绝不解析消息文本。
+通过 `ctx.fs`，你可以把任意路径解析为稳定的目标身份、完整读取或分片流式读取文本文件、按显式上限读取原始字节、列出一层目录、原子地创建或替换文件，并原子地应用字面量文本编辑。两个变更操作上的版本防护都是可选的：省略它即无条件创建或覆盖，提供它则在文件自上次观察以来发生变化时失败。读取、列出与变更操作的失败使用携带稳定错误码（如 `FS_NOT_FOUND`、`FS_STALE_VERSION`、`FS_AMBIGUOUS_EDIT`）的类型化 `FsError`，调用方依据错误码分支，绝不解析消息文本。
+
+`watch(target, changed, signal)` 报告单个文件或目录直接子项的失效通知。观察就绪后，它返回调用方必须等待完成的异步关闭函数。signal 取消初始化；不支持监听的提供方直接拒绝，不使用轮询。
 
 -----
 
@@ -49,10 +51,10 @@ kind: "package-reference"
 
 该约定建立在一个分离与三项承诺之上：
 
-- **约定高于机制。** 服务只命名存储层能做什么——解析、stat、读取、列出、写入、编辑——绝不规定如何存储字节。后端拥有目标身份、执行世界坐标、解码、二进制拒绝与原子性。
+- **约定高于机制。** 服务只命名存储层能做什么——解析、stat、读取、列出、监听、写入、编辑——绝不规定如何存储字节。后端拥有目标身份、执行世界坐标、解码、二进制拒绝与原子性。
 - **策略不放在基类上。** 已观察状态、编辑前读取与版本防护的变更是插件（`dsh-fs-observation-policy`）的职责，通过提供可选防护来添加——因此沙箱化或远程后端不会继承任何面向模型的观察策略。
 - **`editText` 留在 seam 上。** 版本校验、字面量匹配与原子重写共享同一个临界区，错误归因与一方胜出/一方陈旧的并发语义因此保持正确；远程后端也可以将其实现为原生比较并编辑操作。
-- **界限制在此 seam 上。** `readBytes` 要求 `maxBytes`，并以 `FS_TOO_LARGE` 失败而不是截断，因此任何后端都不会无界缓冲文件。
+- **界限制在此 seam 上。** `readBytes` 要求 `maxBytes`，并以 `FS_TOO_LARGE` 失败而不是截断，因此任何后端都不会无界缓冲文件。`readByteRange` 则以窗口为界：后端最多传输所请求的 `length` 字节（外加为到达 `offset` 而跳过的前缀），因此由调用方对 `length` 的上限承担防护。
 
 ### 源码地图
 
@@ -63,7 +65,7 @@ kind: "package-reference"
 
 ### 调用流程
 
-每个普通操作都以 `resolve(path, { cwd })` 开始，它产生稳定的 `FsTarget`（不透明 `targetKey` 加用于模型/UI 输出的 `displayPath`）；经不同路径到达同一文件会产生相同 key。`processPathFromHostPath(hostPath)` 在后端共享或显式映射宿主文件时，单独把绝对宿主文件映射进此执行世界，否则返回 `undefined`。读取随后执行 `stat` → `readText`/`streamText`/`readBytes`，列出执行 `listDir`，变更则经过每个目标一个临界区：先检查可选防护，应用新内容，再原子发布结果。
+每个普通操作都以 `resolve(path, { cwd })` 开始，它产生稳定的 `FsTarget`（不透明 `targetKey` 加用于模型/UI 输出的 `displayPath`）；经不同路径到达同一文件会产生相同 key。`processPathFromHostPath(hostPath)` 在后端共享或显式映射宿主文件时，单独把绝对宿主文件映射进此执行世界，否则返回 `undefined`。读取随后执行 `stat` → `readText`/`streamText`/`readBytes`/`readByteRange`，列出执行 `listDir`，变更则经过每个目标一个临界区：先检查可选防护，应用新内容，再原子发布结果。
 
 ### `fs/*` 策略事件
 
@@ -72,7 +74,7 @@ kind: "package-reference"
 ### 不变式
 
 - `targetKey` 与 `version` 是带品牌的不透明 id：消费方不得解析或解释它们；只有 `displayPath` 用于模型/UI 输出。
-- 失败是携带稳定错误码的类型化 `FsError`，绝不是临时拼写的消息字符串。
+- 读取、列出与变更操作的失败是携带稳定错误码的类型化 `FsError`，绝不是临时拼写的消息字符串；监听初始化可以用普通异常拒绝。
 - 该 seam 不设 I/O deadline；取消是每个原语上可选的 `AbortSignal`。
 
 </details>
@@ -109,8 +111,8 @@ kind: "package-reference"
 
 这些限制说明该约定何时不合适，或何时需要特别的运维注意。它们是当前包约束，不是通用文件系统对比或任务积压。
 
-- **变更操作约定只支持文本**：文本读取和两个变更操作都以 `FS_NOT_TEXT` 拒绝二进制/非 UTF-8 内容；`readBytes` 是唯一的原始字节原语，二进制安全的变更操作仍延期（见[工具 schema Agent Note](../../../.agents/notes/implemented/feature/2026-06-17-filesystem-tool-schemas.zh.md)）。
-- **只有十三个原语**：没有删除、重命名、复制或监视；`listDir` 只列出一层，递归、glob、分页与搜索不在范围内（见[目录列出笔记](../../../.agents/notes/archived/architecture/2026-07-03-filesystem-directory-listing-seam.md)）。
+- **变更操作约定只支持文本**：文本读取和两个变更操作都以 `FS_NOT_TEXT` 拒绝二进制/非 UTF-8 内容；`readBytes` 与 `readByteRange` 是原始字节原语，二进制安全的变更操作仍延期。
+- **没有删除、重命名或复制**：`listDir` 只列出一层，递归、glob、分页与搜索不在范围内（见[目录列出笔记](../../../.agents/notes/archived/architecture/2026-07-03-filesystem-directory-listing-seam.md)）。
 - **没有 I/O deadline**：该 seam 不启动超时；取消只是每个原语上尽力而为的可选 `AbortSignal`（见[fs 能力族立场](../README.zh.md)）。
 - **先解析后操作使远程后端每次工具调用需要两次往返**：折叠或缓存解析由这种后端自行决定。
 

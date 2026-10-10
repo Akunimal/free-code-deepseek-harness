@@ -11,6 +11,7 @@ import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typer
 import { deepFreeze } from '@deepseek-ai/dsh-util-values'
 import type {
   GenerateOptions,
+  RequestMessage,
   LlmConfigurableProvider,
   LlmDiscoveredModel,
   LlmFailure,
@@ -22,8 +23,11 @@ import type {
   LlmProviderInfo,
   ModelModality,
   StreamChunk,
+  SystemPromptUpdate,
+  ToolSchema,
+  ToolUpdate,
 } from './types.ts'
-import { freezeMessage, type Message } from './message.ts'
+import { freezeMessage } from './message.ts'
 import { resolveRetryPolicy } from './retry-policy.ts'
 import type { ResolvedRetryPolicy } from './retry-policy.ts'
 import type { ProviderRequestId } from './brand.ts'
@@ -33,9 +37,9 @@ import { HarnessError, INVALID_CREDENTIAL_CODE } from './error.ts'
 import { normalizeLlmFailure } from './adapter-failure.ts'
 import { normalizeApiKey } from './api-key.ts'
 import {
-  contentHasFile, contentHasImage, fileHandleText, projectFilesToText, projectImagesForTextModelWithOcr,
+  contentHasFile, contentHasImage, fileHandleText, projectFilesToText, projectImagesForTextModel, projectToolUpdates,
 } from './content.ts'
-import type { FileAttachmentRef, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
+import type { FileAttachmentRef } from '@deepseek-ai/dsh-attachment'
 
 export * from './attribution.ts'
 export * from './brand.ts'
@@ -43,7 +47,6 @@ export * from './error.ts'
 export * from './api-key.ts'
 export * from './types.ts'
 export * from './content.ts'
-export * from './ocr.ts'
 export * from './assistant-stream.ts'
 export * from './message.ts'
 export * from './retry-policy.ts'
@@ -65,8 +68,8 @@ declare module '@deepseek-ai/cordis' {
      *   process-local {@link markAgentLoopRequest} identity and arrives deep-frozen
      *   (mutation throws): its content is a pure function of the session log (the
      *   reconstructability Agent Note), so listeners read it, never rewrite it.
-     *   Hand-built calls do not carry that marker; their messages already obey
-     *   the immutable creation contract.
+     *   Hand-built calls do not carry that marker; callers own their request
+     *   inputs and must keep them unchanged until the stream settles.
      * @mode waterfall
      */
     'llm/stream'(this: LlmRuntime, options: GenerateOptions, next: () => AsyncIterable<StreamChunk>): AsyncIterable<StreamChunk>
@@ -82,6 +85,8 @@ export interface LlmErrorOptions extends ErrorOptions {
   providerRetryAfterMs?: number
   /** Non-empty opaque provider request id. */
   requestId?: ProviderRequestId
+  /** Positive count of additional oldest retained image occurrences to offload; only with `IMAGE_OFFLOAD_REQUIRED`. */
+  offloadImages?: number
 }
 
 /**
@@ -120,6 +125,7 @@ export class LlmError extends HarnessError {
       ...options?.status === undefined ? {} : { status: options.status },
       ...options?.providerRetryAfterMs === undefined ? {} : { providerRetryAfterMs: options.providerRetryAfterMs },
       ...options?.requestId === undefined ? {} : { requestId: options.requestId },
+      ...options?.offloadImages === undefined ? {} : { offloadImages: options.offloadImages },
     })
   }
 }
@@ -169,6 +175,10 @@ export interface PreparedLlmCall {
   readonly context?: LlmModelContext
   /** Exact model modalities captured with the adapter dispatch generation. */
   readonly inputModalities?: readonly ModelModality[]
+  /** Exact model system prompt update mode captured with the adapter dispatch generation. */
+  readonly systemPromptUpdate?: SystemPromptUpdate
+  /** Exact model tool update mode captured with the adapter dispatch generation. */
+  readonly toolUpdate?: ToolUpdate
   /** Config fields materialized by the captured adapter rather than proposed by the caller. */
   readonly adapterDefaults: LlmCallConfigAdapterDefaults
   /**
@@ -229,8 +239,9 @@ export abstract class LlmAdapter {
 
   /**
    * List models this adapter can currently advertise for one owned provider.
-   * The result is advisory: an adapter may accept unlisted model ids, and
-   * consumers must not turn absence into request rejection.
+   * Core routing accepts unlisted model ids; catalog-driven entry points such
+   * as the GUI may require membership. Adapters used there must advertise
+   * their available models; the base empty catalog offers no GUI selection.
    * @param _provider - one provider route owned by this adapter.
    * @returns discoverable models in adapter-preferred order.
    */
@@ -344,28 +355,21 @@ export class LlmRuntime extends TypertRemoteService {
   private emitAdaptersUpdated(): void {
     // Cordis emit uses Array.map: one synchronous throw starves later
     // listeners. Registry notifications are non-vetoing, so contain each
-    // callback independently; INVARIANT-coded failures still surface.
-    let invariantFailure: unknown
+    // callback independently.
     for (const listener of this.ctx.events.dispatch('emit', ['llm/adapters-updated']) as Array<() => unknown>) {
       try {
         const returned = listener()
         if (returned != null && typeof (returned as PromiseLike<unknown>).then === 'function') {
           // An emit listener may still be an async function; its rejection
-          // cannot reach the synchronous INVARIANT rethrow below, so it is
-          // contained here instead of becoming an unhandled rejection.
+          // is contained here instead of becoming an unhandled rejection.
           void Promise.resolve(returned as PromiseLike<unknown>).then(undefined, (error: unknown) => {
             this.warnAdaptersListenerFailure(error)
           })
         }
       } catch (error) {
-        if ((error as { code?: unknown } | null)?.code === 'INVARIANT') {
-          invariantFailure ??= error
-          continue
-        }
         this.warnAdaptersListenerFailure(error)
       }
     }
-    if (invariantFailure !== undefined) throw invariantFailure as Error
   }
 
   /** Contained-listener diagnostic shared by the sync and async failure paths. */
@@ -609,6 +613,7 @@ export class LlmRuntime extends TypertRemoteService {
         ...model.name === undefined ? {} : { name: model.name },
         ...model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow },
         ...model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens },
+        ...model.inputModalities === undefined ? {} : { inputModalities: [...model.inputModalities] },
       })
     }
     return models
@@ -682,7 +687,8 @@ export class LlmRuntime extends TypertRemoteService {
 
   /**
    * Discover models advertised by one registered provider. Catalog membership
-   * is advisory and never changes routing or request validation.
+   * does not constrain core routing. Catalog-driven entry points may restrict
+   * selection and submission to the advertised models.
    * @param provider - registered provider route to inspect.
    * @returns detached model metadata in adapter-preferred order.
    */
@@ -772,6 +778,22 @@ export class LlmRuntime extends TypertRemoteService {
     // Capability metadata rides through: an explicit modality omission is
     // negative capability downstream preflights act on (image admission).
     const inputModalities = this.detachedModalities(resolved.inputModalities)
+    // Widened: adapters derive this mode from catalog config, so the value is checked as a string.
+    const systemPromptUpdate: string | undefined = resolved.systemPromptUpdate
+    if (systemPromptUpdate !== undefined && systemPromptUpdate !== 'in-history') {
+      throw new LlmError(
+        `adapter returned invalid system prompt update mode for provider "${provider}" model "${model}"`,
+        'INVALID_MODEL_INFO',
+      )
+    }
+    // Widened for the same reason: catalog config supplies the tool update mode as text.
+    const toolUpdate: string | undefined = resolved.toolUpdate
+    if (toolUpdate !== undefined && toolUpdate !== 'in-history' && toolUpdate !== 'addition-only') {
+      throw new LlmError(
+        `adapter returned invalid tool update mode for provider "${provider}" model "${model}"`,
+        'INVALID_MODEL_INFO',
+      )
+    }
     const defaultMaxTokens = resolved.defaultMaxTokens
     if (defaultMaxTokens !== undefined
       && (!Number.isSafeInteger(defaultMaxTokens) || defaultMaxTokens <= 0)) {
@@ -788,20 +810,14 @@ export class LlmRuntime extends TypertRemoteService {
       ...inputModalities === undefined ? {} : { inputModalities },
       ...context === undefined ? {} : { context: { contextWindow: context.contextWindow } },
       ...defaultMaxTokens === undefined ? {} : { defaultMaxTokens },
+      ...resolved.systemPromptUpdate === undefined ? {} : { systemPromptUpdate: resolved.systemPromptUpdate },
+      ...resolved.toolUpdate === undefined ? {} : { toolUpdate: resolved.toolUpdate },
     }
     const reasoning = resolved.reasoning
     if (reasoning === undefined) return info
     if (reasoning.efforts.length === 0) {
       throw new LlmError(
         `adapter returned invalid reasoning metadata for provider "${provider}" model "${model}"`,
-        'INVALID_MODEL_REASONING',
-      )
-    }
-    if (reasoning.control !== undefined
-      && reasoning.control !== 'effort'
-      && reasoning.control !== 'toggle') {
-      throw new LlmError(
-        `adapter returned invalid reasoning control for provider "${provider}" model "${model}"`,
         'INVALID_MODEL_REASONING',
       )
     }
@@ -837,7 +853,6 @@ export class LlmRuntime extends TypertRemoteService {
       ...info,
       reasoning: {
         efforts,
-        ...reasoning.control === undefined ? {} : { control: reasoning.control },
         ...reasoning.defaultEffort === undefined ? {} : { defaultEffort: reasoning.defaultEffort },
       },
     }
@@ -937,6 +952,8 @@ export class LlmRuntime extends TypertRemoteService {
       ...modelInfo.inputModalities === undefined
         ? {}
         : { inputModalities: Object.freeze([...modelInfo.inputModalities]) },
+      ...modelInfo.systemPromptUpdate === undefined ? {} : { systemPromptUpdate: modelInfo.systemPromptUpdate },
+      ...modelInfo.toolUpdate === undefined ? {} : { toolUpdate: modelInfo.toolUpdate },
       stream: (options: GenerateOptions): AsyncIterable<StreamChunk> => {
         if (dispatched) {
           throw new LlmError('a prepared LLM call can only be dispatched once', 'INVALID_PREPARED_CALL')
@@ -966,9 +983,10 @@ export class LlmRuntime extends TypertRemoteService {
 
   /** Remove replay state whose historical route is owned by another adapter. */
   private forAdapter(options: GenerateOptions, adapter: LlmAdapter): GenerateOptions {
-    const messages: Message[] = options.messages.map((message) => {
+    const messages: RequestMessage[] = options.messages.map((message) => {
+      if (message.role !== 'assistant') return message
       const source = message.source
-      if (message.role !== 'assistant' || source.kind !== 'model' || source.replayState === undefined) return message
+      if (source.replayState === undefined) return message
       if (this.adapters.get(source.provider)?.adapter === adapter) return message
       return freezeMessage({
         ...message,
@@ -996,19 +1014,6 @@ export class LlmRuntime extends TypertRemoteService {
     if (hostPath === undefined) return undefined
     // Structural face: dsh-llm cannot depend on the filesystem package, and
     // only this one mapping method is consumed.
-    const fs = this.ctx.get('fs') as { processPathFromHostPath(hostPath: string): string | undefined } | undefined
-    return fs?.processPathFromHostPath(hostPath)
-  }
-
-  /** Resolve a durable image into the read-only path visible to the LLM host. */
-  private imageReadPath(ref: ImageAttachmentRef): string | undefined {
-    let hostPath: string | undefined
-    try {
-      hostPath = this.ctx.get('attachments')?.imageHostPath(ref)
-    } catch {
-      return undefined
-    }
-    if (hostPath === undefined) return undefined
     const fs = this.ctx.get('fs') as { processPathFromHostPath(hostPath: string): string | undefined } | undefined
     return fs?.processPathFromHostPath(hostPath)
   }
@@ -1051,27 +1056,27 @@ export class LlmRuntime extends TypertRemoteService {
           ? deepFreeze({ ...options, ...resolvedConfig })
           : { ...options, ...resolvedConfig }
       // Files are never dispatched natively: every route receives handle text.
-      let projectedMessages: readonly Message[] = resolvedOptions.messages
+      let projectedMessages: readonly RequestMessage[] = resolvedOptions.messages
       if (projectedMessages.some(message => contentHasFile(message.content))) {
         projectedMessages = projectFilesToText(projectedMessages, ref => this.fileReadPath(ref))
       }
       if (modelInfo.inputModalities !== undefined
         && !modelInfo.inputModalities.includes('image')
         && projectedMessages.some(message => contentHasImage(message.content))) {
-        projectedMessages = await projectImagesForTextModelWithOcr(
-          projectedMessages,
-          ref => {
-            const readonlyPath = this.imageReadPath(ref)
-            return readonlyPath === undefined ? undefined : { readonlyPath }
-          },
-          resolvedOptions.signal,
-        )
+        projectedMessages = projectImagesForTextModel(projectedMessages)
       }
-      const projectedOptions = projectedMessages === resolvedOptions.messages
-        ? resolvedOptions
-        : Object.isFrozen(resolvedOptions)
-          ? deepFreeze({ ...resolvedOptions, messages: projectedMessages as Message[] })
-          : { ...resolvedOptions, messages: projectedMessages as Message[] }
+      // Tool changes are logged on every route; the route's declared mode selects what it receives.
+      const projectedTools = projectToolUpdates(projectedMessages, resolvedOptions.tools, modelInfo.toolUpdate, resolvedOptions.toolHistory)
+      projectedMessages = projectedTools.messages
+      let projectedOptions = resolvedOptions
+      if (projectedMessages !== resolvedOptions.messages || projectedTools.tools !== resolvedOptions.tools) {
+        projectedOptions = {
+          ...resolvedOptions,
+          messages: projectedMessages as RequestMessage[],
+          ...projectedTools.tools === undefined ? {} : { tools: projectedTools.tools as ToolSchema[] },
+        }
+        if (Object.isFrozen(resolvedOptions)) deepFreeze(projectedOptions)
+      }
       const stream = dispatch(this.forAdapter(projectedOptions, adapter))
       iterator = stream[Symbol.asyncIterator]()
     } catch (error: unknown) {

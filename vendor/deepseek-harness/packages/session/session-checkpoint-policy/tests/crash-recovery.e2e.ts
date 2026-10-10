@@ -74,7 +74,7 @@ async function load(root: string): Promise<SessionEvent[]> {
   try {
     const handle = await ctx.sessionPersistence.open(sessionId, 'read')
     try {
-      const events = await handle.read()
+      const { events } = await handle.read()
       return [...events, ...interruptedTurnClosers(events)]
     } finally {
       await handle.close()
@@ -95,7 +95,7 @@ describe.skipIf(process.platform === 'win32')('semantic checkpoint hard-crash re
     const events = await load(crashed.root)
     expect(events.map(event => event.type)).toEqual([
       'agent/inbox/spliced', 'turn/start', 'agent/inbox/spliced',
-      'step/start', 'user/message', 'request/header', 'request/context', 'step/end', 'turn/end',
+      'step/start', 'system/message', 'user/message', 'request/header', 'request/context', 'step/end', 'turn/end',
     ])
     expect(events.at(-1)).toMatchObject({
       type: 'turn/end', data: { reason: { kind: 'interrupted' } },
@@ -112,9 +112,9 @@ describe.skipIf(process.platform === 'win32')('semantic checkpoint hard-crash re
     expect(result?.type === 'tool/result' && result.data.error).toEqual({
       name: 'ToolOutcomeUnknownError', code: TOOL_OUTCOME_UNKNOWN,
     })
-    if (result?.type !== 'tool/result' || result.data.message.content[0].content[0]?.type !== 'text') {
+    if (result?.type !== 'tool/result' || result.data.message.content[0]?.type !== 'text') {
       throw new Error('expected a text tool result')
     }
-    expect(result.data.message.content[0].content[0].text).toContain('Do not retry blindly.')
+    expect(result.data.message.content[0].text).toContain('Do not retry blindly.')
   })
 })

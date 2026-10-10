@@ -5,7 +5,7 @@
  * working-directory resolution (config override, else the delegating parent
  * session's workspace), the never-reject result settlement, and the standard
  * run-handle publication. Backends compose these with their own wire drivers;
- * the process machinery itself (spawn, env scrub, tree-scoped teardown)
+ * the process machinery itself (spawn, env scrub, managed-range teardown)
  * belongs to the `dsh-subprocess` seam.
  *
  * @module @deepseek-ai/dsh-subagent/out-of-process
@@ -166,7 +166,7 @@ export interface RunResultSettlement {
   /** The turn attempt (typically racing local cancellation); returns the terminal result. */
   attempt: () => Promise<SubagentResult>
   /** Snapshot the provider exposes when cancellation or failure wins settlement. */
-  collectOutput: () => ContentBlock[]
+  collectOutput: () => readonly ContentBlock[]
   /** Snapshot safe provider-authored detail when a failure wins settlement. */
   collectDiagnostic?: (() => string | undefined) | undefined
   /** Whether local cancellation settled before the attempt's outcome is observed. */

@@ -1,7 +1,13 @@
 {
+<<<<<<<< HEAD:vendor/deepseek-harness/packages/code-runtime/code-runtime/package.json
+  "name": "@deepseek-ai/dsh-code-runtime",
+  "description": "Abstract code-execution seam (ctx.codeRuntime) for the DeepSeek Harness",
+  "version": "0.1.3-alpha.1",
+========
   "name": "@deepseek-ai/dsh-deepseek-llm-api-extensions",
   "description": "Additive request-field registry for the official DeepSeek LLM API adapter",
-  "version": "0.1.3-alpha.1",
+  "version": "0.2.1-alpha.1",
+>>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/packages/llm/deepseek-llm-api-extensions/package.json
   "publishConfig": {
     "access": "public"
   },
@@ -18,23 +24,36 @@
       "types": "./lib/types/index.d.ts",
       "default": "./lib/index.js"
     },
+<<<<<<<< HEAD:vendor/deepseek-harness/packages/code-runtime/code-runtime/package.json
+========
     "./types": {
       "types": "./lib/types/types.d.ts",
       "default": "./lib/types/types.js"
     },
+>>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/packages/llm/deepseek-llm-api-extensions/package.json
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
   "files": [
     "lib/index.js",
+<<<<<<<< HEAD:vendor/deepseek-harness/packages/code-runtime/code-runtime/package.json
+========
     "lib/types/**/*.js",
+>>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/packages/llm/deepseek-llm-api-extensions/package.json
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",
   "peerDependencies": {
+<<<<<<<< HEAD:vendor/deepseek-harness/packages/code-runtime/code-runtime/package.json
     "@deepseek-ai/cordis": "workspace:^"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "workspace:^"
+========
+    "@deepseek-ai/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:~"
+>>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/packages/llm/deepseek-llm-api-extensions/package.json
   }
 }

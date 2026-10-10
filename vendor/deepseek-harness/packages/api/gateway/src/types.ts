@@ -4,6 +4,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import type { PeerScope } from '@deepseek-ai/dsh-typert-protocol'
 import type { RemoteEventHostInfo } from './stream-protocol.ts'
 
 /** One Remote method request after a carrier has decoded its envelope. */
@@ -14,6 +15,13 @@ export interface InvokeRemoteRequest {
   readonly method: string
   /** Named wire values; fields must exactly match the descriptor. */
   readonly args: Readonly<Record<string, unknown>>
+  /**
+   * Client uplink items of this logical stream, delivered to the method through
+   * `invocation.uplink()`; absent means an immediately ended iterable.
+   */
+  readonly uplink?: AsyncIterable<unknown>
+  /** Peer the call speaks for; absent means an in-process carrier, answered as the operator. */
+  readonly peer?: PeerScope
   /** Carrier or direct-caller cancellation injected only into cancellation-aware methods. */
   readonly signal?: AbortSignal
 }
@@ -28,10 +36,12 @@ export interface TypertRemoteEventFrame {
 
 /** Live Host values used to project one scoped Remote Event. */
 export interface TypertRemoteEventContext {
-  /** Live Host Context identified by the registered Host adapters. */
+  /** Live Agent Context that owns cancellation of the forwarded waterfall. */
   readonly value: Context
   /** Agent object carried directly by the waterfall request. */
   readonly subject: object
+  /** Agent identity read directly from the scoped event subject. */
+  readonly agentId: string
 }
 
 /** Result returned from a Client waterfall, or delegation back to the Host chain. */
@@ -76,12 +86,17 @@ export interface TypertGatewayWireStream {
    * Open one logical stream from its wire endpoint and payload.
    * @param endpoint - canonical Remote endpoint or Gateway-owned stream name.
    * @param payload - decoded carrier payload.
+   * @param uplink - Client-to-Host items of the logical stream; a Gateway-owned endpoint returns its iterator
+   * as soon as it opens, so the carrier drops those items instead of buffering them.
+   * @param peer - Peer the stream speaks for; `undefined` means the operator's in-process carrier.
    * @param signal - logical-stream cancellation.
    * @returns validated stream values.
    */
   readonly open: (
     endpoint: string,
     payload: unknown,
+    uplink: AsyncIterable<unknown>,
+    peer: PeerScope | undefined,
     signal: AbortSignal,
   ) => Promise<AsyncIterable<unknown>>
 
@@ -112,15 +127,23 @@ export type TypertGatewayErrorCode =
   | 'gateway/lookup-not-found'
   | 'gateway/lookup-unavailable'
   | 'gateway/method-unavailable'
+  | 'gateway/protocol'
   | 'gateway/provider-mismatch'
   | 'gateway/result-invalid'
   | 'gateway/service-unavailable'
   | 'gateway/signature-invalid'
+  | 'gateway/uplink-overflow'
 
 /** Host dispatcher consumed by Connection adapters. */
 export interface TypertGateway {
   /** Carrier adapter shared by WebSocket and in-process transports. */
   readonly wireStream: TypertGatewayWireStream
+
+  /**
+   * Check for an active Client event stream.
+   * @returns whether a stream is open and has not been cancelled.
+   */
+  hasLiveClient(): boolean
 
   /**
    * Register the application-selected forwarded-event source.
@@ -143,7 +166,7 @@ export interface TypertGateway {
 
   /**
    * Open one live stream Remote method without assuming a physical carrier.
-   * @param request - decoded endpoint and named wire arguments.
+   * @param request - decoded endpoint, named wire arguments, and the Client uplink when the carrier has one.
    * @returns a cancellation-aware iterable over the business results.
    */
   stream(request: InvokeRemoteRequest): Promise<AsyncIterable<unknown>>

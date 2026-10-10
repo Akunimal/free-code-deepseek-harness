@@ -1,7 +1,7 @@
 /** Shared live/prepared observations for Session page and lifecycle consumers. */
 
 import type { Context } from '@deepseek-ai/cordis'
-import { SessionLogOffset } from '@deepseek-ai/dsh-session'
+import { SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
 import type { Session, SessionEvent, SessionHeader, SessionId , SessionLogOffset as SessionLogOffsetType , SessionSeqCursor } from '@deepseek-ai/dsh-session'
 import type SessionPersistence from '@deepseek-ai/dsh-session-persistence'
 import type {
@@ -21,7 +21,11 @@ export interface SessionObservation extends Disposable {
   readonly header: SessionHeader
   /** Exact fork-inherited event count paired with {@link header}. */
   readonly inheritedEventCount: SessionLogOffsetType
-  /** Immutable contiguous events at {@link cursor}. */
+  /**
+   * Immutable contiguous events at {@link cursor}. A live observation
+   * materializes this array on first read, so a consumer that reads only the
+   * header, cursor, or projections never copies the log.
+   */
   readonly events: readonly SessionEvent[]
   /** Last observed event seq, or -1 for an empty log. */
   readonly cursor: SessionSeqCursor
@@ -50,8 +54,8 @@ export interface SessionObservationOptions {
  * instance still reports the same revision.
  */
 interface PreparedEntry {
-  /** The persistence instance whose `stat` produced {@link revision}; revisions from another instance are incomparable. */
-  readonly persistence: SessionPersistence
+  /** Stable service identity whose `stat` produced this revision; proxy references are not instance identities. */
+  readonly persistenceIdentity: symbol
   /** Durable revision observed by `stat` immediately before the log read. */
   readonly revision: SessionPersistenceRevision
   /** Unpublished Session restored from the balanced log; never entered into the store. */
@@ -89,6 +93,7 @@ export class SessionObservationReader {
    * @param sessionId - logical Session identity.
    * @param options - cancellation and all-or-none projection computation for this read.
    * @returns one exact immutable observation.
+   * @throws {@link SessionQueryError} with code `SESSION_QUERY_CORRUPT_SESSION` when live or prepared projection computation fails.
    */
   async read(
     sessionId: SessionId,
@@ -105,22 +110,22 @@ export class SessionObservationReader {
       const snapshot = await this.statSource(persistence, sessionId, signal)
       const attachedDuringStat = this.ctx.sessions.get(sessionId)
       if (attachedDuringStat !== undefined) return this.live(attachedDuringStat, projectionMode)
-      let entry = this.cachedEntry(persistence, sessionId, snapshot.revision)
+      let entry = this.cachedEntry(persistence.identity, sessionId, snapshot.revision)
       if (entry === undefined) {
         const loaded = await this.loadSource(persistence, sessionId, signal)
         throwIfObservationAborted(signal)
         const attached = this.ctx.sessions.get(sessionId)
         if (attached !== undefined) return this.live(attached, projectionMode)
-        // Ownership transfer into `prepare` freezes the seed in place, so the
-        // entry keeps its own detached copies of the just-read events.
-        const seed = loaded.events.map(event => structuredClone(event))
+        // The handle marks persisted events as adoptable; synthetic closers
+        // are owned by this read, so the combined seed needs no copy.
+        const seed = loaded.events
         let session: Session
         try {
           session = this.ctx.sessions.prepare(sessionId, {
             seed,
             meta: structuredClone(loaded.header),
             inheritedEventCount: loaded.inheritedEventCount,
-            seedSource: 'persistence',
+            eventState: loaded.eventState,
           })
         } catch (error: unknown) {
           // The store rejects an id with a live owner: that owner is the
@@ -134,7 +139,7 @@ export class SessionObservationReader {
           )
         }
         entry = {
-          persistence,
+          persistenceIdentity: persistence.identity,
           revision: snapshot.revision,
           session,
           events: Object.freeze(seed),
@@ -197,12 +202,12 @@ export class SessionObservationReader {
 
   /** Return a still-valid cached entry and mark it most recently used. */
   private cachedEntry(
-    persistence: SessionPersistence,
+    persistenceIdentity: symbol,
     sessionId: SessionId,
     revision: SessionPersistenceRevision,
   ): PreparedEntry | undefined {
     const cached = this.cache.get(sessionId)
-    if (cached === undefined || cached.persistence !== persistence || cached.revision !== revision) {
+    if (cached === undefined || cached.persistenceIdentity !== persistenceIdentity || cached.revision !== revision) {
       return undefined
     }
     this.cache.delete(sessionId)
@@ -271,18 +276,34 @@ export class SessionObservationReader {
     session: Session,
     projectionMode: NonNullable<SessionObservationOptions['projectionMode']>,
   ): SessionObservation {
-    const events = session.snapshotEvents()
-    const projections = projectionMode === 'none'
-      ? undefined
-      : this.ctx.get('sessionProjections')?.snapshot(session)
+    // The cut is the log length now. The log only appends, so the prefix
+    // below `seq` is the same array whenever a consumer first reads `events`.
+    const seq = session.seq
+    let materialized: readonly SessionEvent[] | undefined
+    let projections: ProjectionSnapshot | undefined
+    try {
+      projections = projectionMode === 'none'
+        ? undefined
+        : this.ctx.get('sessionProjections')?.snapshot(session)
+    } catch (error: unknown) {
+      throw new SessionQueryError(
+        `failed to project session "${session.id}": ${errorMessage(error)}`,
+        'SESSION_QUERY_CORRUPT_SESSION',
+        { cause: error },
+      )
+    }
     const lease = (): SessionObservation => {
       let disposed = false
       return {
         source: 'live',
         header: session.header,
         inheritedEventCount: session.inheritedEventCount,
-        events,
-        cursor: events.at(-1)?.seq ?? -1,
+        get events() {
+          // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
+          materialized ??= session.snapshotEvents(SessionLogOffset(0), seq)
+          return materialized
+        },
+        cursor: seq === 0 ? -1 : SessionSeq(seq - 1),
         ...projections === undefined ? {} : { projections },
         retain: () => {
           if (disposed) throw new Error(`session observation "${session.id}" is disposed`)

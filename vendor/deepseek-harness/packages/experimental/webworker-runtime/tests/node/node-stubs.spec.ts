@@ -21,6 +21,9 @@ import * as stream from '../../src/node/builtin_modules/implemented/stream.ts'
 import * as vm from '../../src/node/builtin_modules/mock/vm.ts'
 import * as workerThreads from '../../src/node/builtin_modules/mock/worker_threads.ts'
 import * as nodePty from '../../src/node/external_packages/node-pty.ts'
+import * as libreofficeKit from '../../src/node/external_packages/libreoffice-kit.ts'
+import * as execa from '../../src/node/external_packages/execa.ts'
+import * as got from '../../src/node/external_packages/got.ts'
 import * as piAi from '../../src/node/external_packages/pi-ai.ts'
 import * as ripgrep from '../../src/node/external_packages/ripgrep.ts'
 import * as ws from '../../src/node/external_packages/ws.ts'
@@ -43,6 +46,8 @@ const CALLED: [string, Record<string, unknown>, readonly string[]][] = [
   // these three need a real process, so they stay refusals.
   ['node:child_process', childProcess, ['execFileSync', 'execSync', 'fork']],
   ['node-pty', nodePty, ['spawn', 'open']],
+  ['execa', execa, ['execa']],
+  ['got', got.default, ['post']],
   ['@deepseek-ai/pi-ai', piAi, [
     'createProvider', 'createModels', 'openAICompletionsApi', 'openAIResponsesApi', 'anthropicMessagesApi',
     'isContextOverflow', 'getSupportedThinkingLevels',
@@ -92,7 +97,7 @@ describe('not-implemented stubs', () => {
   }
 
   it('keeps the CommonJS interop marker and a default export on every replaced module', () => {
-    for (const namespace of [dnsPromises, net, sqlite, vm, workerThreads, childProcess, stream, ws, nodePty, piAi, os, perfHooks]) {
+    for (const namespace of [dnsPromises, net, sqlite, vm, workerThreads, childProcess, stream, ws, nodePty, piAi, os, perfHooks, got]) {
       const holder = namespace as { __esModule?: unknown; default?: unknown }
       expect(holder.__esModule).toBe(true)
       expect(holder.default).toBeDefined()
@@ -116,9 +121,18 @@ describe('constructible-but-inert fakes', () => {
 })
 
 describe('replaced external packages', () => {
+  it('reports Office conversion as unavailable without creating a Node worker', async () => {
+    quiet()
+    await expect(libreofficeKit.createConverter()).rejects.toMatchObject({
+      code: 'unavailable',
+      message: 'web-preview: @deepseek-ai/libreoffice-kit.createConverter is not available in the worker host',
+    })
+  })
+
   it('lists the packages the loader serves from the bundle', () => {
     expect(REPLACED_EXTERNAL_PACKAGES).not.toContain('chokidar')
-    expect(REPLACED_EXTERNAL_PACKAGES).not.toContain('@deepseek-ai/node-addon-landlock-run')
+    expect(REPLACED_EXTERNAL_PACKAGES).not.toContain('@deepseek-ai/node-addon-system')
+    expect(REPLACED_EXTERNAL_PACKAGES).not.toContain('@deepseek-ai/node-addon-system/landlock-run')
     expect(REPLACED_EXTERNAL_PACKAGES).toContain('ws')
   })
 

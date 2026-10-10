@@ -20,7 +20,7 @@ Status: implemented
 
 - **把上传存进项目根目录**（OpenHands / ChatGPT `/mnt/data` 的形态）。拒绝：用户目录里的文件可能被编辑、移动或删除，会打断会话日志的稳定引用，污染 `git status`，还要求工作区必须存在。`DSH_HOME` 用内容寻址保存冻结的只读字节；执行世界可见性由投影路径提供，之后还可以补一步拷贝进工作区。
 - **专用的 `read_file` 工具。** 拒绝：handle 文本指向一条普通路径，现有 `read` 工具（以及模型的其他文件工具）已经覆盖它；再加一个读工具只会分裂模型行为而不增加能力。
-- **把内容急切注入提示词。** 对文件的拒绝理由与当年对 `@` 引用完全相同（[web 文件引用](2026-07-27-web-file-and-session-references.zh.md)）：附加时相关性未知，惰性工具读取让每次内容访问都留在日志里。
+- **把内容急切注入提示词。** 对文件的拒绝理由与当年对 `@` 引用完全相同（[web 文件引用](../../archived/feature/2026-07-27-web-file-and-session-references.md)）：附加时相关性未知，惰性工具读取让每次内容访问都留在日志里。
 - **类型白名单与大小上限。** 现阶段拒绝：DeepSeek Chat 的白名单存在是因为其服务端要解析上传，而本 harness 只存字节、让模型自己读。流式载体和存储让内存占用与有界分块大小相关，因此上限属于磁盘与传输策略，不用于保证请求安全。
 - **新增 attachment/file 会话事件。** 拒绝：图片已经采用的「块内联在 `user/message`」模式即可满足模型可见 ⟺ 可日志重建，无需扩大事件词汇。
 - **有附件时阻止所有命令。** 拒绝：`/goal` 目标与 `/plan` 进入需要参考文件，统一拒绝会使这些文件没有进入模型的命令路径。
@@ -48,3 +48,9 @@ Status: implemented
 ## 测试
 
 单元与集成覆盖原样与流式存储、文件名清洗、声明为 2.19 GiB 的请求通过流式 bridge 且不发生总量缓冲、原始字节与 RPC wire 准入、Blob 与可转移 `ReadableStream` 载体、后台上传并发上限、进度与取消、跨 Session 上传常驻、命令通过文件凭证提交且不再次读取字节、read-only 与 workspace-write 权限下的 native 和 PTC 投影、上传暂存、有序 queue 与 steer 提交、队列转 steer、pending 回显退休与失败恢复、active plan 和 goal 的附件入口、`/plan` 与 `/goal` 混合附件、子代理拒绝、composer 与 Chat 附件布局，以及 Trajectory 文件摘要。keyless `file-upload-round` 快照记录浏览器上传、模型读取文件与答案呈现。
+
+## 相关记录
+
+[Trajectory 参考](../../../../packages/client/ui-trajectory/README.zh.md)说明列表计数与详情面板附件布局。
+
+[输入回显入档参考](../../../../packages/api/session-controller/README.zh.md)负责有无附件提交的按展示归属回收和迟到 Inbox 排除。

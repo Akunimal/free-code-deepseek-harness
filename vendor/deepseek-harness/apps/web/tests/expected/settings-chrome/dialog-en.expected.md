@@ -1,50 +1,34 @@
 - dialog "Settings":
   - navigation:
     - text: Settings
-    - button "General":
-      - img
-      - text: General
-    - button "Models":
-      - img
-      - text: Models
-    - button "Plugins":
-      - img
-      - text: Plugins
-    - button "Agent presets":
-      - img
-      - text: Agent presets
+    - button "General"
+    - button "Models"
+    - button "Built-in plugins"
+    - button "Agent presets"
   - button "Open configuration file"
-  - button "Close":
-    - img
-    - text: Close
+  - button "Close"
   - text: Permission Choose the default permission mode for new sessions
-  - button "Workspace Write":
-    - text: Workspace Write
-    - img
+  - button "Workspace Write"
   - text: Language
-  - button "English":
-    - text: English
-    - img
+  - button "English"
   - text: Appearance
-  - button "Light":
-    - img
-    - text: Light
-  - button "Dark":
-    - img
-    - text: Dark
-  - button "System" [pressed]:
-    - img
-    - text: System
+  - button "Light"
+  - button "Dark"
+  - button "System" [pressed]
   - text: Font size Only affects conversation content 14
-  - button "Increase font size":
-    - img
-  - button "Decrease font size":
-    - img
-  - text: px Conversation display Controls process content in completed turns
-  - button "Compact":
-    - text: Compact
-    - img
-  - text: Enter behavior while busy Busy only; Cmd/Ctrl+Enter uses the other behavior
-  - button "Queue":
-    - text: Queue
-    - img
+  - button "Increase font size"
+  - button "Decrease font size"
+  - text: px Work details Choose how much detail to show for tool calls
+  - button "Detailed"
+  - text: Show coding view Shows trajectory, code diffs, and all Agent presets
+  - switch "Show coding view"
+  - text: Keyboard shortcuts
+  - paragraph: View and edit available shortcuts and input actions
+  - button "Edit shortcuts"
+  - text: Send behavior while busy What Enter and the Send button do while the agent is running; Cmd/Ctrl+Enter uses the other behavior
+  - button "Queue"
+  - text: Performance & usage Choose how much performance and usage information to show
+  - button "Detailed"
+  - text: Upload Session Log when using the official model API Help improve DeepSeek models and products.
+  - switch "Upload Session Log when using the official model API"
+  - text: "Current version: {{version}}"

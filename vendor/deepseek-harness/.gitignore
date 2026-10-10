@@ -1,5 +1,8 @@
 CLAUDE.local.md
 .env
+apps/desktop/.env.windows
+apps/desktop/.env.macos
+apps/desktop/*.p12
 node_modules/
 lib/
 *.tsbuildinfo
@@ -27,8 +30,9 @@ tmp/
 .idea
 mise.toml
 dist-exe/
-python/sdk-runtime/src/deepseek_harness_runtime/runtime/deepseek-harness-sdk-runtime-*
-python/sdk-runtime/src/deepseek_harness_runtime/runtime/node/
+/dist/
+apps/desktop/.desktop-build/
+python/sdk-runtime/src/deepseek_harness_runtime/runtime/
 python/**/__pycache__/
 python/**/.pytest_cache/
 packages/**/__pycache__/
@@ -41,3 +45,4 @@ apps/web/dist/
 worktrees/
 .agents/worktrees/
 .typert-*/
+native/system/test/bin/

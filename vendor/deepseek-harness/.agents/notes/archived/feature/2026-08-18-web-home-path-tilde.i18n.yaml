@@ -1,6 +1,12 @@
 # Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
+<<<<<<<< HEAD:vendor/deepseek-harness/SAFETY.i18n.yaml
+#   pnpm run verify-translation-pairing --write SAFETY.md
+SAFETY.md: 2b76f00e0619ee69553afdc507df361080f4d3ac
+SAFETY.zh.md: 6f7dae47b3e47ddfb155adb9c8c868b516d75360
+========
 #   pnpm run verify-translation-pairing --write
 2026-08-18-web-home-path-tilde.md: 108674740c804a42ec3b0491505186215a9d9fcd
 2026-08-18-web-home-path-tilde.zh.md: 1f742158f62b9b7fbb8eae8be35c13adc95f3a09
+>>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/.agents/notes/archived/feature/2026-08-18-web-home-path-tilde.i18n.yaml

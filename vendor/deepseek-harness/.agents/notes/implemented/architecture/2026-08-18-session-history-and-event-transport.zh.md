@@ -8,7 +8,7 @@ Status: implemented
 
 浏览器同时消费三类生命周期不同的数据：可持久化并分页的 Session 日志、需要 opening baseline 才能在重连后收敛的进程内状态，以及无需重放的即时通知。
 
-这三类数据不能共用一种恢复规则。Session 日志有稳定 seq 和 persistence，可以按 cursor 补齐缺口；queue、jobs、Workspace 列表等状态需要以完整 snapshot 替换旧镜像；普通通知只保证当前 Connection generation 内投递。
+这三类数据不能共用一种恢复规则。Session 日志有稳定 seq 和 persistence，可以按 cursor 补齐缺口；jobs、projection 值和 Workspace 列表等状态需要以完整 snapshot 替换旧镜像；普通通知只保证当前 Connection generation 内投递。
 
 观察 Session 历史、列表和投影必须允许冷读取。若 transport 因参数中出现 Session 或 Agent 就触发通用 Typert lookup，打开页面、切换标签或网络重连都会隐式恢复 Agent，观察操作因此产生执行副作用。
 
@@ -64,7 +64,8 @@ API Proxy 不拥有 Session 或 Workspace Remote namespace，也不拥有 Host �
 
 Host 按配置的 `websocketHeartbeatIntervalMs` 间隔（默认 2 秒）向每条已打开的 mux socket 发送一个 RFC 6455 Ping 控制帧；浏览器在协议层回复 Pong。两种控制帧都不进入 Remote stream JSON union，也不改变 Connection generation 状态。每次 Ping 前，Host 把 socket 标记为等待 Pong；若到下一间隔仍未收到 Pong，Host 会终止该 socket。
 
-首次建连失败或已连接 socket 丢失后，已打开的 logical stream 会以 `RemoteStreamCarrierError` 结束当前物理 generation。`ConnectionController` 拥有有界的指数 retry 调度；每次尝试都要求 mux 恰好一次替换候选或活动 socket，再重开 `$events`。用户要求的重连通过同一路径重置 attempt 序列并跳过等待（见[决策](../feature/2026-08-28-web-connection-recovery-control.zh.md)）。
+首次建连失败或已连接 socket 丢失后，已打开的 logical stream 会以 `RemoteStreamCarrierError` 结束当前物理 generation。`ConnectionController` 拥有持续且间隔封顶的指数 retry 调度；每次尝试都要求 mux 恰好一次替换候选或活动 socket，再重开 `$events`。用户要求的重连通过同一路径重置 attempt 序列并跳过等待（见[决策](../../archived/feature/2026-08-28-web-connection-recovery-control.md)）。
+
 
 浏览器网络状态事件是同一 Controller 的输入。`offline` 会撤回 Connection generation 并暂停自动 retry；下一次 `online` 转换会从基础退避档重新开始。这些事件不会建立连接；只有新的 `$events` ready 帧才会发布 Connection generation。
 
@@ -157,7 +158,8 @@ Session Remote 方法传递 `SessionId` 或 `SessionAddress`，不靠参数类�
 | `session.follow(address)` | 一份携带 opening page 与 projection 的 live 或 prepared observation | 先发布 snapshot，再在后台把普通冷 Session 提升一次 |
 | `session.control()` | 当前 attached Agent、pending registry 与进程内 registry | baseline 与重连不恢复 Agent |
 | `session.attachment`、fork 源读取 | 已授权的持久 Session 数据 | 读取不恢复 Agent |
-| `session.updateQueue`、`cancel` | 仅命中当前 live Agent | 不为已消失状态恢复 Agent |
+| `session.updateQueue` | live Agent 或普通持久 Session | 修改 Inbox 前恢复普通冷 Session |
+| `session.cancel` | 仅命中当前 live Agent | 不为已消失状态恢复 Agent |
 | `models`、`selectModel`、`rename`、`prompt` | 命令解析目标 Session | 仅按方法约定显式恢复 |
 | `create` 与 fork 目标 | 新 Session／Agent | 用户命令提供创建授权 |
 
@@ -203,9 +205,9 @@ initial page、repair page 或 follow 的 terminal failure 进入当前 Session 
 
 `session.control()` 是 Host 范围的 snapshot stream，一个浏览器可观察所有当前 live Session 的瞬态状态，而不必为每个 transcript 打开 journal。
 
-每个 generation 先发完整 baseline，再发 queue、jobs 与 projection 增量帧。baseline 读取 attached Agent 和进程内 registry，不恢复冷 Agent。
+每个 generation 先发完整 baseline，再发 jobs 与 projection 增量帧。baseline 读取进程内 registry 和已折叠的 projection 值，不恢复冷 Agent。
 
-queue 与 jobs 使用完整 replacement 值并按 last-wins 应用。Agent attach、detach、Session disposal 与 owner disposal 都能用空值或新 baseline 清除陈旧镜像。
+jobs 使用完整 replacement 值并按 last-wins 应用。Projection update 携带单调递增 revision，新 baseline 则替换完整 projection map。Session 与 owner disposal 会清理陈旧镜像。
 
 原始 `approval/request` 与 `user-questions/request` 是可转发 waterfall。若某个 Agent-scoped Client listener claim，请求直接返回；若所有已投递 Client 都调用 `next()`，原 Cordis waterfall 继续到后续 Host listener。Session control 不保存或重放这些请求。
 
@@ -219,7 +221,7 @@ Session 列表的 `updatedAt` 取 `max(header.createdAt, sessionListMetadata.las
 
 `packages/api/workspace-controller` 提供 Host `ctx.workspaceController` 与生成的 `ctx.remote.workspace` namespace。
 
-它拥有 create、rename、delete、insertBefore、insertSessionBefore、archiveSession 与 `follow`。Workspace registry 仍是持久事实来源，Controller 负责 Remote 命令、投影和错误映射。
+它拥有 create、rename、delete、insertBefore、insertSessionBefore、archiveSession、unarchiveSession 与 `follow`。Workspace registry 仍是持久事实来源，Controller 负责 Remote 命令、投影和错误映射。
 
 `WorkspaceFeed` 同步观察 storage `domain/changed`，并为每个 follow generation 先发送完整 baseline，再发送 `upsert`、`remove`、`order` 与 `archived` 增量。
 
@@ -312,7 +314,7 @@ API Proxy 只承接自身拥有的独立业务 API，不是 Session、Workspace�
 
 **把 Session transport 与 Session commands 拆成两个公开包。** 两者共同依赖 Session address、Agent 激活策略、subagent ownership、错误映射和 Client 挂载顺序；一个公开 Controller 保持统一所有权，内部 class 仍可独立演化。
 
-**把 queue、jobs、projection、Workspace 与日志都改成普通 `$on`。** 普通事件没有 reconnect baseline、cursor 或 gap repair，漏掉一次推送就会留下永久陈旧状态；只有无需恢复、可由独立查询修复，或以 waterfall 本身持有请求生命周期的通知适合 `$on`。
+**把 jobs、projection、Workspace 与日志都改成普通 `$on`。** 普通事件没有 reconnect baseline、cursor 或 gap repair，漏掉一次推送就会留下永久陈旧状态；只有无需恢复、可由独立查询修复，或以 waterfall 本身持有请求生命周期的通知适合 `$on`。
 
 **让每个领域 Controller 继承一个 page／follow／retry 基类。** Session journal 与 Workspace snapshot 的 opening、恢复和排序规则不同；Gateway 的三个组合式 stream 对象复用 transport 生命周期，同时让领域 adapter 只声明自己的 frame 语义。
 
@@ -344,7 +346,7 @@ Connection 测试固定 generation source 缺失、重复注册、撤回、ready
 
 Session Host 测试固定 cold page／follow 不增加 attached Agent、显式 prompt 后 cold follow 收到连续事件、direct subagent ownership、message-aligned pagination 和终止错误投影。
 
-Session control 测试固定 baseline-first、冷 Session 不恢复、attach／detach 清理、queue 与 jobs replacement，以及 projection watermark。
+Session control 测试固定 baseline-first、冷 Session 不恢复、jobs replacement 与 projection watermark。
 
 Session Client 测试固定每 Session 单一 journal owner、旧 open epoch 不写回、control 与 journal 独立取消，以及 carrier retry 期间保留已发布窗口。
 
@@ -378,6 +380,6 @@ Session 与 Workspace 的 Host API、stream adapter 和 Client 数据模型各�
 
 Remote waterfall 保留多 Client 首个 claim、全体 `next` 后继续 Host chain、断线重放 pending 和端到端取消；代价是当前协议只支持一级 Agent scope 与无损 JSON 请求／结果。
 
-本决定扩展[Remote 事件投递](2026-08-10-remote-event-delivery.zh.md)的 allowlist 与单一 Cordis 签名设计：普通通知继续使用 `emit`，Agent-scoped async waterfall 使用同一 `ctx.remote.$on` 面和显式 `waterfall` mode；不建立第二套 invocation map。
+本决定扩展[Remote 事件投递](../../../../packages/api/remotes/README.zh.md)的 allowlist 与单一 Cordis 签名设计：普通通知继续使用 `emit`，Agent-scoped async waterfall 使用同一 `ctx.remote.$on` 面和显式 `waterfall` mode；不建立第二套 invocation map。
 
-本决定接管[简单一元 API Proxy 迁移](2026-08-10-unary-apiproxy-remote-migration.zh.md)中保留的 Session、Workspace 与 Host event carrier，并保留[后台任务展示](../feature/2026-08-08-web-background-job-display.zh.md)所要求的完整 jobs snapshot、进程内生命周期和“观察不恢复 Agent”语义。
+本决定接管[简单一元 API Proxy 迁移](../../archived/architecture/2026-08-10-unary-apiproxy-remote-migration.md)中保留的 Session、Workspace 与 Host event carrier，并保留[后台任务展示](../../../../packages/api/session-controller/README.zh.md)所要求的完整 jobs snapshot、进程内生命周期和“观察不恢复 Agent”语义。

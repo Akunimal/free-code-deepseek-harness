@@ -1,33 +1,23 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { useDisclosure } from '@deepseek-ai/dsh-client-ui-chat/src/client/chat/use-disclosure.ts'
 import { cleanup, fireEvent, render } from '@testing-library/react'
-import {
-  bindSnapshotSelector, conversationSnapshot, sessionSnapshot, workspaceSnapshot,
-} from '@deepseek-ai/dsh-client-test-runtime'
-import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import type {
-  ChatSnapshot, ConversationNode, RunningToolCall, SelectionTarget, ToolResultNode,
-} from '@deepseek-ai/dsh-client-ui-chat/client'
-import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { StartedToolCall, ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { CHAT_SEARCH_MAX_LINES, searchCardModel } from '../src/client/tool/models/search-card-model.ts'
 import { zh } from '@deepseek-ai/dsh-client-ui-conversation/src/client/locales.ts'
-import { zh as chatZh } from '@deepseek-ai/dsh-client-ui-chat/src/client/locale.ts'
-import { createChatStore } from '@deepseek-ai/dsh-client-ui-chat/src/client/stores.ts'
+import { PartialArguments } from '@deepseek-ai/dsh-util-values'
 import { GenericToolCard, type GenericToolCardProps } from '../src/client/tool/toolviews/GenericToolCard.tsx'
-import { DetailsPanel } from '@deepseek-ai/dsh-client-ui-chat/src/client/details/DetailsPanel.tsx'
 import { SearchRow, searchToolview } from '../src/client/tool/toolviews/search-row.tsx'
-import { renderToolDetails, toolChatSnapshot, useEmptyTrajectory } from './tool-details-render.client.tsx'
 
 type SearchRowProps = Parameters<typeof SearchRow>[0]
 
 afterEach(cleanup)
 
 const t: GenericToolCardProps['t'] = makeTranslate(zh, commonZh)
-const chatT = makeTranslate(chatZh, commonZh)
 
 /** The rendered search card's kind attribute, so a render site cannot silently drop it. */
 function searchKindOf(container: HTMLElement): string | null {
@@ -73,26 +63,37 @@ const pathsMeta = (over?: Partial<PathsMeta>): PathsMeta => ({
   shape: 'paths', paths: ['src/a.ts', 'src/b.ts'], truncated: false, total: 2, ...over,
 })
 
-const runningGrep = (over?: Partial<RunningToolCall>): RunningToolCall => ({
-  callId: 'c1', name: 'grep', argsRaw: GREP_ARGS,
-  turn: 1, step: 1, time: 1_000, subCalls: [], ...over,
-})
+const runningGrep = (over?: Partial<StartedToolCall>): StartedToolCall => {
+  const argsRaw = over?.argsRaw ?? GREP_ARGS
+  return {
+    phase: 'start' as const, args: PartialArguments.fromText(argsRaw), callId: 'c1', name: 'grep', argsRaw,
+    turn: 1, step: 1, time: 1_000, subCalls: [], ...over,
+  }
+}
 
-const settledGrep = (over?: Partial<ToolResultNode>): ToolResultNode => ({
-  kind: 'tool-result', seq: 10, time: 2_000, callId: 'c1',
-  call: { name: 'grep', argsRaw: GREP_ARGS },
-  callTime: 1_000,
-  content: [{ type: 'text', text: 'a.ts\n  Line 12: const foo = 1' }], isError: false,
-  meta: matchesMeta(), subCalls: [], ...over,
-})
+const settledGrep = (over?: Partial<ToolResultNode>): ToolResultNode => {
+  const call = over?.call === undefined ? { name: 'grep', argsRaw: GREP_ARGS } : over.call
+  return {
+    kind: 'tool-result', seq: 10, time: 2_000, callId: 'c1',
+    name: call?.name ?? '', args: call === null ? PartialArguments.EMPTY : PartialArguments.fromText(call.argsRaw),
+    call,
+    callTime: 1_000,
+    content: [{ type: 'text', text: 'a.ts\n  Line 12: const foo = 1' }], isError: false,
+    meta: matchesMeta(), subCalls: [], ...over,
+  }
+}
 
-const settledGlob = (over?: Partial<ToolResultNode>): ToolResultNode => ({
-  kind: 'tool-result', seq: 11, time: 2_000, callId: 'c2',
-  call: { name: 'glob', argsRaw: GLOB_ARGS },
-  callTime: 1_000,
-  content: [{ type: 'text', text: 'src/a.ts\nsrc/b.ts' }], isError: false,
-  meta: pathsMeta(), subCalls: [], ...over,
-})
+const settledGlob = (over?: Partial<ToolResultNode>): ToolResultNode => {
+  const call = over?.call === undefined ? { name: 'glob', argsRaw: GLOB_ARGS } : over.call
+  return {
+    kind: 'tool-result', seq: 11, time: 2_000, callId: 'c2',
+    name: call?.name ?? '', args: call === null ? PartialArguments.EMPTY : PartialArguments.fromText(call.argsRaw),
+    call,
+    callTime: 1_000,
+    content: [{ type: 'text', text: 'src/a.ts\nsrc/b.ts' }], isError: false,
+    meta: pathsMeta(), subCalls: [], ...over,
+  }
+}
 
 describe('searchCardModel', () => {
   it('derives a matches card from grep result metadata', () => {
@@ -186,9 +187,9 @@ describe('searchCardModel', () => {
 })
 
 describe('chat row search body (GenericToolCard fallback)', () => {
-  const ownerProps = (block: RunningToolCall | ToolResultNode, toolName: string): GenericToolCardProps => ({
+  const ownerProps = (block: StartedToolCall | ToolResultNode, toolName: string): GenericToolCardProps => ({
     loadImage: vi.fn(() => Promise.reject(new Error('not used'))),
-    callId: 'c1', toolName, block, openFile: vi.fn(), t,
+    useDisclosure, callId: 'c1', toolName, ...('kind' in block ? { phase: 'result' as const, block: block } : { phase: block.phase, block: block }), openFile: vi.fn(), t,
   })
   /** The whole summary row is the expand toggle (ToolRow's unified interaction). */
   const toggleRow = (view: { container: HTMLElement }) => {
@@ -237,9 +238,9 @@ describe('chat row search body (GenericToolCard fallback)', () => {
 })
 
 describe('SearchRow keyed card', () => {
-  const rowProps = (block: RunningToolCall | ToolResultNode, toolName: string): SearchRowProps => ({
-    callId: 'c1', toolName, block, openFile: vi.fn(), sessionId: SID, t,
-  } as unknown as SearchRowProps)
+  const rowProps = (block: StartedToolCall | ToolResultNode, toolName: string): SearchRowProps => ({
+    useDisclosure, callId: 'c1', toolName, ...('kind' in block ? { phase: 'result' as const, block: block } : { phase: block.phase, block: block }), openFile: vi.fn(), sessionId: SID, t,
+  } as SearchRowProps)
 
   /** The whole summary row is the expand toggle (ToolRow's unified interaction). */
   const toggleRow = (view: { container: HTMLElement }) => {
@@ -248,7 +249,7 @@ describe('SearchRow keyed card', () => {
 
   it('collapses to the summary row; expanding reveals the grep card', () => {
     const view = render(<SearchRow {...rowProps(settledGrep(), 'grep')} />)
-    expect(view.getByText('Grep')).toBeTruthy()
+    expect(view.getByText('搜索文件内容')).toBeTruthy()
     expect(view.queryByText('Search')).toBeNull()
     // Collapsed: the card is not in the DOM until the row is expanded.
     expect(searchKindOf(view.container)).toBeNull()
@@ -262,7 +263,7 @@ describe('SearchRow keyed card', () => {
 
   it('expands to the glob path card', () => {
     const view = render(<SearchRow {...rowProps(settledGlob(), 'glob')} />)
-    expect(view.getByText('Glob')).toBeTruthy()
+    expect(view.getByText('查找文件')).toBeTruthy()
     expect(view.queryByText('Search')).toBeNull()
     expect(searchKindOf(view.container)).toBeNull()
     toggleRow(view)
@@ -280,6 +281,7 @@ describe('SearchRow keyed card', () => {
       isError: true,
     }), 'grep')} />)
     expect(errorView.container.querySelector('[data-variant="search"]')?.getAttribute('data-state')).toBe('error')
+    expect(errorView.container.querySelector('[data-variant="search"] svg')).not.toBeNull()
   })
 
   it('surfaces the result text through the Output section when an errored search has no card', () => {
@@ -365,91 +367,5 @@ describe('SearchRow keyed card', () => {
     expect(registered[0]!.component).toBe(SearchRow)
     expect(registered[1]!.component).toBe(SearchRow)
     expect(searchToolview.inject).toEqual(['slots'])
-  })
-})
-
-describe('DetailsPanel Output section (search)', () => {
-  function mount(snapshot: ChatSnapshot, selection: SelectionTarget | null) {
-    localStorage.clear()
-    const chat = createChatStore().create()
-    if (selection !== null) chat.actions.select(selection)
-    const sessions = createSnapshotStore<SessionListState>({
-      ids: [], byId: {}, current: undefined, phase: 'ready',
-      subagentsByParent: {}, jobsBySession: {}, currentAddress: undefined,
-    })
-    const session = createSnapshotStore(sessionSnapshot(SID))
-    const conversation = createSnapshotStore(conversationSnapshot())
-    const workspaces = createSnapshotStore(workspaceSnapshot())
-    const attention = createSnapshotStore(new Map())
-    return render(
-      <DetailsPanel
-        renderSlot={renderToolDetails(t)}
-        SessionProvider={({ children }) => children}
-        sessionId={SID}
-        useSession={bindSnapshotSelector(session)}
-        useSessions={bindSnapshotSelector(sessions)}
-        useSessionPendingInteraction={bindSnapshotSelector(attention)}
-        useWorkspaces={bindSnapshotSelector(workspaces)}
-        useConversation={bindSnapshotSelector(conversation)}
-        useChat={bindSnapshotSelector({ getSnapshot: () => snapshot, subscribe: () => () => {} })}
-        useTrajectory={useEmptyTrajectory}
-        useInput={(() => { throw new Error('unused') })}
-        inputActions={{
-          setDraft: () => {},
-          addAttachments: () => true,
-          removeAttachment: () => {},
-          pruneAttachments: () => {},
-          submit: () => {},
-        }}
-        useProjection={(() => undefined)}
-        useStore={bindSnapshotSelector(chat)}
-        actions={chat.actions}
-        closeDetails={vi.fn()}
-        t={chatT}
-      />,
-    )
-  }
-
-  function snapshot(over: {
-    nodes?: readonly ConversationNode[]
-    runningCalls?: readonly RunningToolCall[]
-  } = {}): ChatSnapshot {
-    const nodes = over.nodes ?? []
-    const runningCalls = over.runningCalls ?? []
-    return toolChatSnapshot(nodes, runningCalls)
-  }
-
-  const grepTarget: SelectionTarget = { turnSeq: 10, callId: 'c1', toolName: 'grep' }
-  const globTarget: SelectionTarget = { turnSeq: 11, callId: 'c2', toolName: 'glob' }
-
-  it('renders the grep matches card at full height, keeping the JSON Input section', () => {
-    const view = mount(snapshot({ nodes: [settledGrep()] }), grepTarget)
-    expect(view.getByText(/"pattern"/)).toBeTruthy()
-    expect(searchRows(view.container)).toContain('12: const foo = 1')
-    expect(searchKindOf(view.container)).toBe('matches')
-  })
-
-  it('renders the glob path card', () => {
-    const view = mount(snapshot({ nodes: [settledGlob()] }), globTarget)
-    expect(view.getByText('src/a.ts')).toBeTruthy()
-    expect(searchKindOf(view.container)).toBe('paths')
-  })
-
-  it('renders the recovery footer below the card for a capped search', () => {
-    const recovery = 'src/a.ts\nsrc/b.ts\n\n(Showing 2 of 23 paths. Full sorted result stored at: spill://glob-7.)'
-    const view = mount(snapshot({
-      nodes: [settledGlob({ content: [{ type: 'text', text: recovery }], meta: pathsMeta({ truncated: true, total: 23 }) })],
-    }), globTarget)
-    expect(searchKindOf(view.container)).toBe('paths')
-    expect(view.getByText(/Full sorted result stored at: spill:\/\/glob-7/)).toBeTruthy()
-  })
-
-  it('a non-search result keeps the flattened pre form', () => {
-    const view = mount(snapshot({
-      nodes: [settledGrep({ meta: undefined })],
-    }), grepTarget)
-    expect(searchKindOf(view.container)).toBeNull()
-    const output = view.getByText('输出').closest('section')
-    expect(output?.querySelector('pre')?.textContent).toContain('const foo = 1')
   })
 })

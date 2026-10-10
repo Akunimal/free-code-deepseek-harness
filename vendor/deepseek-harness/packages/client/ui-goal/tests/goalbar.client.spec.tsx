@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { GoalSnapshot } from '@deepseek-ai/dsh-goal/client'
 import { makeTranslate, RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
@@ -94,6 +94,25 @@ describe('GoalBar', () => {
     await waitFor(() => { expect(screen.getByText('进行中的目标')).toBeTruthy() })
   })
 
+  it('edits a multi-line objective: Shift+Enter and IME confirmation do not save', () => {
+    const actions = makeActions()
+    render(<GoalBar goal={makeGoal({ objective: 'Line one\nLine two' })} {...actions} t={t} />)
+    fireEvent.click(screen.getByRole('button', { name: '编辑目标' }))
+    const box = screen.getByRole('textbox', { name: '目标内容' })
+    expect(box).toHaveProperty('value', 'Line one\nLine two')
+
+    fireEvent.keyDown(box, { key: 'Enter', shiftKey: true })
+    fireEvent.keyDown(box, { key: 'Enter', isComposing: true })
+    fireEvent.keyDown(box, { key: 'Enter', keyCode: 229 })
+    expect(actions.onEdit).not.toHaveBeenCalled()
+
+    fireEvent.change(box, { target: { value: 'Line one\nLine three' } })
+    const enter = createEvent.keyDown(box, { key: 'Enter' })
+    fireEvent(box, enter)
+    expect(enter.defaultPrevented).toBe(true)
+    expect(actions.onEdit).toHaveBeenCalledWith('Line one\nLine three')
+  })
+
   it('Esc cancels the edit without calling onEdit', () => {
     const actions = makeActions()
     render(<GoalBar goal={makeGoal()} {...actions} t={t} />)
@@ -129,9 +148,18 @@ describe('GoalBar', () => {
 
   it('active goal: the pause action pauses', () => {
     const actions = makeActions()
-    render(<GoalBar goal={makeGoal()} {...actions} t={t} />)
+    render(<GoalBar goal={makeGoal()} activation="armed" {...actions} t={t} />)
     fireEvent.click(screen.getByRole('button', { name: '暂停目标' }))
     expect(actions.onPause).toHaveBeenCalledTimes(1)
+  })
+
+  it('active disarmed goal: "已暂停的目标" with a resume action instead of pause', () => {
+    const actions = makeActions()
+    render(<GoalBar goal={makeGoal()} activation="disarmed" {...actions} t={t} />)
+    expect(screen.getByText('已暂停的目标')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '恢复目标' }))
+    expect(actions.onResume).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: '暂停目标' })).toBeNull()
   })
 
   it('paused goal: "已暂停的目标" with a resume action before edit', () => {
@@ -140,6 +168,20 @@ describe('GoalBar', () => {
     expect(screen.getByText('已暂停的目标')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: '恢复目标' }))
     expect(actions.onResume).toHaveBeenCalledTimes(1)
+  })
+
+  it('portals an action tooltip out of the strip, where the input card cannot cover it', () => {
+    vi.useFakeTimers()
+    try {
+      render(<GoalBar goal={makeGoal()} activation="armed" {...makeActions()} t={t} />)
+      fireEvent.mouseEnter(screen.getByRole('button', { name: '暂停目标' }))
+      act(() => { vi.advanceTimersByTime(500) })
+      const tooltip = screen.getByRole('tooltip')
+      expect(tooltip.textContent).toBe('暂停目标')
+      expect(tooltip.parentElement).toBe(document.body)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('a new goal identity drops the edit form (no stale draft over the new goal)', () => {

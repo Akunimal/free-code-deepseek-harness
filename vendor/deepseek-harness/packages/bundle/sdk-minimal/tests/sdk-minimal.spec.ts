@@ -31,7 +31,7 @@ describe('dsh-sdk-minimal bundle', () => {
       ['deepseek-llm-api-extensions', '@deepseek-ai/dsh-deepseek-llm-api-extensions'],
       ['session-log-deepseek', '@deepseek-ai/dsh-session-log-deepseek'],
       ['plugin-package-inventory-deepseek', '@deepseek-ai/dsh-plugin-package-inventory-deepseek'],
-      ['llm-deepseek', '@deepseek-ai/dsh-llm-deepseek'],
+      ['llm-deepseek', '@deepseek-ai/dsh-llm-deepseek-api-key'],
       ['sandbox', '@deepseek-ai/dsh-sandbox-local'],
       ['session-projection', '@deepseek-ai/dsh-session-projection'],
       ['sandbox-policy', '@deepseek-ai/dsh-sandbox-policy'],
@@ -39,25 +39,19 @@ describe('dsh-sdk-minimal bundle', () => {
       ['pty', '@deepseek-ai/dsh-terminal'],
       ['terminal-bash', '@deepseek-ai/dsh-terminal-bash'],
       ['terminal-pwsh', '@deepseek-ai/dsh-terminal-bash'],
-      ['fs-local', '@deepseek-ai/dsh-fs-local'],
       ['timer', '@deepseek-ai/cordis-plugin-timer'],
       ['llm', '@deepseek-ai/dsh-llm'],
       ['session', '@deepseek-ai/dsh-session'],
       ['session-title', '@deepseek-ai/dsh-session-title'],
       ['system-prompt', '@deepseek-ai/dsh-system-prompt'],
       ['tools', '@deepseek-ai/dsh-tools'],
+      ['mcp-resources', '@deepseek-ai/dsh-mcp-resources'],
       ['agent', '@deepseek-ai/dsh-agent'],
       ['llm-retry', '@deepseek-ai/dsh-llm-retry'],
       ['jobs', '@deepseek-ai/dsh-jobs-local'],
-      ['invariants', '@deepseek-ai/dsh-invariants'],
-      ['session-invariant', '@deepseek-ai/dsh-session/invariant'],
-      ['agent-invariant', '@deepseek-ai/dsh-agent/invariant'],
-      ['scope-invariant', '@deepseek-ai/dsh-scope/invariant'],
-      ['agent-loop-invariant', '@deepseek-ai/dsh-agent-loop/invariant'],
       ['agent-loop', '@deepseek-ai/dsh-agent-loop'],
       ['persistent-bash', '@deepseek-ai/dsh-tool-bash-persistent'],
       ['persistent-pwsh', '@deepseek-ai/dsh-tool-pwsh-persistent'],
-      ['str-replace-editor', '@deepseek-ai/dsh-tool-str-replace-editor'],
       ['sessions', '@deepseek-ai/dsh-session-persistence-jsonl'],
     ])
     expect(rows.find(row => row.id === 'sdk-app-startup')?.config).toEqual({ profile: 'sdk-minimal' })
@@ -73,7 +67,7 @@ describe('dsh-sdk-minimal bundle', () => {
     expect(rows.find(row => row.id === 'system-prompt')?.config).toEqual({
       includeHarnessIdentity: false,
       includeRuntimeContext: false,
-      persona: { __jsExpr: "process.env.DSH_SYSTEM_PROMPT ?? 'You are a helpful software engineer assistant.'" },
+      personaPrefix: { __jsExpr: "process.env.DSH_SYSTEM_PROMPT ?? 'You are a helpful software engineer assistant.'" },
     })
     expect(rows.find(row => row.id === 'agent-loop')?.config).toEqual({ agents: [] })
     expect(rows.find(row => row.id === 'terminal-bash')).toMatchObject({

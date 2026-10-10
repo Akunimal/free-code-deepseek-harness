@@ -1,11 +1,12 @@
 /** Cold-safe Session list and search projection. */
 
+import { performance } from 'node:perf_hooks'
+import { scheduler } from 'node:timers/promises'
 import type { Context } from '@deepseek-ai/cordis'
-import type {} from '@deepseek-ai/dsh-agent-presets'
+import type {} from '@deepseek-ai/dsh-agent-preset-registry'
 import type { ImageAttachmentLimits } from '@deepseek-ai/dsh-attachment'
-import { SessionLogOffset } from '@deepseek-ai/dsh-session'
 import type { Session, SessionEvent, SessionHeader, SessionId } from '@deepseek-ai/dsh-session'
-import type {} from '@deepseek-ai/dsh-session-projection'
+import type { ProjectionSnapshot } from '@deepseek-ai/dsh-session-projection'
 import type {} from '@deepseek-ai/dsh-session-projection-cache'
 import { SessionQueryError, type SessionSearchCursor } from '@deepseek-ai/dsh-session-query'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
@@ -75,8 +76,11 @@ export function truncateUnicodeCodePoints(value: string, maximum: number): strin
 
 /** Owns list projection registration, bounded cold summaries, and authorized search. */
 export class ApiSessionList {
-  /** @param ctx - Host context carrying Session, query, persistence, and projection services. */
-  constructor(private readonly ctx: Context) {
+  /**
+   * @param ctx - Host context carrying Session, query, persistence, and projection services.
+   * @param workSliceMs - Resolved positive integral list-work budget in milliseconds.
+   */
+  constructor(private readonly ctx: Context, private readonly workSliceMs: number) {
     ctx.sessionProjections.register<'sessionListMetadata', SessionListMetadata>({
       key: 'sessionListMetadata',
       stateSchema: sessionListMetadataSchema,
@@ -111,6 +115,7 @@ export class ApiSessionList {
     return {
       sessionId: session.id,
       updatedAt: updatedAt(session.header, metadata),
+      agentAvailable: this.ctx.agents.get(session.id)?.session === session,
       running: this.ctx.agents.get(session.id)?.status === 'running',
       blank: metadata?.blank ?? session.seq === 0,
       ...listFields(session.header),
@@ -120,7 +125,7 @@ export class ApiSessionList {
 
   /**
    * Read every visible attached and persisted Session without activating an Agent.
-   * @param signal - optional cancellation for persistence reads.
+   * @param signal - optional cancellation for persistence reads and summary generation.
    * @returns visible Session summaries ordered by activity.
    */
   async list(signal?: AbortSignal): Promise<SessionSummary[]> {
@@ -129,16 +134,31 @@ export class ApiSessionList {
     signal?.throwIfAborted()
     const items: SessionSummary[] = []
     const cold: SessionHeader[] = []
+    let yieldDeadline = performance.now() + this.workSliceMs
     for (const record of records) {
+      signal?.throwIfAborted()
       const live = this.ctx.sessions.get(record.header.id)
       if (live !== undefined) {
         items.push(this.summaryFor(live))
-        continue
+      } else if (record.header.cwd !== undefined) {
+        cold.push(record.header)
       }
-      if (record.header.cwd === undefined) continue
-      cold.push(record.header)
+      if (performance.now() >= yieldDeadline) {
+        await scheduler.yield()
+        signal?.throwIfAborted()
+        yieldDeadline = performance.now() + this.workSliceMs
+      }
     }
-    for (const header of cold) items.push(this.summarizeCold(header))
+    for (const header of cold) {
+      signal?.throwIfAborted()
+      items.push(this.summarizeCold(header))
+      if (performance.now() >= yieldDeadline) {
+        await scheduler.yield()
+        signal?.throwIfAborted()
+        yieldDeadline = performance.now() + this.workSliceMs
+      }
+    }
+    signal?.throwIfAborted()
     items.sort((left, right) => right.updatedAt - left.updatedAt)
     return items
   }
@@ -149,6 +169,7 @@ export class ApiSessionList {
     return {
       sessionId: header.id,
       updatedAt: updatedAt(header, metadata),
+      agentAvailable: false,
       running: false,
       // A large, metadata-less, or inaccessible cache miss remains unknown and visible.
       blank: metadata?.blank ?? false,
@@ -270,21 +291,16 @@ export class ApiSessionList {
     session: Session | undefined,
   ): SessionProjectionHints | undefined {
     try {
+      if (session !== undefined) {
+        // The live registry computed the block for this Session: its watermark
+        // shares the sequence space of the Session's baselines and frames.
+        return hintsOf('sequenced', this.ctx.sessionProjections.cachedSnapshot(session))
+      }
+      // A cold row reads the persisted cache by header alone; the cache serves
+      // seeded and unseeded lifecycles alike because a listing never seeds a
+      // fold. The watermark is the stored record's own.
       const cache = this.ctx.get('sessionProjectionCache')
-      const block = session === undefined
-        ? header.isSeeded
-          ? undefined
-          : cache?.cachedSnapshot(header, SessionLogOffset(0))
-            ?? cache?.cachedPredecessorTitle(header, SessionLogOffset(0))
-        : this.ctx.sessionProjections.cachedSnapshot(session)
-      return block !== undefined && Object.keys(block.values).length > 0
-        ? {
-          asOfSeq: block.asOfSeq,
-          // Listing hints contain every currently cached wire value but remain
-          // partial: missing cells and cache rows are never materialized here.
-          values: block.values as SessionProjectionValues,
-        }
-        : undefined
+      return hintsOf('cached', cache?.cachedSnapshot(header) ?? cache?.cachedPredecessorTitle(header))
     } catch (error) {
       this.ctx.logger.warn(
         `api-session.list: projection column for "${header.id}" failed; serving the row without it: ${String(error)}`,
@@ -292,6 +308,22 @@ export class ApiSessionList {
       return undefined
     }
   }
+}
+
+/**
+ * Wrap one projection block as Session-list hints of the named sequence space.
+ * @param kind - which sequence space the block's watermark belongs to.
+ * @param block - the block, or `undefined` when no source served one.
+ * @returns the hints, or `undefined` when the block is absent or carries no value.
+ */
+function hintsOf(
+  kind: SessionProjectionHints['kind'],
+  block: ProjectionSnapshot | undefined,
+): SessionProjectionHints | undefined {
+  if (block === undefined || Object.keys(block.values).length === 0) return undefined
+  // Listing hints contain every wire value the source currently holds but
+  // remain partial: missing cells and cache rows are never materialized here.
+  return { kind, asOfSeq: block.asOfSeq, values: block.values as SessionProjectionValues }
 }
 
 function normalizeSearchQuery(query: string): string {

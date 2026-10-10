@@ -5,9 +5,10 @@ import {
   type RemoteStreamOptions,
 } from '@deepseek-ai/dsh-api-gateway/client'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
+import { streamHandle } from '@deepseek-ai/dsh-remote-mock'
 import { LlmAttemptId } from '@deepseek-ai/dsh-llm'
 import { SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session/types'
-import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
+import type { RemoteResult, RemoteStreamHandle } from '@deepseek-ai/dsh-typert-protocol'
 import {
   createSessionControlStream,
   SessionEventStream,
@@ -26,6 +27,7 @@ import type {
   SessionHistoryRecord,
   SessionPage,
   SessionPageRequest,
+  SessionWireEvent,
 } from '../src/types.ts'
 
 type SessionTransportRemote = Pick<SessionRemote, 'control' | 'follow' | 'page'>
@@ -80,7 +82,6 @@ function sessionClient(remote: SessionTransportRemote): SessionRemotes {
     ),
     commands: { execute: () => Promise.reject(new Error('stream tests never run commands')) },
     subagents: {
-      list: () => Promise.reject(new Error('stream tests never read the subagent catalog')),
       prompt: () => Promise.reject(new Error('stream tests never prompt a subagent')),
       interruptByParent: () => Promise.reject(new Error('stream tests never interrupt a subagent')),
     },
@@ -106,7 +107,11 @@ class ScriptedSessionRemote implements SessionTransportRemote {
     private readonly holdControl = true,
   ) {}
 
-  async *follow(request: SessionFollowRequest, signal = new AbortController().signal): AsyncIterable<SessionFollowFrame> {
+  follow(request: SessionFollowRequest, signal = new AbortController().signal): RemoteStreamHandle<SessionFollowFrame, never> {
+    return streamHandle(this.followFrames(request, signal))
+  }
+
+  private async *followFrames(request: SessionFollowRequest, signal: AbortSignal): AsyncIterable<SessionFollowFrame> {
     const generation = this.generations.shift()
     if (generation === undefined) throw new Error('no scripted Session generation')
     this.followRequests.push(request)
@@ -128,7 +133,11 @@ class ScriptedSessionRemote implements SessionTransportRemote {
     return Promise.resolve(result)
   }
 
-  async *control(signal = new AbortController().signal): AsyncIterable<SessionControlFrame> {
+  control(signal = new AbortController().signal): RemoteStreamHandle<SessionControlFrame, never> {
+    return streamHandle(this.controlSequence(signal))
+  }
+
+  private async *controlSequence(signal: AbortSignal): AsyncIterable<SessionControlFrame> {
     for (const frame of this.controlFrames) yield frame
     if (this.holdControl && !signal.aborted) {
       await new Promise<void>((resolve) => {
@@ -138,7 +147,155 @@ class ScriptedSessionRemote implements SessionTransportRemote {
   }
 }
 
+function surfaceEvent(type = 'user/message'): SessionWireEvent {
+  return { type, seq: 10, time: 10, data: {}, surfaceOp: 'append' }
+}
+
+const invalidWireEvents: [string, unknown][] = [
+  ['null event', null],
+  ['array event', []],
+  ['extra envelope key', { ...surfaceEvent(), obsolete: true }],
+  ['unknown ignorable extra envelope key', { type: 'extension/event', seq: 10, time: 10, data: {}, ignorable: true, obsolete: true }],
+  ['missing data', { type: 'turn/start', seq: 10, time: 10 }],
+  ['invalid type', { ...surfaceEvent(), type: null }],
+  ['fractional sequence', { ...surfaceEvent(), seq: 1.5 }],
+  ['negative sequence', { ...surfaceEvent(), seq: -1 }],
+  ['negative zero sequence', { ...surfaceEvent(), seq: -0 }],
+  ['unsafe sequence', { ...surfaceEvent(), seq: Number.MAX_SAFE_INTEGER + 1 }],
+  ['fractional time', { ...surfaceEvent(), time: 0.5 }],
+  ['invalid ignorable marker', { ...surfaceEvent(), ignorable: false }],
+  ...['system/message', 'user/message', 'assistant/message', 'tool/result'].map((type): [string, unknown] => [
+    `missing ${type} surface marker`,
+    { type, seq: 10, time: 10, data: {} },
+  ]),
+  ...['turn/start', 'assistant/attempt', 'request/header', 'request/context', 'session/title', 'extension/event'].flatMap(type => [
+    [`non-surface ${type} operation`, { ...surfaceEvent(type) }],
+    [`non-surface ${type} sources`, { type, seq: 10, time: 10, data: {}, sourceEventSeqs: [0] }],
+  ] as [string, unknown][]),
+  ...['turn/start', 'assistant/attempt', 'request/context', 'tool/ptc-dispatch', 'session/title'].flatMap(type => [
+    [`known ignorable ${type} operation`, { type, seq: 10, time: 10, data: {}, ignorable: true, surfaceOp: { opaque: true } }],
+    [`known ignorable ${type} sources`, { type, seq: 10, time: 10, data: {}, ignorable: true, sourceEventSeqs: { opaque: true } }],
+  ] as [string, unknown][]),
+  ['assistant sources', { ...surfaceEvent('assistant/message'), sourceEventSeqs: [0] }],
+  ...[[], [0, 0], [-1], [-0], [0.5], [10], [11], [Number.MAX_SAFE_INTEGER + 1]].map(
+    (sourceEventSeqs): [string, unknown] => [`invalid sources ${JSON.stringify(sourceEventSeqs)}`, { ...surfaceEvent(), sourceEventSeqs }],
+  ),
+  ...[
+    null, {}, 'replace',
+    { op: 'replace', start: 0, end: 1 },
+    { op: 'replace', startSeq: 0, end: 1 },
+    { op: 'replace', start: 0, endSeq: 1 },
+    { op: 'replace', startSeq: 0, endSeq: 1, start: 0, end: 1 },
+    { op: 'replace', startSeq: 0, endSeq: 1, extra: true },
+    { op: 'replace', startSeq: 0 },
+    { op: 'replace', endSeq: 1 },
+    ...[-1, -0, 0.5, 10, Number.MAX_SAFE_INTEGER + 1].flatMap(seq => [
+      { op: 'replace', startSeq: seq, endSeq: 1 },
+      { op: 'replace', startSeq: 0, endSeq: seq },
+    ]),
+  ].map((surfaceOp, index): [string, unknown] => [`invalid replacement ${index}`, { ...surfaceEvent(), surfaceOp }]),
+  ...[{ system: '' }, { system: ' ' }, { system: 'prompt' }, { system: null }, { system: {} }, { tools: [] }, { adapterDefaults: {} }].map((optional): [string, unknown] => [
+    `empty request header ${JSON.stringify(optional)}`,
+    { type: 'request/header', seq: 10, time: 10, data: {
+      reason: 'initial', header: { config: { provider: 'mock', model: 'mock' }, ...optional },
+    } },
+  ]),
+  ...[false, undefined].map((isError): [string, unknown] => [
+    `contradictory tool error ${String(isError)}`,
+    { ...surfaceEvent('tool/result'), data: {
+      message: { role: 'tool', content: [], ...(isError === undefined ? {} : { isError }) },
+      error: { name: 'Error', code: 'FAILURE' },
+    } },
+  ]),
+]
+
+describe.each(['snapshot', 'live', 'page'] as const)('Session %s wire acceptance', (path) => {
+  it.each(invalidWireEvents)('refuses %s without publishing or retrying', async (_name, event) => {
+    // The Remote mock is the decoded JSON transport, not a typed same-process producer.
+    const record = { type: 'event', event } as SessionHistoryRecord
+    const opening = snapshot(path === 'live' ? 9 : 11, [entry(path === 'live' ? 9 : 11)])
+    const remote = new ScriptedSessionRemote([{
+      frames: path === 'snapshot' ? [snapshot(10, [record])]
+        : path === 'live' ? [opening, record] : [opening],
+      hold: true,
+    }], path === 'page' ? [{ ok: true, value: page([record]) }] : [])
+    const publish = vi.fn()
+    const failed = vi.fn()
+    const carrierFailed = vi.fn()
+    const stream = new SessionEventStream(sessionClient(remote), ADDRESS, { publish, failed, carrierFailed })
+    try {
+      if (path === 'snapshot') {
+        await expect(stream.open({})).rejects.toThrow()
+        expect(publish).not.toHaveBeenCalled()
+      } else {
+        await stream.open({})
+        if (path === 'page') await expect(stream.prepend({})).rejects.toThrow()
+        else await vi.waitFor(() => { expect(failed).toHaveBeenCalledOnce() })
+        expect(publish).toHaveBeenCalledOnce()
+      }
+      expect(remote.followRequests).toHaveLength(1)
+      expect(carrierFailed).not.toHaveBeenCalled()
+    } finally {
+      await stream.dispose()
+    }
+  })
+})
+
 describe('Session Client stream adapters', () => {
+  it('preserves current envelopes and payloads without normalization across every journal path', async () => {
+    const events: SessionWireEvent[] = [
+      surfaceEvent(),
+      surfaceEvent('system/message'),
+      { ...surfaceEvent('system/message'), surfaceOp: { op: 'replace', startSeq: 2, endSeq: 2 }, sourceEventSeqs: [2], data: { message: { source: { plugin: 'system', extra: true }, content: [] }, extra: { retained: true } } },
+      { ...surfaceEvent(), sourceEventSeqs: [0, 2] },
+      { ...surfaceEvent(), surfaceOp: { op: 'replace', startSeq: 2, endSeq: 0 }, sourceEventSeqs: [2, 0] },
+      { ...surfaceEvent('assistant/message'), data: { turn: 1, step: 1, message: {}, stream: [] } },
+      { ...surfaceEvent('tool/result'), data: {
+        message: { role: 'tool', content: [], isError: true },
+        error: { name: 'Error', code: 'FAILURE' }, meta: { extension: ['retained'] },
+      } },
+      { ...surfaceEvent('tool/result'), sourceEventSeqs: [0], data: {
+        message: { role: 'tool', content: [], isError: true },
+      } },
+      { type: 'request/header', seq: 10, time: 10, data: {
+        reason: 'initial', header: { config: { provider: 'mock', model: 'mock' } },
+      } },
+      { type: 'request/header', seq: 10, time: 10, data: {
+        reason: 'change', header: {
+          config: { provider: 'mock', model: 'mock' }, extension: { nested: ['retained'] },
+          tools: [{ name: 'fixture' }], adapterDefaults: { temperature: 1 },
+        },
+      } },
+      ...['extension/event', 'tool/code-dispatch', 'tool/code-dispatch-start'].map(type => ({
+        type, seq: 10, time: 10, data: { nested: [null, true] }, ignorable: true,
+        surfaceOp: { opaque: ['retained'] }, sourceEventSeqs: { opaque: [null] },
+      }) as unknown as SessionWireEvent),
+    ]
+    for (const event of events) {
+      const before = structuredClone(event)
+      const record: SessionHistoryRecord = { type: 'event', event }
+      const remote = new ScriptedSessionRemote([{
+        frames: [snapshot(10, [record]), { type: 'event', event: { ...event, seq: 11 } }], hold: true,
+      }], [{ ok: true, value: page([{ type: 'event', event: { ...event, seq: 9 } }]) }])
+      const changes: SessionJournalChange[] = []
+      let appended!: () => void
+      const ready = new Promise<void>((resolve) => { appended = resolve })
+      const stream = new SessionEventStream(sessionClient(remote), ADDRESS, {
+        publish: (change) => { changes.push(change); if (change.type === 'append') appended() },
+        failed: vi.fn(),
+      })
+      try {
+        await stream.open({})
+        await ready
+        await stream.prepend({})
+        expect(changes.map(change => change.type)).toEqual(['replace', 'append', 'prepend'])
+        expect(changes[0]).toMatchObject({ page: { records: [record] } })
+        expect(event).toEqual(before)
+      } finally {
+        await stream.dispose()
+      }
+    }
+  })
   it('opts into assistant notifications and publishes the reconnect baseline plus live frame', async () => {
     const attemptId = LlmAttemptId('transport-attempt')
     const baseline: SessionAssistantStreamBaseline = {
@@ -385,15 +542,15 @@ describe('Session Client stream adapters', () => {
       failed: vi.fn(),
     })
 
-    await stream.open({ maxMessages: 50 })
+    await stream.open({ maxMessages: 500, turnWindow: { minMessages: 50, minTurns: 2 } })
     await vi.waitFor(() => { expect(changes).toHaveLength(2) })
-    await stream.prepend({ beforeSeq: 2, maxMessages: 50 })
+    await stream.prepend({ beforeSeq: 2, maxMessages: 500, turnWindow: { minMessages: 50, minTurns: 2 } })
 
     expect(remote.followRequests).toEqual([{
-      address: ADDRESS, assistantStream: true, maxMessages: 50,
+      address: ADDRESS, assistantStream: true, maxMessages: 500, turnWindow: { minMessages: 50, minTurns: 2 },
     }])
     expect(remote.pageRequests).toEqual([
-      { address: ADDRESS, throughSeq: 4, beforeSeq: 2, maxMessages: 50 },
+      { address: ADDRESS, throughSeq: 4, beforeSeq: 2, maxMessages: 500, turnWindow: { minMessages: 50, minTurns: 2 } },
     ])
     expect(changes).toMatchObject([
       { type: 'replace', entries: [entry(2), entry(3)], hasMore: true },
@@ -424,12 +581,12 @@ describe('Session Client stream adapters', () => {
       failed: vi.fn(),
     })
 
-    await stream.open({ maxMessages: 50 })
+    await stream.open({ maxMessages: 500, turnWindow: { minMessages: 50, minTurns: 2 } })
     await vi.waitFor(() => { expect(remote.followRequests).toHaveLength(2) })
 
     expect(remote.followRequests).toEqual([
-      { address: ADDRESS, assistantStream: true, maxMessages: 50 },
-      { address: ADDRESS, assistantStream: true, maxMessages: 50 },
+      { address: ADDRESS, assistantStream: true, maxMessages: 500, turnWindow: { minMessages: 50, minTurns: 2 } },
+      { address: ADDRESS, assistantStream: true, maxMessages: 500, turnWindow: { minMessages: 50, minTurns: 2 } },
     ])
     expect(remote.pageRequests).toEqual([])
     expect(changes.map(change => change.type)).toEqual(['replace', 'append', 'replace'])
@@ -466,7 +623,7 @@ describe('Session Client stream adapters', () => {
     await stream.dispose()
   })
 
-  it('repairs a live gap without adding an absent message limit', async () => {
+  it.each([{}, { maxMessages: 50 }, { maxMessages: 500, turnWindow: { minMessages: 50, minTurns: 2 } }])('repairs a live gap preserving history limits %j', async (request) => {
     const remote = new ScriptedSessionRemote(
       [{ frames: [snapshot(0, [entry(0)]), entry(2)], hold: true }],
       [{ ok: true, value: page([entry(0), entry(1), entry(2)]) }],
@@ -477,10 +634,13 @@ describe('Session Client stream adapters', () => {
       failed: vi.fn(),
     })
 
-    await stream.open({})
-    await vi.waitFor(() => { expect(changes).toHaveLength(2) })
-    expect(remote.pageRequests).toEqual([{ address: ADDRESS, throughSeq: 2 }])
-    await stream.dispose()
+    try {
+      await stream.open(request)
+      await vi.waitFor(() => { expect(changes).toHaveLength(2) })
+      expect(remote.pageRequests).toEqual([{ address: ADDRESS, throughSeq: 2, ...request }])
+    } finally {
+      await stream.dispose()
+    }
   })
 
   it('turns a pagination failure into a typed stream failure', async () => {
@@ -506,10 +666,10 @@ describe('Session Client stream adapters', () => {
   it('maps the Host-wide control baseline and deltas into one snapshot stream', async () => {
     const baseline: SessionControlFrame = {
       type: 'baseline',
-      value: { queues: {}, jobs: {}, projections: {} },
+      value: { projections: {} },
     }
     const update: SessionControlFrame = {
-      type: 'queue', sessionId: 'session-1' as never, items: [],
+      type: 'projection', sessionId: 'session-1' as never, key: 'title', value: 'updated', seq: 1,
     }
     const remote = new ScriptedSessionRemote([], [], [baseline, update])
     const accept = vi.fn<(frame: SessionControlFrame) => void>()
@@ -541,7 +701,7 @@ describe('Session Client stream adapters', () => {
 
     const baseline: SessionControlFrame = {
       type: 'baseline',
-      value: { queues: {}, jobs: {}, projections: {} },
+      value: { projections: {} },
     }
     const carrierFailed = vi.fn()
     const failed = vi.fn()

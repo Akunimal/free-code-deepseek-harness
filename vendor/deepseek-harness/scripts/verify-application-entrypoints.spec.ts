@@ -74,6 +74,15 @@ describe('application entrypoints', () => {
     ])
   })
 
+  it('rejects a packaging dispatcher owned by the CLI workspace', () => {
+    const root = fixture()
+    write(root, 'apps/cli/src/runtime-bootstrap.ts', '#!/usr/bin/env node\n')
+
+    expect(applicationEntrypointViolations(root)).toEqual([
+      'apps/cli/src/runtime-bootstrap.ts: executable source has no application/build/test classification',
+    ])
+  })
+
   it('rejects a private Python application carrier outside dsh', () => {
     const root = fixture()
     write(root, 'packages/sdk/rogue-python-runtime/package.json', JSON.stringify({ private: true }))
@@ -90,8 +99,28 @@ describe('application entrypoints', () => {
     write(root, 'scripts/demo-ptc.mjs', "spawn('node', ['packages/example/app/src/bin.ts'])\n")
 
     expect(applicationEntrypointViolations(root)).toEqual([
-      'scripts/demo-ptc.mjs: application demo wrapper must launch apps/cli/src/bin.ts',
-      'scripts/demo-ptc.mjs: application demo wrapper must not launch a package entry directly',
+      'scripts/demo-ptc.mjs: application launcher wrapper must launch apps/cli/src/bin.ts',
+      'scripts/demo-ptc.mjs: application launcher wrapper must not launch a package entry directly',
+    ])
+  })
+
+  it('rejects a start:web script that bypasses the dsh launcher', () => {
+    const root = fixture()
+    write(root, 'package.json', JSON.stringify({ scripts: { 'start:web': 'node packages/example/app/src/bin.ts web' } }))
+
+    expect(applicationEntrypointViolations(root)).toEqual([
+      'package.json scripts.start:web: application launcher script must launch apps/cli/src/bin.ts',
+      'package.json scripts.start:web: application launcher script must not launch a package entry directly',
+    ])
+  })
+
+  it('rejects a dev:web wrapper that serves without the dsh launcher', () => {
+    const root = fixture()
+    write(root, 'package.json', JSON.stringify({ scripts: { 'dev:web': 'tsx scripts/dev-web.ts --poll' } }))
+    write(root, 'scripts/dev-web.ts', "execa('vite', ['build', '--watch'])\n")
+
+    expect(applicationEntrypointViolations(root)).toEqual([
+      'scripts/dev-web.ts: application launcher wrapper must launch apps/cli/src/bin.ts',
     ])
   })
 

@@ -3,15 +3,14 @@
  * `useAnchoredPosition` wiring: a floating panel is placed from its anchor and
  * keeps tracking it while open.
  *
- * The geometry itself needs real layout, which jsdom does not provide — the
- * browser layout scenario in `apps/web/tests/message-feedback-layout.e2e.ts`
- * owns that. What is asserted here is the wiring the clamp depends on: the
+ * The geometry itself needs real layout, which jsdom does not provide. What
+ * is asserted here is the wiring the clamp depends on: the
  * listeners and the panel-size observer are attached while open and released on
  * close, a size change replays the placement, and the hook still works where
  * `ResizeObserver` does not exist.
  */
 import { useRef } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { cleanup, render } from '@testing-library/react'
 import { useAnchoredPosition } from '../src/useAnchoredPosition.ts'
 
@@ -52,10 +51,10 @@ function stubResizeObserver(): Recorded[] {
  * @param props - whether the panel is open.
  * @returns the anchor and, while open, the panel carrying the position.
  */
-function Host({ open }: { open: boolean }) {
+function Host({ open, align }: { open: boolean; align?: 'start' | 'end' }) {
   const anchorRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
-  const position = useAnchoredPosition({ open, anchorRef, panelRef, gap: 4, margin: 12 })
+  const position = useAnchoredPosition({ open, anchorRef, panelRef, gap: 4, margin: 12, ...align === undefined ? {} : { align } })
   return (
     <>
       <button ref={anchorRef} type="button">anchor</button>
@@ -65,6 +64,45 @@ function Host({ open }: { open: boolean }) {
 }
 
 describe('useAnchoredPosition', () => {
+  it.each([{ fullscreen: false, top: 60 }, { fullscreen: true, top: 20 }])('keeps an anchored panel at $top with fullscreen=$fullscreen', ({ fullscreen, top }) => {
+    const root = document.documentElement
+    const previous = root.getAttribute('style')
+    const priorFullscreen = root.getAttribute('data-fullscreen')
+    onTestFinished(() => {
+      if (previous === null) root.removeAttribute('style')
+      else root.setAttribute('style', previous)
+      if (priorFullscreen === null) root.removeAttribute('data-fullscreen')
+      else root.setAttribute('data-fullscreen', priorFullscreen)
+      vi.restoreAllMocks()
+    })
+    root.style.setProperty('--dsh-frame-top-clearance', '40px')
+    root.toggleAttribute('data-fullscreen', fullscreen)
+    vi.spyOn(HTMLButtonElement.prototype, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 0, 200, 10))
+    vi.spyOn(HTMLDivElement.prototype, 'offsetHeight', 'get').mockReturnValue(400)
+    vi.stubGlobal('innerHeight', 600)
+    const { getByTestId } = render(<Host open />)
+    expect(getByTestId('panel').style.top).toBe(`${top}px`)
+  })
+
+  it('lines the panel up with the anchor\'s right edge when aligned to the end', () => {
+    // jsdom lays nothing out: the anchor's rect and the panel's width are stated, and the placement read back.
+    const rect = { left: 100, right: 300, top: 10, bottom: 30, width: 200, height: 20, x: 100, y: 10, toJSON: () => ({}) } as DOMRect
+    const anchorRect = vi.spyOn(HTMLButtonElement.prototype, 'getBoundingClientRect').mockReturnValue(rect)
+    const width = vi.spyOn(HTMLDivElement.prototype, 'offsetWidth', 'get').mockReturnValue(120)
+    vi.stubGlobal('innerWidth', 1000)
+    vi.stubGlobal('innerHeight', 800)
+    try {
+      const { getByTestId, rerender } = render(<Host open align="end" />)
+      expect(getByTestId('panel').style.left).toBe('180px')
+      expect(getByTestId('panel').style.top).toBe('34px')
+      rerender(<Host open />)
+      expect(getByTestId('panel').style.left).toBe('100px')
+    } finally {
+      anchorRect.mockRestore()
+      width.mockRestore()
+    }
+  })
+
   it('observes the panel while open and disconnects when it closes', () => {
     const made = stubResizeObserver()
     const ui = render(<Host open />)

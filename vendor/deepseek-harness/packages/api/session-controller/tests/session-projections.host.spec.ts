@@ -7,27 +7,38 @@
  * pushed through the control stream.
  */
 
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { z } from 'zod'
-import AgentRegistry, { Inbox } from '@deepseek-ai/dsh-agent'
+import AgentRegistry from '@deepseek-ai/dsh-agent'
 import { AttachmentStore } from '@deepseek-ai/dsh-attachment'
-import { agentPresetProjectionDefinition } from '@deepseek-ai/dsh-agent-presets'
-import type { Agent } from '@deepseek-ai/dsh-agent'
+import { agentPresetProjectionDefinition } from '@deepseek-ai/dsh-agent-preset-registry'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import SessionStore, { SESSION_FORMAT_VERSION, SessionId, SessionSeq } from '@deepseek-ai/dsh-session'
-import type { Session } from '@deepseek-ai/dsh-session'
+import SessionStore, { SESSION_FORMAT_VERSION, SessionId, SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
+import type { Session, SessionEvent, SessionHeader, UserMessage } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
 import SessionProjectionCache, { projectionCacheDomainSpec } from '@deepseek-ai/dsh-session-projection-cache'
+import { titleProjectionDefinition } from '@deepseek-ai/dsh-session-title'
 import Storage from '@deepseek-ai/dsh-storage'
 import * as StorageDomain from '@deepseek-ai/dsh-storage-domain'
 import * as StorageJson from '@deepseek-ai/dsh-storage-json'
 import type { SessionControlFrame, SessionFollowFrame } from '@deepseek-ai/dsh-api-session-controller/types'
+import {
+  mountAgentLoopTestDependencies,
+  mountAgentLoopTestHarness,
+} from '@deepseek-ai/dsh-agent-loop-testkit'
 import { createSessionTestRemote, testSessionPersistence, type TestSessionRemote } from './test-remote.ts'
+
+const ownedContexts = new Set<Context>()
+afterEach(async () => {
+  await Promise.all([...ownedContexts].map(ctx => ctx.fiber.dispose()))
+  ownedContexts.clear()
+})
+let nextHarnessSession = 1
 
 declare module '@deepseek-ai/dsh-session-projection/types' {
   interface SessionProjectionStateMap {
@@ -108,15 +119,35 @@ const privatePromptUnit = () => ({
   stateVersion: 1,
 }) satisfies ProjectionDefinition<'test/private-prompt', string | null>
 
-async function harness(withRegistry: boolean): Promise<{ ctx: Context; session: Session }> {
+async function harness(withRegistry: boolean): Promise<{
+  ctx: Context
+  session: Session
+  readonly claim: (target: 'next-turn' | 'next-step') => UserMessage[]
+}> {
   const ctx = new Context()
-  await ctx.plugin(SessionStore)
-  await ctx.plugin(AgentRegistry)
-  if (withRegistry) await ctx.plugin(SessionProjectionRegistry)
-  const session = ctx.sessions.create(undefined, { meta: { cwd: '/workspace' } })
-  // The gateway reads both the session and durable inbox baseline.
-  ctx.agents.register({ id: session.id, session, inbox: new Inbox(session, { inserted: () => {}, discarded: () => {}, claimed: () => {} }), status: 'idle', ctx } as Agent)
-  return { ctx, session }
+  ownedContexts.add(ctx)
+  if (!withRegistry) {
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(AgentRegistry)
+    const session = ctx.sessions.create(undefined, { meta: { cwd: '/workspace' } })
+    return {
+      ctx,
+      session,
+      claim: () => { throw new Error('inbox is unavailable without the projection registry') },
+    }
+  }
+  await mountAgentLoopTestDependencies(ctx)
+  const loop = await mountAgentLoopTestHarness(ctx)
+  const agent = await loop.create(
+    SessionId(`session-projections-${String(nextHarnessSession++)}`),
+    {},
+    { cwd: '/workspace' },
+  )
+  return {
+    ctx,
+    session: agent.session,
+    claim: target => loop.claim(agent, target, 1),
+  }
 }
 
 /** Append `count` user messages so the log has paginable message boundaries. */
@@ -203,6 +234,77 @@ describe('session.history projections block', () => {
     // asOfSeq IS the window tail: the last served event carries it.
     const last = records.at(-1)
     expect(last?.event.seq).toBe(projections.asOfSeq)
+  })
+
+  it('reconstructs a cold persisted queue without publishing or resuming an Agent', async () => {
+    const ctx = new Context()
+    ownedContexts.add(ctx)
+    await mountAgentLoopTestDependencies(ctx)
+    await mountAgentLoopTestHarness(ctx)
+    const coldId = SessionId('cold-persisted-queue')
+    const meta: SessionHeader = { version: SESSION_FORMAT_VERSION, id: coldId, createdAt: 1, cwd: '/tmp', isSeeded: false }
+    const message = createUserMessage({
+      content: [{ type: 'text', text: 'survive process restart' }],
+      source: { kind: 'user' },
+    })
+    const events: SessionEvent[] = [{
+      type: 'agent/inbox/spliced',
+      seq: SessionSeq(0),
+      time: 2,
+      data: { target: 'next-turn', start: 0, inserted: [message] },
+    }]
+    ctx.provide('sessionPersistence', testSessionPersistence(ctx, {
+      list: () => Promise.resolve([meta]),
+      inspect: () => Promise.resolve({ meta, events, inheritedEventCount: SessionLogOffset(0) }),
+    }) as never)
+    const snapshot = await opening(remote(ctx), coldId)
+
+    expect(snapshot.projections.values.inbox).toEqual({
+      'next-turn': [message],
+      'next-step': [],
+    })
+    expect(ctx.agents.get(coldId)).toBeUndefined()
+    expect(ctx.sessions.get(coldId)).toBeUndefined()
+  })
+
+  it('removes claimed steering from the pending Inbox projection immediately', async () => {
+    const { ctx, session, claim } = await harness(true)
+    const proxy = remote(ctx)
+    const message = createUserMessage({
+      content: [{ type: 'text', text: 'apply this now' }],
+      source: { kind: 'user' },
+    })
+    const agent = ctx.agents.get(session.id)
+    if (agent === undefined) throw new Error('missing Agent')
+    agent.inbox.append('next-step', message)
+    claim('next-step')
+
+    const during = await opening(proxy, session.id)
+    expect(during.projections.values.inbox).toEqual({
+      'next-turn': [],
+      'next-step': [],
+    })
+
+    session.append('user/message', message, { surfaceOp: 'append' })
+    const settled = await opening(proxy, session.id)
+    expect(settled.projections.values.inbox).toEqual({
+      'next-turn': [],
+      'next-step': [],
+    })
+
+    const rejected = createUserMessage({
+      content: [{ type: 'text', text: 'reject this pre-step' }],
+      source: { kind: 'user' },
+    })
+    session.append('turn/start', { turn: 1 })
+    agent.inbox.append('next-step', rejected)
+    claim('next-step')
+    session.append('turn/end', { turn: 1, reason: { kind: 'blocked' } })
+    const closed = await opening(proxy, session.id)
+    expect(closed.projections.values.inbox).toEqual({
+      'next-turn': [],
+      'next-step': [],
+    })
   })
 
   it('returns a complete current replacement cut on each follow generation', async () => {
@@ -458,6 +560,7 @@ describe('session.list projections column', () => {
     const row = response.value.items.find(item => item.sessionId === coldId)
     expect(row?.running).toBe(false)
     expect(row?.projections).toEqual({
+      kind: 'cached',
       asOfSeq: 7,
       values: {
         'test/last-user': { text: 'cached' },
@@ -516,6 +619,89 @@ describe('session.list projections column', () => {
       expect(JSON.stringify(row)).not.toContain(secret)
     } finally {
       await ctx.fiber.dispose()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('lists a forked Session\'s cached title after a Host restart without opening its body', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'dsh-api-projcache-'))
+    const id = SessionId('session-cold-fork')
+    /** One Host process over `root`: storage stack, registry with the title unit, and the cache. */
+    const boot = async (): Promise<Context> => {
+      const ctx = new Context()
+      await ctx.plugin(Storage)
+      await ctx.plugin(StorageJson, { root })
+      await ctx.plugin(StorageDomain, { backend: 'json' })
+      await ctx.plugin(SessionStore)
+      await ctx.plugin(AgentRegistry)
+      await ctx.plugin(SessionProjectionRegistry)
+      ctx.sessionProjections.register(titleProjectionDefinition)
+      await ctx.plugin(SessionProjectionCache, { writeEveryEvents: 100, writeIntervalMs: 60_000 })
+      return ctx
+    }
+
+    // First process: a fork inherits its ancestor's prompt and title, the
+    // cache checkpoints the fold, and the process ends without ever listing.
+    const first = await boot()
+    let header: SessionHeader | undefined
+    let lastSeq: number | undefined
+    let promptTime: number | undefined
+    try {
+      remote(first)
+      await new Promise(resolve => setTimeout(resolve, 0))
+      let child: Session | undefined
+      const owner = await first.plugin(Object.assign((sessionCtx: Context) => {
+        const parent = sessionCtx.sessions.create(SessionId('session-cold-fork-parent'), {
+          meta: { createdAt: 5, cwd: '/workspace' },
+        })
+        parent.append('turn/start', { turn: 1 })
+        promptTime = parent.append('user/message', createUserMessage({
+          content: [{ type: 'text', text: 'ancestor prompt' }],
+          source: { kind: 'user' },
+        }), { surfaceOp: 'append' }).time
+        parent.append('session/title', { title: 'Forked title', messageSeqs: [], source: { kind: 'user' } })
+        parent.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+        child = sessionCtx.sessions.fork(parent, undefined, id)
+      }, { inject: ['sessions'] }))
+      if (child === undefined) throw new Error('child was not forked')
+      expect(child.header.isSeeded).toBe(true)
+      expect(child.inheritedEventCount).toBe(4)
+      await first.sessionProjectionCache.write(child)
+      header = child.header
+      lastSeq = child.seq - 1
+      await owner.dispose()
+    } finally {
+      await first.fiber.dispose()
+    }
+    if (header === undefined || lastSeq === undefined || promptTime === undefined) throw new Error('unreachable')
+
+    // Second process: persistence knows the header, the cache holds the
+    // record, and nothing opens the log.
+    const second = await boot()
+    try {
+      const gateway = remote(second)
+      await new Promise(resolve => setTimeout(resolve, 0))
+      const load = () => { throw new Error('a cold fork listing must not load the event log') }
+      second.provide('sessionPersistence', testSessionPersistence(second, {
+        list: async () => [header],
+        inspect: load,
+        open: load,
+      }) as never)
+
+      const response = await gateway.list(request({}))
+      if (!response.ok) throw new Error('unreachable')
+      const row = response.value.items.find(item => item.sessionId === id)
+      // Cold recency is the later of the header's creation time and the cached
+      // last prompt; the fork's creation time is wall-clock and may trail the
+      // inherited prompt by a tick.
+      expect(row).toMatchObject({ blank: false, updatedAt: Math.max(header.createdAt, promptTime) })
+      expect(row?.projections).toMatchObject({
+        kind: 'cached',
+        asOfSeq: lastSeq,
+        values: { title: 'Forked title', sessionListMetadata: { blank: false, lastPromptAt: promptTime } },
+      })
+    } finally {
+      await second.fiber.dispose()
       await rm(root, { recursive: true, force: true })
     }
   })

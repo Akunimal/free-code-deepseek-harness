@@ -5,12 +5,16 @@
  * The default intent prefers the default browser for documents it renders when
  * the platform can name one, then falls back to the default application. WSL
  * translates every path for the Windows desktop instead of assuming a Linux
- * GUI. The text-editor intent never consults the browser.
+ * GUI. The text-editor intent never consults the browser. Windows hands every
+ * intent to Explorer: the shell's own default-application resolution, the one
+ * a double-click uses, selects the application, while a process that resolves
+ * the association itself reads a narrower record and reports none.
  * @module @deepseek-ai/dsh-native-command/path-opener
  */
 
 import { release as osRelease } from 'node:os'
-import { extname } from 'node:path'
+import { dirname, extname } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { runNativeCommand, type NativeCommandRunner } from './runner.ts'
 
 /** Testable command boundary; native implementations never invoke a shell. */
@@ -22,8 +26,7 @@ export interface PathOpenerInternals {
   /** Kernel release override used to distinguish WSL from desktop Linux. */
   osRelease?: string
   /** Environment used for WSL markers and the desktop Linux browser convention. */
-  /** Environment used for WSL markers, desktop conventions, and the optional Electron bridge. */
-  env?: NodeJS.ProcessEnv & Partial<Record<'FREECODE_FILE_OPEN_ENDPOINT' | 'FREECODE_DIALOG_BRIDGE_TOKEN', string>>
+  env?: NodeJS.ProcessEnv
   run?: PathOpenerRunner
 }
 
@@ -55,7 +58,7 @@ async function openInBrowser(
     let bundle: string | undefined
     try {
       const { stdout } = await run(
-        'defaults', ['read', 'com.apple.LaunchServices/com.apple.launchservices.secure'], signal)
+        'defaults', ['read', 'com.apple.LaunchServices/com.apple.launchservices.secure'], signal, 'hidden')
       bundle = macBundleForHttps(stdout)
     } catch {
       // No LaunchServices record (a fresh account never changed a default):
@@ -63,7 +66,7 @@ async function openInBrowser(
       return false
     }
     if (bundle === undefined) return false
-    await run('open', ['-b', bundle, path], signal)
+    await run('open', ['-b', bundle, path], signal, 'hidden')
     return true
   }
   if (platform === 'linux') {
@@ -71,7 +74,7 @@ async function openInBrowser(
     // xdg-settings needs a launcher this package has no business shipping.
     const browser = env.BROWSER
     if (browser === undefined || browser === '') return false
-    await run(browser, [path], signal)
+    await run(browser, [path], signal, 'hidden')
     return true
   }
   // Windows names no browser without reading the UserChoice registry, and its
@@ -80,12 +83,7 @@ async function openInBrowser(
 }
 
 /** Native path-open intent; macOS distinguishes text editing from file association. */
-type PathOpenIntent = 'default' | 'text-editor'
-
-/** PowerShell single-quoted literal (doubles embedded quotes). */
-function powershellLiteral(path: string): string {
-  return `'${path.replace(/'/g, "''")}'`
-}
+type PathOpenIntent = 'default' | 'association' | 'text-editor'
 
 /** Whether one environment marker is set to a non-empty value. */
 function present(value: string | undefined): boolean {
@@ -99,36 +97,67 @@ function isWsl(internals: PathOpenerInternals): boolean {
   return (internals.osRelease ?? osRelease()).toLowerCase().includes('microsoft')
 }
 
-/** Open one Windows-resolvable path through its registered desktop application. */
-async function openWindowsPath(path: string, signal: AbortSignal, run: PathOpenerRunner): Promise<void> {
-  await run('powershell.exe', [
-    '-NoProfile',
-    '-Command',
-    `Invoke-Item -LiteralPath ${powershellLiteral(path)}`,
-  ], signal)
+/**
+ * Encode one Windows path as the target Explorer can receive intact.
+ *
+ * Explorer parses its own command line and splits fields at commas and equals
+ * signs, so a raw path loses everything after the first separator and the shell
+ * opens a different target without reporting it; both separators are escaped.
+ * Nothing else is: Explorer rejects percent-encoded non-ASCII in a file URI and
+ * opens the user's Documents folder instead, while it resolves the literal
+ * characters, so Node's non-ASCII escapes are decoded back and its ASCII escapes
+ * stand. Node resolves the path before encoding it, so a verbatim `\\?\` or
+ * `\\?\UNC\` prefix reaches Explorer as the ordinary drive or UNC URI; a `\\.\`
+ * device path keeps that same UNC handling and names a device rather than a
+ * shell item, which this opener does not open.
+ * @param windowsPath - path already translated for the Windows desktop.
+ * @returns the target for an open, or the object of a `/select,` reveal.
+ */
+function explorerTarget(windowsPath: string): string {
+  const href = pathToFileURL(windowsPath, { windows: true }).href
+  // A run of escapes whose every byte starts above ASCII is one non-ASCII character.
+  return href
+    .replace(/(?:%[89A-F][0-9A-F])+/gi, escaped => decodeURIComponent(escaped))
+    .replaceAll(',', '%2C')
+    .replaceAll('=', '%3D')
 }
 
-/** Open settings through the authenticated Electron shell bridge when present. */
-async function openViaElectronBridge(
-  endpoint: string, token: string, path: string, signal: AbortSignal,
-): Promise<void> {
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'x-freecode-dialog-token': token, 'content-type': 'application/json' },
-    body: JSON.stringify({ path }),
-    signal,
-  })
-  if (!response.ok) {
-    const text = await response.text().catch(() => '')
-    throw new Error(`file open bridge returned ${response.status}: ${text}`)
+/**
+ * Hand one target to Explorer, accepting its delegated-handoff exit code.
+ *
+ * Explorer exits 1 after handing the request to the desktop process already
+ * running, so exit 1 means the shell took it. Every other failure still
+ * rejects, and cancellation wins over a delegate's exit 1.
+ * @param args - Explorer argv: the encoded target alone to open it, or `/select,<encoded target>` to reveal it.
+ * @param signal - caller lifetime; abort terminates the command.
+ * @param run - shell-free command runner.
+ * @throws The runner's failure unless it is Explorer's delegate exit 1.
+ */
+async function runExplorer(args: readonly string[], signal: AbortSignal, run: PathOpenerRunner): Promise<void> {
+  try {
+    // SW_HIDE also hides Explorer's folder window, not just console windows.
+    await run('explorer.exe', args, signal, 'visible')
+  } catch (error: unknown) {
+    signal.throwIfAborted()
+    // Explorer can exit 1 after delegating to the existing desktop process.
+    if (!(error instanceof Error) || !('code' in error) || error.code !== 1) throw error
   }
-  const data = await response.json() as { error?: string }
-  if (data.error) throw new Error(`file open bridge: ${data.error}`)
+}
+
+/**
+ * Open one Windows-resolvable path through Explorer, the shell that owns the
+ * default-application resolution a double-click uses.
+ * @param path - Windows-resolvable path; Explorer receives its encoded file URI as one argv element, never a command string.
+ * @param signal - caller lifetime; abort terminates the command.
+ * @param run - shell-free command runner.
+ */
+async function openWindowsPath(path: string, signal: AbortSignal, run: PathOpenerRunner): Promise<void> {
+  await runExplorer([explorerTarget(path)], signal, run)
 }
 
 /** Translate a WSL path before handing it to the Windows desktop. */
 async function openWslPath(path: string, signal: AbortSignal, run: PathOpenerRunner): Promise<void> {
-  const translated = await run('wslpath', ['-w', path], signal)
+  const translated = await run('wslpath', ['-w', path], signal, 'hidden')
   signal.throwIfAborted()
   const windowsPath = translated.stdout.replace(/[\r\n]+$/, '')
   if (windowsPath === '') throw new Error('wslpath returned no Windows path')
@@ -147,20 +176,11 @@ async function openNativePathWithIntent(
   const env = internals.env ?? process.env
   const wsl = platform === 'linux' && isWsl(internals)
 
-  if (platform === 'win32' && intent === 'text-editor') {
-    const endpoint = env.FREECODE_FILE_OPEN_ENDPOINT
-    const token = env.FREECODE_DIALOG_BRIDGE_TOKEN
-    if (endpoint && token) {
-      await openViaElectronBridge(endpoint, token, path, signal)
-      return
-    }
-  }
-
   if (!wsl && intent === 'default' && BROWSER_DOCUMENTS.has(extname(path).toLowerCase())
     && await openInBrowser(path, signal, platform, run, env)) return
 
   if (platform === 'darwin') {
-    await run('open', intent === 'text-editor' ? ['-t', path] : [path], signal)
+    await run('open', intent === 'text-editor' ? ['-t', path] : [path], signal, 'hidden')
     return
   }
 
@@ -174,7 +194,7 @@ async function openNativePathWithIntent(
       await openWslPath(path, signal, run)
       return
     }
-    await run('xdg-open', [path], signal)
+    await run('xdg-open', [path], signal, 'hidden')
     return
   }
 
@@ -216,6 +236,19 @@ export function openNativePath(
 }
 
 /**
+ * Open a filesystem path through its file-type association, including HTML and SVG.
+ * @param path - absolute or host-resolvable path; the caller verifies local access.
+ * @param signal - caller lifetime; abort terminates the native command.
+ * @param internals - platform, environment, and runner facts for adapter tests.
+ * @returns after the associated application accepts the path.
+ */
+export function openNativeAssociatedPath(
+  path: string, signal: AbortSignal, internals: PathOpenerInternals = {},
+): Promise<void> {
+  return openNativePathWithIntent(path, signal, 'association', internals)
+}
+
+/**
  * Open a text document for editing; macOS bypasses the file-type association
  * so a YAML association with a browser cannot consume the gesture.
  * @param path - absolute or host-resolvable text-document path.
@@ -228,4 +261,55 @@ export function openNativeTextFile(
   internals: PathOpenerInternals = {},
 ): Promise<void> {
   return openNativePathWithIntent(path, signal, 'text-editor', internals)
+}
+
+/** File-manager behavior available on the serving Host, including WSL's Windows desktop. */
+export type NativeFileManager = 'finder' | 'explorer' | 'directory'
+
+/**
+ * Identify the native file-manager action without inspecting the browser's platform.
+ * @param internals - platform and WSL facts.
+ * @returns the supported file-manager action, or null on unsupported platforms.
+ */
+export function nativeFileManager(internals: PathOpenerInternals = {}): NativeFileManager | null {
+  const platform = internals.platform ?? process.platform
+  if (platform === 'darwin') return 'finder'
+  if (platform === 'win32' || (platform === 'linux' && isWsl(internals))) return 'explorer'
+  return platform === 'linux' ? 'directory' : null
+}
+
+/**
+ * Reveal a file in Finder or Explorer, or open its parent in the Linux default file manager.
+ * @param path - absolute file path already authorized by the caller.
+ * @param signal - caller lifetime; abort terminates the native command.
+ * @param internals - platform, environment, and command runner for adapter tests.
+ * @returns after command completion; Explorer exit 1 is accepted as a delegated handoff, not proof of selection.
+ */
+export async function revealNativePath(
+  path: string, signal: AbortSignal, internals: PathOpenerInternals = {},
+): Promise<void> {
+  signal.throwIfAborted()
+  const platform = internals.platform ?? process.platform
+  const run = internals.run ?? runNativeCommand
+  const manager = nativeFileManager({ ...internals, platform })
+  if (manager === 'finder') {
+    await run('open', ['-R', path], signal, 'hidden')
+    return
+  }
+  if (manager === 'explorer') {
+    let windowsPath = path
+    if (platform === 'linux') {
+      const translated = await run('wslpath', ['-w', path], signal, 'hidden')
+      signal.throwIfAborted()
+      windowsPath = translated.stdout.replace(/[\r\n]+$/, '')
+      if (windowsPath === '') throw new Error('wslpath returned no Windows path')
+    }
+    await runExplorer(['/select,', explorerTarget(windowsPath)], signal, run)
+    return
+  }
+  if (manager === 'directory') {
+    await run('xdg-open', [dirname(path)], signal, 'hidden')
+    return
+  }
+  throw new Error(`native file manager is unsupported on ${platform}`)
 }

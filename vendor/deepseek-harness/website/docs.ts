@@ -139,6 +139,14 @@ const homeAndGuide = pairedPages([
     order: 3,
   },
   {
+    source: 'docs/user/guide/public-deployments.md',
+    route: 'guide/public-deployments.md',
+    label: { root: '公开部署', en: 'Public deployments' },
+    sidebar: { root: 'zh-guide', en: 'en-guide' },
+    section: { root: '入门', en: 'Guide' },
+    order: 4,
+  },
+  {
     source: 'docs/user/guide/python-sdk.md',
     route: 'guide/python-sdk.md',
     label: { root: 'Python', en: 'Python' },
@@ -251,7 +259,7 @@ const develop = pairedPages([
   {
     source: 'docs/user/develop/practice/dynamic-cordis.md',
     route: 'develop/practice/dynamic-cordis.md',
-    label: { root: '运行时 Cordis 工具', en: 'Runtime Cordis tools' },
+    label: { root: '持久化 Harness 插件', en: 'Persistent Harness plugins' },
     sidebar: { root: 'zh-develop', en: 'en-develop' },
     section: { root: '实战', en: 'Practice' },
     order: 3,
@@ -300,7 +308,6 @@ const subsystemGroups = [
   ['内核与作用域', 'Core and scopes', [
     ['core.md', '核心', 'Core'],
     ['scope.md', '作用域', 'Scopes'],
-    ['invariants.md', '运行时不变式', 'Runtime invariants'],
   ]],
   ['会话与持久化', 'Sessions and persistence', [
     ['session.md', '会话', 'Sessions'],
@@ -326,11 +333,11 @@ const subsystemGroups = [
     ['jobs.md', '后台任务', 'Background jobs'],
     ['filesystem.md', '文件系统', 'Filesystem'],
     ['lsp.md', 'LSP 导航', 'LSP navigation'],
-    ['code-runtime.md', '代码运行时', 'Code runtime'],
+    ['ptc-runtime.md', 'PTC 运行时', 'PTC runtime'],
     ['web.md', 'Web 访问', 'Web access'],
     ['skills.md', '技能', 'Skills'],
     ['workflow.md', '工作流', 'Workflows'],
-    ['subagent.md', '子代理', 'Subagents'],
+    ['subagent.md', '子智能体', 'Subagents'],
   ]],
   ['策略与交互', 'Policy and interaction', [
     ['approval.md', '审批', 'Approvals'],
@@ -347,6 +354,8 @@ const subsystemGroups = [
     ['web-client.md', 'Web Client 架构', 'Web Client architecture'],
     ['client-modules.md', '客户端模块', 'Client modules'],
     ['slots.md', '客户端 Slots', 'Client slots'],
+    ['client-resources.md', '客户端资源', 'Client resources'],
+    ['sidebar-right.md', '右侧 Sidebar', 'Right Sidebar'],
     ['conversation.md', 'Conversation 组装', 'Conversation assembly'],
     ['typert.md', 'Typert', 'Typert'],
     ['storage.md', '存储', 'Storage'],
@@ -438,7 +447,7 @@ const reference = [
     ['adding-a-package.md', '新增 Package', 'Adding a package'],
     ['adding-a-tool.md', '新增 Tool', 'Adding a tool'],
     ['adding-an-llm-adapter.md', '新增 LLM Adapter', 'Adding an LLM adapter'],
-    ['adding-a-settings-card.md', '新增设置卡片', 'Adding a settings card'],
+    ['adding-a-settings-card.md', '新增设置页', 'Adding a settings page'],
     ['extension-cookbook.md', '扩展模式', 'Extension patterns'],
   ] as const).map(([file, rootLabel, enLabel], order): PairedPage => ({
     source: `docs/cookbook/${file}`,

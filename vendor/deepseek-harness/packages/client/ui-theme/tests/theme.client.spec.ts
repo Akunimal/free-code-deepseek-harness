@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { stubSettingsScope, type StubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
+import { stubConfigForm, type StubConfigForm } from '@deepseek-ai/dsh-client-test-runtime'
 import type {
   ThemeSettings,
   ThemeSnapshot,
@@ -9,11 +9,11 @@ import type {
 } from '@deepseek-ai/dsh-client-ui-theme/client'
 import { ThemeRuntime } from '@deepseek-ai/dsh-client-ui-theme/client'
 
-const make = (host = stubSettingsScope<ThemeSettings>()): {
+const make = (host = stubConfigForm<ThemeSettings>()): {
   ctx: Context
   theme: ThemeRuntime
   events: ThemeSnapshot[]
-  host: StubSettingsScope<ThemeSettings>
+  host: StubConfigForm<ThemeSettings>
 } => {
   const ctx = new Context()
   const events: ThemeSnapshot[] = []
@@ -36,31 +36,31 @@ describe('ThemeRuntime', () => {
   it('seeds the initial font size from the boot-script body variable, ignoring junk', () => {
     // The Host boot script writes the durable size on body before any plugin
     // runs; the first snapshot must match it so activation never flashes 14.
-    document.body.style.setProperty('--dsh-content-font-size', '16px')
+    document.body.style.setProperty('--dsh-content-font-size', '22px')
     try {
-      expect(make().theme.getTheme().fontSize).toBe(16)
-      document.body.style.setProperty('--dsh-content-font-size', '99px')
+      expect(make().theme.getTheme().fontSize).toBe(22)
+      document.body.style.setProperty('--dsh-content-font-size', '23px')
       expect(make().theme.getTheme().fontSize).toBe(14)
     } finally {
       document.body.style.removeProperty('--dsh-content-font-size')
     }
   })
 
-  it('setFontSize switches, writes through the scope, and republishes; same value is a no-op', () => {
+  it.each([10, 22])('setFontSize(%i) switches, writes through the scope, and republishes; same value is a no-op', (fontSize) => {
     const { theme, events, host } = make()
-    theme.setFontSize(17)
-    expect(theme.getTheme().fontSize).toBe(17)
-    expect(host.set).toHaveBeenCalledWith('fontSize', 17)
+    theme.setFontSize(fontSize)
+    expect(theme.getTheme().fontSize).toBe(fontSize)
+    expect(host.set).toHaveBeenCalledWith('fontSize', fontSize)
     expect(events).toHaveLength(1)
-    theme.setFontSize(17)
+    theme.setFontSize(fontSize)
     expect(events).toHaveLength(1)
     expect(host.set).toHaveBeenCalledOnce()
   })
 
   it('rejects out-of-range and fractional font sizes', () => {
     const { theme, events, host } = make()
-    for (const px of [11, 18, 14.5, Number.NaN]) {
-      expect(() => { theme.setFontSize(px) }).toThrow('outside 12..17')
+    for (const px of [9, 23, 14.5, Number.NaN]) {
+      expect(() => { theme.setFontSize(px) }).toThrow('outside 10..22')
     }
     expect(events).toHaveLength(0)
     expect(host.set).not.toHaveBeenCalled()
@@ -101,7 +101,7 @@ describe('ThemeRuntime', () => {
   })
 
   it('adopts a section already standing at construction', () => {
-    const host = stubSettingsScope<ThemeSettings>()
+    const host = stubConfigForm<ThemeSettings>()
     host.publish({ status: 'ready', value: { preference: 'dark', fontSize: 14 }, revision: 1, writable: true })
     const { theme } = make(host)
     expect(theme.getTheme().preference).toBe('dark')

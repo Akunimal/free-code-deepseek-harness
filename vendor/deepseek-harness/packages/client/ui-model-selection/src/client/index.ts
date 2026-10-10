@@ -22,11 +22,13 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
+import { IconDataOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ModelDirectoryState } from './directory.ts'
 import { ModelDirectoryResolver } from './service.ts'
 import type { ModelSelectInjected } from './slots.ts'
 import { ModelSelect } from './ModelSelect.tsx'
-import { en, es, zh, type ModelKey } from './locales.ts'
+import { en, zh, type ModelKey } from './locales.ts'
+import { orderModelProviders } from './provider-order.ts'
 
 export { ModelDirectory } from './directory.ts'
 export type { ModelDirectoryState } from './directory.ts'
@@ -49,12 +51,13 @@ function rowId(providerId: string, modelId: string): string {
 /** Flatten the directory into popup rows; failure rows are listed for visibility but never selectable. */
 function optionsOf(directory: ModelDirectoryState, t: TranslateNS<'model'>): SelectOption[] {
   const rows: SelectOption[] = []
-  for (const group of directory.groups) {
+  for (const group of orderModelProviders(directory.groups)) {
+    const name = group.id === 'deepseek-account' ? t('provider.account') : group.name
     for (const model of group.models) {
       rows.push({
         id: rowId(group.id, model.id),
         label: model.name,
-        detail: model.description !== undefined ? `${group.name} · ${model.description}` : group.name,
+        group: { name: group.id, label: name },
         ...(directory.current !== null
           && directory.current.provider === group.id
           && directory.current.model === model.id
@@ -65,7 +68,7 @@ function optionsOf(directory: ModelDirectoryState, t: TranslateNS<'model'>): Sel
   for (const failure of directory.failures) {
     rows.push({
       id: `failure/${failure.id}`,
-      label: failure.name,
+      label: failure.id === 'deepseek-account' ? t('provider.account') : failure.name,
       detail: t('option.loadError', { message: failure.message }),
     })
   }
@@ -110,29 +113,33 @@ export const inject = ['commandUi', 'locale', 'sessions', 'slots', 'remote', 're
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
-  ctx.effect(() => ctx.locale.register(NS, { zh, en, es }), 'ui-model-selection: dictionaries')
+  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-model-selection: dictionaries')
 
   // Non-slot faces (the command description, the popup option builder) read
   // through the bound translate; the seat component reads the standard seat.
   const t = ctx.locale.bind(NS)
 
-  // The composer-block reason is this plugin's own copy, read at raise time so
-  // a locale change reaches the next publish.
-  ctx.plugin(ModelDirectoryResolver, { blockReason: () => t('blocked.composer') })
+  ctx.plugin(ModelDirectoryResolver)
 
-  // Entry 1: the /model popupSelect over the shared directory. The command
-  // description is registry-held text: it reads t() once at registration and
-  // refreshes only on re-registration, not on locale change.
+  // Entry 1: the /model popupSelect over the shared directory.
   ctx.inject(['commandUi', 'modelDirectories'], (scope: ClientContext) => {
     const command = scope.get('commandUi') as CommandUiContract
     const models = scope.modelDirectories
     const sessions = scope.sessions
     scope.effect(() => command.register({
       name: 'model',
-      description: t('command.description'),
+      label: () => t('command.label'),
+      description: () => t('command.description'),
+      icon: IconDataOutlineRegular,
       available: session => sessions.subagentAddress(session.sessionId) === undefined,
       ui: {
         kind: 'popupSelect',
+        searchMode: 'fuzzy-label',
+        searchLabels: () => ({
+          placeholder: t('search.placeholder'),
+          empty: t('empty.models'),
+          noResults: t('search.empty'),
+        }),
         options: async (session) => {
           if (sessions.subagentAddress(session.sessionId) !== undefined) {
             throw new Error('model selection is unavailable for addressed subagent sessions')
@@ -148,7 +155,11 @@ export function apply(ctx: ClientContext): void {
           if (selection === undefined) {
             throw new Error('this provider\'s catalog failed to load — pick a model from a loaded group')
           }
-          await directory.select(selection)
+          const result = await directory.select(selection)
+          if (!result.ok) {
+            if (result.error.code === 'session/writer-held') throw new Error(t('error.sessionInUse'))
+            throw result.error
+          }
         },
       },
     }), 'ui-model-selection: /model contribution')
@@ -171,8 +182,8 @@ export function apply(ctx: ClientContext): void {
             if (available) directory.load().catch(() => { /* surfaced on the store */ })
           },
           select: (selection: ModelSelection) => available
-            ? directory.select(selection).then(() => true, () => false)
-            : Promise.resolve(false),
+            ? directory.select(selection)
+            : Promise.resolve(undefined),
         }
       },
     }, ModelSelect))

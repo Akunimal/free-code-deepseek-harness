@@ -1,0 +1,12 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+<<<<<<<< HEAD:vendor/deepseek-harness/docs/cookbook/adding-a-remote-api.i18n.yaml
+#   pnpm run verify-translation-pairing --write docs/cookbook/adding-a-remote-api.md
+adding-a-remote-api.md: 0f89101e9bc3ff961d465c109f033150e93e04f6
+adding-a-remote-api.zh.md: 0c5a57b539ecd98cb88790260a3fb8e7b41afff6
+========
+#   pnpm run verify-translation-pairing --write .agents/notes/archived/process/2026-08-19-remove-knip.md
+2026-08-19-remove-knip.md: d385e729d3336400b55aec50a9464260c2b6bfa7
+2026-08-19-remove-knip.zh.md: 5decd988fbec425961d73b36cda93fd10746c2cd
+>>>>>>>> 15a4129ecf332e3e1018f26ee50c49f3f0b2054d:vendor/deepseek-harness/.agents/notes/archived/process/2026-08-19-remove-knip.i18n.yaml

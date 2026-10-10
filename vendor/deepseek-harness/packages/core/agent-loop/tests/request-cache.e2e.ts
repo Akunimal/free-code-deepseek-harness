@@ -9,7 +9,7 @@ import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
 
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
-import * as LlmDeepSeek from '@deepseek-ai/dsh-llm-deepseek'
+import * as LlmDeepSeek from '@deepseek-ai/dsh-llm-deepseek-api-key'
 
 /**
  * With-key proof that log-derived requests translate into real provider cache hits: a
@@ -43,7 +43,7 @@ async function loopHarness(): Promise<Context> {
   await created.plugin(LlmRuntime)
   await created.plugin(SessionStore)
   await created.plugin(SessionProjectionRegistry)
-  await created.plugin(SystemPrompt, { persona: SYSTEM })
+  await created.plugin(SystemPrompt, { personaPrefix: SYSTEM })
   await created.plugin(ToolRuntime)
   await created.plugin(AgentRegistry)
   await created.plugin(AgentLoop, { agents: [] })

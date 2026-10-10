@@ -1,15 +1,15 @@
 ---
-description: "The schedule group map: session-local durable reminders over the session log, for users and maintainers navigating the group."
+description: "The schedule package group: Host-owned scheduled reminders and task management."
 kind: "package-group"
 ---
 
-# schedule/ — Session-local reminders
+# schedule/ — Host-owned reminders
 
 English | [中文](README.zh.md)
 
 ## Summary
 
-The schedule group provides session-local reminders for a running conversation: ask the agent to remind you later, at an absolute time, or on a fixed interval, and each reminder arrives as an ordinary message in the same conversation when it comes due. Its host package owns the three management tools and can publish the complete active-record set through the optional Session projection registry. The separate [`ui-schedule`](../client/ui-schedule/README.md) browser plugin renders that projection as a read-only current-state catalog, while [`ui-workspace`](../client/ui-workspace/README.md) marks ordinary and search rows whose best-effort list value is non-empty. That marker reports cached active state, not a live runtime guarantee. Reminders survive restarts but stay inside the session: there is no email, SMS, or push notification. This page maps the group; each package README owns its contract.
+Create one-shot, fixed-rate, daily, weekly, or cron reminders for a conversation and keep them across Host restarts. Inspect active and inactive tasks without opening their original Sessions. Use Schedule for reminder creation and delivery, and the Automation tasks page for cross-Session inspection and confirmed deletion. Due reminders arrive as ordinary follow-up messages in the original conversation, not email, SMS, or push notifications.
 
 ## Table of Contents
 
@@ -22,19 +22,22 @@ The schedule group provides session-local reminders for a running conversation: 
 <a id="packages"></a>
 ## Packages
 
-| Package | Role | ctx key |
-|---|---|---|
-| [`schedule/`](schedule/README.md) | Session-local reminders: schedule, list, and cancel active records; publish an optional read-only projection for the header catalog and list-row marker; deliver due reminders as conversation messages | — (tools only, in the exact agent scope) |
+Choose this package for persistent reminder management.
+
+| Package | Role |
+|---|---|
+| [`schedule/`](schedule/README.md) | Host-owned reminder persistence, scheduling, inspection, and explicit deletion |
+| [`tool-schedule/`](tool-schedule/README.md) | Preset-scoped `schedule_create`, `schedule_list`, `schedule_update`, and `schedule_delete` tools over the Host `ctx.schedule` service |
 
 -----
 
 <a id="related-documentation"></a>
 ## Related documentation
 
-- [Session-local Schedule subsystem](../../docs/subsystems/schedule.md) — durable record, transition, view, and delivery contracts.
-- [Generated tool catalog](../../docs/tool-catalog.md#deepseek-aidsh-schedule) — the `schedule_create`/`schedule_list`/`schedule_delete` schemas the model receives.
-- [Schedule user guide](../../docs/user/guide/schedule.md) — the official configuration path for mounting the package.
-- [Web Schedule catalog](../client/ui-schedule/README.md) — the optional read-only browser presentation of active records.
+- [Schedule subsystem](../../docs/subsystems/schedule.md) — task records, latest receipts, timing, and delivery contracts.
+- [Generated tool catalog](../../docs/tool-catalog.md#deepseek-aidsh-tool-schedule) — the `schedule_create`/`schedule_list`/`schedule_update`/`schedule_delete` schemas a mounting preset contributes.
+- [Schedule user guide](../../docs/user/guide/schedule.md) — create reminders and inspect active or inactive tasks.
+- [Web task page and reminder catalog](../client/ui-schedule/README.md) — browser inspection of tasks and confirmed deletion.
 
 -----
 

@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-client-ui-reference` is the unified Web `@file` and `@session` reference source: it registers the `reference` entry in the composer's inline-suggestion machinery so a user typing `@` sees file and session candidates in one list. Files order before sessions, sections are labelled with locale-registered terms, and either candidate domain can fail independently without blocking the other. Each row carries only what distinguishes it: a file names its parent directory and nothing at the workspace root, a session names its workspace only when that workspace is not the current one, and a drilled directory listing names none because its breadcrumb already does. A pick inserts an atomic inline reference — file, folder, and session alike — whose hidden serialized and clipboard form is the natural text the shared `@path` grammar defines; a directory row additionally carries a drill verb (Tab or the row's chevron) that keeps plain editable path text and the menu active at its trailing slash so the user can descend another level. Selecting a session routes through the session-reference service, which validates the mention and captures model context at the pre-step boundary; this package itself registers no prompt or tool.
+Use `dsh-client-ui-reference` when Web users need to mention files, folders, or sessions from one `@` completion menu. It lists files before sessions and keeps either group available when the other cannot load. Picking a file, folder, or session inserts an atomic reference with a stable clipboard form; folder rows also let users descend without closing completion. File rows omit redundant root locations, and session rows show a workspace only when it differs from the current one. Session mentions are validated before model context is captured, while browsing candidates has no model effect.
 
 ## Table of Contents
 
@@ -37,6 +37,8 @@ A session pick inserts an atomic inline reference whose hidden `ref` and clipboa
 
 One unavailable or failed candidate domain yields no rows for that domain while the other still lists. A session-reference preparation failure occurs after prompt acceptance and terminates that agent turn.
 
+Click a file reference in the composer to preview its current contents in the right Sidebar. Quoted paths retain their spaces, and paths resolve in the composer Session. Folder and Session references retain their editing behavior.
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -49,7 +51,9 @@ The source keeps candidate encoding internal to the registration effect: the `/c
 
 ### Candidate flow
 
-For an unquoted token, the browser starts the `fileReferences/list` and `sessionReferenceResolver/candidates` Remote calls together, then deterministically orders files before sessions with locale-registered folder/file/session labels. Rows render under non-selectable file and session section headings without a redundant raw `reference` source title. A session row is dated from the Host session list's `updatedAt` through the same relative-time bucket that list uses, so one session reads the same age on both surfaces; a session the list does not carry falls back to the candidate's creation time. A drilled query publishes a breadcrumb from the workspace root to the directory being listed; each crumb carries the drill payload a folder row would, so returning to a step and descending into one are one outcome.
+For an unquoted token, the browser starts the `fileReferences/list` and `sessionReferenceResolver/candidates` Remote calls together, then deterministically orders files, direct subagents of the current Session, and other Sessions. Rows use the resolver's display title, which prefers a subagent's creation label while ordinary Sessions retain their projected title, and render under locale-owned group headings without a redundant raw `reference` source title. A session row is dated from the Host session list's `updatedAt` through the same relative-time bucket that list uses, so one session reads the same age on both surfaces; a session the list does not carry falls back to the candidate's creation time. A drilled query publishes a breadcrumb from the workspace root to the current directory; each crumb carries the drill payload a folder row would, so returning to a step and descending into one are one outcome.
+
+Candidate requests require an existing retained Client Session and share one temporary `referenceCandidates` reference. Both discovery calls wait for that Session's initial history open to succeed; an unretained Session or failed open prevents both RPCs. The candidate request's cancellation signal covers the history wait and both calls, and the temporary reference is released when the lookup settles.
 
 ### Serialization
 
@@ -67,7 +71,7 @@ These pages cover the suggestion machinery, the reference seams, and the input p
 - [ui-input-trigger](../ui-input-trigger/README.md) — the inline suggestion machinery the source registers into.
 - [file-reference](../../context/file-reference/README.md) — the `@file` seam and its provider contract.
 - [session-reference](../../context/session-reference/README.md) — the `@session` seam and prepared snapshot semantics.
-- [Web input machine and slash pipeline](../../../.agents/notes/implemented/architecture/2026-07-25-web-input-machine-and-slash-pipeline.md) — how references and commands share the input machine.
+- [Web input machine and slash pipeline](../../../.agents/notes/archived/architecture/2026-07-25-web-input-machine-and-slash-pipeline.md) — how references and commands share the input machine.
 
 -----
 
@@ -100,5 +104,3 @@ These limits define when the reference source cannot help; they are current pack
 None.
 
 </details>
-
-**Runtime invariant:** No companion is published. A single slash-source registration whose disposal is proven by the HMR-safety spec — it emits no cordis events and owns no cross-plugin mutable state.

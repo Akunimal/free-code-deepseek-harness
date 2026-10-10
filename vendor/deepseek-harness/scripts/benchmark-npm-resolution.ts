@@ -16,8 +16,8 @@ const WORKSPACE_MANIFEST_GLOBS = [
   'apps/*/package.json',
   'packages/*/*/package.json',
   'vendor/*/package.json',
-  'native/landlock-run/package.json',
-  'native/landlock-run/packages/*/package.json',
+  'native/system/package.json',
+  'native/system/packages/*/package.json',
 ]
 const INSTALLED_MANIFEST_GLOBS = [
   'node_modules/.pnpm/*/node_modules/*/package.json',
@@ -131,7 +131,7 @@ export function parseBenchmarkOptions(args: readonly string[]): BenchmarkOptions
 }
 
 function workspaceManifestPath(path: string): boolean {
-  return /^(?:apps\/[^/]+|packages\/[^/]+\/[^/]+|vendor\/[^/]+|native\/landlock-run(?:\/packages\/[^/]+)?)\/package\.json$/.test(path)
+  return /^(?:apps\/[^/]+|packages\/[^/]+\/[^/]+|vendor\/[^/]+|native\/system(?:\/packages\/[^/]+)?)\/package\.json$/.test(path)
 }
 
 function workspaceManifestPaths(root: string, ref: string | undefined): string[] {
@@ -417,12 +417,14 @@ async function runNpm(
  * @param index - Package metadata exposed through the local registry.
  * @param dependencies - Root dependencies whose install layout npm computes.
  * @param timeoutMs - Hard wall-clock limit for the npm child process.
+ * @param timeoutSubject - What the limit guards, named in the timeout diagnostic.
  * @returns The package lock plus timing and registry-request observations.
  */
 export async function resolveNpmPackageLock(
   index: RegistryIndex,
   dependencies: Readonly<Record<string, string>>,
   timeoutMs: number,
+  timeoutSubject = 'npm resolution',
 ): Promise<NpmPackageLockResolution> {
   let registryRequests = 0
   let archiveRequests = 0
@@ -471,7 +473,7 @@ export async function resolveNpmPackageLock(
       dependencies,
     }, null, 2)}\n`)
     const result = await runNpm(consumer, registry, timeoutMs)
-    if (result.timedOut) throw new Error(`npm resolution exceeded ${String(timeoutMs)} ms`)
+    if (result.timedOut) throw new Error(`${timeoutSubject} exceeded ${String(timeoutMs)} ms`)
     return {
       durationMs: result.durationMs,
       registryRequests,

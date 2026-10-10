@@ -15,6 +15,11 @@ const HOST_DEPENDENCY_PACKAGES: readonly string[] = [
   '@deepseek-ai/dsh-session',
 ]
 
+/** Required Cordis services whose Host imports are type-only. */
+const REQUIRED_SERVICE_PEERS = {
+  '@deepseek-ai/dsh-api-terminal-controller': ['@deepseek-ai/dsh-subprocess'],
+} as const satisfies Readonly<Record<string, readonly string[]>>
+
 /** Development-only package relationships not represented by source imports. */
 const CONFIGURATION_ONLY_DEV_DEPENDENCIES = {
   '@deepseek-ai/dsh-client-locale': ['@deepseek-ai/dsh-api-remotes'],
@@ -32,18 +37,23 @@ const CONFIGURATION_ONLY_DEV_DEPENDENCIES = {
 /** Workspace packages whose complete runtime surface is safe across duplicate installations. */
 const DUPLICATE_SAFE_PACKAGES: readonly string[] = [
   '@deepseek-ai/dsh-brand',
+  '@deepseek-ai/dsh-lazy-require',
   '@deepseek-ai/dsh-typert-protocol',
+  '@deepseek-ai/dsh-util-code-language',
   '@deepseek-ai/dsh-util-crypto',
   '@deepseek-ai/dsh-util-values',
 ]
 
 /**
  * Runtime exports whose values remain valid when npm installs another package copy.
+ * New entries are forbidden by default. Automated agents must not add an
+ * exception; every addition requires explicit human review and a dedicated,
+ * prominent heading in the pull request description.
  */
 const SAFE_HOST_DEPENDENCY_EXPORTS = {
   '@deepseek-ai/dsh-credentials': ['credentialKey'],
   '@deepseek-ai/dsh-deque': ['Deque'],
-  '@deepseek-ai/dsh-llm': ['BlockAssembler', 'callConfigEquals', 'expandAssistantStream'],
+  '@deepseek-ai/dsh-llm': ['callConfigEquals'],
   '@deepseek-ai/dsh-session-format': ['sessionFormatLogFilename'],
   '@deepseek-ai/dsh-timeout': ['MAX_TIMER_DELAY_MS'],
   '@deepseek-ai/schemastery': ['default'],
@@ -51,7 +61,8 @@ const SAFE_HOST_DEPENDENCY_EXPORTS = {
 
 /** Runtime exports that require every consumer to resolve the provider's shared peer instance. */
 const PEER_REQUIRED_HOST_EXPORTS = {
-  '@deepseek-ai/dsh-scope': ['carrierKeyOf', 'scopeOf', 'scopeTarget'],
+  '@deepseek-ai/dsh-client-connection': ['OperatorPeer'],
+  '@deepseek-ai/dsh-scope': ['carrierKeyOf', 'createScope', 'scopeOf', 'scopeTarget'],
   '@deepseek-ai/dsh-session': ['SESSION_FORMAT_VERSION'],
   '@deepseek-ai/dsh-session-persistence': ['SessionPersistenceNotFoundError'],
 } as const satisfies HostDependencyExports
@@ -64,6 +75,7 @@ export interface PackageDependencyPolicy {
   readonly clientFaceInclude: readonly string[]
   readonly clientFaceExclude: readonly string[]
   readonly hostPackages: readonly string[]
+  readonly requiredServicePeers?: Readonly<Record<string, readonly string[]>>
   readonly configurationOnlyDevDependencies: Readonly<Record<string, readonly string[]>>
   readonly duplicateSafePackages?: readonly string[]
   readonly safeHostDependencyExports: HostDependencyExports
@@ -75,6 +87,7 @@ export const PACKAGE_DEPENDENCY_POLICY: PackageDependencyPolicy = {
   clientFaceInclude: CLIENT_FACE_INCLUDE,
   clientFaceExclude: CLIENT_FACE_EXCLUDE,
   hostPackages: HOST_DEPENDENCY_PACKAGES,
+  requiredServicePeers: REQUIRED_SERVICE_PEERS,
   configurationOnlyDevDependencies: CONFIGURATION_ONLY_DEV_DEPENDENCIES,
   duplicateSafePackages: DUPLICATE_SAFE_PACKAGES,
   safeHostDependencyExports: SAFE_HOST_DEPENDENCY_EXPORTS,

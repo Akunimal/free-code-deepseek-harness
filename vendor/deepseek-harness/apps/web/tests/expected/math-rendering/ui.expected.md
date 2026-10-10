@@ -1,15 +1,14 @@
 - banner:
-  - navigation "Session hierarchy":
-    - button "Math rendering" [disabled]
-  - button "Session log":
-    - text: Session log
-    - img
+  - navigation "Session hierarchy": Math rendering
+  - button "More actions"
+  - button "Open right sidebar"
   - tablist:
     - tab "Chat" [selected]
     - tab "Trajectory"
 - text: Render this mathematical proof. {{clock}}
-- button "Copy":
-  - img
+- button "Copy"
+- status: Completed
+- button "Completed in {{duration}}" [disabled]
 - heading "Math rendering" [level=2]
 - paragraph:
   - text: Inline dollar
@@ -31,26 +30,14 @@
       - cell:
         - math: 1 5
 - paragraph: MATH_RENDERING_DONE
-- button "Copy":
-  - img
-- button "Good response":
-  - img
-- button "Bad response":
-  - img
-- button "Branch into a new conversation":
-  - img
-- button "Ran for {{duration}}":
-  - img
-  - text: Ran for {{duration}}
+- button "Copy"
+- button "Good response"
+- button "Bad response"
+- button "Branch into a new conversation"
 - text: {{clock}}
-- textbox "Message or run a task... / commands, @ files or sessions"
-- button "Commands":
-  - img
-- button "Add attachment":
-  - img
+- textbox "Message or run a task, / commands, @ files or sessions"
+- button "Add files or run commands"
 - 'button "Access mode, current: Workspace Write"': Workspace Write
-- button "Select model, current DeepSeek-V4-Flash":
-  - text: DeepSeek-V4-Flash
-  - img
+- button "Select model, current DeepSeek-V4-Flash": DeepSeek-V4-Flash
 - button "Send message" [disabled]
-- text: 1 turns · 1 steps LLM {{duration}}
+- button "1 turns 1 steps"

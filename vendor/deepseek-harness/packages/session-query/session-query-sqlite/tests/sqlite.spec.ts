@@ -1,4 +1,5 @@
 import { createAssistantMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
+import type { ContextFormed } from '@deepseek-ai/dsh-llm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context, type Fiber } from '@deepseek-ai/cordis'
 import { DatabaseSync } from 'node:sqlite'
@@ -17,6 +18,7 @@ import type {
   SessionAccess,
   SessionHandle,
   SessionHandleReadOptions,
+  SessionHandleReadResult,
   SessionPersistenceListOptions,
   SessionPersistenceSnapshot,
 } from '@deepseek-ai/dsh-session-persistence'
@@ -32,6 +34,12 @@ import {
   type SessionQueryErrorCode,
   type SessionSearchRequest,
 } from '@deepseek-ai/dsh-session-query'
+
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    'test': { kind: 'test' } & ContextFormed
+  }
+}
 
 const temporaryDirectories: string[] = []
 
@@ -86,7 +94,7 @@ class TestHandle implements SessionHandle {
     readonly access: SessionAccess,
   ) {}
 
-  async read(_offset = 0, _length?: number, options?: SessionHandleReadOptions): Promise<readonly SessionEvent[]> {
+  async read(_offset = 0, _length?: number, options?: SessionHandleReadOptions): Promise<SessionHandleReadResult> {
     TestPersistence.reads.set(this.id, (TestPersistence.reads.get(this.id) ?? 0) + 1)
     TestPersistence.readSignals.push(options?.signal)
     if (TestPersistence.failure !== undefined) throw TestPersistence.failure
@@ -94,7 +102,7 @@ class TestHandle implements SessionHandle {
     if (entry === undefined) throw new SessionPersistenceNotFoundError(this.id)
     await TestPersistence.readEffect?.(entry, options?.signal)
     TestPersistence.readEffect = undefined
-    return structuredClone(entry.events)
+    return { eventState: 'detached', events: structuredClone(entry.events) }
   }
 
   append(events: readonly SessionEvent[]): Promise<void> {
@@ -406,8 +414,8 @@ describe('SQLite session search', () => {
         },
       },
       { type: 'user/message', seq: SessionSeq(2), time: 12, data: createUserMessage({
-        content: [{ type: 'text', text: 'needle summary' }], source: { kind: 'plugin', plugin: 'test' },
-      }), surfaceOp: { op: 'replace', start: SessionSeq(0), end: SessionSeq(0) }, sourceEventSeqs: [SessionSeq(0)] },
+        content: [{ type: 'text', text: 'needle summary' }], source: { kind: 'test' },
+      }), surfaceOp: { op: 'replace', startSeq: SessionSeq(0), endSeq: SessionSeq(0) }, sourceEventSeqs: [SessionSeq(0)] },
       { type: 'turn/end', seq: SessionSeq(3), time: 13, data: { turn: 1, reason: { kind: 'error', error: { message: 'needle failure', code: 'UNKNOWN' } } } },
     ]
     ctx.sessions.create(SessionId('a'), { seed: events, meta: { cwd: '/a', parentSession: parent, createdAt: 20 } })
@@ -1814,7 +1822,7 @@ describe('SQLite schema, cancellation, and real persistence integration', () => 
     await search.dispose()
     const reader = await ctx.sessionPersistence.open(meta.id, 'read')
     expect(reader.header).toMatchObject(meta)
-    await expect(reader.read()).resolves.toMatchObject([{ seq: SessionSeq(0) }])
+    await expect(reader.read()).resolves.toMatchObject({ events: [{ seq: SessionSeq(0) }] })
     await reader.close()
     await persistence.dispose()
   })

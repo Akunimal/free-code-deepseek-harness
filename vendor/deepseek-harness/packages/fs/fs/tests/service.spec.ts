@@ -57,6 +57,9 @@ class FakeFileSystem extends FileSystem {
     }
     return bytes
   }
+  override async readByteRange(target: FsTarget, range: { offset: number; length: number }): Promise<Uint8Array> {
+    return new TextEncoder().encode(await this.readText(target)).subarray(range.offset, range.offset + range.length)
+  }
   override async listDir(target: FsTarget): Promise<FsDirEntry[]> {
     if (target.targetKey !== 'skills') throw new FsError(`not a directory: ${target.displayPath}`, 'FS_NOT_DIRECTORY')
     return [
@@ -120,6 +123,17 @@ describe('FileSystem provider seam', () => {
     expect(streamed).toBe(await fs.readText(target))
   })
 
+  it('readByteRange returns the window, shorter at the end and empty past it', async () => {
+    const ctx = new Context()
+    await ctx.plugin(FakeFileSystem)
+    const fs = ctx.fs as FakeFileSystem
+    fs.files.set('a.bin', 'hello')
+    const target = await fs.resolve('a.bin')
+    expect(await fs.readByteRange(target, { offset: 1, length: 3 })).toEqual(new TextEncoder().encode('ell'))
+    expect(await fs.readByteRange(target, { offset: 3, length: 10 })).toEqual(new TextEncoder().encode('lo'))
+    expect(await fs.readByteRange(target, { offset: 9, length: 2 })).toHaveLength(0)
+  })
+
   it('readBytes returns raw content and enforces the byte cap with FS_TOO_LARGE', async () => {
     const ctx = new Context()
     await ctx.plugin(FakeFileSystem)
@@ -128,6 +142,14 @@ describe('FileSystem provider seam', () => {
     const target = await fs.resolve('a.bin')
     expect(await fs.readBytes(target, undefined, 2)).toEqual(new TextEncoder().encode('hi'))
     await expect(fs.readBytes(target, undefined, 1)).rejects.toMatchObject({ code: 'FS_TOO_LARGE' })
+  })
+
+  it('rejects watching when a provider does not implement observation', async () => {
+    const ctx = new Context()
+    await ctx.plugin(FakeFileSystem)
+    const fs = ctx.fs as FakeFileSystem
+    await expect(fs.watch(await fs.resolve('a.txt'), () => {}, new AbortController().signal))
+      .rejects.toMatchObject({ code: 'FS_IO_ERROR' })
   })
 
   it('listDir returns child entry targets without reading file content', async () => {

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
+import type { GlobalStandardProps, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ComponentProps, ReactNode } from 'react'
+import { createContext, useContext, type ReactNode } from 'react'
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { SessionListState, SessionSnapshot } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -10,9 +11,8 @@ import {
   bindSnapshotSelector, makeTranslate, RemoteError, sessionSnapshot as sessionFixture,
 } from '@deepseek-ai/dsh-client-test-runtime'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { SessionPendingInteractionSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
+import type { SessionStatusSnapshot } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
-import type { ConversationRootProps } from '../src/client/skeleton/ConversationRoot.tsx'
 import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { EMPTY_CONVERSATION_SNAPSHOT } from '../src/client/contract/snapshot.ts'
@@ -20,23 +20,40 @@ import type { ConversationSnapshot } from '../src/client/contract/snapshot.ts'
 import { createConversationStore } from '../src/client/stores.ts'
 import { SessionInputShell } from '../src/client/input/facade.ts'
 import { en, zh } from '../src/client/locales.ts'
-import { ConversationRoot } from '../src/client/skeleton/ConversationRoot.tsx'
+import { ConversationContent } from '../src/client/skeleton/ConversationContent.tsx'
+import { ConversationHeader } from '../src/client/skeleton/ConversationHeader.tsx'
+import { ConversationMainPanel } from '../src/client/skeleton/ConversationMainPanel.tsx'
 import { ConversationSession, ConversationSessionHeader } from '../src/client/skeleton/ConversationSession.tsx'
 import { conversationPhase } from '../src/client/contract/snapshot.ts'
 import { HeroShell } from '../src/client/skeleton/EmptyHero.tsx'
 import type { HeroShellProps } from '../src/client/skeleton/EmptyHero.tsx'
+import './control-row-dom.ts'
 import { InputBar } from '../src/client/skeleton/InputBar.tsx'
 import type { InputBarProps } from '../src/client/skeleton/InputBar.tsx'
 import type {
-  ComposerBarOwnerProps, ConversationHeaderLineageOwnerProps,
+  ComposerBarOwnerProps, ConversationContentInputProps, ConversationContentProps,
+  ConversationHeaderLineageOwnerProps, ConversationSessionHeaderSlotProps, ConversationSessionSlotProps, ConversationSlotProps,
+  ConversationViewsProps,
 } from '../src/client/contract/slots.ts'
 import type { ViewTab } from '../src/client/contract/views.ts'
+
+// Every session-scope fixture carries the resource hook the resources plugin merges into GlobalStandardProps.
+const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined })) as GlobalStandardProps['useResource']
+
+const FactoryViewsTestContext = createContext<ConversationViewsProps | undefined>(undefined)
+
+function StableConversationViews() {
+  const props = useContext(FactoryViewsTestContext)
+  if (props === undefined) throw new Error('Factory views test context is missing')
+  return <>{props.renderSlot('conversation.session', {})}</>
+}
 
 // jsdom implements no Range geometry (Lexical's scroll-into-view measures the
 // caret with one once the surface is genuinely contenteditable).
 Range.prototype.getBoundingClientRect = () => ({
   top: 0, bottom: 0, left: 0, right: 0, width: 0, height: 0, x: 0, y: 0, toJSON: () => ({}),
 })
+
 
 function fakeWiring() {
   const sink = vi.fn(() => Promise.resolve({ kind: 'success' as const }))
@@ -76,13 +93,13 @@ beforeEach(() => {
   vi.stubGlobal('ResizeObserver', ResizeObserverStub)
 })
 
-const t: ConversationRootProps['t'] = makeTranslate(zh, commonZh)
+const t: ConversationContentProps['t'] = makeTranslate(zh, commonZh)
 
 const sid = (id: string) => id as SessionId
 const wid = (id: string) => id as WorkspaceId
 const SID = sid('s1')
 
-type SessionSlotProps = ComponentProps<typeof ConversationSession>
+type SessionSlotProps = ConversationSessionSlotProps
 
 const useChat: SessionSlotProps['useChat'] = () => { throw new Error('unused') }
 const useTrajectory: SessionSlotProps['useTrajectory'] = () => { throw new Error('unused') }
@@ -95,7 +112,7 @@ function workspace(id = 'w1'): WorkspaceView {
 }
 
 const workspaceState = (items: readonly WorkspaceView[]): WorkspaceSnapshot => ({
-  items, archivedSessionIds: [], state: 'idle', phase: 'ready', error: null,
+  items, archivedSessionIds: [], pinnedSessionIds: [], state: 'idle', phase: 'ready', error: null,
 })
 
 function sessionSnapshotOf(overrides: Partial<SessionSnapshot> = {}): SessionSnapshot {
@@ -107,6 +124,8 @@ function mount(
   workspaceRows: WorkspaceView[] = [{ ...workspace('one'), sessionIds: [SID] }],
   retargetWorkspace = vi.fn(async (_workspaceId: WorkspaceId) => {}),
   options: {
+    /** Explicit undefined exercises the shell before a Session is selected. */
+    sessionId?: SessionId | undefined
     /** When true, mimic overlay:true chain siblings (hidden fallback + takeover). */
     overlayTakeover?: boolean
     /** The session list summary's `blank` flag — independent of the snapshot's. */
@@ -123,16 +142,17 @@ function mount(
     viewTabs?: ViewTab[]
   } = {},
 ) {
+  const sessionId = 'sessionId' in options ? options.sessionId : SID
   const root = sid('root')
   const parent = sid('parent')
-  const rootRow = { id: root, displayTitle: 'Root', running: false, blank: false, updatedAt: 1 }
+  const rootRow = { id: root, displayTitle: 'Root', running: false, retainedBy: {}, blank: false, updatedAt: 1 }
   const parentRow = {
     id: parent, displayTitle: 'Parent', parentId: root, origin: 'subagent' as const,
-    running: false, blank: false, updatedAt: 2,
+    running: false, retainedBy: {}, blank: false, updatedAt: 2,
   }
   const childRow = {
     id: SID, displayTitle: 'Child', parentId: options.nestedSubagent === true ? parent : root,
-    cwd: '/projects/one', running: false, blank: options.summaryBlank ?? false, updatedAt: 3,
+    cwd: '/projects/one', running: false, retainedBy: { mainView: 1 }, blank: options.summaryBlank ?? false, updatedAt: 3,
     ...(options.summaryOrigin === undefined ? {} : { origin: options.summaryOrigin }),
   }
   const listed = options.omitSummaryRow !== true
@@ -145,20 +165,20 @@ function mount(
       ...listed && options.nestedSubagent === true && { [parent]: parentRow },
       ...listed && { [SID]: childRow },
     },
-    current: SID,
-    phase: 'ready', subagentsByParent: {}, jobsBySession: {}, currentAddress: undefined,
+    phase: 'ready', projectionsBySession: {},
   })
   const workspaces = createSnapshotStore<WorkspaceSnapshot>(workspaceState(workspaceRows))
   const session = createSnapshotStore<SessionSnapshot>(snapshot)
   const useSession = bindSnapshotSelector(session)
   const conversation = createSnapshotStore<ConversationSnapshot>(EMPTY_CONVERSATION_SNAPSHOT)
   const useConversation = bindSnapshotSelector(conversation)
-  const useSessionPendingInteraction = bindSnapshotSelector(
-    createSnapshotStore<SessionPendingInteractionSnapshot>(new Map()),
+  const useSessionStatus = bindSnapshotSelector(
+    createSnapshotStore<SessionStatusSnapshot>(new Map()),
   )
   const store = createConversationStore().create()
   store.actions.setDraft('ordinary draft')
   const { wiring, sink } = fakeWiring()
+  wiring.setDraft(store.store.getSnapshot().draft)
   const useInput = bindSnapshotSelector(wiring.state)
   const inputActions = wiring.actions
   const stop = vi.fn()
@@ -183,9 +203,13 @@ function mount(
       lineageOwners.push(owner as ConversationHeaderLineageOwnerProps)
       return opts?.fallback ?? null
     }
+    if (key === 'conversation.header') {
+      return <ConversationHeader {...runtimeProps} renderSlot={renderSlot as never} />
+    }
     if (key === 'conversation.session.header') {
       return (
         <ConversationSessionHeader
+          hideChrome={(owner as Pick<ConversationSessionHeaderSlotProps, 'hideChrome'>).hideChrome}
           sessionId={SID}
           SessionProvider={({ children }) => children}
           useSession={useSession}
@@ -194,7 +218,10 @@ function mount(
           useChat={useChat}
           useTrajectory={useTrajectory}
           useSessions={props.useSessions}
-          useSessionPendingInteraction={useSessionPendingInteraction}
+          usePanelInfo={props.usePanelInfo}
+          useResource={useResource}
+          useSessionStatus={useSessionStatus}
+          useSessionRetainInfo={() => undefined}
           useWorkspaces={props.useWorkspaces}
           useProjection={(() => undefined)}
           useInput={useInput}
@@ -216,10 +243,14 @@ function mount(
           useSession={useSession}
           useConversation={useConversation}
           useConversationViews={useConversationViews}
+          useInspectCall={selector => selector(undefined)}
           useChat={useChat}
           useTrajectory={useTrajectory}
           useSessions={props.useSessions}
-          useSessionPendingInteraction={useSessionPendingInteraction}
+          usePanelInfo={props.usePanelInfo}
+          useResource={useResource}
+          useSessionStatus={useSessionStatus}
+          useSessionRetainInfo={() => undefined}
           useWorkspaces={props.useWorkspaces}
           useProjection={(() => undefined)}
           useInput={useInput}
@@ -227,7 +258,7 @@ function mount(
           useStore={bindSnapshotSelector(store)}
           actions={store.actions}
           renderSlot={renderSlot as never}
-          bindDraftMirror={write => wiring.bindMirror(write)}
+          bindDraftPersistence={write => wiring.bindDraftPersistence(write)}
           openView={(view, focus) => { store.actions.openView(view, focus) }}
         />
       )
@@ -240,10 +271,13 @@ function mount(
         <InputBar
           sessionId={SID}
           SessionProvider={({ children }) => children}
+          useResource={useResource}
           useSession={useSession}
           useConversation={useConversation}
           useSessions={props.useSessions}
-          useSessionPendingInteraction={useSessionPendingInteraction}
+          usePanelInfo={props.usePanelInfo}
+          useSessionStatus={useSessionStatus}
+          useSessionRetainInfo={() => undefined}
           useWorkspaces={props.useWorkspaces}
           useProjection={(() => undefined)}
           useInput={useInput}
@@ -254,13 +288,13 @@ function mount(
           retryFileUpload={undefined}
           removeAttachment={() => {}}
           resolveDraftAttachments={() => []}
-          resolveSubmitMode={() => 'queue'}
           toggleCommandMenu={vi.fn()}
+          useBusyEnter={bindSnapshotSelector(createSnapshotStore<'queue' | 'steer'>('queue'))}
+          useStopShortcut={bindSnapshotSelector(createSnapshotStore<readonly string[]>([]))}
           useNotices={bindSnapshotSelector(wiring.notices)}
           useLexicon={bindSnapshotSelector(wiring.lexicon)}
           useMenuLauncher={bindSnapshotSelector(createSnapshotStore<string | null>(null))}
           stop={stop}
-          command={() => Promise.resolve(true)}
           t={t}
           renderSlot={((key: string, seatOwner: object) => {
             // The bar's own seats: recorded so a case can assert what share
@@ -273,7 +307,7 @@ function mount(
       )
     }
     return <div data-testid={`view-${opts?.only ?? key}`} />
-  }) as ConversationRootProps['renderSlot']
+  }) as ConversationContentProps['renderSlot']
   const renderSlotChain = ((_key, _owner, opts) => (
     options.overlayTakeover === true
       ? (
@@ -285,29 +319,64 @@ function mount(
         </>
       )
       : (opts?.fallback ?? null)
-  )) as ConversationRootProps['renderSlotChain']
-  const props: ConversationRootProps = {
-    sessionId: SID,
-    SessionProvider: ({ children }) => children,
-    useSession,
-    useConversation,
+  )) as ConversationContentProps['renderSlotChain']
+  const SessionProvider: ConversationContentProps['SessionProvider'] = ({ children }) => children
+  const renderFactorySlot = ((_name: string, input: ConversationContentInputProps, factoryOptions?: {
+    slots?: Record<string, (props: never) => ReactNode>
+  }) => {
+    const common: ConversationViewsProps = {
+      sessionId: SID,
+      SessionProvider,
+      useSession,
+      useConversation,
+      useChat,
+      useTrajectory,
+      useSessions: bindSnapshotSelector(sessions),
+      usePanelInfo: selector => selector({ activePanelId: null }),
+      useResource,
+      useSessionStatus,
+      useSessionRetainInfo: () => undefined,
+      useWorkspaces: bindSnapshotSelector(workspaces),
+      useProjection: (() => undefined),
+      useComposerBlock: select => select(options.composerBlock),
+      useInput,
+      inputActions,
+      renderSlot,
+      renderSlotChain,
+      renderFactorySlot,
+      selectWorkspace: retargetWorkspace,
+      t,
+    }
+    const useFactorySlot = ((name: string, fallback: (props: never) => ReactNode) => (
+      name === 'views' ? StableConversationViews : factoryOptions?.slots?.[name] ?? fallback
+    )) as ConversationContentProps['useFactorySlot']
+    return (
+      <FactoryViewsTestContext.Provider value={common}>
+        <ConversationContent {...({ ...common, ...runtimeProps, ...input, useFactorySlot })} />
+      </FactoryViewsTestContext.Provider>
+    )
+  }) as ConversationSlotProps['renderFactorySlot']
+  const runtimeProps: PropsRuntime<'main.conversation'> & Pick<ConversationSlotProps, 'SessionProvider'> = {
+    usePanelInfo: selector => selector({ activePanelId: null }),
+    sessionId,
+    SessionProvider,
+    useSession: sessionId === undefined ? () => undefined : useSession,
+    useConversation: sessionId === undefined ? () => undefined : useConversation,
     useSessions: bindSnapshotSelector(sessions),
-    useSessionPendingInteraction,
+    useSessionStatus,
+    useSessionRetainInfo: () => undefined,
+    useResource,
     useWorkspaces: bindSnapshotSelector(workspaces),
     useProjection: (() => undefined),
-    useComposerBlock: select => select(options.composerBlock),
     useInput,
     inputActions,
-    renderSlot,
-    renderSlotChain,
-    selectWorkspace: retargetWorkspace,
-    t,
   }
-  const view = render(<ConversationRoot {...props} />)
+  const props: ConversationSlotProps = { ...runtimeProps, renderSlot, renderFactorySlot }
+  const view = render(<ConversationMainPanel {...props} />)
   return {
     view, store, wiring, sink, retargetWorkspace, session, conversation, slotCalls, lineageOwners, seatOwners, open,
     pickerOwner: () => pickerOwner,
-    rerender: () => { view.rerender(<ConversationRoot {...props} />) },
+    rerender: () => { view.rerender(<ConversationMainPanel {...props} />) },
   }
 }
 
@@ -330,6 +399,15 @@ describe('Hero chrome', () => {
 })
 
 describe('ConversationRoot resident composer', () => {
+  it('keeps global header navigation without selecting a Session', () => {
+    const b = mount(sessionSnapshotOf(), [], undefined, { sessionId: undefined })
+    expect(b.view.container.querySelector('header')).not.toBeNull()
+    expect(b.view.getByTestId('view-conversation.header.leading')).toBeTruthy()
+    expect(b.slotCalls).not.toContain('conversation.session.header')
+    expect(b.view.queryByRole('tablist')).toBeNull()
+    expect(b.view.queryByTestId('view-conversation.session.header.corner')).toBeNull()
+  })
+
   it('does not redispatch composer child slots for an unrelated Session publication', () => {
     const b = mount(sessionSnapshotOf())
     const childKeys = new Set([
@@ -390,17 +468,20 @@ describe('ConversationRoot resident composer', () => {
     const box = b.view.getByRole('textbox')
     expect(b.wiring.snapshot.draft).toBe('ordinary draft')
     act(() => { b.wiring.setDraft('ordinary revised') })
-    expect(b.store.store.getSnapshot().draft).toBe('ordinary revised')
+    expect(b.store.store.getSnapshot().draft).toEqual({ text: 'ordinary revised', references: [] })
     fireEvent.keyDown(box, { key: 'Enter' })
     expect(b.sink).toHaveBeenCalledWith('ordinary revised', [], 'queue', expect.any(AbortSignal))
-    expect((b.view.getByRole('button', { name: 'Child' }) as HTMLButtonElement).disabled).toBe(true)
+    // The current crumb is plain text (a drag surface on darwin), not a button.
+    expect(b.view.queryByRole('button', { name: 'Child' })).toBeNull()
+    expect(b.view.getByText('Child').tagName).toBe('SPAN')
     expect(b.view.queryByText('Root')).toBeNull()
   })
 
   it('shows hierarchy only for subagents and opens their ordinary owner', () => {
     const b = mount(sessionSnapshotOf(), undefined, undefined, { summaryOrigin: 'subagent' })
     const root = b.view.getByRole('button', { name: 'Root' })
-    expect((b.view.getByRole('button', { name: 'Child' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(b.view.queryByRole('button', { name: 'Child' })).toBeNull()
+    expect(b.view.getByText('Child').tagName).toBe('SPAN')
     fireEvent.click(root)
     expect(b.open).toHaveBeenCalledWith(sid('root'))
   })
@@ -412,7 +493,7 @@ describe('ConversationRoot resident composer', () => {
     })
     expect(b.view.getByRole('button', { name: 'Root' }).className).not.toContain('crumbSubagent')
     expect(b.view.getByRole('button', { name: 'Parent' }).className).toContain('crumbSubagent')
-    expect(b.view.getByRole('button', { name: 'Child' }).className).toContain('crumbSubagent')
+    expect(b.view.getByText('Child').className).toContain('crumbSubagent')
     expect(b.lineageOwners.slice(-2).map(owner => owner.lineageSessionId)).toEqual([
       sid('parent'),
       SID,
@@ -435,8 +516,10 @@ describe('ConversationRoot resident composer', () => {
     expect(host?.contains(seat)).toBe(true)
     expect(seat?.contains(textarea)).toBe(true)
     expect(b.slotCalls).toContain('conversation.session.header.lineage')
+    expect(b.slotCalls).toContain('conversation.header.leading')
     expect(b.slotCalls).toContain('conversation.session.header.actions')
     expect(b.slotCalls).toContain('conversation.session.header.utilities')
+    expect(b.slotCalls).toContain('conversation.session.header.corner')
   })
 
   it('sticky composer seat wraps the whole overlay chain, not only the fallback stack', () => {
@@ -448,7 +531,7 @@ describe('ConversationRoot resident composer', () => {
     expect(seat?.contains(fallback)).toBe(true)
   })
 
-  it('hero phase: same textarea, hero chrome, no header, picker switches the workspace', () => {
+  it('hero phase: keeps sidebar controls accessible while hiding conversation chrome', () => {
     const b = mount(
       sessionSnapshotOf({ blank: true }),
       [
@@ -460,7 +543,11 @@ describe('ConversationRoot resident composer', () => {
     const host = b.view.container.querySelector('[data-conversation-scroll]')
     const header = b.view.container.querySelector('header')
     expect(host).not.toBeNull()
-    expect(header?.getAttribute('aria-hidden')).toBe('true')
+    expect(header?.getAttribute('aria-hidden')).not.toBe('true')
+    expect(b.view.getByTestId('view-conversation.session.header.corner')).toBeTruthy()
+    expect(b.view.queryByRole('tablist')).toBeNull()
+    expect(b.slotCalls).not.toContain('conversation.session.header.utilities')
+    expect(b.slotCalls).not.toContain('conversation.session.header.actions')
     expect(b.view.getByText('探索未至之境')).toBeTruthy()
     expect(b.view.getByText('预览版')).toBeTruthy()
     expect(b.view.queryByTestId('view-chat')).toBeNull()
@@ -470,7 +557,7 @@ describe('ConversationRoot resident composer', () => {
     const box = b.view.getByRole('textbox')
     expect(host?.contains(box)).toBe(true)
     act(() => { b.wiring.setDraft('draft in hero') })
-    expect(b.store.store.getSnapshot().draft).toBe('draft in hero')
+    expect(b.store.store.getSnapshot().draft).toEqual({ text: 'draft in hero', references: [] })
     // Picker: open through the chip; a pick switches to the other
     // workspace's blank session (draft carry is apply-layer wiring).
     fireEvent.click(b.view.getByRole('button', { name: '选择工作区' }))
@@ -543,7 +630,7 @@ describe('ConversationRoot resident composer', () => {
     const after = b.view.getByRole('textbox')
     expect(after).toBe(before)
     expect(b.wiring.snapshot.draft).toBe('kept across flip')
-    expect(b.store.store.getSnapshot().draft).toBe('kept across flip')
+    expect(b.store.store.getSnapshot().draft).toEqual({ text: 'kept across flip', references: [] })
     expect(b.view.container.querySelector('[data-conversation-scroll]')?.contains(after)).toBe(true)
     expect(b.view.queryByTestId('hero-headline')).toBeNull()
     expect(b.view.getByTestId('view-chat')).toBeTruthy()
@@ -567,6 +654,8 @@ describe('ConversationRoot resident composer', () => {
     expect(b.view.queryByTestId('view-new-view')).toBeNull()
     expect(b.view.getByRole('tab', { name: 'Chat' }).getAttribute('aria-selected')).toBe('true')
     expect(b.view.getByRole('tab', { name: 'New view' }).getAttribute('aria-selected')).toBe('false')
+    // The browser drag lane anchors its header tab-strip probe on this marker.
+    expect(b.view.getByRole('tablist').hasAttribute('data-conversation-tabs')).toBe(true)
   })
 
   it('rolls the pending workspace label back when switching fails', async () => {
@@ -607,11 +696,12 @@ describe('ConversationRoot resident composer', () => {
 
   it('publishes the column width as a px variable for the shared width axis', () => {
     const b = mount(sessionSnapshotOf())
-    const root = b.view.container.querySelector('[data-phase]') as HTMLElement
+    const content = b.view.container.querySelector('[data-conversation-content]') as HTMLElement
+    const root = content.parentElement as HTMLElement
     // jsdom offsetWidth is 0 until faked: the observer publishes whatever the
     // layout reports, and the CSS clamp() floors the axis at 680px either way.
-    Object.defineProperty(root, 'offsetWidth', { value: 1200, configurable: true })
-    act(() => { fireResize(root) })
+    Object.defineProperty(content, 'offsetWidth', { value: 1200, configurable: true })
+    act(() => { fireResize(content) })
     expect(root.style.getPropertyValue('--dsh-conversation-column-width')).toBe('1200px')
     // No dragged preference: the user-width override stays absent so the
     // adaptive clamp term applies.
@@ -620,9 +710,10 @@ describe('ConversationRoot resident composer', () => {
 
   it('drag → persist → window clamp round-trip on a width handle', () => {
     const b = mount(sessionSnapshotOf())
-    const root = b.view.container.querySelector('[data-phase]') as HTMLElement
-    Object.defineProperty(root, 'offsetWidth', { value: 1600, configurable: true })
-    act(() => { fireResize(root) })
+    const content = b.view.container.querySelector('[data-conversation-content]') as HTMLElement
+    const root = content.parentElement as HTMLElement
+    Object.defineProperty(content, 'offsetWidth', { value: 1600, configurable: true })
+    act(() => { fireResize(content) })
     const handle = b.view.container.querySelector('[data-width-handle="right"]') as HTMLElement
     expect(handle).not.toBeNull()
     // jsdom lacks pointer capture: emulate per-element so hasPointerCapture
@@ -640,13 +731,16 @@ describe('ConversationRoot resident composer', () => {
       // Dragging the right handle outward by 25px widens by 2×25 = 50 → 970,
       // inside both bounds (max = 1600 − 176 = 1424 keeps the handles on-column).
       fireEvent.pointerDown(handle, { pointerId: 1, clientX: 800, clientY: 300 })
+      fireEvent.pointerMove(handle, { pointerId: 1, clientX: 825, clientY: 300 })
+      expect(handle.style.getPropertyValue('--dsh-width-handle-pointer-y')).toBe('300px')
       fireEvent.pointerUp(handle, { pointerId: 1, clientX: 825, clientY: 300 })
+      expect(handle.hasAttribute('data-dragging')).toBe(false)
       expect(root.style.getPropertyValue('--dsh-chat-user-width')).toBe('970px')
       expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('970')
       // Window shrinks: the displayed width re-clamps (900 − 176 = 724) but the
       // preference stays.
-      Object.defineProperty(root, 'offsetWidth', { value: 900, configurable: true })
-      act(() => { fireResize(root) })
+      Object.defineProperty(content, 'offsetWidth', { value: 900, configurable: true })
+      act(() => { fireResize(content) })
       expect(root.style.getPropertyValue('--dsh-chat-user-width')).toBe('724px')
       expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('970')
       // A press without travel (a real double-click delivers two such
@@ -665,6 +759,82 @@ describe('ConversationRoot resident composer', () => {
         else Object.defineProperty(Element.prototype, name, descriptor)
       }
     }
+  })
+
+  it('forwards wheel scrolling from a width handle to the transcript', () => {
+    const b = mount(sessionSnapshotOf())
+    const scrollport = b.view.container.querySelector('[data-conversation-scroll]') as HTMLElement
+    const handle = b.view.container.querySelector('[data-width-handle="right"]') as HTMLElement
+    const scrollBy = vi.fn()
+    Object.defineProperty(scrollport, 'clientHeight', { value: 480, configurable: true })
+    Object.defineProperty(scrollport, 'scrollBy', { value: scrollBy, configurable: true })
+    scrollport.style.lineHeight = '20px'
+
+    fireEvent.wheel(handle, { deltaY: 120, deltaMode: 0 })
+    expect(scrollBy).toHaveBeenLastCalledWith({ top: 120 })
+
+    fireEvent.wheel(handle, { deltaY: 3, deltaMode: 1 })
+    expect(scrollBy).toHaveBeenLastCalledWith({ top: 60 })
+    scrollport.style.lineHeight = 'normal'
+    fireEvent.wheel(handle, { deltaY: 3, deltaMode: 1 })
+    expect(scrollBy).toHaveBeenLastCalledWith({ top: 48 })
+    fireEvent.wheel(handle, { deltaY: -1, deltaMode: 2 })
+    expect(scrollBy).toHaveBeenLastCalledWith({ top: -480 })
+    const calls = scrollBy.mock.calls.length
+    fireEvent.wheel(handle, { deltaY: 0, deltaMode: 0 })
+    fireEvent.wheel(handle, { ctrlKey: true, deltaY: 120, deltaMode: 0 })
+    expect(scrollBy).toHaveBeenCalledTimes(calls)
+
+    scrollport.removeAttribute('data-conversation-scroll')
+    const nestedScrollport = document.createElement('div')
+    nestedScrollport.setAttribute('data-conversation-scroll', '')
+    const nestedScrollBy = vi.fn()
+    Object.defineProperty(nestedScrollport, 'scrollBy', { value: nestedScrollBy, configurable: true })
+    scrollport.append(nestedScrollport)
+    fireEvent.wheel(handle, { deltaY: 120, deltaMode: 0 })
+    expect(scrollBy).toHaveBeenCalledTimes(calls)
+    expect(nestedScrollBy).not.toHaveBeenCalled()
+  })
+
+  it('does not check capture, measure, style, or schedule width-handle moves before dragging', () => {
+    const b = mount(sessionSnapshotOf())
+    const handle = b.view.container.querySelector('[data-width-handle="right"]') as HTMLElement
+    const capture = vi.fn(() => false)
+    Object.defineProperty(handle, 'hasPointerCapture', { value: capture })
+    const measure = vi.spyOn(handle, 'getBoundingClientRect')
+    const style = vi.spyOn(handle.style, 'setProperty')
+    const schedule = vi.spyOn(globalThis, 'requestAnimationFrame')
+    try {
+      fireEvent.pointerMove(handle, { pointerId: 1, clientX: 800, clientY: 300 })
+      fireEvent.pointerMove(handle, { pointerId: 1, clientX: 802, clientY: 302 })
+      expect(capture).not.toHaveBeenCalled()
+      expect(measure).not.toHaveBeenCalled()
+      expect(style).not.toHaveBeenCalled()
+      expect(schedule).not.toHaveBeenCalled()
+    } finally {
+      schedule.mockRestore()
+      style.mockRestore()
+      measure.mockRestore()
+    }
+  })
+
+  it('starts width dragging only from the primary pointer button', () => {
+    const b = mount(sessionSnapshotOf())
+    const handle = b.view.container.querySelector('[data-width-handle="right"]') as HTMLElement
+    const captured = new Set<number>()
+    Object.defineProperties(handle, {
+      setPointerCapture: { configurable: true, value: (pointerId: number) => { captured.add(pointerId) } },
+      releasePointerCapture: { configurable: true, value: (pointerId: number) => { captured.delete(pointerId) } },
+      hasPointerCapture: { configurable: true, value: (pointerId: number) => captured.has(pointerId) },
+    })
+    fireEvent.pointerDown(handle, { pointerId: 1, button: 1, clientX: 800, clientY: 300 })
+    expect(handle.hasAttribute('data-dragging')).toBe(false)
+    fireEvent.pointerDown(handle, { pointerId: 2, button: 0, clientX: 800, clientY: 300 })
+    expect(handle.hasAttribute('data-dragging')).toBe(true)
+    fireEvent.pointerCancel(handle, { pointerId: 2 })
+    expect(handle.hasAttribute('data-dragging')).toBe(false)
+    fireEvent.pointerMove(handle, { pointerId: 2, clientX: 825, clientY: 300 })
+    expect(handle.style.getPropertyValue('--dsh-width-handle-pointer-y')).toBe('')
   })
 
   it('hero phase renders no width handles (no transcript to size)', () => {

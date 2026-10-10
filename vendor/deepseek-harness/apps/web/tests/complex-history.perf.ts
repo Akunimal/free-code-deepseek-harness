@@ -13,6 +13,7 @@ import type { StreamChunk } from '@deepseek-ai/dsh-llm'
 import {
   ToolCallId,
   createAssistantMessage,
+  createSystemMessage,
   createToolResultMessage,
   createUserMessage,
   expandAssistantStream,
@@ -196,11 +197,18 @@ function appendTitle(session: Session, title: string, messageSeq: SessionSeq): v
   })
 }
 
+function appendSystemPrompt(session: Session, turn: number, step: number): void {
+  session.append('system/message', {
+    turn,
+    step,
+    message: createSystemMessage('Synthetic performance system prompt.'),
+  }, { surfaceOp: 'append' })
+}
+
 function appendRequestHeader(session: Session, turn: number, step: number): void {
   session.append('request/header', {
     header: {
       config: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
-      system: `Synthetic performance system prompt for turn ${String(turn)}, step ${String(step)}.`,
     },
     reason: turn === 1 && step === 1 ? 'initial' : 'change',
   })
@@ -334,6 +342,7 @@ function smallSidebarFixture(): string {
   }), { surfaceOp: 'append' })
   appendTitle(session, 'Synthetic sidebar session', user.seq)
   session.append('step/start', { turn: 1, step: 1 })
+  appendSystemPrompt(session, 1, 1)
   appendRequestHeader(session, 1, 1)
   appendToolStep(session, 1, 1, 2)
   session.append('step/end', { turn: 1, step: 1 })
@@ -360,6 +369,7 @@ function longHistoryFixture(): string {
     if (turn === 1) appendTitle(session, LONG_SESSION_TITLE, user.seq)
 
     session.append('step/start', { turn, step: 1 })
+    if (turn === 1) appendSystemPrompt(session, turn, 1)
     appendRequestHeader(session, turn, 1)
     if (turn % TOOL_TURN_INTERVAL === 0) {
       appendToolStep(session, turn, 1, TOOLS_PER_TOOL_TURN)
@@ -999,9 +1009,9 @@ async function continueConversation(
       if (toolResult?.type !== 'tool/result') {
         throw new Error(`continued turn ${String(index)} did not log its tool result`)
       }
-      const resultBlock = toolResult.data.message.content.find(block => block.type === 'tool-result')
-      expect(resultBlock?.isError).toBe(false)
-      expect(resultBlock?.content
+      const message = toolResult.data.message
+      expect(message.isError).toBe(false)
+      expect(message.content
         .filter(block => block.type === 'text')
         .map(block => block.text)
         .join('')).toContain(spec.toolResultMarker)

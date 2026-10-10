@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { assertServiceable, Config } from '../src/config.ts'
+import { assertServiceable, Config, resolveProfiles, type Options } from '../src/config.ts'
 
 /** Validate one hand-declared route, with the caller's fields layered onto it. */
 const routeWith = (profile: Record<string, unknown>): (() => unknown) =>
-  () => Config({
+  () => ({ providers: Config({
     providers: {
       'acme-gateway': {
         api: 'openai-completions',
@@ -12,13 +12,22 @@ const routeWith = (profile: Record<string, unknown>): (() => unknown) =>
         ...profile,
       },
     },
-  })
+  }).providers.get() })
 
 /** Validate that route with the caller's fields on its single model entry. */
 const configWith = (model: Record<string, unknown>): (() => unknown) =>
   routeWith({ models: [{ id: 'm', ...model }] })
 
 describe('reasoning schema boundary', () => {
+  it('accepts an empty provider section and propagates unexpected catalog failures', () => {
+    expect(() => { assertServiceable({}) }).not.toThrow()
+    const failure = new TypeError('model metadata lookup failed')
+    expect(() => resolveProfiles({ openrouter: { models: [{
+      id: '111',
+      get name(): string { throw failure },
+    }], api: 'openai-completions' } }, 'deferred')).toThrow(failure)
+  })
+
   it('rejects a level pi-ai does not know at the write that produced it', () => {
     expect(configWith({ reasoningEfforts: { ultra: 'x' } })).toThrow(/"off"/)
     expect(configWith({ reasoningEfforts: { high: 42 } })).toThrow()
@@ -59,7 +68,7 @@ describe('modality schema boundary', () => {
     // well-typed, and the namespace validator is what refuses it. Asserting
     // only the schema would report this route as writable.
     expect(routeWith({ defaultInput: [] })).not.toThrow()
-    expect(() => { assertServiceable(routeWith({ defaultInput: [] })() as Config) })
+    expect(() => { assertServiceable(routeWith({ defaultInput: [] })() as Options) })
       .toThrow(/defaultInput must name at least one modality/)
   })
 
@@ -92,7 +101,7 @@ describe('request image policy bounds', () => {
           [field]: value,
         },
       },
-    } as unknown as Config
+    } as Options
     expect(() => {
       assertServiceable(programmatic)
     }).toThrow(message)

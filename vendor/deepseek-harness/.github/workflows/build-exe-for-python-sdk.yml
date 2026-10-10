@@ -22,7 +22,7 @@ on:
         required: false
         default: false
       ci:
-        description: Run as the required all-target Python runtime pull-request check.
+        description: Run Python runtime CI validation for the selected targets.
         type: boolean
         required: false
         default: false
@@ -46,7 +46,8 @@ concurrency:
   # github.workflow identifies the caller inside a reusable workflow and keeps
   # an ordinary CI run from cancelling a full release validation on the same ref.
   group: build-single-exe-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Release-owned builds are part of an intentional publication transaction.
+  cancel-in-progress: ${{ !inputs.release }}
 
 permissions:
   contents: read
@@ -62,7 +63,9 @@ jobs:
   plan:
     name: plan targets
     if: inputs.ci || inputs.release || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    runs-on: >-
+      ${{ inputs.ci && !inputs.release && vars.DSH_CI_FAILOVER_LINUX == 'blacksmith'
+          && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
@@ -122,7 +125,9 @@ jobs:
   sdk-wheel:
     needs: plan
     name: deepseek_harness_sdk-${{ needs.plan.outputs.version }}-py3-none-any.whl
-    runs-on: ubuntu-latest
+    runs-on: >-
+      ${{ inputs.ci && !inputs.release && vars.DSH_CI_FAILOVER_LINUX == 'blacksmith'
+          && 'blacksmith-4vcpu-ubuntu-2404' || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
@@ -147,10 +152,16 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  # Blacksmith x64 CI builds use 2 vCPU for compilation, bundling, and wheel smokes.
   build:
     needs: [plan, sdk-wheel]
     name: ${{ matrix.target }}
-    runs-on: ${{ matrix.runner }}
+    runs-on: >-
+      ${{ inputs.ci && !inputs.release && matrix.target == 'node24-linux-x64'
+          && vars.DSH_CI_FAILOVER_LINUX == 'blacksmith' && 'blacksmith-2vcpu-ubuntu-2404'
+          || inputs.ci && !inputs.release && matrix.target == 'node24-win-x64'
+          && vars.DSH_CI_FAILOVER_WINDOWS == 'blacksmith' && 'blacksmith-2vcpu-windows-2025'
+          || matrix.runner }}
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -158,6 +169,8 @@ jobs:
         include: ${{ fromJSON(needs.plan.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v4
         with:
@@ -194,7 +207,17 @@ jobs:
             pkg-fetch-${{ matrix.target }}-
 
       - name: Install (immutable)
-        run: pnpm install --frozen-lockfile
+        # node-gyp fetches Node headers from nodejs.org during install; that
+        # endpoint stalls intermittently (observed 10 s connect timeouts).
+        # Bounded retries mirror the wine lane's transfer policy without a
+        # mirror, since these installs also resolve native addons.
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            if pnpm install --frozen-lockfile; then exit 0; fi
+            [ "$attempt" -lt 3 ] && sleep 10
+          done
+          exit 1
 
       - name: Rebuild Linux node-pty against manylinux 2.28
         if: runner.os == 'Linux'
@@ -388,7 +411,7 @@ jobs:
                    || github.event.pull_request.user.login == 'dependabot[bot]'))
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY_EXTERNAL }}
-          DEEPSEEK_BASE_URL: https://api.deepseek.com
+          DEEPSEEK_BASE_URL: https://api.deepseek.com/anthropic
         run: |
           set -euo pipefail
           blackbox_root="$(python -c 'import tempfile; print(tempfile.mkdtemp(prefix="dsh-sdk-blackbox-live-"))')"
@@ -409,7 +432,7 @@ jobs:
         shell: pwsh
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY_EXTERNAL }}
-          DEEPSEEK_BASE_URL: https://api.deepseek.com
+          DEEPSEEK_BASE_URL: https://api.deepseek.com/anthropic
         run: |
           $blackboxRoot = (& python -c 'import tempfile; print(tempfile.mkdtemp(prefix="dsh-sdk-blackbox-live-"))').Trim()
           Remove-Item Env:PYTHONPATH -ErrorAction SilentlyContinue

@@ -27,9 +27,15 @@
    badge is a product addition outside that source: a mono superscript pill
    riding the title's top-right. */
 .headline {
-  display: grid;
-  grid-template-columns: 34px auto auto;
+  display: flex;
+  /* Overflow-driven: the fish and the title group are two wrap units sharing
+     one centered line while they fit; squeezed, the fish takes its own line
+     above the group. No breakpoint. */
+  flex-wrap: wrap;
   column-gap: 10px;
+  /* Wrapped, the fish sits on its own line; more air than the 10px side gap
+     keeps it reading as a mark above the title, not a squeezed inline glyph. */
+  row-gap: 12px;
   align-items: center;
   justify-content: center;
   font-size: 26px;
@@ -38,20 +44,28 @@
   color: var(--dsw-alias-label-primary);
 }
 
-.headlineText {
-  grid-row: 1;
-  grid-column: 2;
+/* Title text + badge as one wrap unit so the title never breaks mid-text with
+   the badge stranded beside a fragment. When the badge no longer fits beside
+   the title it wraps to its own centered line below; while both fit, the group
+   is content-sized and centering is a no-op, keeping the superscript snug. */
+.titleGroup {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  /* Superscript sits 7 from the title. */
+  column-gap: 7px;
+  row-gap: 4px;
+  min-width: 0;
 }
 
 .previewBadge {
-  grid-row: 1;
-  grid-column: 3;
-  align-self: start;
+  align-self: flex-start;
   margin-top: 2px;
-  margin-left: -3px;
   padding: 1px 7px 0;
   border: 0.5px solid var(--dsw-alias-interactive-bg-hover);
-  border-radius: 24px;
+  border-radius: 999px;
+  corner-shape: round;
   background: var(--dsw-alias-state-business-tertiary);
   color: var(--dsw-alias-label-primary-bluish);
   font-family: var(--ds-font-family-code);
@@ -64,9 +78,8 @@
 /* Keep hover detection on a stationary box while the mark moves within it;
    hover rules target the hitbox so a slot-occupant mark swims too. */
 .fishHitbox {
-  grid-row: 1;
-  grid-column: 1;
   display: inline-flex;
+  flex: none;
   align-items: center;
   justify-content: center;
 }
@@ -132,7 +145,10 @@
   padding-left: 8px;
 }
 
-/* Folder + label + chevron — transparent at rest; fill only on hover / open. */
+/* Folder + label + chevron — transparent at rest; fill only on hover / open.
+   Overflow-driven degradation, no breakpoint: the label shrinks with an
+   ellipsis down to nothing, so folder and chevron always sit snug against
+   whatever text remains — full text, ellipsized text, or none. */
 .workspace {
   display: inline-flex;
   align-items: center;
@@ -141,7 +157,7 @@
   min-height: 28px;
   padding: 0 8px;
   border: none;
-  border-radius: 16px;
+  border-radius: var(--dsw-radius-sm);
   background: transparent;
   color: var(--dsw-alias-label-primary);
   font-size: 13px;
@@ -167,6 +183,7 @@
 }
 
 .workspaceLabel {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -177,7 +194,7 @@
   color: var(--dsw-alias-label-caption);
 }
 
-/* Dialog field: 44 tall on the modal's 332 content column, r22, hairline
+/* Dialog field: 44 tall on the modal's 332 content column, hairline
    border, pad 14/7, 14/22 wt400 primary text, caption placeholder. Focus
    keeps the resting border (design shows no focus ring). */
 .modalInput {
@@ -186,7 +203,7 @@
   height: 44px;
   padding: 7px 14px;
   border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: 22px;
+  border-radius: var(--dsw-radius-lg);
   outline: none;
   background: transparent;
   font-size: 14px;

@@ -4,9 +4,10 @@
  * attachment service's full decode stays authoritative. The mounted `ctx.fs`
  * backend owns path resolution and read access; names only declare media type.
  *
- * Vision routes receive a durable image block. Text-only routes use the
- * product-managed OCR bridge and receive bounded text instead; unknown
- * capability still refuses before filesystem work.
+ * The route gate is deliberately stricter than the host upload preflight. An
+ * image-reading tool is useful only when the exact calling route can inspect
+ * its result, so unknown capability refuses instead of relying on an adapter
+ * failure after filesystem and attachment work.
  * @module @deepseek-ai/dsh-tool-fs/src/read-image
  */
 
@@ -15,7 +16,6 @@ import type { Context } from '@deepseek-ai/cordis'
 import { AttachmentError, AttachmentId } from '@deepseek-ai/dsh-attachment'
 import type { AttachmentStore, ImageAttachmentRef, ImageMediaType } from '@deepseek-ai/dsh-attachment'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import { extractTextFromImage } from '@deepseek-ai/dsh-llm'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView, ToolExecution } from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-fs'
@@ -62,6 +62,7 @@ export function sniffImageMediaType(data: Uint8Array): ImageMediaType | undefine
 const IMAGE_VALUE_SCHEMA = {
   type: 'object',
   additionalProperties: false,
+  required: true,
   properties: {
     attachmentId: { type: 'string', required: true },
     mediaType: { type: 'string', enum: ['image/png', 'image/jpeg', 'image/webp', 'image/gif'], required: true },
@@ -83,7 +84,7 @@ const IMAGE_VALUE_SCHEMA = {
 /** The structured outcome declared by the `read_image` output schema. */
 export interface ImageReadValue {
   path: string
-  image?: {
+  image: {
     attachmentId: string
     mediaType: ImageMediaType
     bytes: number
@@ -96,7 +97,6 @@ export interface ImageReadValue {
       height: number
     }
   }
-  ocrText?: string
 }
 
 /**
@@ -116,11 +116,7 @@ export function imageMediaTypeForPath(filePath: string): ImageMediaType | undefi
  * @param exec - the tool-execution context supplying the calling agent.
  * @param requestedPath - the raw, not-yet-resolved path rendered in refusal messages.
  */
-export async function resolveImageRoute(
-  ctx: Context,
-  exec: ToolExecution,
-  requestedPath: string,
-): Promise<{ model: string; vision: boolean }> {
+export async function assertImageCapableRoute(ctx: Context, exec: ToolExecution, requestedPath: string): Promise<void> {
   const routed = exec.agent?.session.requestHeader()?.config
   const provider = routed?.provider ?? exec.agent?.options.provider
   const model = routed?.model ?? exec.agent?.options.model
@@ -129,14 +125,8 @@ export async function resolveImageRoute(
     throw new Error(`cannot read "${requestedPath}" as an image: the current model route could not be resolved`)
   }
   const active = await llm.resolveModelInfo(provider, model, exec.signal)
-  return { model, vision: active.inputModalities?.includes('image') === true }
-}
-
-/** Preserve the historical exported guard for callers that require vision. */
-export async function assertImageCapableRoute(ctx: Context, exec: ToolExecution, requestedPath: string): Promise<void> {
-  const route = await resolveImageRoute(ctx, exec, requestedPath)
-  if (!route.vision) {
-    throw new Error(`cannot read "${requestedPath}" as an image: model "${route.model}" does not declare image input; OCR is available for text-only requests`)
+  if (active.inputModalities === undefined || !active.inputModalities.includes('image')) {
+    throw new Error(`cannot read "${requestedPath}" as an image: model "${model}" does not declare image input; switch to an image-capable model to read images`)
   }
 }
 
@@ -153,7 +143,7 @@ function assertDeploymentAccepts(attachments: AttachmentStore, mediaType: ImageM
  * @param image - the image metadata from the output schema.
  * @returns the branded attachment reference.
  */
-export function imageRefFromValue(image: NonNullable<ImageReadValue['image']>): ImageAttachmentRef {
+export function imageRefFromValue(image: ImageReadValue['image']): ImageAttachmentRef {
   return {
     attachmentId: AttachmentId(image.attachmentId),
     mediaType: image.mediaType,
@@ -175,7 +165,7 @@ export function imageRefFromValue(image: NonNullable<ImageReadValue['image']>): 
  * @param image - the image metadata to summarize.
  * @returns the model-facing envelope; the image itself rides the adjacent image block.
  */
-export function formatImageReadOutput(displayPath: string, image: NonNullable<ImageReadValue['image']>): string {
+export function formatImageReadOutput(displayPath: string, image: ImageReadValue['image']): string {
   let scaled = ''
   if (image.originalDimensions !== undefined) {
     // Integer rounding can give the two axes slightly different ratios, so the
@@ -200,13 +190,6 @@ ${image.mediaType} image, ${image.width}x${image.height} px, ${image.bytes} byte
  * @returns the two content blocks used by native and nested dispatches.
  */
 function imageReadContent(value: ImageReadValue): ContentBlock[] {
-  if (value.ocrText !== undefined) {
-    return [{
-      type: 'text',
-      text: `<path>${value.path}</path>\n<type>ocr</type>\n<content>\n${value.ocrText}\n</content>`,
-    }]
-  }
-  if (value.image === undefined) return [{ type: 'text', text: `(${value.path} returned no image or OCR text)` }]
   return [
     { type: 'text', text: formatImageReadOutput(value.path, value.image) },
     { type: 'image', attachment: imageRefFromValue(value.image) },
@@ -225,10 +208,8 @@ function imageReadContent(value: ImageReadValue): ContentBlock[] {
 export function applyReadImageTool(ctx: Context): void {
   ctx.tools.register(defineTool({
     name: 'read_image',
-    description: 'Read a PNG/JPEG/WebP/GIF file and return the image itself, or run the bundled OCR bridge for a text-only model. '
-      + 'A path without a file extension is accepted; the format is detected from the file content, so normalized attachment paths can be passed directly without copying or renaming. '
-      + 'Harness validates and downscales large supported images before the next model request, so use this tool directly instead of installing image libraries or creating thumbnails merely to inspect an image. '
-      + 'Independent files may be read concurrently in small batches. Vision models receive the image; text-only models receive OCR text.',
+    description: 'Read a PNG/JPEG/WebP/GIF file and return the image itself. '
+      + 'Large images are downscaled automatically; do not install image libraries or create thumbnails to inspect an image.',
     parameters: {
       file_path: { type: 'string', required: true, description: 'Path to the image file, resolved by the filesystem backend.' },
     },
@@ -239,7 +220,6 @@ export function applyReadImageTool(ctx: Context): void {
         properties: {
           path: { type: 'string', required: true },
           image: IMAGE_VALUE_SCHEMA,
-          ocrText: { type: 'string' },
         },
       },
       render: (_args, value) => imageReadContent(value),
@@ -273,7 +253,7 @@ export function applyReadImageTool(ctx: Context): void {
         throw new Error(`cannot read "${args.file_path}" as an image: no attachment service is mounted`)
       }
       if (declared !== undefined) assertDeploymentAccepts(attachments, declared, args.file_path)
-      const route = await resolveImageRoute(ctx, exec, args.file_path)
+      await assertImageCapableRoute(ctx, exec, args.file_path)
 
       const { target, info } = await resolveRegularReadTarget(ctx, exec, args.file_path)
 
@@ -286,16 +266,6 @@ export function applyReadImageTool(ctx: Context): void {
         throw new Error(`cannot read "${target.displayPath}": the file content is not a supported image format; read_image accepts PNG/JPEG/WebP/GIF`)
       }
       if (declared === undefined) assertDeploymentAccepts(attachments, mediaType, target.displayPath)
-      if (!route.vision) {
-        // Validate dimensions/decoding through the deployment's authoritative
-        // image admission path, but do not persist an image the text-only
-        // route cannot consume. OCR receives the already-resolved target path,
-        // never a model-provided path or shell command.
-        await attachments.validateImage({ data, mediaType, name: basename(target.displayPath) })
-        const ocrText = await extractTextFromImage(ctx.fs.processPath(target), { signal: exec.signal })
-        ctx.emit('fs/observed', target, { kind: 'present', version: info.version }, exec)
-        return { path: target.displayPath, ocrText }
-      }
       // Persist before returning: the image block must reference a durably
       // committed object by the time the tool/result event is appended.
       let ref: ImageAttachmentRef

@@ -27,7 +27,13 @@
       "path": "../ui-primitives"
     },
     {
+      "path": "../ui-dockkit"
+    },
+    {
       "path": "../ui-renderer"
+    },
+    {
+      "path": "../../host/webserver"
     }
   ],
   "exclude": [

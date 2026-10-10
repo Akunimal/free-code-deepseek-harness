@@ -5,7 +5,7 @@
 
 .toast {
   position: fixed;
-  top: 120px;
+  top: 40px;
   left: 50%;
   /* Above the 1000 the image lightbox backdrop uses: a failure reported while
      a preview is open must stay readable. */
@@ -15,11 +15,19 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  max-width: min(560px, calc(100vw - 48px));
+  /* Fixed boxes with `left` set shrink-to-fit against the space RIGHT of
+     `left` (the -50% translate happens after sizing), so an anchored banner
+     near the window edge would wrap early. max-content sizes the box from
+     its text alone, capped by the max-width below. */
+  width: max-content;
+  max-width: min(640px, calc(100vw - 48px));
   padding: 12px 16px;
-  border-radius: 14px;
-  background: var(--dsw-alias-button-contrast-fill);
-  color: var(--dsw-alias-label-primary-inverted);
+  border-radius: var(--dsw-radius-lg);
+  /* The design platform's toast surface is dark in BOTH themes (bluish-800
+     light / bluish-750 dark), so the label and the action text below stay
+     fixed instead of flipping with the theme. */
+  background: var(--dsw-alias-toast-bg);
+  color: var(--dsw-alias-toast-label);
   font-size: 14px;
   line-height: 22px;
   box-shadow: var(--dsw-shadow-lv3);
@@ -36,8 +44,33 @@
   color: var(--dsw-alias-state-warn-label);
 }
 
+.icon.success {
+  color: var(--dsw-alias-state-success-primary);
+}
+
 .text {
   min-width: 0;
+}
+
+.action {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  /* deepseek-400, brightened at the designer's request, reads as the action
+     against the always-dark toast surface without an underline. */
+  color: var(--dsw-static-deepseek-400);
+  font: inherit;
+  cursor: pointer;
+  /* Breathing room where the action text meets the surrounding copy. */
+  margin-inline: 3px;
+  /* The banner surface stays click-through (`pointer-events: none` above);
+     only its action text takes the pointer. */
+  pointer-events: auto;
+}
+
+.action:hover {
+  opacity: 0.8;
 }
 
 @keyframes dsh-toast-in {
@@ -55,6 +88,7 @@
 @keyframes dsh-toast-fade {
   to {
     opacity: 0;
+    visibility: hidden;
   }
 }
 

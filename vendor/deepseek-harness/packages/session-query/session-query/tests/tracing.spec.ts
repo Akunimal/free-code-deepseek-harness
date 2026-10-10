@@ -1,4 +1,5 @@
 import { createUserMessage, createMessage } from '@deepseek-ai/dsh-llm'
+import type { ContextFormed } from '@deepseek-ai/dsh-llm'
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import SessionStore, { SessionLogOffset, SessionSeq, SESSION_FORMAT_VERSION, SessionId } from '@deepseek-ai/dsh-session'
@@ -12,10 +13,17 @@ import SessionPersistence, {
 import type {
   SessionAccess,
   SessionHandle,
+  SessionHandleReadResult,
   SessionPersistenceSnapshot,
 } from '@deepseek-ai/dsh-session-persistence'
 import { type SessionQueryErrorCode } from '@deepseek-ai/dsh-session-query'
 import { TestSessionQueryEngine } from './test-service.ts'
+
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    'test': { kind: 'test' } & ContextFormed
+  }
+}
 
 type MutableSessionHeader = { -readonly [K in keyof SessionHeader]: SessionHeader[K] }
 
@@ -37,7 +45,7 @@ function appendEvent(seq: number, sources?: readonly number[]): SessionEvent {
       content: [{ type: 'text', text: `event ${seq}` }], source: { kind: 'user' },
     }),
     surfaceOp: 'append',
-    ...sources === undefined ? {} : { sourceEventSeqs: sources as unknown as SessionSeq[] },
+    ...sources === undefined ? {} : { sourceEventSeqs: sources as SessionSeq[] },
   }
 }
 
@@ -49,12 +57,12 @@ class TraceHandle implements SessionHandle {
     readonly access: SessionAccess,
   ) {}
 
-  read(): Promise<readonly SessionEvent[]> {
+  read(): Promise<SessionHandleReadResult> {
     TracePersistence.readCalls += 1
     if (TracePersistence.readFailure !== undefined) return Promise.reject(TracePersistence.readFailure)
     const entry = TracePersistence.entries.get(this.id)
     if (entry === undefined) return Promise.reject(new SessionPersistenceNotFoundError(this.id))
-    return Promise.resolve(structuredClone(entry.events))
+    return Promise.resolve({ eventState: 'detached', events: structuredClone(entry.events) })
   }
 
   append(): Promise<void> {
@@ -157,17 +165,17 @@ function appendTraceEvents(session: Session): void {
     'user/message',
     createUserMessage({
       content: [{ type: 'text', text: 'summary one' }],
-      source: { kind: 'plugin', plugin: 'test' },
+      source: { kind: 'test' },
     }),
     {
-      surfaceOp: { op: 'replace', start: SessionSeq(3), end: SessionSeq(3) },
+      surfaceOp: { op: 'replace', startSeq: SessionSeq(3), endSeq: SessionSeq(3) },
       sourceEventSeqs: [SessionSeq(3), SessionSeq(2)],
     },
   )
   session.append(
     'user/message',
     createUserMessage({
-      content: [{ type: 'text', text: 'context' }], source: { kind: 'plugin', plugin: 'test' },
+      content: [{ type: 'text', text: 'context' }], source: { kind: 'test' },
     }),
     { surfaceOp: 'append' },
   )
@@ -177,10 +185,10 @@ function appendTraceEvents(session: Session): void {
     'user/message',
     createUserMessage({
       content: [{ type: 'text', text: 'summary two' }],
-      source: { kind: 'plugin', plugin: 'test' },
+      source: { kind: 'test' },
     }),
     {
-      surfaceOp: { op: 'replace', start: SessionSeq(4), end: SessionSeq(4) },
+      surfaceOp: { op: 'replace', startSeq: SessionSeq(4), endSeq: SessionSeq(4) },
       sourceEventSeqs: [SessionSeq(2), SessionSeq(4)],
     },
   )
@@ -377,7 +385,7 @@ describe('session event tracing', () => {
     live.append(
       'user/message',
       createUserMessage({
-        content: [{ type: 'text', text: 'live' }], source: { kind: 'plugin', plugin: 'test' },
+        content: [{ type: 'text', text: 'live' }], source: { kind: 'test' },
       }),
       { surfaceOp: 'append' },
     )
@@ -423,8 +431,7 @@ describe('session event tracing', () => {
           },
         }),
       },
-      surfaceOp: { op: 'replace', start: SessionSeq(9), end: SessionSeq(9) },
-      sourceEventSeqs: [],
+      surfaceOp: { op: 'replace', startSeq: SessionSeq(9), endSeq: SessionSeq(9) },
     }]
     TracePersistence.reset([{ meta: bad, events: malformed }])
     const ctx = await queryContext()
@@ -463,7 +470,7 @@ describe('session event tracing', () => {
     ]],
     ['replacement without sources', [
       appendEvent(0),
-      { ...appendEvent(1), surfaceOp: { op: 'replace', start: 0, end: 0 } },
+      { ...appendEvent(1), surfaceOp: { op: 'replace', startSeq: 0, endSeq: 0 } },
     ]],
     ['replacement missing a shadowed source', [
       {
@@ -474,10 +481,10 @@ describe('session event tracing', () => {
         },
       },
       appendEvent(SessionSeq(1)),
-      { ...appendEvent(SessionSeq(2), [0]), surfaceOp: { op: 'replace', start: 1, end: 1 } },
+      { ...appendEvent(SessionSeq(2), [0]), surfaceOp: { op: 'replace', startSeq: 1, endSeq: 1 } },
     ]],
   ] as const)('rejects an invalid surface log: %s', async (_name, rawEvents) => {
-    const durable = header('invalid-provenance')
+    const durable = header('invalid-source-reference')
     const events = structuredClone(rawEvents) as unknown as SessionEvent[]
     TracePersistence.reset([{ meta: durable, events }])
     const ctx = await queryContext()

@@ -2,7 +2,9 @@
  * Web runtime glue behavior: dist resolution through the bundle's own hook,
  * the frontend-static child claiming the fallback seat, the web-surface
  * prompt section and bash runtime variables, and readiness publication through
- * the URL line and default-browser handoff.
+ * the URL line and default-browser handoff. The advertised URL comes from this
+ * plugin's `publicUrl` config (loopback when unset), never from the bound
+ * webserver.
  */
 
 import { EventEmitter } from 'node:events'
@@ -11,8 +13,10 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { PassThrough } from 'node:stream'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
+import Loader from '@deepseek-ai/cordis-plugin-loader'
+import * as AppBoot from '@deepseek-ai/dsh-app-boot'
 import { createLaunchEnvironmentSnapshot, DSH_LAUNCH_ENVIRONMENT_KEY } from '@deepseek-ai/dsh-launch-environment'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import type { WebServer } from '@deepseek-ai/dsh-host-webserver'
@@ -55,7 +59,7 @@ type BrowserLauncher = ChildProcess & { stderr: PassThrough }
 
 /** Minimal browser-launcher process for the native handoff adapter. */
 function launcher(): BrowserLauncher {
-  return Object.assign(new EventEmitter(), { stderr: new PassThrough() }) as unknown as BrowserLauncher
+  return Object.assign(new EventEmitter(), { stderr: new PassThrough() }) as BrowserLauncher
 }
 
 /** Stage a dist fixture and point the bundle's resolver at it. */
@@ -86,9 +90,10 @@ function fakeHttpServer(host: '127.0.0.1' | '0.0.0.0' = '127.0.0.1'): { server: 
 /** Deterministic Host Connection face for URL publication and frontend injection. */
 function provideConnection(ctx: Context): void {
   ctx.provide('connection', {
+    // Adds the process token to the given canonical root, preserving any
+    // public mount prefix the caller passed.
     authenticatedUrl(baseUrl: string) {
       const url = new URL(baseUrl)
-      url.pathname = '/'
       url.searchParams.set('token', 'test-token')
       return url.href
     },
@@ -100,7 +105,7 @@ function provideConnection(ctx: Context): void {
 
 /** A fake Loader whose settlement the test controls (the URL line waits on it). */
 function provideLoader(ctx: Context, settle: () => Promise<void> = async () => {}): void {
-  ctx.provide('loader', { await: settle } as never)
+  ctx.provide('loader', { await: settle, entries: () => [] } as never)
 }
 
 interface BashContribution {
@@ -134,7 +139,7 @@ describe('web-app runtime glue', () => {
     const openBrowser = vi.fn(async (url: string) => { lifecycle.push(`open:${url}`) })
     internals.openBrowser = openBrowser
     apply(ctx, new Config({ openBrowser: true, printUrl: true, surfaceContext: true, trustedHosts: ['lab.internal'] }))
-    await ctx.plugin(SystemPrompt, { persona: '' })
+    await ctx.plugin(SystemPrompt, { personaPrefix: '' })
     // Settle the injected registrations.
     await new Promise(resolve => setTimeout(resolve, 0))
 
@@ -163,6 +168,48 @@ describe('web-app runtime glue', () => {
     await ctx.fiber.dispose()
   })
 
+  it('advertises and opens the configured public root behind a prefix-stripping proxy', async () => {
+    stageDist()
+    const ctx = new Context()
+    onTestFinished(() => ctx.fiber.dispose())
+    const { server } = fakeHttpServer()
+    ctx.provide('webServer', server)
+    provideConnection(ctx)
+    const contributions: BashContribution[] = []
+    ctx.provide('shellEnv', {
+      register: (contribution: BashContribution) => {
+        contributions.push(contribution)
+        return () => {}
+      },
+    } as never)
+    provideLoader(ctx)
+    const lifecycle: string[] = []
+    vi.spyOn(console, 'log').mockImplementation((message) => { lifecycle.push(String(message)) })
+    const openBrowser = vi.fn(async (url: string) => { lifecycle.push(`open:${url}`) })
+    internals.openBrowser = openBrowser
+    apply(ctx, new Config({
+      openBrowser: true,
+      printUrl: true,
+      surfaceContext: true,
+      publicUrl: 'https://proxy.example:8443/web',
+      trustedHosts: ['proxy.example:8443'],
+    }))
+    await ctx.plugin(SystemPrompt, { personaPrefix: '' })
+    await vi.waitFor(() => { expect(openBrowser).toHaveBeenCalled() })
+
+    expect(lifecycle).toEqual([
+      'dsh web: https://proxy.example:8443/web/?token=test-token',
+      'dsh web: opening the default browser; pass --no-open to disable',
+      'open:https://proxy.example:8443/web/?token=test-token',
+    ])
+    const assembly = await ctx.systemPrompt.assemble()
+    const section = assembly.sections.find(entry => entry.name === 'app:web-surface')
+    expect(section?.text).toContain('https://proxy.example:8443/web/')
+    expect(section?.text).not.toContain('127.0.0.1')
+    const urlContribution = contributions.find(contribution => contribution.name === 'web-runtime')
+    expect(urlContribution?.resolve()).toEqual({ DSH_WEB_URL: 'https://proxy.example:8443/web/' })
+  })
+
   it('publishes no readiness side effect when printing and browser opening are disabled', async () => {
     stageDist()
     const ctx = new Context()
@@ -172,7 +219,7 @@ describe('web-app runtime glue', () => {
     const openBrowser = vi.fn(async () => {})
     internals.openBrowser = openBrowser
     apply(ctx, new Config({ openBrowser: false, printUrl: false, surfaceContext: true, trustedHosts: [] }))
-    await ctx.plugin(SystemPrompt, { persona: '' })
+    await ctx.plugin(SystemPrompt, { personaPrefix: '' })
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(log).not.toHaveBeenCalled()
     expect(openBrowser).not.toHaveBeenCalled()
@@ -195,7 +242,7 @@ describe('web-app runtime glue', () => {
       },
     } as never)
     apply(ctx, new Config({ openBrowser: false, printUrl: false, surfaceContext: false, trustedHosts: [] }))
-    await ctx.plugin(SystemPrompt, { persona: '' })
+    await ctx.plugin(SystemPrompt, { personaPrefix: '' })
     await new Promise(resolve => setTimeout(resolve, 0))
     const assembly = await ctx.systemPrompt.assemble()
     expect(assembly.sections.some(entry => entry.name === 'app:web-surface')).toBe(false)
@@ -232,6 +279,17 @@ describe('web-app runtime glue', () => {
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(log).toHaveBeenCalledTimes(1)
     await ctx.fiber.dispose()
+  })
+
+  it('advertises the loopback URL when the composition sets publicUrl to null', async () => {
+    stageDist()
+    const ctx = new Context()
+    onTestFinished(() => ctx.fiber.dispose())
+    ctx.provide('webServer', fakeHttpServer().server)
+    provideConnection(ctx)
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    apply(ctx, new Config({ openBrowser: false, printUrl: true, surfaceContext: false, publicUrl: null as never, trustedHosts: [] }))
+    await vi.waitFor(() => { expect(log).toHaveBeenCalledWith('dsh web: http://127.0.0.1:4567/?token=test-token') })
   })
 
   it.each([
@@ -313,6 +371,39 @@ describe('web-app runtime glue', () => {
     await torn.fiber.dispose()
   })
 
+  it.each([
+    { id: 'webserver', announces: false },
+    { id: 'modules', announces: false },
+    { id: 'connection', announces: false },
+    { id: 'optional-tool', announces: true },
+  ])('announces readiness=$announces after the $id sibling fails', async ({ id, announces }) => {
+    stageDist()
+    const ctx = new Context()
+    onTestFinished(() => ctx.fiber.dispose())
+    ctx.baseUrl = 'file:///'
+    ctx.provide('webServer', fakeHttpServer().server)
+    provideConnection(ctx)
+    await ctx.plugin(Loader)
+    ctx.loader.builtins.failure = () => { throw new Error('sibling rejected') }
+    await ctx.loader.root.update([{ id, name: 'cordis:failure' }])
+    await ctx.loader.await()
+    await expect(ctx.loader.resolve(id).fiber?.await()).rejects.toThrow('sibling rejected')
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const openBrowser = vi.fn(async () => {})
+    internals.openBrowser = openBrowser
+    const audit = vi.spyOn(AppBoot, 'auditStartupEntries')
+    apply(ctx, new Config({ openBrowser: true, printUrl: true, surfaceContext: false, trustedHosts: [] }))
+    await vi.waitFor(() => { expect(audit).toHaveBeenCalledOnce() })
+    await Promise.allSettled(audit.mock.results.map(result => result.value as Promise<void>))
+    if (announces) {
+      expect(log).toHaveBeenCalledWith('dsh web: http://127.0.0.1:4567/?token=test-token')
+      expect(openBrowser).toHaveBeenCalledWith('http://127.0.0.1:4567/?token=test-token')
+    } else {
+      expect(log).not.toHaveBeenCalled()
+      expect(openBrowser).not.toHaveBeenCalled()
+    }
+  })
+
   it('fails loud when the prompt section resolves against a portless webserver', async () => {
     stageDist()
     const ctx = new Context()
@@ -323,7 +414,7 @@ describe('web-app runtime glue', () => {
     ctx.provide('webServer', server)
     provideConnection(ctx)
     apply(ctx, new Config({ openBrowser: false, printUrl: false, surfaceContext: true, trustedHosts: [] }))
-    await ctx.plugin(SystemPrompt, { persona: '' })
+    await ctx.plugin(SystemPrompt, { personaPrefix: '' })
     await new Promise(resolve => setTimeout(resolve, 0))
     await expect(ctx.systemPrompt.assemble()).rejects.toThrow('webServer service missing')
     await ctx.fiber.dispose()

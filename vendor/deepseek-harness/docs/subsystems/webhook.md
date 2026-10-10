@@ -2,11 +2,11 @@
 
 English | [中文](webhook.zh.md)
 
-The Webhook subsystem turns authenticated external deliveries into optional ordinary root Sessions. Provider adapters own authentication and generic JSON intake; trusted programmatic rules own conditions and external calls; `ctx.webhookRuntime` owns callback lifetime plus Workspace-backed Session creation. The [implemented decision](../../.agents/notes/implemented/feature/2026-08-22-fire-and-forget-webhook-sessions.md) records why the runtime keeps no delivery or completion state.
+The Webhook subsystem turns authenticated external deliveries into optional ordinary root Sessions. Provider adapters own authentication and generic JSON intake; trusted programmatic rules own conditions and external calls; `ctx.webhookRuntime` owns callback lifetime plus Workspace-backed Session creation. The [historical implemented decision](../../.agents/notes/archived/feature/2026-08-22-fire-and-forget-webhook-sessions.md) records why the runtime keeps no delivery or completion state.
 
 ## Shared values
 
-`WebhookRuleId`, `WebhookSourceId`, and `WebhookDeliveryId` are opaque strings. A delivery id is provenance only: the runtime neither stores nor deduplicates it.
+`WebhookRuleId`, `WebhookSourceId`, and `WebhookDeliveryId` are opaque strings. A delivery id records the provider's identifier only: the runtime neither stores nor deduplicates it.
 
 `WebhookEventMap` is merge-extensible by provider kind. `WebhookEventOf<K>` selects a known provider event and otherwise admits generic lossless JSON, allowing an out-of-tree adapter without changing the runtime package.
 
@@ -26,7 +26,7 @@ The runtime has no queue, retry, deduplication, execution status, crash replay, 
 
 A non-null result is snapshotted before asynchronous preflight. The runtime validates permission and agent presets, resolves or creates the canonical Workspace, creates an Agent whose Session cwd equals the Workspace path, mounts the selected agent preset before publication, and durably attaches the Session before applying permission, title, and the initial follow-up.
 
-The follow-up is a normal durable user-role message with `source.kind: "webhook"` and provider/source/delivery/rule provenance. Its accepted inbox insertion commits the webhook operation. The runtime does not specially flush or wait for the turn; ordinary Session persistence and Agent lifecycle apply afterward.
+The follow-up is a normal durable user-role message with `source.kind: "webhook"` and the provider, source, delivery, and rule identifiers. Its accepted inbox insertion commits the webhook operation. The runtime does not specially flush or wait for the turn; ordinary Session persistence and Agent lifecycle apply afterward.
 
 Failed attachment disposes the new Agent before a prompt exists. A failure between attachment and prompt admission attempts Workspace detach and Agent disposal without replacing the original error. A Workspace automatically created during preflight remains because another concurrent caller may already use it.
 

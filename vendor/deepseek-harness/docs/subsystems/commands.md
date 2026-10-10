@@ -2,7 +2,7 @@
 
 English | [中文](commands.zh.md)
 
-The human-command registry service from [`dsh-commands`](../../packages/interaction/commands). Interactive adapters use it to discover and directly execute plugin-owned commands for an exact agent without creating a model message. The [command Agent Note](../../.agents/notes/implemented/feature/2026-07-19-plugin-command-registration.md) owns dispatch and lifecycle rationale; the [package README](../../packages/interaction/commands/README.md) owns composition and limitations.
+The human-command registry service from [`dsh-commands`](../../packages/interaction/commands). Interactive adapters use it to discover and directly execute plugin-owned commands for an exact agent without creating a model message. The [historical command Agent Note](../../.agents/notes/archived/feature/2026-07-19-plugin-command-registration.md) records dispatch and lifecycle rationale; the [package README](../../packages/interaction/commands/README.md) owns composition and limitations.
 
 Source: [`packages/interaction/commands/src/index.ts`](../../packages/interaction/commands/src/index.ts)
 
@@ -33,6 +33,8 @@ interface CommandInputDescriptor {
 ```ts type-equiv
 /** Plugin-owned command registration. */
 interface CommandDefinition {
+  /** Stable plugin-owned identity; absent for definitions without identity-based client behavior. */
+  readonly definitionId?: CommandDefinitionId
   /** Lowercase command name without the leading slash. */
   readonly name: string
   /** Human-readable summary used in discovery UI. */
@@ -97,6 +99,8 @@ Adapters receive handler-free immutable descriptors after scope resolution. `par
 ```ts type-equiv
 /** Handler-free immutable command view returned to UI adapters. */
 interface CommandDescriptor {
+  /** Stable plugin-owned identity; absent for definitions without identity-based client behavior. */
+  readonly definitionId?: CommandDefinitionId
   /** Lowercase command name without the leading slash. */
   readonly name: string
   /** Human-readable summary used in discovery UI. */

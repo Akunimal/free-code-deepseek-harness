@@ -265,7 +265,7 @@ export function presentGrepResult(
 }
 
 /**
- * Register the `grep` tool and its system-prompt guidance.
+ * Register the `grep` tool and its scope-aware system-prompt guidance.
  *
  * @param ctx - the plugin context; registrations are effects scoped to it, and
  *   execution uses its `subprocess` service.
@@ -275,14 +275,16 @@ export function applyGrepTool(ctx: Context, caps: GrepToolCaps): void {
   ctx.systemPrompt.section({
     name: 'tool:grep',
     order: ctx.systemPrompt.getSectionOrder('TOOL_GREP'),
-    text: 'Use the grep tool — not shell grep or rg — to search file contents. Use read on a matched file when you need surrounding context.',
+    text: ({ scope }) => ctx.tools.get('grep', scope) === undefined
+      ? ''
+      : 'Use the grep tool — not shell grep or rg — to search file contents.'
+        + (ctx.tools.get('read', scope) === undefined ? '' : ' Use read on a matched file when you need surrounding context.'),
   })
 
   const tool = defineTool({
     name: 'grep',
     description: 'Search file contents with a ripgrep regular expression. Returns matching lines with line numbers, grouped by file. '
-      + `Returns the first ${caps.maxMatches} matches inline; a capped result reports where the complete match list was saved. `
-      + 'Use read on a matched file for surrounding context.',
+      + `Returns up to ${caps.maxMatches} matches; a larger result reports where the complete match list was saved.`,
     parameters: {
       pattern: { type: 'string', required: true, description: 'Regular expression to search for (ripgrep syntax).' },
       path: { type: 'string', description: 'File or directory to search. Defaults to the session workspace; a relative path resolves against it.' },

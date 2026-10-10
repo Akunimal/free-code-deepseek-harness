@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-session-format-catalog` gives persistence one deterministic Session format reader without consulting mounted plugins. It assembles the frozen v0, v1, and v2 codecs with the adjacent v0-to-v1 and v1-to-v2 edges, checks the complete gap-free chain at module initialization, and exposes physical dispatch, header-only classification, migration, and current encoding through `sessionFormatCatalog`.
+`dsh-session-format-catalog` gives persistence one deterministic Session format reader without consulting mounted plugins. It assembles codecs and adjacent edges from the earliest supported format through the [current writer format](../../../docs/session-format-status.md), checks the complete gap-free chain at module initialization, and exposes physical dispatch, header-only classification, single-pass row restoration, and current record encoding through `sessionFormatCatalog`.
 
 ## Table of Contents
 
@@ -27,18 +27,27 @@ English | [中文](README.zh.md)
 
 ### When to use it
 
-Import this library from persistence and test-support readers that need the complete first-party released-format inventory before any feature plugin mounts. Feature compositions do not register or reorder its entries. No runtime invariant companion is published because construction rejects an invalid static inventory and each read validates its complete result; the catalog retains no independently mutable runtime relationship.
+Import this library from persistence and test-support readers that need the complete first-party released-format inventory before any feature plugin mounts. Feature compositions do not register or reorder its entries.
 
 ### Entry point
 
 ```text
 const descriptor = sessionFormatCatalog.readHeader(physicalHeader)
-const current = sessionFormatCatalog.migrate(sessionFormatCatalog.decodeArtifact(physicalHeader, rows))
+const catalog = createSessionFormatCatalogWithChildren(childFacts)
+const restore = catalog.createRestore(physicalHeader, { recovery: 'recoverable', validation: 'transformed' })
+for (const row of physicalRows) restore.decodeRow(row)
+const current = restore.finish()
+const headerRecord = sessionFormatCatalog.encodeCurrentHeader(current.header, current.inheritedEventCount)
+const eventRecords = current.events.map(sessionFormatCatalog.encodeCurrentEvent)
 ```
 
-Import `sessionFormatCatalog` from the package root. JSONL readers pass parsed header and row JSON values to `decodeArtifact()` or `decodeRecoverableArtifact()`, migrate the logical result with `migrate()`, and serialize only the validated current artifact with `encodeCurrent()`. Listing calls `readHeader()` and never opens event bodies. Header reads validate every adjacent target and then restore the final header through the installed current Session package.
+Import `sessionFormatCatalog` from the package root. JSONL and fixture readers create one restore, push each parsed physical row through `decodeRow()`, and call `finish()` once. Writers serialize the returned current artifact through `encodeCurrentHeader()` and `encodeCurrentEvent()`. Listing calls `readHeader()` and never opens event bodies.
 
-The catalog contains all supported historical readers directly. A profile cannot add, remove, or reorder an edge by mounting a feature plugin. Its peer dependency on `dsh-session` supplies the installed current event vocabulary and current restoration rules, while historical edge validators remain frozen.
+Production historical reads select `{ recovery: 'recoverable', validation: 'transformed' }`. Worker and fixture verification select `{ recovery: 'strict', validation: 'current' }`. Transformed validation runs the released-current rules after migration but deliberately skips installed semantic validation for input that is already current.
+
+The catalog contains all supported historical readers directly. A profile cannot add, remove, or reorder an edge by mounting a feature plugin. Its peer dependency on `dsh-session` supplies the installed current event vocabulary and current restoration rules, while historical edge validators remain frozen. The browser-safe `./message-projections` export assembles current plugin-owned interpreters for detached constructors and surface folds; it does not mount recovery listeners.
+
+`createSessionFormatCatalogWithChildren(childFacts)` binds explicit child evidence to V3→V4 during assembly; see the [catalog-completion specification](../session-format-v3-to-v4/README.md). `historicalSessionFormatCatalog` restores V0–V3 using the fixed released-V3 event vocabulary to collect child prerequisites without recursively completing their catalogs. An ignorable V3 extension remains opaque even when the installed writer knows its name. Isolated transcript replay explicitly supplies an empty array; persistence must collect the complete available direct-child set. Keep the supplied evidence unchanged for the catalog’s lifetime. Each restore owns independent stage state. The static `sessionFormatCatalog` supports header and native current-format reads; historical body reads require the child-bound catalog.
 
 -----
 
@@ -60,6 +69,8 @@ The catalog contains all supported historical readers directly. A profile cannot
 - [Migration machinery](../session-format/README.md) — catalog construction and dispatch behavior.
 - [Released v0 to v1 edge](../session-format-v0-to-v1/README.md) — codec and validator ownership.
 - [Released v1 to v2 edge](../session-format-v1-to-v2/README.md) — Assistant stream embedding and cardinality-changing reference remapping.
+- [Released V2 to V3 specification](../session-format-v2-to-v3/README.md#v2-to-v3-specification) — transformations, preservation, and refusal.
+- [V3 to V4 specification](../session-format-v3-to-v4/README.md#v3-to-v4-specification) — conversion, reference remapping, and delivery-generation validation.
 - [JSONL persistence](../session-persistence-jsonl/README.md) — immutable generation naming and exclusive publication.
 
 -----
