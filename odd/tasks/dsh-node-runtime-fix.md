@@ -11,7 +11,7 @@ Evidence gathered read-only:
 - Installed `resources/freecode/dsh/package.json` requires `^22.19.0 || >=24.0.0`.
 - Installed `dsh/apps/cli/lib/bin.js` ends with `if (import.meta.main) await runCli()`.
 - Running the installed CLI `--version` under system Node v24.12.0 prints `0.2.1-alpha.1`; the same invocation under Electron 35.7.5 exits 0 with empty stdout/stderr. A temporary-home `dsh web` probe under that Electron also exited 0 without readiness.
-- `app.log` records `harness supervisor gave up` with `restarts: 5, tail: ""`. `createShellRuntime()` currently does not forward its configured logger to `HarnessSupervisor`, hiding per-child exit information.
+- `app.log` recorded `harness supervisor gave up` with `restarts: 5, tail: ""`. Before DSH-NODE-2, `createShellRuntime()` did not forward its configured logger to `HarnessSupervisor`, hiding per-child exit information.
 - RED: the new exact-Electron CLI test failed under 35.7.5 with `expected '' to be '0.2.1-alpha.1'`.
 - GREEN: the same test passes with Electron 44.7.0; its embedded Node probe reports v24.21.0, which satisfies the staged DSH engine.
 
@@ -37,15 +37,15 @@ Evidence gathered read-only:
 
 ## Tasks
 - [x] **DSH-NODE-1 — Pin compatible Electron and add runtime compatibility gates.** Added the real Electron-backed regression test, observed RED at Electron 35.7.5, then upgraded the shell runtime to Electron 44.7.0 and added a fail-closed `engines.node` prepackage gate with tested semver boundaries. GREEN: the CLI prints its version under Electron 44.7.0/Node 24.21.0, the runtime engine check passes, and native ABI verification passes (14/26 load; 12 foreign-platform/non-ABI warnings). Work-unit commit: `5e3646f`.
-- [x] **DSH-NODE-2 — Preserve supervisor failure diagnostics.** Observed RED for both missing logger forwarding and an empty silent-exit tail; forwarded the configured shell logger and appended bounded code/signal exit evidence. Focused runtime tests pass and preserve the tail limit. Full shell test suite also passes. Work-unit commit pending.
+- [x] **DSH-NODE-2 — Preserve supervisor failure diagnostics.** Observed RED for both missing logger forwarding and an empty silent-exit tail; forwarded the configured shell logger and appended bounded code/signal exit evidence. Focused runtime tests pass and preserve the tail limit. Full shell test suite also passes. Work-unit commit: `28f33dc`.
 - [ ] **DSH-NODE-3 — Validate the 0.9.2 build inputs.** Typecheck, shell build, all shell Vitest tests, prepackage verification, and Graphify update are complete and passing. Record the artifact build outcome. Only after notifying and receiving the user's go-ahead, build setup/portable artifacts; never install them.
 
 ## Progress and next step
-DSH-NODE-1/2 are implemented and validated. `pnpm --dir apps/shell typecheck`, `pnpm --dir apps/shell build`, full Vitest (26 files, 177 tests), `prepackage:verify`, and frozen lockfile validation all pass. The real DSH smoke reached readiness. Graphify's root graph now has 713 nodes/1,351 edges/34 communities. Next: commit DSH-NODE-2, then prepare 0.9.2 setup/portable artifacts only after notifying the user and receiving confirmation. The currently installed app/processes and profile remain untouched; no installer has been built or installed in this resumed turn.
+DSH-NODE-1/2 are implemented and validated. `pnpm --dir apps/shell typecheck`, `pnpm --dir apps/shell build`, full Vitest (26 files, 177 tests), `prepackage:verify`, and frozen lockfile validation all pass. The real DSH smoke reached readiness. Graphify's tracked root graph now has 713 nodes/1,351 edges/34 communities. Next: notify the user and wait before invoking `electron-builder` for 0.9.2 setup/portable artifacts. The currently installed app/processes and profile remain untouched; no installer has been built or installed in this resumed turn.
 
 ## Relevant files
 - `apps/shell/package.json` — packaged Electron version and shell scripts.
-- `apps/shell/src/main/runtime.ts` — constructs `HarnessSupervisor`; currently omits the configured logger.
+- `apps/shell/src/main/runtime.ts` — constructs `HarnessSupervisor` and forwards the configured shell logger.
 - `apps/shell/src/main/harness-supervisor.ts` — child startup/retry and stuck diagnostics.
 - `apps/shell/tests/supervisor.smoke.test.ts` — existing DSH supervisor smoke tests.
 - `scripts/verify-native-abi.mjs` — prepackage native ABI gate paired with the new DSH Node-engine gate.
