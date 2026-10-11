@@ -179,6 +179,7 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
     extraEnv: { ...cfg.extraEnv, ...mcpEnv, ...extraEnv },
     browserBridge: cfg.browserBridge,
     nodeEnv: cfg.nodeEnv,
+    log,
     onMcpStatus: emitMcpStatus,
   });
 

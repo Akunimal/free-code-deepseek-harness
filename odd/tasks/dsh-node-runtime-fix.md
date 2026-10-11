@@ -36,12 +36,12 @@ Evidence gathered read-only:
 - Delivery strategy: `ask-on-risk` (default); forecast is below the advisory ~400-line threshold. No push or PR is authorized.
 
 ## Tasks
-- [x] **DSH-NODE-1 — Pin compatible Electron and add runtime compatibility gates.** Added the real Electron-backed regression test, observed RED at Electron 35.7.5, then upgraded the shell runtime to Electron 44.7.0 and added a fail-closed `engines.node` prepackage gate with tested semver boundaries. GREEN: the CLI prints its version under Electron 44.7.0/Node 24.21.0, the runtime engine check passes, and native ABI verification passes (14/26 load; 12 foreign-platform/non-ABI warnings).
-- [ ] **DSH-NODE-2 — Preserve supervisor failure diagnostics.** Observed RED for both missing logger forwarding and an empty silent-exit tail; source changes and focused tests are in progress. Acceptance: dsh stderr, exit status, and supervisor give-up details reach `app.log`/the stuck dialog without exposing unrelated secrets.
-- [ ] **DSH-NODE-3 — Validate the 0.9.2 build inputs.** Run focused tests, shell typecheck/full applicable tests, native ABI verification, Node-engine verification, and Graphify update. Record all outcomes. Only after notifying and receiving the user's go-ahead, build setup/portable artifacts; never install them.
+- [x] **DSH-NODE-1 — Pin compatible Electron and add runtime compatibility gates.** Added the real Electron-backed regression test, observed RED at Electron 35.7.5, then upgraded the shell runtime to Electron 44.7.0 and added a fail-closed `engines.node` prepackage gate with tested semver boundaries. GREEN: the CLI prints its version under Electron 44.7.0/Node 24.21.0, the runtime engine check passes, and native ABI verification passes (14/26 load; 12 foreign-platform/non-ABI warnings). Work-unit commit: `5e3646f`.
+- [x] **DSH-NODE-2 — Preserve supervisor failure diagnostics.** Observed RED for both missing logger forwarding and an empty silent-exit tail; forwarded the configured shell logger and appended bounded code/signal exit evidence. Focused runtime tests pass and preserve the tail limit. Full shell test suite also passes. Work-unit commit pending.
+- [ ] **DSH-NODE-3 — Validate the 0.9.2 build inputs.** Typecheck, shell build, all shell Vitest tests, prepackage verification, and Graphify update are complete and passing. Record the artifact build outcome. Only after notifying and receiving the user's go-ahead, build setup/portable artifacts; never install them.
 
 ## Progress and next step
-DSH-NODE-1 is complete: the CLI test was observed RED on Electron 35.7.5, then GREEN on Electron 44.7.0; the declared-engine verifier and native ABI check pass. The DSH-NODE-2 source/test are present in the working tree but are not part of this work-unit commit. Next: commit DSH-NODE-1 with its test and document, then close/commit DSH-NODE-2 after the observed test outcome. The installed app/processes and profile remain untouched.
+DSH-NODE-1/2 are implemented and validated. `pnpm --dir apps/shell typecheck`, `pnpm --dir apps/shell build`, full Vitest (26 files, 177 tests), `prepackage:verify`, and frozen lockfile validation all pass. The real DSH smoke reached readiness. Graphify's root graph now has 713 nodes/1,351 edges/34 communities. Next: commit DSH-NODE-2, then prepare 0.9.2 setup/portable artifacts only after notifying the user and receiving confirmation. The currently installed app/processes and profile remain untouched; no installer has been built or installed in this resumed turn.
 
 ## Relevant files
 - `apps/shell/package.json` — packaged Electron version and shell scripts.
@@ -51,3 +51,4 @@ DSH-NODE-1 is complete: the CLI test was observed RED on Electron 35.7.5, then G
 - `scripts/verify-native-abi.mjs` — prepackage native ABI gate paired with the new DSH Node-engine gate.
 - `scripts/verify-dsh-node-engine.mjs` — probes Electron's embedded Node and checks it against DSH's declared engine.
 - `vendor/deepseek-harness/apps/cli/lib/bin.js` — vendored CLI entry guarded by `import.meta.main`.
+- `graphify-out/graph.json` — refreshed app-shell architecture graph (713 nodes, 1,351 edges).

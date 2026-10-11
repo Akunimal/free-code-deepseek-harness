@@ -313,7 +313,9 @@ export class HarnessSupervisor {
     proc.on('exit', (code, signal) => {
       if (this.stopping || generation !== this.generation || this.proc !== proc) return;
       this.proc = null;
-      console.warn(`[supervisor] dsh exited code=${code} signal=${signal}`);
+      const exitSummary = `dsh exited code=${String(code)} signal=${String(signal)}`;
+      this.appendOutput(`${this.outBuffer ? '\n' : ''}${exitSummary}`);
+      console.warn(`[supervisor] ${exitSummary}`);
       this.cfg.log?.('error', 'dsh exited', {
         code,
         signal,
@@ -395,13 +397,17 @@ export class HarnessSupervisor {
   ): void {
     writeConsoleDiagnostic(stream, `${prefix}${text}`);
     this.cfg.log?.(level, level === 'warn' ? `dsh stderr: ${text.trimEnd()}` : text.trimEnd());
-    this.outBuffer += text;
-    if (this.outBuffer.length > 65_536) this.outBuffer = this.outBuffer.slice(-32_768);
+    this.appendOutput(text);
     this.mcpLineBuffer += text;
     const lines = this.mcpLineBuffer.split(/\r?\n/);
     this.mcpLineBuffer = lines.pop() ?? '';
     for (const line of lines) this.parseMcpStatus(line);
     this.tryGrabs();
+  }
+
+  private appendOutput(text: string): void {
+    this.outBuffer += text;
+    if (this.outBuffer.length > 65_536) this.outBuffer = this.outBuffer.slice(-32_768);
   }
 
   private parseMcpStatus(line: string): void {
