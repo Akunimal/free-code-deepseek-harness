@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Fail the package while electron-builder still owns appOutDir if the executable
- * it copied is stale or embeds a Node runtime incompatible with staged DSH.
+ * it copied is stale or incompatible with the staged DSH Node/native-loader runtime.
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -12,13 +12,26 @@ import { createRequire } from 'node:module';
 const root = resolve(import.meta.dirname, '..');
 const require = createRequire(join(root, 'apps', 'shell', 'package.json'));
 const semver = require('semver');
+export const DSH_NATIVE_INTERNAL_MODULES = Object.freeze([
+  ...JSON.parse(readFileSync(join(root, 'scripts', 'dsh-native-internal-modules.json'), 'utf8')),
+]);
 
-function defaultProbeRuntime(executablePath) {
+function defaultProbeRuntime(executablePath, runtimeDir) {
+  // DSH app-boot reaches these builtins through its native addon directly.
+  // Check the actual Electron fingerprint before accepting a package, using
+  // the staged DSH modules that will be downloaded on first app startup.
+  const probeSource = [
+    'const addon = require("node-addon-require-builtin");',
+    `const moduleIds = ${JSON.stringify(DSH_NATIVE_INTERNAL_MODULES)};`,
+    'for (const moduleId of moduleIds) addon.requireBuiltin(moduleId);',
+    'const runtime = { electronVersion: process.versions.electron, nodeVersion: process.version, nodeModuleVersion: process.versions.modules, nativeLoaderCompatible: true };',
+    'console.log(JSON.stringify(runtime));',
+  ].join('\n');
   const probe = spawnSync(executablePath, [
-    '-p',
-    'JSON.stringify({ electronVersion: process.versions.electron, nodeVersion: process.version, nodeModuleVersion: process.versions.modules })',
+    '-e',
+    probeSource,
   ], {
-    cwd: root,
+    cwd: runtimeDir,
     encoding: 'utf8',
     timeout: 15_000,
     windowsHide: true,
@@ -49,7 +62,7 @@ export function verifyPackagedElectronRuntime(options) {
   const executableName = options.executableName;
   const executablePath = join(appOutDir, executableName);
   const runtimeDir = resolve(options.runtimeDir ?? join(root, 'apps', 'shell', 'resources', 'freecode', 'dsh'));
-  const probeRuntime = options.probeRuntime ?? defaultProbeRuntime;
+  const probeRuntime = options.probeRuntime ?? ((path) => defaultProbeRuntime(path, runtimeDir));
   const fail = (error) => ({ ok: false, error, executablePath });
 
   if (!executableName || !existsSync(executablePath)) {
@@ -93,6 +106,12 @@ export function verifyPackagedElectronRuntime(options) {
   }
   if (!semver.valid(runtime.nodeVersion) || !semver.satisfies(runtime.nodeVersion, engineRange)) {
     return fail(`Packaged Electron Node ${runtime.nodeVersion} does not satisfy DSH engines.node ${engineRange}`);
+  }
+  if (runtime.nativeLoaderCompatible !== true) {
+    const detail = typeof runtime.nativeLoaderError === 'string' && runtime.nativeLoaderError.length > 0
+      ? `: ${runtime.nativeLoaderError}`
+      : '';
+    return fail(`Packaged Electron cannot load the DSH native internal loader${detail}`);
   }
   const packagedManifestPath = join(appOutDir, 'resources', 'freecode', 'runtime-manifest.json');
   if (!existsSync(packagedManifestPath)) {

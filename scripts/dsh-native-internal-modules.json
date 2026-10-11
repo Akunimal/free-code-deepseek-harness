@@ -1,0 +1,7 @@
+[
+  "internal/modules/esm/loader",
+  "internal/modules/cjs/loader",
+  "internal/modules/helpers",
+  "internal/modules/esm/utils",
+  "internal/modules/esm/resolve"
+]

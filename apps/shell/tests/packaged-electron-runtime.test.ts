@@ -20,7 +20,7 @@ function fixture() {
   mkdirSync(join(appOutDir, 'resources', 'freecode'), { recursive: true });
   writeFileSync(join(appOutDir, 'resources', 'freecode', 'runtime-manifest.json'), JSON.stringify({
     version: '0.2.1-alpha.1',
-    nodeModuleVersion: process.versions.modules,
+    nodeModuleVersion: '149',
   }));
   return { root, appOutDir, runtimeDir, executableName };
 }
@@ -34,7 +34,13 @@ interface VerifierOptions {
   runtimeDir: string;
   executableName: string;
   expectedElectronVersion: string;
-  probeRuntime?: (path: string) => { electronVersion: string; nodeVersion: string; nodeModuleVersion: string };
+  probeRuntime?: (path: string) => {
+    electronVersion: string;
+    nodeVersion: string;
+    nodeModuleVersion: string;
+    nativeLoaderCompatible?: boolean;
+    nativeLoaderError?: string;
+  };
 }
 
 interface VerifierResult {
@@ -62,7 +68,7 @@ describe('packaged Electron runtime gate', () => {
 
     const result = verifyPackagedElectronRuntime({
       ...paths,
-      expectedElectronVersion: '44.7.0',
+      expectedElectronVersion: '44.0.0',
       probeRuntime,
     });
 
@@ -77,12 +83,32 @@ describe('packaged Electron runtime gate', () => {
 
     const result = verifyPackagedElectronRuntime({
       ...paths,
-      expectedElectronVersion: '44.7.0',
-      probeRuntime: () => ({ electronVersion: '44.7.0', nodeVersion: 'v22.16.0', nodeModuleVersion: process.versions.modules }),
+      expectedElectronVersion: '44.0.0',
+      probeRuntime: () => ({ electronVersion: '44.0.0', nodeVersion: 'v22.16.0', nodeModuleVersion: '133', nativeLoaderCompatible: true }),
     });
 
     expect(result).toMatchObject({ ok: false });
     expect(result.error).toMatch(/does not satisfy DSH engines\.node/);
+  });
+
+  it('rejects appOutDir when its Electron fingerprint cannot load the DSH native internal loader', async () => {
+    const paths = fixture();
+    const { verifyPackagedElectronRuntime } = await loadVerifier();
+
+    const result = verifyPackagedElectronRuntime({
+      ...paths,
+      expectedElectronVersion: '44.0.0',
+      probeRuntime: () => ({
+        electronVersion: '44.0.0',
+        nodeVersion: 'v24.18.1',
+        nodeModuleVersion: '149',
+        nativeLoaderCompatible: false,
+        nativeLoaderError: 'Unsupported/no-context (unsupported Electron runtime fingerprint)',
+      }),
+    });
+
+    expect(result).toMatchObject({ ok: false });
+    expect(result.error).toMatch(/cannot load the DSH native internal loader.*Unsupported\/no-context/);
   });
 
   it('accepts the expected packaged Electron when its embedded Node satisfies DSH', async () => {
@@ -91,17 +117,18 @@ describe('packaged Electron runtime gate', () => {
 
     expect(verifyPackagedElectronRuntime({
       ...paths,
-      expectedElectronVersion: '44.7.0',
+      expectedElectronVersion: '44.0.0',
       probeRuntime: () => ({
-        electronVersion: '44.7.0',
-        nodeVersion: 'v24.21.0',
-        nodeModuleVersion: process.versions.modules,
+        electronVersion: '44.0.0',
+        nodeVersion: 'v24.18.1',
+        nodeModuleVersion: '149',
+        nativeLoaderCompatible: true,
       }),
     })).toMatchObject({
       ok: true,
-      electronVersion: '44.7.0',
-      nodeVersion: 'v24.21.0',
-      nodeModuleVersion: process.versions.modules,
+      electronVersion: '44.0.0',
+      nodeVersion: 'v24.18.1',
+      nodeModuleVersion: '149',
     });
   });
 
@@ -111,12 +138,12 @@ describe('packaged Electron runtime gate', () => {
 
     const result = verifyPackagedElectronRuntime({
       ...paths,
-      expectedElectronVersion: '44.7.0',
-      probeRuntime: () => ({ electronVersion: '44.7.0', nodeVersion: 'v24.21.0', nodeModuleVersion: '149' }),
+      expectedElectronVersion: '44.0.0',
+      probeRuntime: () => ({ electronVersion: '44.0.0', nodeVersion: 'v24.18.1', nodeModuleVersion: '133', nativeLoaderCompatible: true }),
     });
 
     expect(result).toMatchObject({ ok: false });
-    expect(result.error).toMatch(/manifest requires NODE_MODULE_VERSION .* appOutDir Electron provides 149/);
+    expect(result.error).toMatch(/manifest requires NODE_MODULE_VERSION 149, but appOutDir Electron provides 133/);
   });
 
   it('fails closed when the appOutDir does not contain the expected executable', async () => {
@@ -126,7 +153,7 @@ describe('packaged Electron runtime gate', () => {
 
     expect(verifyPackagedElectronRuntime({
       ...paths,
-      expectedElectronVersion: '44.7.0',
+      expectedElectronVersion: '44.0.0',
       probeRuntime: vi.fn(),
     })).toMatchObject({ ok: false, error: expect.stringContaining('not found') });
   });
