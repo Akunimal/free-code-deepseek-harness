@@ -2,8 +2,9 @@ appId: com.freecode.deepseekharness
 productName: FreeCode DeepSeek Harness
 artifactName: FreeCode-DeepSeek-Harness-${version}-${os}-${arch}.${ext}
 asar: true
-compression: normal
+compression: store
 beforePack: build/patch-nsis.cjs
+afterPack: build/verify-packaged-electron.cjs
 directories:
   output: release
   buildResources: build
@@ -23,6 +24,9 @@ extraResources:
     to: freecode
     filter:
       - '**/*'
+      - '!dsh'
+      - '!dsh/**'
+      - '!runtime-manifest.json'
       - '!.uv-cache/**'
       - '!.uv-cache'
       - '!.uv-tools/**'

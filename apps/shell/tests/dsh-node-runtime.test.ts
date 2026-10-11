@@ -4,6 +4,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
+// Electron's first cold start can contend with the rest of the full Vitest
+// suite; keep the assertion bounded without mistaking worker contention for
+// the silent-exit regression this test is meant to catch.
+const ELECTRON_TEST_TIMEOUT_MS = 60_000;
+
 const require = createRequire(import.meta.url);
 const electronPath = require('electron') as string;
 const vendorRoot = join(import.meta.dirname, '../../../vendor/deepseek-harness');
@@ -18,7 +23,7 @@ describe('packaged Electron Node runtime', () => {
       cwd: vendorRoot,
       env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
       encoding: 'utf8',
-      timeout: 15_000,
+      timeout: ELECTRON_TEST_TIMEOUT_MS,
       windowsHide: true,
     });
 

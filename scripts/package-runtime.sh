@@ -161,9 +161,9 @@ node "$ROOT/scripts/prune-runtime-optional-providers.mjs" "$STAGE"
 node "$ROOT/scripts/verify-runtime-closure.mjs" "$STAGE"
 
 # dsh is launched by Electron with ELECTRON_RUN_AS_NODE=1. Native addons
-# installed by pnpm use the build host's Node ABI (Node 24 is ABI 137 here),
-# while Electron 35.7.5 embeds Node ABI 133. Rebuild the completed, materialized
-# runtime against the exact Electron version before it can enter resources/.
+# installed by pnpm use the build host's Node ABI, which may differ from the
+# Electron runtime. Rebuild against the Electron package resolved by the shell
+# before the completed, materialized runtime can enter resources/.
 # This is intentionally fail-closed: a missing rebuild tool or a node-gyp
 # failure must make packaging stop instead of producing a subtly unbootable app.
 echo "package-runtime: rebuilding runtime native addons for Electron"

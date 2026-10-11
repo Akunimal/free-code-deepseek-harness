@@ -7,7 +7,7 @@
  */
 
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -44,7 +44,7 @@ if (!OLD_SETUP || !existsSync(NEW_SETUP)) {
 }
 
 const installDir = mkdtempSync(join(tmpdir(), 'freecode-nsis-upgrade-'));
-const layoutIsPopulated = () => {
+const legacyLayoutIsPopulated = () => {
   const required = [
     join(dsh(), 'apps/cli/lib/bin.js'),
     join(installDir, 'resources/freecode/runtime-manifest.json'),
@@ -54,6 +54,9 @@ const layoutIsPopulated = () => {
   return required.every((target) => existsSync(target))
     && dirs.every((target) => existsSync(target) && readdirSync(target).length > 0);
 };
+const layoutIsPopulated = () => existsSync(join(installDir, 'resources/freecode/opencode2api/opencode2api-win-x64.exe'))
+  && !existsSync(dsh())
+  && !existsSync(join(installDir, 'resources/freecode/runtime-manifest.json'));
 
 const stopProcessTree = (pid) => {
   if (!pid) return;
@@ -128,6 +131,14 @@ const runSetup = async (setup, label, isComplete = layoutIsPopulated) => {
 
 const dsh = () => join(installDir, 'resources/freecode/dsh');
 const assertPopulated = (label) => {
+  const opencode = join(installDir, 'resources/freecode/opencode2api/opencode2api-win-x64.exe');
+  const forbidden = [dsh(), join(installDir, 'resources/freecode/runtime-manifest.json')]
+    .filter((target) => existsSync(target));
+  if (!existsSync(opencode) || forbidden.length) {
+    throw new Error(`${label} layout invalid; missing=${existsSync(opencode) ? '' : opencode} unexpectedlyBundled=${forbidden.join(',')}`);
+  }
+};
+const assertLegacyPopulated = (label) => {
   const required = [
     join(dsh(), 'apps/cli/lib/bin.js'),
     join(installDir, 'resources/freecode/runtime-manifest.json'),
@@ -137,29 +148,23 @@ const assertPopulated = (label) => {
     .filter((target) => !existsSync(target) || readdirSync(target).length === 0);
   const missing = required.filter((target) => !existsSync(target));
   if (missing.length || empty.length) {
-    throw new Error(`${label} layout incomplete; missing=${missing.join(',')} empty=${empty.join(',')}`);
+    throw new Error(`${label} legacy layout incomplete; missing=${missing.join(',')} empty=${empty.join(',')}`);
   }
 };
 
 try {
-  await runSetup(OLD_SETUP, STABLE_VERSION);
-  assertPopulated(STABLE_VERSION);
+  await runSetup(OLD_SETUP, STABLE_VERSION, legacyLayoutIsPopulated);
+  assertLegacyPopulated(STABLE_VERSION);
 
   const staleMarker = join(dsh(), 'packages', `.stale-${STABLE_VERSION}-payload-marker`);
-  const manifestPath = join(installDir, 'resources/freecode/runtime-manifest.json');
-  const previousManifestMtime = statSync(manifestPath).mtimeMs;
-  const userDataMarker = join(installDir, 'user-data', 'must-survive-upgrade.txt');
+  const userDataDir = join(installDir, '.release-smoke-user-data');
+  const userDataMarker = join(userDataDir, 'must-survive-upgrade.txt');
   writeFileSync(staleMarker, 'old payload\n');
-  mkdirSync(join(installDir, 'user-data'), { recursive: true });
+  mkdirSync(userDataDir, { recursive: true });
   writeFileSync(userDataMarker, 'user data\n', 'utf8');
 
   await runSetup(NEW_SETUP, NEW_VERSION, () => {
-    if (!layoutIsPopulated() || existsSync(staleMarker) || !existsSync(manifestPath)) return false;
-    try {
-      return statSync(manifestPath).mtimeMs !== previousManifestMtime;
-    } catch {
-      return false;
-    }
+    return layoutIsPopulated() && !existsSync(staleMarker);
   });
   assertPopulated(NEW_VERSION);
 

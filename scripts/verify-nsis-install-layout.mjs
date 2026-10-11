@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * Post-build NSIS smoke — installs the freshly built setup.exe silently
- * into a temporary directory, verifies the critical dsh runtime layout is
- * intact (apps/cli/lib/bin.js, packages/, node_modules/), then uninstalls.
+ * into a temporary directory, verifies only static resources are bundled,
+ * launches the app to exercise first-run DSH download into user data, then uninstalls.
  *
  * This is the last-line defense against the v0.2.4 install crash: even if
  * the vendor bundle is fresh (gated by verify-vendor-bundles-fresh.mjs)
@@ -80,9 +80,8 @@ try {
   // /S = silent, /D=<path> = install dir (must be last arg, no quotes).
   const install = spawnSync(setup, ['/S', `/D=${installDir}`], {
     windowsHide: true,
-    // The 1+ GB unpacked runtime can take many minutes on a cold Windows
-    // profile or slower temp volume. Keep this generous: a timeout here must
-    // not misclassify a healthy extraction as an installer failure.
+    // Keep installer and first-run runtime download budgets separate. DSH is
+    // no longer part of this setup's extraction workload.
     timeout: INSTALL_TIMEOUT_MS,
   });
   if (install.error) {
@@ -92,28 +91,20 @@ try {
     console.error(`verify-nsis-install-layout: installer exited ${install.status}`);
     exitCode = 2;
   } else {
-    const REQUIRED_FILES = [
-      'resources/freecode/dsh/apps/cli/lib/bin.js',
-      'resources/freecode/dsh/node_modules/@deepseek-ai/dsh-host-directory-picker-native/lib/index.js',
+    const REQUIRED_FILES = ['resources/freecode/opencode2api/opencode2api-win-x64.exe'];
+    const FORBIDDEN_PATHS = [
+      'resources/freecode/dsh',
       'resources/freecode/runtime-manifest.json',
-      'resources/freecode/opencode2api/opencode2api-win-x64.exe',
-    ];
-    const REQUIRED_DIRS = [
-      'resources/freecode/dsh/packages',
-      'resources/freecode/dsh/node_modules',
     ];
     const missing = REQUIRED_FILES.filter((rel) => !existsSync(join(installDir, rel)));
-    const empty = REQUIRED_DIRS.filter((rel) => {
-      const target = join(installDir, rel);
-      try { return !existsSync(target) || readdirSync(target).length === 0; } catch { return true; }
-    });
-    if (missing.length > 0 || empty.length > 0) {
+    const unexpectedlyBundled = FORBIDDEN_PATHS.filter((rel) => existsSync(join(installDir, rel)));
+    if (missing.length > 0 || unexpectedlyBundled.length > 0) {
       console.error('verify-nsis-install-layout: MISSING after install:');
       for (const m of missing) console.error(`  - ${m}`);
-      for (const m of empty) console.error(`  - ${m} (empty or missing)`);
+      for (const m of unexpectedlyBundled) console.error(`  - unexpectedly bundled: ${m}`);
       exitCode = 1;
     } else {
-      console.log(`verify-nsis-install-layout: ${REQUIRED_FILES.length} files and ${REQUIRED_DIRS.length} populated directories present.`);
+      console.log('verify-nsis-install-layout: static resources are present and the DSH payload is excluded.');
       try {
         await verifyInstalledRuntime({ installDir, label: 'fresh install' });
         console.log('verify-nsis-install-layout: installed runtime boot/headless smoke passed.');

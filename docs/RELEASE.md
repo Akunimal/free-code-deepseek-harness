@@ -81,6 +81,13 @@ installed closure enumerates version, architecture, source, license, hash and
 relative path in `runtime-deps.json`, verified by
 `verify-runtime-dependencies.mjs`.
 
+The pending 0.9.2 packaging layout keeps DSH out of setup/portable and ships its
+platform runtime as a separate SHA-256-verified release asset. A packaged app
+downloads that asset on first launch into writable per-user data; subsequent
+starts use the validated cache offline. The first launch requires network
+access, and the app must not start the supervisor if download or runtime
+compatibility checks fail.
+
 ## Windows-only publication
 
 No Linux, macOS or Windows-ARM64 artifact is an official release asset, and

@@ -10,28 +10,16 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const APP_EXE_NAME = 'FreeCode DeepSeek Harness.exe';
-// The packaged runtime is intentionally large and starts the local model/MCP
-// pool before dsh reaches readiness. Keep enough headroom for a fresh install,
-// while still failing quickly on a deterministic native-loader crash.
-const DEFAULT_TIMEOUT_MS = 180_000;
-
-function nodeExecutable() {
-  const candidates = [
-    process.env.DSH_TEST_NODE,
-    'C:\\Program Files\\nodejs\\node.exe',
-    'C:\\Program Files (x86)\\nodejs\\node.exe',
-  ].filter((candidate) => candidate && existsSync(candidate));
-  if (candidates.length > 0) return candidates[0];
-  const result = spawnSync('where.exe', ['node.exe'], { encoding: 'utf8', windowsHide: true });
-  const first = typeof result.stdout === 'string'
-    ? result.stdout.split(/\r?\n/u).map((line) => line.trim()).find(Boolean)
-    : undefined;
-  if (!first) throw new Error('installed-runtime: node.exe not found');
-  return first;
+// First run downloads the runtime after the small desktop setup is installed.
+// Allow a slow connection and extraction, while still honoring an explicit
+// tighter/longer timeout for release validation.
+const DEFAULT_TIMEOUT_MS = Number(process.env.FREECODE_FIRST_RUN_TIMEOUT_MS ?? 1_800_000);
+if (!Number.isFinite(DEFAULT_TIMEOUT_MS) || DEFAULT_TIMEOUT_MS <= 0) {
+  throw new Error('installed-runtime: FREECODE_FIRST_RUN_TIMEOUT_MS must be a positive number');
 }
 
-function cliEntry(installDir) {
-  return join(installDir, 'resources', 'freecode', 'dsh', 'apps', 'cli', 'lib', 'bin.js');
+function cliEntry(harnessRuntimeDir) {
+  return join(harnessRuntimeDir, 'dsh', 'apps', 'cli', 'lib', 'bin.js');
 }
 
 function appExecutable(installDir) {
@@ -143,6 +131,9 @@ async function launchAndProbe(installDir, label) {
       if (log.includes('harness runtime preflight failed')) {
         throw new Error(`installed-runtime: ${label} preflight failed:\n${log.slice(-4_000)}`);
       }
+      if (log.includes('first-run DSH runtime setup failed')) {
+        throw new Error(`installed-runtime: ${label} first-run runtime setup failed:\n${log.slice(-6_000)}`);
+      }
       if (log.includes('harness supervisor gave up') || log.includes('dsh readiness timeout')) {
         throw new Error(`installed-runtime: ${label} supervisor failed before readiness:\n${log.slice(-6_000)}`);
       }
@@ -159,6 +150,7 @@ async function launchAndProbe(installDir, label) {
     }
     if (!started) throw new Error(`installed-runtime: ${label} did not reach shell startup within ${DEFAULT_TIMEOUT_MS}ms`);
     await visibleDescendantProbe(child.pid);
+    return userDataDir;
   } finally {
     if (child.pid) {
       spawnSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' });
@@ -167,11 +159,14 @@ async function launchAndProbe(installDir, label) {
   }
 }
 
-function runHeadlessCli(installDir, label) {
-  const result = spawnSync(nodeExecutable(), [cliEntry(installDir), 'web', '--help'], {
-    cwd: installDir,
+function runHeadlessCli(installDir, harnessRuntimeDir, label) {
+  const entry = cliEntry(harnessRuntimeDir);
+  if (!existsSync(entry)) throw new Error(`installed-runtime: ${label} first-run DSH runtime is missing ${entry}`);
+  const result = spawnSync(appExecutable(installDir), [entry, 'web', '--help'], {
+    cwd: join(harnessRuntimeDir, 'dsh'),
     encoding: 'utf8',
     windowsHide: true,
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
     // A cold installed runtime may resolve the complete workspace closure
     // from a busy temp volume. Keep the check bounded, but do not classify
     // healthy cold starts as failures after the payload has already passed
@@ -187,8 +182,8 @@ function runHeadlessCli(installDir, label) {
 export async function verifyInstalledRuntime({ installDir, label }) {
   if (process.platform !== 'win32') throw new Error('installed-runtime: this gate requires Windows');
   const absoluteInstallDir = resolve(installDir);
-  runHeadlessCli(absoluteInstallDir, label);
-  await launchAndProbe(absoluteInstallDir, label);
+  const userDataDir = await launchAndProbe(absoluteInstallDir, label);
+  runHeadlessCli(absoluteInstallDir, join(userDataDir, 'harness-runtime'), label);
 }
 
 export function stopInstalledProcesses(installDir) {
