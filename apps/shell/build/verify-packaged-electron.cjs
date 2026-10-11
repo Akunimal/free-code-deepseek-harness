@@ -16,7 +16,7 @@ module.exports.default = async function verifyPackagedElectron(context) {
   if (!result.ok) {
     throw new Error(`Packaged Electron runtime verification failed: ${result.error}`);
   }
-  console.log(`verify-packaged-electron-runtime: PASS — Electron ${result.electronVersion}, Node ${result.nodeVersion}`);
+  console.log(`verify-packaged-electron-runtime: PASS — Electron ${result.electronVersion}, Node ${result.nodeVersion}, ABI ${result.nodeModuleVersion}`);
 
   const bootstrapVerifierPath = path.resolve(__dirname, '../../../scripts/verify-packaged-shell-bootstrap.mjs');
   const { verifyPackagedShellBootstrap } = await import(pathToFileURL(bootstrapVerifierPath).href);

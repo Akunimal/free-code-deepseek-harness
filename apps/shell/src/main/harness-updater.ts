@@ -7,6 +7,7 @@ import { pipeline } from 'node:stream/promises';
 import { launchHiddenSync } from './freecode-launcher.js'
 
 const semver = createRequire(import.meta.url)('semver') as {
+  gte(version: string, range: string): boolean;
   satisfies(version: string, range: string): boolean;
   valid(version: string): string | null;
   validRange(range: string): string | null;
@@ -24,7 +25,17 @@ export interface HarnessUpdateInfo {
 
 export interface HarnessUpdaterAdapter {
   check(): Promise<HarnessUpdateInfo>;
-  downloadAndInstall(info: HarnessUpdateInfo, onProgress?: HarnessDownloadProgressHandler): Promise<void>;
+  downloadAndInstall(
+    info: HarnessUpdateInfo,
+    onProgress?: HarnessDownloadProgressHandler,
+    requirements?: HarnessRuntimeRequirements,
+  ): Promise<void>;
+}
+
+/** Requirements compiled into the shell from the locally audited DSH runtime. */
+export interface HarnessRuntimeRequirements {
+  minimumVersion?: string;
+  nodeModuleVersion?: string;
 }
 
 export interface HarnessDownloadProgress {
@@ -139,7 +150,8 @@ export function createHarnessUpdater(options: {
   const fetchImpl = options.fetchImpl ?? fetch;
   return {
     check: () => checkHarnessRelease(options.currentVersion, platform, arch, fetchImpl, options.repo),
-    downloadAndInstall: (info, onProgress) => installHarnessRuntime(info, options.resourcesDir, fetchImpl, onProgress),
+    downloadAndInstall: (info, onProgress, requirements) =>
+      installHarnessRuntime(info, options.resourcesDir, fetchImpl, onProgress, {}, requirements),
   };
 }
 
@@ -149,6 +161,7 @@ export async function installHarnessRuntime(
   fetchImpl: typeof fetch = fetch,
   onProgress?: HarnessDownloadProgressHandler,
   timeoutOptions: { responseTimeoutMs?: number; idleTimeoutMs?: number } = {},
+  requirements?: HarnessRuntimeRequirements,
 ): Promise<void> {
   if (!info.assetUrl) throw new Error('Harness update has no compatible runtime asset');
   validateHarnessAssetUrl(info.assetUrl);
@@ -231,7 +244,7 @@ export async function installHarnessRuntime(
 
     const nextHarness = resolve(extractRoot, 'dsh');
     const nextManifest = resolve(extractRoot, 'runtime-manifest.json');
-    validateHarnessRuntime(nextHarness, nextManifest);
+    validateHarnessRuntime(nextHarness, nextManifest, process.platform, requirements);
     const currentHarness = resolve(targetRoot, 'dsh');
     if (!existsSync(nextManifest)) throw new Error('Harness runtime is missing runtime-manifest.json');
     const backupHarness = resolve(targetRoot, `.dsh-backup-${process.pid}-${Date.now()}`);
@@ -250,7 +263,7 @@ export async function installHarnessRuntime(
       }
       renameSync(nextHarness, currentHarness);
       renameSync(nextManifest, currentManifest);
-      validateHarnessRuntime(currentHarness, currentManifest);
+      validateHarnessRuntime(currentHarness, currentManifest, process.platform, requirements);
       if (harnessBackedUp) rmSync(backupHarness, { recursive: true, force: true });
       if (manifestBackedUp) rmSync(backupManifest, { force: true });
     } catch (error) {
@@ -273,6 +286,7 @@ export function validateHarnessRuntime(
   harnessDir: string,
   manifestPath = join(dirname(harnessDir), 'runtime-manifest.json'),
   platform: NodeJS.Platform = process.platform,
+  requirements?: HarnessRuntimeRequirements,
 ): void {
   const cliPath = join(harnessDir, 'apps', 'cli', 'lib', 'bin.js');
   if (!existsSync(cliPath)) throw new Error('Harness runtime is missing apps/cli/lib/bin.js');
@@ -298,11 +312,56 @@ export function validateHarnessRuntime(
     }
   }
   if (!existsSync(manifestPath)) throw new Error('Harness runtime is missing runtime-manifest.json');
-  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { version?: unknown; cli?: unknown };
-  if (typeof manifest.version !== 'string' || !manifest.version.trim()) throw new Error('Harness runtime manifest is missing version');
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+    version?: unknown;
+    cli?: unknown;
+    nodeModuleVersion?: unknown;
+  };
+  if (typeof manifest.version !== 'string' || !semver.valid(manifest.version)) {
+    throw new Error('Harness runtime manifest is missing a valid version');
+  }
   if (manifest.cli !== 'dsh/apps/cli/lib/bin.js') {
     throw new Error('Harness runtime manifest points to an unexpected CLI');
   }
+  if (typeof manifest.nodeModuleVersion !== 'string' || !/^\d+$/.test(manifest.nodeModuleVersion)) {
+    throw new Error('Harness runtime manifest is missing a valid nodeModuleVersion');
+  }
+  const requiredModuleVersion = requirements?.nodeModuleVersion ?? process.versions.modules;
+  if (requiredModuleVersion !== process.versions.modules) {
+    throw new Error(`Electron NODE_MODULE_VERSION ${process.versions.modules} does not match packaged DSH ABI requirement ${requiredModuleVersion}`);
+  }
+  if (manifest.nodeModuleVersion !== requiredModuleVersion) {
+    throw new Error(`Harness runtime native ABI ${manifest.nodeModuleVersion} does not match Electron NODE_MODULE_VERSION ${requiredModuleVersion}`);
+  }
+  assertHarnessRuntimeVersion(manifest.version, requirements?.minimumVersion);
+}
+
+export function assertHarnessRuntimeVersion(version: string, minimumVersion?: string): void {
+  if (!semver.valid(version)) throw new Error(`Harness runtime version is invalid: ${version}`);
+  if (minimumVersion === undefined) return;
+  if (!semver.valid(minimumVersion)) throw new Error(`Packaged DSH minimum version is invalid: ${minimumVersion}`);
+  if (!semver.gte(version, minimumVersion)) {
+    throw new Error(`Harness runtime version ${version} is below packaged minimum ${minimumVersion}`);
+  }
+}
+
+/** Read and validate the tiny manifest embedded in the desktop package. */
+export function readHarnessRuntimeRequirements(manifestPath: string): HarnessRuntimeRequirements {
+  if (!existsSync(manifestPath)) throw new Error(`Packaged DSH runtime manifest is missing: ${manifestPath}`);
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+    version?: unknown;
+    nodeModuleVersion?: unknown;
+  };
+  if (typeof manifest.version !== 'string' || !semver.valid(manifest.version)) {
+    throw new Error('Packaged DSH runtime manifest has no valid minimum version');
+  }
+  if (typeof manifest.nodeModuleVersion !== 'string' || !/^\d+$/.test(manifest.nodeModuleVersion)) {
+    throw new Error('Packaged DSH runtime manifest has no valid nodeModuleVersion');
+  }
+  if (manifest.nodeModuleVersion !== process.versions.modules) {
+    throw new Error(`Electron NODE_MODULE_VERSION ${process.versions.modules} does not match packaged DSH ABI requirement ${manifest.nodeModuleVersion}`);
+  }
+  return { minimumVersion: manifest.version, nodeModuleVersion: manifest.nodeModuleVersion };
 }
 
 function validateHarnessAssetUrl(assetUrl: string): void {

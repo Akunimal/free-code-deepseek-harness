@@ -76,8 +76,10 @@ if (artifact.length < 4 || artifact.subarray(0, 4).toString('hex') !== '7f454c46
 
 const offset = findSquashfsOffset(artifactPath);
 const manifest = JSON.parse(catSquashfs(artifactPath, offset, 'resources/freecode/runtime-manifest.json').toString('utf8'));
-if (!manifest || typeof manifest !== 'object' || typeof manifest.version !== 'string' || typeof manifest.cli !== 'string') {
-  fail('runtime-manifest.json does not satisfy the version/cli contract');
+if (!manifest || typeof manifest !== 'object' || typeof manifest.version !== 'string' ||
+    typeof manifest.nodeModuleVersion !== 'string' || !/^\d+$/.test(manifest.nodeModuleVersion) ||
+    typeof manifest.cli !== 'string') {
+  fail('runtime-manifest.json does not satisfy the version/nodeModuleVersion/cli contract');
 }
 
 const linuxWorker = catSquashfs(artifactPath, offset, 'resources/freecode/opencode2api/opencode2api-linux-x64');

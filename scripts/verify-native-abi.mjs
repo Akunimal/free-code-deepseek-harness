@@ -12,8 +12,8 @@
  * mismatch, so `prepackage:verify` blocks the installer build.
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, statSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
 const runtimeDir = resolve(process.argv[2] ?? join(root, 'apps', 'shell', 'resources', 'freecode', 'dsh'));
@@ -25,6 +25,23 @@ if (!existsSync(runtimeDir)) {
 }
 if (!existsSync(electronBinary)) {
   console.error(`verify-native-abi: Electron binary not found: ${electronBinary}`);
+  process.exit(2);
+}
+
+const runtimeManifestPath = join(dirname(runtimeDir), 'runtime-manifest.json');
+if (!existsSync(runtimeManifestPath)) {
+  console.error(`verify-native-abi: runtime manifest not found: ${runtimeManifestPath}`);
+  process.exit(2);
+}
+let runtimeManifest;
+try {
+  runtimeManifest = JSON.parse(readFileSync(runtimeManifestPath, 'utf8'));
+} catch (error) {
+  console.error(`verify-native-abi: invalid runtime manifest: ${String(error)}`);
+  process.exit(2);
+}
+if (typeof runtimeManifest?.nodeModuleVersion !== 'string' || !/^\d+$/.test(runtimeManifest.nodeModuleVersion)) {
+  console.error('verify-native-abi: runtime manifest is missing a valid nodeModuleVersion');
   process.exit(2);
 }
 
@@ -51,6 +68,7 @@ console.log(`verify-native-abi: probing ${nodeFiles.length} native addons with $
 // Single Electron invocation: load every addon, classify failures.
 const probeScript = [
   'const results = [];',
+  'const nodeModuleVersion = process.versions.modules;',
   'for (const file of process.argv.slice(1)) {',
   '  try { require(file); results.push({ file, ok: true }); }',
   '  catch (error) {',
@@ -59,7 +77,7 @@ const probeScript = [
   '    results.push({ file, ok: false, abiMismatch: Boolean(abi), got: abi && abi[1], want: abi && abi[2], message: message.split("\\n")[0] });',
   '  }',
   '}',
-  'process.stdout.write(JSON.stringify(results));',
+  'process.stdout.write(JSON.stringify({ nodeModuleVersion, results }));',
 ].join('\n');
 
 const probe = spawnSync(electronBinary, ['-e', probeScript, ...nodeFiles], {
@@ -75,11 +93,21 @@ if (probe.status !== 0) {
   process.exit(2);
 }
 
-let results;
+let probeReport;
 try {
-  results = JSON.parse(probe.stdout);
+  probeReport = JSON.parse(probe.stdout);
 } catch (error) {
   console.error(`verify-native-abi: probe returned invalid JSON: ${String(probe.stdout).slice(0, 500)}`);
+  process.exit(2);
+}
+
+if (probeReport.nodeModuleVersion !== runtimeManifest.nodeModuleVersion) {
+  console.error(`verify-native-abi: FAIL — runtime manifest declares NODE_MODULE_VERSION ${runtimeManifest.nodeModuleVersion}, but packaged Electron requires ${probeReport.nodeModuleVersion}`);
+  process.exit(1);
+}
+const results = probeReport.results;
+if (!Array.isArray(results)) {
+  console.error('verify-native-abi: probe returned no addon results');
   process.exit(2);
 }
 

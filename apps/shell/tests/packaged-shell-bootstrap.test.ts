@@ -52,10 +52,11 @@ describe('packaged shell bootstrap gate', () => {
   it('accepts a packaged main that invokes runtime setup before preflight', async () => {
     const paths = fixture();
     const bundledMain = [
-      'async function ensurePackagedHarnessRuntime(harnessRuntimeDir) {',
-      '  await ensureHarnessRuntime({ resourcesDir: harnessRuntimeDir });',
+      'async function ensurePackagedHarnessRuntime(harnessRuntimeDir, staticResourcesDir) {',
+      "  const requirements = readHarnessRuntimeRequirements(join(staticResourcesDir, 'runtime-manifest.json'));",
+      '  await ensureHarnessRuntime({ resourcesDir: harnessRuntimeDir, requirements });',
       '}',
-      'if (app.isPackaged && !(await ensurePackagedHarnessRuntime(harnessRuntimeDir))) return;',
+      'if (app.isPackaged && !(await ensurePackagedHarnessRuntime(harnessRuntimeDir, resources))) return;',
       'await awaitHarnessLayout({ resourcesDir });',
     ].join('\n');
     const { verifyPackagedShellBootstrap } = await loadVerifier();
@@ -64,15 +65,33 @@ describe('packaged shell bootstrap gate', () => {
       .toMatchObject({ ok: true });
   });
 
+  it('rejects a packaged bootstrap that omits the runtime version and native ABI requirements', async () => {
+    const paths = fixture();
+    const bundledMain = [
+      'async function ensurePackagedHarnessRuntime(harnessRuntimeDir, staticResourcesDir) {',
+      '  await ensureHarnessRuntime({ resourcesDir: harnessRuntimeDir });',
+      '}',
+      'if (app.isPackaged && !(await ensurePackagedHarnessRuntime(harnessRuntimeDir, resources))) return;',
+      'await awaitHarnessLayout({ resourcesDir });',
+    ].join('\n');
+    const { verifyPackagedShellBootstrap } = await loadVerifier();
+
+    const result = verifyPackagedShellBootstrap({ ...paths, extractFile: () => bundledMain });
+
+    expect(result).toMatchObject({ ok: false });
+    expect(result.error).toMatch(/compatibility requirements check/);
+  });
+
   it('extracts the main entry from a real app.asar using the host archive path format', async () => {
     const paths = fixture();
     const sourceRoot = join(paths.appOutDir, 'stage');
     const mainPath = join(sourceRoot, packagedMainPath);
     const bundledMain = [
-      'async function ensurePackagedHarnessRuntime(harnessRuntimeDir) {',
-      '  await ensureHarnessRuntime({ resourcesDir: harnessRuntimeDir });',
+      'async function ensurePackagedHarnessRuntime(harnessRuntimeDir, staticResourcesDir) {',
+      "  const requirements = readHarnessRuntimeRequirements(join(staticResourcesDir, 'runtime-manifest.json'));",
+      '  await ensureHarnessRuntime({ resourcesDir: harnessRuntimeDir, requirements });',
       '}',
-      'if (app.isPackaged && !(await ensurePackagedHarnessRuntime(harnessRuntimeDir))) return;',
+      'if (app.isPackaged && !(await ensurePackagedHarnessRuntime(harnessRuntimeDir, resources))) return;',
       'await awaitHarnessLayout({ resourcesDir });',
     ].join('\n');
     mkdirSync(join(sourceRoot, 'dist', 'src', 'main'), { recursive: true });
@@ -88,11 +107,12 @@ describe('packaged shell bootstrap gate', () => {
   it('rejects a bootstrap call placed after DSH preflight', async () => {
     const paths = fixture();
     const bundledMain = [
-      'async function ensurePackagedHarnessRuntime(harnessRuntimeDir) {',
-      '  await ensureHarnessRuntime({ resourcesDir: harnessRuntimeDir });',
+      'async function ensurePackagedHarnessRuntime(harnessRuntimeDir, staticResourcesDir) {',
+      "  const requirements = readHarnessRuntimeRequirements(join(staticResourcesDir, 'runtime-manifest.json'));",
+      '  await ensureHarnessRuntime({ resourcesDir: harnessRuntimeDir, requirements });',
       '}',
       'await awaitHarnessLayout({ resourcesDir });',
-      'if (app.isPackaged && !(await ensurePackagedHarnessRuntime(harnessRuntimeDir))) return;',
+      'if (app.isPackaged && !(await ensurePackagedHarnessRuntime(harnessRuntimeDir, resources))) return;',
     ].join('\n');
     const { verifyPackagedShellBootstrap } = await loadVerifier();
 

@@ -1,8 +1,10 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  assertHarnessRuntimeVersion,
   validateHarnessRuntime,
   type HarnessDownloadProgressHandler,
+  type HarnessRuntimeRequirements,
   type HarnessUpdaterAdapter,
 } from './harness-updater.js';
 
@@ -12,6 +14,7 @@ export interface EnsureHarnessRuntimeOptions {
   updater: HarnessUpdaterAdapter;
   platform?: NodeJS.Platform;
   onProgress?: HarnessDownloadProgressHandler;
+  requirements?: HarnessRuntimeRequirements;
 }
 
 export interface EnsureHarnessRuntimeResult {
@@ -31,19 +34,28 @@ export async function ensureHarnessRuntime(
   const manifestPath = join(options.resourcesDir, 'runtime-manifest.json');
   const harnessDir = join(options.resourcesDir, 'dsh');
   const platform = options.platform ?? process.platform;
-  const existingVersion = readValidatedRuntimeVersion(harnessDir, manifestPath, platform);
+  if (options.requirements?.nodeModuleVersion !== undefined &&
+      options.requirements.nodeModuleVersion !== process.versions.modules) {
+    throw new Error(`Electron NODE_MODULE_VERSION ${process.versions.modules} does not match packaged DSH ABI requirement ${options.requirements.nodeModuleVersion}`);
+  }
+  const existingVersion = readValidatedRuntimeVersion(harnessDir, manifestPath, platform, options.requirements);
   if (existingVersion) return { status: 'ready', version: existingVersion, source: 'existing' };
 
   const update = await options.updater.check();
   if (!update.available || !update.latestVersion || !update.assetUrl) {
     throw new Error(update.error ?? 'No compatible DSH runtime release is available');
   }
+  assertHarnessRuntimeVersion(update.latestVersion, options.requirements?.minimumVersion);
   if (!update.digest) throw new Error('The DSH runtime release did not provide a SHA-256 digest');
 
-  await options.updater.downloadAndInstall(update, options.onProgress);
+  if (options.requirements) {
+    await options.updater.downloadAndInstall(update, options.onProgress, options.requirements);
+  } else {
+    await options.updater.downloadAndInstall(update, options.onProgress);
+  }
   // Preserve the specific compatibility/layout error so the user can decide
   // whether retrying the first-run download is likely to help.
-  validateHarnessRuntime(harnessDir, manifestPath, platform);
+  validateHarnessRuntime(harnessDir, manifestPath, platform, options.requirements);
   const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { version?: unknown };
   const installedVersion = typeof manifest.version === 'string' ? manifest.version : undefined;
   if (!installedVersion) throw new Error('Downloaded DSH runtime manifest has no version');
@@ -54,10 +66,11 @@ function readValidatedRuntimeVersion(
   harnessDir: string,
   manifestPath: string,
   platform: NodeJS.Platform,
+  requirements?: HarnessRuntimeRequirements,
 ): string | undefined {
   if (!existsSync(harnessDir) || !existsSync(manifestPath)) return undefined;
   try {
-    validateHarnessRuntime(harnessDir, manifestPath, platform);
+    validateHarnessRuntime(harnessDir, manifestPath, platform, requirements);
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { version?: unknown };
     return typeof manifest.version === 'string' ? manifest.version : undefined;
   } catch {

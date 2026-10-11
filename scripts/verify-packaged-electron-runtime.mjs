@@ -16,7 +16,7 @@ const semver = require('semver');
 function defaultProbeRuntime(executablePath) {
   const probe = spawnSync(executablePath, [
     '-p',
-    'JSON.stringify({ electronVersion: process.versions.electron, nodeVersion: process.version })',
+    'JSON.stringify({ electronVersion: process.versions.electron, nodeVersion: process.version, nodeModuleVersion: process.versions.modules })',
   ], {
     cwd: root,
     encoding: 'utf8',
@@ -29,8 +29,9 @@ function defaultProbeRuntime(executablePath) {
   }
   try {
     const runtime = JSON.parse(probe.stdout.trim());
-    if (typeof runtime.electronVersion !== 'string' || typeof runtime.nodeVersion !== 'string') {
-      throw new Error('Electron probe returned no Electron/Node version');
+    if (typeof runtime.electronVersion !== 'string' || typeof runtime.nodeVersion !== 'string' ||
+        typeof runtime.nodeModuleVersion !== 'string') {
+      throw new Error('Electron probe returned no Electron/Node/module ABI version');
     }
     return runtime;
   } catch (error) {
@@ -93,11 +94,29 @@ export function verifyPackagedElectronRuntime(options) {
   if (!semver.valid(runtime.nodeVersion) || !semver.satisfies(runtime.nodeVersion, engineRange)) {
     return fail(`Packaged Electron Node ${runtime.nodeVersion} does not satisfy DSH engines.node ${engineRange}`);
   }
+  const packagedManifestPath = join(appOutDir, 'resources', 'freecode', 'runtime-manifest.json');
+  if (!existsSync(packagedManifestPath)) {
+    return fail(`Packaged DSH compatibility manifest not found: ${packagedManifestPath}`);
+  }
+  let packagedManifest;
+  try {
+    packagedManifest = JSON.parse(readFileSync(packagedManifestPath, 'utf8'));
+  } catch (error) {
+    return fail(`Could not read packaged DSH compatibility manifest: ${String(error)}`);
+  }
+  if (typeof packagedManifest?.version !== 'string' || !semver.valid(packagedManifest.version) ||
+      typeof packagedManifest.nodeModuleVersion !== 'string' || !/^\d+$/.test(packagedManifest.nodeModuleVersion)) {
+    return fail('Packaged DSH compatibility manifest has invalid version or nodeModuleVersion metadata');
+  }
+  if (runtime.nodeModuleVersion !== packagedManifest.nodeModuleVersion) {
+    return fail(`Packaged DSH manifest requires NODE_MODULE_VERSION ${packagedManifest.nodeModuleVersion}, but appOutDir Electron provides ${runtime.nodeModuleVersion}`);
+  }
   return {
     ok: true,
     executablePath,
     electronVersion: runtime.electronVersion,
     nodeVersion: runtime.nodeVersion,
+    nodeModuleVersion: runtime.nodeModuleVersion,
     engineRange,
   };
 }
@@ -113,7 +132,7 @@ if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.m
       console.error(`verify-packaged-electron-runtime: FAIL — ${result.error}`);
       process.exitCode = 1;
     } else {
-      console.log(`verify-packaged-electron-runtime: PASS — Electron ${result.electronVersion}, Node ${result.nodeVersion} satisfies DSH ${result.engineRange}`);
+      console.log(`verify-packaged-electron-runtime: PASS — Electron ${result.electronVersion}, Node ${result.nodeVersion}, ABI ${result.nodeModuleVersion} satisfies DSH ${result.engineRange}`);
     }
   }
 }

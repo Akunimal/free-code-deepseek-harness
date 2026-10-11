@@ -25,6 +25,7 @@ if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
 
 const requirements = [
   ['version', value => typeof value === 'string' && /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(value)],
+  ['nodeModuleVersion', value => typeof value === 'string' && /^\d+$/.test(value)],
   ['cli', value => value === 'dsh/apps/cli/lib/bin.js'],
   ['install', value => value === 'core-allowlist'],
   ['optionalProviders', value => value === 'external-only'],

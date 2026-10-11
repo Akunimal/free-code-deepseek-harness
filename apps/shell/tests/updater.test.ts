@@ -12,6 +12,7 @@ function writeValidHarnessRuntime(
   version: string,
   cliContents: string,
   nodeEngine = '^22.19.0 || >=24.0.0',
+  nodeModuleVersion = process.versions.modules,
 ): void {
   const dsh = join(root, 'dsh');
   mkdirSync(join(dsh, 'apps', 'cli', 'lib'), { recursive: true });
@@ -27,7 +28,11 @@ function writeValidHarnessRuntime(
     'fetch(',
   ].join('\n'));
   writeFileSync(join(dsh, 'package.json'), JSON.stringify({ engines: { node: nodeEngine } }));
-  writeFileSync(join(root, 'runtime-manifest.json'), JSON.stringify({ version, cli: 'dsh/apps/cli/lib/bin.js' }));
+  writeFileSync(join(root, 'runtime-manifest.json'), JSON.stringify({
+    version,
+    nodeModuleVersion,
+    cli: 'dsh/apps/cli/lib/bin.js',
+  }));
 }
 
 function createHarnessArchive(archivePath: string, archiveRoot: string): Buffer {
@@ -259,6 +264,36 @@ describe('update service', () => {
 
       expect(readFileSync(join(resources, 'dsh', 'apps', 'cli', 'lib', 'bin.js'), 'utf8')).toBe('first-run');
       expect(JSON.parse(readFileSync(join(resources, 'runtime-manifest.json'), 'utf8')).version).toBe('0.1.8');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('does not promote an archive whose native ABI differs from Electron', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'freecode-updater-abi-reject-'));
+    try {
+      const resources = join(root, 'resources');
+      const archiveRoot = join(root, 'archive-root');
+      const archivePath = join(root, 'harness.tar.gz');
+      mkdirSync(resources, { recursive: true });
+      mkdirSync(archiveRoot, { recursive: true });
+      writeValidHarnessRuntime(resources, '0.2.0', 'last-known-good');
+      writeValidHarnessRuntime(archiveRoot, '0.2.1-alpha.1', 'wrong-abi', '^22.19.0 || >=24.0.0', '133');
+      const bytes = createHarnessArchive(archivePath, archiveRoot);
+      const digest = createHash('sha256').update(bytes).digest('hex');
+
+      await expect(installHarnessRuntime({
+        latestVersion: '0.2.1-alpha.1',
+        assetUrl: 'https://github.com/Akunimal/free-code-deepseek-harness/releases/download/v0.2.1-alpha.1/harness.tar.gz',
+        digest: `sha256:${digest}`,
+        available: true,
+      }, resources, vi.fn(async () => new Response(new Uint8Array(bytes), { status: 200 })), undefined, {}, {
+        minimumVersion: '0.2.1-alpha.1',
+        nodeModuleVersion: process.versions.modules,
+      })).rejects.toThrow(new RegExp(`133.*NODE_MODULE_VERSION ${process.versions.modules}`));
+
+      expect(readFileSync(join(resources, 'dsh', 'apps', 'cli', 'lib', 'bin.js'), 'utf8')).toBe('last-known-good');
+      expect(JSON.parse(readFileSync(join(resources, 'runtime-manifest.json'), 'utf8')).version).toBe('0.2.0');
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

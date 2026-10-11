@@ -226,7 +226,35 @@ fi
 if [[ -z "$UPSTREAM_COMMIT" ]]; then
   UPSTREAM_COMMIT="$(git log --all --format='%b' --grep='git-subtree-dir: vendor/deepseek-harness' | sed -n 's/^git-subtree-split: //p' | head -n 1)"
 fi
-node -e "const fs=require('node:fs'); const p=process.argv[1]; const j={version:require(process.argv[2]).version, source:'deepseek-ai/deepseek-harness', upstreamCommit:process.argv[3]||null, cli:'dsh/apps/cli/lib/bin.js', install:'core-allowlist', optionalProviders:'external-only'}; fs.writeFileSync(p, JSON.stringify(j,null,2)+'\n')" "$OUT/runtime-manifest.json" "$VENDOR/package.json" "$UPSTREAM_COMMIT"
+node - "$OUT/runtime-manifest.json" "$VENDOR/package.json" "$UPSTREAM_COMMIT" "$ROOT" <<'NODE'
+const fs = require('node:fs');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+const [manifestPath, vendorPackagePath, upstreamCommit, root] = process.argv.slice(2);
+const electron = path.join(root, 'apps/shell/node_modules/electron/dist', process.platform === 'win32' ? 'electron.exe' : 'electron');
+const probe = spawnSync(electron, ['-p', 'process.versions.modules'], {
+  encoding: 'utf8',
+  windowsHide: true,
+  env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+});
+if (probe.error || probe.status !== 0) {
+  throw new Error(`Could not read Electron NODE_MODULE_VERSION: ${probe.error?.message || probe.stderr || probe.status}`);
+}
+const nodeModuleVersion = probe.stdout.trim();
+if (!/^\d+$/.test(nodeModuleVersion)) {
+  throw new Error(`Electron returned an invalid NODE_MODULE_VERSION: ${nodeModuleVersion}`);
+}
+const manifest = {
+  version: require(vendorPackagePath).version,
+  source: 'deepseek-ai/deepseek-harness',
+  upstreamCommit: upstreamCommit || null,
+  cli: 'dsh/apps/cli/lib/bin.js',
+  install: 'core-allowlist',
+  optionalProviders: 'external-only',
+  nodeModuleVersion,
+};
+fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+NODE
 node "$ROOT/scripts/verify-runtime-closure.mjs" "$OUT/dsh"
 
 echo "package-runtime: ready at $OUT"

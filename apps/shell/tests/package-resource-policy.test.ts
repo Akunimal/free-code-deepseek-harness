@@ -7,14 +7,14 @@ const installedSmokeScript = new URL('../../../scripts/verify-nsis-install-layou
 const installedRuntimeScript = new URL('../../../scripts/verify-installed-runtime.mjs', import.meta.url);
 
 describe('desktop package payload policy', () => {
-  it('keeps the large DSH runtime and its manifest out of setup resources', () => {
+  it('excludes the large DSH runtime but packages its small compatibility manifest', () => {
     const config = readFileSync(builderConfig, 'utf8');
     const resourcesBlock = config.split('extraResources:')[1]?.split('\nicon:')[0] ?? '';
 
     expect(resourcesBlock).toContain("'**/*'");
     expect(resourcesBlock).toContain("'!dsh'");
     expect(resourcesBlock).toContain("'!dsh/**'");
-    expect(resourcesBlock).toContain("'!runtime-manifest.json'");
+    expect(resourcesBlock).not.toContain("'!runtime-manifest.json'");
   });
 
   it('uses electron-builder store mode for faster Windows packaging and install', () => {

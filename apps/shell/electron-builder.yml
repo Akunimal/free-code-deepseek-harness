@@ -26,7 +26,6 @@ extraResources:
       - '**/*'
       - '!dsh'
       - '!dsh/**'
-      - '!runtime-manifest.json'
       - '!.uv-cache/**'
       - '!.uv-cache'
       - '!.uv-tools/**'

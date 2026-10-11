@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
  * Fail packaging when the actual app.asar still contains the pre-bootstrap
- * shell entry point. The DSH runtime is intentionally excluded from setup, so
- * the packaged app must download/validate it before running DSH preflight.
+ * shell entry point. The DSH runtime payload is intentionally excluded from
+ * setup, so the packaged app must read its compatibility manifest and
+ * download/validate it before running DSH preflight.
  */
 import { createRequire } from 'node:module';
 import { existsSync } from 'node:fs';
@@ -12,7 +13,8 @@ import { pathToFileURL } from 'node:url';
 const root = resolve(import.meta.dirname, '..');
 const SHELL_MAIN_ENTRY = join('dist', 'src', 'main', 'index.js');
 const BOOTSTRAP_DEFINITION = 'async function ensurePackagedHarnessRuntime(';
-const BOOTSTRAP_GUARD = 'app.isPackaged && !(await ensurePackagedHarnessRuntime(harnessRuntimeDir))';
+const BOOTSTRAP_GUARD = 'app.isPackaged && !(await ensurePackagedHarnessRuntime(harnessRuntimeDir, resources))';
+const COMPATIBILITY_REQUIREMENTS_CALL = "readHarnessRuntimeRequirements(join(staticResourcesDir, 'runtime-manifest.json'))";
 const RUNTIME_DOWNLOAD_CALL = 'ensureHarnessRuntime({';
 const DSH_PREFLIGHT_CALL = 'awaitHarnessLayout({';
 
@@ -26,14 +28,16 @@ function extractPackagedFile(archivePath, filePath) {
 function inspectPackagedMain(mainSource) {
   const definitionAt = mainSource.indexOf(BOOTSTRAP_DEFINITION);
   const bootstrapAt = mainSource.indexOf(BOOTSTRAP_GUARD);
+  const requirementsAt = mainSource.indexOf(COMPATIBILITY_REQUIREMENTS_CALL, definitionAt);
   const downloadAt = mainSource.indexOf(RUNTIME_DOWNLOAD_CALL, definitionAt);
   const preflightAt = mainSource.indexOf(DSH_PREFLIGHT_CALL);
 
-  if (definitionAt < 0 || bootstrapAt < definitionAt || downloadAt < definitionAt ||
+  if (definitionAt < 0 || bootstrapAt < definitionAt || requirementsAt < definitionAt ||
+      downloadAt < definitionAt || requirementsAt > downloadAt ||
       downloadAt > bootstrapAt || preflightAt < 0) {
     return {
       ok: false,
-      error: 'packaged main is missing the first-run DSH bootstrap implementation or call',
+      error: 'packaged main is missing the first-run DSH bootstrap or compatibility requirements check',
     };
   }
   if (bootstrapAt >= preflightAt) {

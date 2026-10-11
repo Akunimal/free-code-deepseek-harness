@@ -20,7 +20,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -91,20 +91,33 @@ try {
     console.error(`verify-nsis-install-layout: installer exited ${install.status}`);
     exitCode = 2;
   } else {
-    const REQUIRED_FILES = ['resources/freecode/opencode2api/opencode2api-win-x64.exe'];
+    const REQUIRED_FILES = [
+      'resources/freecode/opencode2api/opencode2api-win-x64.exe',
+      'resources/freecode/runtime-manifest.json',
+    ];
     const FORBIDDEN_PATHS = [
       'resources/freecode/dsh',
-      'resources/freecode/runtime-manifest.json',
     ];
     const missing = REQUIRED_FILES.filter((rel) => !existsSync(join(installDir, rel)));
     const unexpectedlyBundled = FORBIDDEN_PATHS.filter((rel) => existsSync(join(installDir, rel)));
-    if (missing.length > 0 || unexpectedlyBundled.length > 0) {
+    let invalidManifest = false;
+    if (!missing.includes('resources/freecode/runtime-manifest.json')) {
+      try {
+        const manifest = JSON.parse(readFileSync(join(installDir, 'resources/freecode/runtime-manifest.json'), 'utf8'));
+        invalidManifest = typeof manifest.version !== 'string' || typeof manifest.nodeModuleVersion !== 'string' ||
+          !/^\d+$/.test(manifest.nodeModuleVersion);
+      } catch {
+        invalidManifest = true;
+      }
+    }
+    if (missing.length > 0 || unexpectedlyBundled.length > 0 || invalidManifest) {
       console.error('verify-nsis-install-layout: MISSING after install:');
       for (const m of missing) console.error(`  - ${m}`);
       for (const m of unexpectedlyBundled) console.error(`  - unexpectedly bundled: ${m}`);
+      if (invalidManifest) console.error('  - runtime compatibility manifest is malformed');
       exitCode = 1;
     } else {
-      console.log('verify-nsis-install-layout: static resources are present and the DSH payload is excluded.');
+      console.log('verify-nsis-install-layout: static resources and DSH compatibility manifest are present; the DSH payload is excluded.');
       try {
         await verifyInstalledRuntime({ installDir, label: 'fresh install' });
         console.log('verify-nsis-install-layout: installed runtime boot/headless smoke passed.');

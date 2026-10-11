@@ -12,7 +12,11 @@ import { registerIpc } from './ipc.js';
 import { nodeRuntimeEnv, resolveHarnessRuntimeDir, resolveNodePath, resolveResourcesDir } from './resource-paths.js';
 import { createAppLogger, type AppLogger } from './logger.js';
 import { createUpdateService, isNewerVersion, type UpdateCheckResult, type UpdateService } from './updater.js';
-import { createHarnessUpdater, type HarnessDownloadProgress } from './harness-updater.js';
+import {
+  createHarnessUpdater,
+  readHarnessRuntimeRequirements,
+  type HarnessDownloadProgress,
+} from './harness-updater.js';
 import { ensureHarnessRuntime } from './harness-bootstrap.js';
 import { createEmbeddedBrowser, type EmbeddedBrowser } from './embedded-browser.js';
 import { createDialogBridge, type DialogBridge } from './dialog-bridge.js';
@@ -752,7 +756,7 @@ function bundledHarnessVersion(resources: string): string | undefined {
   return undefined;
 }
 
-async function ensurePackagedHarnessRuntime(harnessRuntimeDir: string): Promise<boolean> {
+async function ensurePackagedHarnessRuntime(harnessRuntimeDir: string, staticResourcesDir: string): Promise<boolean> {
   const bootstrapUpdater = createHarnessUpdater({ resourcesDir: harnessRuntimeDir });
   let lastProgressAt = 0;
   let lastProgressBytes = 0;
@@ -760,9 +764,11 @@ async function ensurePackagedHarnessRuntime(harnessRuntimeDir: string): Promise<
   for (;;) {
     try {
       updateSplashStatus(t('splash.downloadingRuntime'));
+      const requirements = readHarnessRuntimeRequirements(join(staticResourcesDir, 'runtime-manifest.json'));
       const result = await ensureHarnessRuntime({
         resourcesDir: harnessRuntimeDir,
         updater: bootstrapUpdater,
+        requirements,
         onProgress: (progress) => {
           const now = Date.now();
           if (progress.phase === 'extract') {
@@ -1156,7 +1162,7 @@ app.whenReady().then(async () => {
     resourcesDir: resources,
     userDataDir,
   });
-  if (app.isPackaged && !(await ensurePackagedHarnessRuntime(harnessRuntimeDir))) return;
+  if (app.isPackaged && !(await ensurePackagedHarnessRuntime(harnessRuntimeDir, resources))) return;
   // Preflight: fail loud with a specific message BEFORE creating the
   // supervisor. Otherwise a broken install surfaces as a mystery
   // "supervisor gave up" 30+ seconds later.

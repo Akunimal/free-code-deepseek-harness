@@ -56,7 +56,7 @@ const legacyLayoutIsPopulated = () => {
 };
 const layoutIsPopulated = () => existsSync(join(installDir, 'resources/freecode/opencode2api/opencode2api-win-x64.exe'))
   && !existsSync(dsh())
-  && !existsSync(join(installDir, 'resources/freecode/runtime-manifest.json'));
+  && existsSync(join(installDir, 'resources/freecode/runtime-manifest.json'));
 
 const stopProcessTree = (pid) => {
   if (!pid) return;
@@ -132,10 +132,11 @@ const runSetup = async (setup, label, isComplete = layoutIsPopulated) => {
 const dsh = () => join(installDir, 'resources/freecode/dsh');
 const assertPopulated = (label) => {
   const opencode = join(installDir, 'resources/freecode/opencode2api/opencode2api-win-x64.exe');
-  const forbidden = [dsh(), join(installDir, 'resources/freecode/runtime-manifest.json')]
+  const forbidden = [dsh()]
     .filter((target) => existsSync(target));
-  if (!existsSync(opencode) || forbidden.length) {
-    throw new Error(`${label} layout invalid; missing=${existsSync(opencode) ? '' : opencode} unexpectedlyBundled=${forbidden.join(',')}`);
+  const manifest = join(installDir, 'resources/freecode/runtime-manifest.json');
+  if (!existsSync(opencode) || !existsSync(manifest) || forbidden.length) {
+    throw new Error(`${label} layout invalid; missing=${existsSync(opencode) ? '' : opencode}${existsSync(manifest) ? '' : `,${manifest}`} unexpectedlyBundled=${forbidden.join(',')}`);
   }
 };
 const assertLegacyPopulated = (label) => {

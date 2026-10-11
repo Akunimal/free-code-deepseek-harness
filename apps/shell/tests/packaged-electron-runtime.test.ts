@@ -17,6 +17,11 @@ function fixture() {
   writeFileSync(join(runtimeDir, 'package.json'), JSON.stringify({
     engines: { node: '^22.19.0 || >=24.0.0' },
   }));
+  mkdirSync(join(appOutDir, 'resources', 'freecode'), { recursive: true });
+  writeFileSync(join(appOutDir, 'resources', 'freecode', 'runtime-manifest.json'), JSON.stringify({
+    version: '0.2.1-alpha.1',
+    nodeModuleVersion: process.versions.modules,
+  }));
   return { root, appOutDir, runtimeDir, executableName };
 }
 
@@ -29,7 +34,7 @@ interface VerifierOptions {
   runtimeDir: string;
   executableName: string;
   expectedElectronVersion: string;
-  probeRuntime?: (path: string) => { electronVersion: string; nodeVersion: string };
+  probeRuntime?: (path: string) => { electronVersion: string; nodeVersion: string; nodeModuleVersion: string };
 }
 
 interface VerifierResult {
@@ -37,6 +42,7 @@ interface VerifierResult {
   error?: string;
   electronVersion?: string;
   nodeVersion?: string;
+  nodeModuleVersion?: string;
 }
 
 async function loadVerifier(): Promise<{
@@ -51,7 +57,7 @@ async function loadVerifier(): Promise<{
 describe('packaged Electron runtime gate', () => {
   it('probes the executable in appOutDir and rejects stale Electron 35 output', async () => {
     const paths = fixture();
-    const probeRuntime = vi.fn(() => ({ electronVersion: '35.7.5', nodeVersion: 'v22.16.0' }));
+    const probeRuntime = vi.fn(() => ({ electronVersion: '35.7.5', nodeVersion: 'v22.16.0', nodeModuleVersion: '133' }));
     const { verifyPackagedElectronRuntime } = await loadVerifier();
 
     const result = verifyPackagedElectronRuntime({
@@ -72,7 +78,7 @@ describe('packaged Electron runtime gate', () => {
     const result = verifyPackagedElectronRuntime({
       ...paths,
       expectedElectronVersion: '44.7.0',
-      probeRuntime: () => ({ electronVersion: '44.7.0', nodeVersion: 'v22.16.0' }),
+      probeRuntime: () => ({ electronVersion: '44.7.0', nodeVersion: 'v22.16.0', nodeModuleVersion: process.versions.modules }),
     });
 
     expect(result).toMatchObject({ ok: false });
@@ -86,8 +92,31 @@ describe('packaged Electron runtime gate', () => {
     expect(verifyPackagedElectronRuntime({
       ...paths,
       expectedElectronVersion: '44.7.0',
-      probeRuntime: () => ({ electronVersion: '44.7.0', nodeVersion: 'v24.21.0' }),
-    })).toMatchObject({ ok: true, electronVersion: '44.7.0', nodeVersion: 'v24.21.0' });
+      probeRuntime: () => ({
+        electronVersion: '44.7.0',
+        nodeVersion: 'v24.21.0',
+        nodeModuleVersion: process.versions.modules,
+      }),
+    })).toMatchObject({
+      ok: true,
+      electronVersion: '44.7.0',
+      nodeVersion: 'v24.21.0',
+      nodeModuleVersion: process.versions.modules,
+    });
+  });
+
+  it('rejects appOutDir when its compatibility manifest requires a different native ABI', async () => {
+    const paths = fixture();
+    const { verifyPackagedElectronRuntime } = await loadVerifier();
+
+    const result = verifyPackagedElectronRuntime({
+      ...paths,
+      expectedElectronVersion: '44.7.0',
+      probeRuntime: () => ({ electronVersion: '44.7.0', nodeVersion: 'v24.21.0', nodeModuleVersion: '149' }),
+    });
+
+    expect(result).toMatchObject({ ok: false });
+    expect(result.error).toMatch(/manifest requires NODE_MODULE_VERSION .* appOutDir Electron provides 149/);
   });
 
   it('fails closed when the appOutDir does not contain the expected executable', async () => {
