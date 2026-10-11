@@ -35,6 +35,10 @@ fs.cpSync(source, destination, {
     const relative = path.relative(source, candidate);
     if (relative === '') return true;
     const parts = relative.split(path.sep);
+    // Benchmarks are not part of the desktop runtime. Their nested pnpm
+    // workspace links can require symlink privileges when copied on Windows,
+    // so omit only that development-only dependency tree from the payload.
+    if (parts[0] === 'benchmarks' && parts[1] === 'node_modules') return false;
     return !(parts[0] === 'node_modules' && PNM_EXCLUDE.has(parts[1]));
   },
 });

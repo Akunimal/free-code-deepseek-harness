@@ -10,6 +10,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
+import { findFsExtDirectory } from './runtime-native-modules.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const runtimeDir = resolve(process.argv[2] ?? join(root, 'apps', 'shell', 'resources', 'freecode', 'dsh'));
@@ -71,12 +72,11 @@ if (typeof electronVersion !== 'string' || electronVersion.length === 0) {
 // @electron/rebuild writes the target ABI into this generated metadata. Read
 // that value instead of importing node-abi as an undeclared root dependency;
 // the same script must run from the Windows and WSL dependency layouts.
-const fsExtDir = join(runtimeDir, 'node_modules', 'fs-ext');
-const fsExtBinary = join(fsExtDir, 'build', 'Release', 'fs_ext.node');
-const fsExtConfig = join(fsExtDir, 'build', 'config.gypi');
-if (!existsSync(join(fsExtDir, 'binding.gyp'))) {
-  throw new Error(`rebuild-runtime-native: required fs-ext binding.gyp is missing: ${fsExtDir}`);
-}
+const fsExtDir = findFsExtDirectory(runtimeDir);
+const hasFsExt = fsExtDir !== undefined;
+const fsExtPath = join(runtimeDir, 'node_modules', 'fs-ext');
+const fsExtBinary = join(fsExtPath, 'build', 'Release', 'fs_ext.node');
+const fsExtConfig = join(fsExtPath, 'build', 'config.gypi');
 
 // The materialized runtime intentionally flattens workspace packages, so
 // @electron/rebuild may not discover fs-ext by walking package.json links.
@@ -138,30 +138,34 @@ if (result.status !== 0) {
 }
 
 // @electron/rebuild can report success without visiting a transitive package
-// that already contains a host-Node binary. fs-ext is loaded by dsh at startup,
-// so rebuild it explicitly and verify both the generated binary and its gyp ABI.
-console.log(`rebuild-runtime-native: forcing fs-ext rebuild with Electron headers (ABI ${electronAbi})`);
-const nativeResult = spawnSync(process.execPath, [nodeGypCli, 'rebuild', '--directory', fsExtDir, `--runtime=electron`, `--target=${electronVersion}`], {
-  cwd: root,
-  stdio: 'inherit',
-  windowsHide: true,
-  env: {
-    ...process.env,
-    npm_config_build_from_source: 'true',
-    npm_config_dist_url: 'https://electronjs.org/headers',
-    npm_config_runtime: 'electron',
-    npm_config_target: electronVersion,
-  },
-});
-if (nativeResult.error) throw nativeResult.error;
-if (nativeResult.status !== 0) {
-  throw new Error(`rebuild-runtime-native: fs-ext native rebuild failed with exit code ${String(nativeResult.status)}`);
-}
-if (!existsSync(fsExtBinary)) {
-  throw new Error(`rebuild-runtime-native: fs-ext rebuild reported success but produced no binary: ${fsExtBinary}`);
-}
-if (!existsSync(fsExtConfig)) {
-  throw new Error(`rebuild-runtime-native: fs-ext rebuild reported success but produced no config metadata: ${fsExtConfig}`);
+// that already contains a host-Node binary. When fs-ext is present in the
+// runtime closure, rebuild it explicitly and verify its binary and Electron ABI.
+if (hasFsExt) {
+  console.log(`rebuild-runtime-native: forcing fs-ext rebuild with Electron headers (ABI ${electronAbi})`);
+  const nativeResult = spawnSync(process.execPath, [nodeGypCli, 'rebuild', '--directory', fsExtDir, `--runtime=electron`, `--target=${electronVersion}`], {
+    cwd: root,
+    stdio: 'inherit',
+    windowsHide: true,
+    env: {
+      ...process.env,
+      npm_config_build_from_source: 'true',
+      npm_config_dist_url: 'https://electronjs.org/headers',
+      npm_config_runtime: 'electron',
+      npm_config_target: electronVersion,
+    },
+  });
+  if (nativeResult.error) throw nativeResult.error;
+  if (nativeResult.status !== 0) {
+    throw new Error(`rebuild-runtime-native: fs-ext native rebuild failed with exit code ${String(nativeResult.status)}`);
+  }
+  if (!existsSync(fsExtBinary)) {
+    throw new Error(`rebuild-runtime-native: fs-ext rebuild reported success but produced no binary: ${fsExtBinary}`);
+  }
+  if (!existsSync(fsExtConfig)) {
+    throw new Error(`rebuild-runtime-native: fs-ext rebuild reported success but produced no config metadata: ${fsExtConfig}`);
+  }
+} else {
+  console.log(`rebuild-runtime-native: fs-ext is not present in the runtime closure; skipping its explicit rebuild/load probe`);
 }
 
 // node-gyp's generated config.gypi may retain the host Node module version
@@ -169,7 +173,7 @@ if (!existsSync(fsExtConfig)) {
 // loading the produced addon through the exact Electron executable shipped by
 // the app, under the same ELECTRON_RUN_AS_NODE=1 mode used by dsh.
 const electronBinary = join(root, 'apps', 'shell', 'node_modules', 'electron', 'dist', process.platform === 'win32' ? 'electron.exe' : 'electron');
-if (!existsSync(electronBinary)) {
+if (hasFsExt && !existsSync(electronBinary)) {
   // pnpm can restore Electron's package metadata without its postinstall
   // artifact (for example after an interrupted dependency cache restore).
   // Materialize the official package binary before the ABI load probe instead
@@ -189,30 +193,32 @@ if (!existsSync(electronBinary)) {
     throw new Error(`rebuild-runtime-native: Electron package installer did not produce ${electronBinary}`);
   }
 }
-if (!existsSync(electronBinary)) {
+if (hasFsExt && !existsSync(electronBinary)) {
   throw new Error(`rebuild-runtime-native: Electron executable not found for load probe: ${electronBinary}`);
 }
-const loadProbe = spawnSync(electronBinary, ['-e', [
-  `const addon = require(${JSON.stringify(fsExtDir)});`,
-  `process.stdout.write(JSON.stringify({ loaded: Boolean(addon), node: process.versions.node, modules: process.versions.modules }));`,
-].join(' ')], {
-  cwd: root,
-  encoding: 'utf8',
-  windowsHide: true,
-  env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
-});
-if (loadProbe.error) throw loadProbe.error;
-if (loadProbe.status !== 0) {
-  throw new Error(`rebuild-runtime-native: Electron fs-ext load probe failed with exit code ${String(loadProbe.status)}\n${loadProbe.stderr ?? ''}`);
-}
-let loadProbeResult;
-try {
-  loadProbeResult = JSON.parse(loadProbe.stdout);
-} catch (error) {
-  throw new Error(`rebuild-runtime-native: Electron fs-ext load probe returned invalid JSON: ${loadProbe.stdout}`, { cause: error });
-}
-if (!loadProbeResult.loaded || Number(loadProbeResult.modules) !== electronAbi) {
-  throw new Error(`rebuild-runtime-native: Electron fs-ext load probe ABI mismatch; expected ${electronAbi}, got ${loadProbe.stdout}`);
-}
+if (hasFsExt) {
+  const loadProbe = spawnSync(electronBinary, ['-e', [
+    `const addon = require(${JSON.stringify(fsExtDir)});`,
+    `process.stdout.write(JSON.stringify({ loaded: Boolean(addon), node: process.versions.node, modules: process.versions.modules }));`,
+  ].join(' ')], {
+    cwd: root,
+    encoding: 'utf8',
+    windowsHide: true,
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+  });
+  if (loadProbe.error) throw loadProbe.error;
+  if (loadProbe.status !== 0) {
+    throw new Error(`rebuild-runtime-native: Electron fs-ext load probe failed with exit code ${String(loadProbe.status)}\n${loadProbe.stderr ?? ''}`);
+  }
+  let loadProbeResult;
+  try {
+    loadProbeResult = JSON.parse(loadProbe.stdout);
+  } catch (error) {
+    throw new Error(`rebuild-runtime-native: Electron fs-ext load probe returned invalid JSON: ${loadProbe.stdout}`, { cause: error });
+  }
+  if (!loadProbeResult.loaded || Number(loadProbeResult.modules) !== electronAbi) {
+    throw new Error(`rebuild-runtime-native: Electron fs-ext load probe ABI mismatch; expected ${electronAbi}, got ${loadProbe.stdout}`);
+  }
 
-console.log(`rebuild-runtime-native: Electron ${electronVersion} native ABI rebuild passed for fs-ext`);
+  console.log(`rebuild-runtime-native: Electron ${electronVersion} native ABI rebuild passed for fs-ext`);
+}

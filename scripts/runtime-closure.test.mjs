@@ -108,6 +108,26 @@ test('runtime stage copy excludes pnpm virtual-store metadata from the shipped c
   }
 });
 
+test('runtime stage copy excludes non-runtime benchmark workspace dependencies', () => {
+  const stage = mkdtempSync(join(tmpdir(), 'freecode-runtime-benchmark-copy-'));
+  const destination = mkdtempSync(join(tmpdir(), 'freecode-runtime-benchmark-dest-'));
+  rmSync(destination, { recursive: true, force: true });
+  try {
+    writeFileSync(join(stage, 'package.json'), '{}');
+    mkdirSync(join(stage, 'benchmarks', 'node_modules', '@deepseek-ai', 'cordis'), { recursive: true });
+    writeFileSync(join(stage, 'benchmarks', 'README.md'), 'benchmark source');
+    writeFileSync(join(stage, 'benchmarks', 'node_modules', '@deepseek-ai', 'cordis', 'package.json'), '{}');
+
+    const result = spawnSync(process.execPath, [copyStage, stage, destination], { encoding: 'utf8', windowsHide: true });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(existsSync(join(destination, 'benchmarks', 'README.md')), true);
+    assert.equal(existsSync(join(destination, 'benchmarks', 'node_modules')), false);
+  } finally {
+    rmSync(stage, { recursive: true, force: true });
+    rmSync(destination, { recursive: true, force: true });
+  }
+});
+
 test('runtime manifest gate rejects a literal escaped newline after the JSON object', () => {
   const manifest = mkdtempSync(join(tmpdir(), 'freecode-runtime-manifest-'));
   const manifestPath = join(manifest, 'runtime-manifest.json');
