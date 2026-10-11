@@ -14,8 +14,10 @@ import { join } from 'node:path';
  */
 
 export interface PreflightOptions {
-  /** Resources root containing dsh/, opencode2api/, runtime-manifest.json. */
+  /** Static resources root containing opencode2api/. */
   resourcesDir: string;
+  /** Runtime root containing dsh/ and runtime-manifest.json; defaults to resourcesDir. */
+  harnessDir?: string;
   /** Platform for opencode2api binary presence check. */
   platform?: NodeJS.Platform;
 }
@@ -33,10 +35,10 @@ export interface PreflightResult {
  * matters: earlier entries are more fundamental (missing bin.js is fatal;
  * missing bridge bundle is a soft warning until we prove the invariant).
  */
-function criticalPaths(resourcesDir: string, platform: NodeJS.Platform): { path: string; label: string }[] {
-  const dsh = join(resourcesDir, 'dsh');
+function criticalPaths(resourcesDir: string, harnessDir: string, platform: NodeJS.Platform): { path: string; label: string }[] {
+  const dsh = join(harnessDir, 'dsh');
   const paths = [
-    { path: join(resourcesDir, 'runtime-manifest.json'), label: 'runtime manifest' },
+    { path: join(harnessDir, 'runtime-manifest.json'), label: 'runtime manifest' },
     { path: join(dsh, 'apps', 'cli', 'lib', 'bin.js'), label: 'dsh CLI entry (apps/cli/lib/bin.js)' },
     { path: join(dsh, 'packages'), label: 'dsh packages/' },
     { path: join(dsh, 'node_modules'), label: 'dsh node_modules/' },
@@ -57,9 +59,9 @@ function criticalPaths(resourcesDir: string, platform: NodeJS.Platform): { path:
  * the install will crash on directory picker click (F1 postmortem: v0.2.4
  * shipped with stale `lib/index.js` that lacked the bridge code path).
  */
-function verifyBridgeInvariant(resourcesDir: string, platform: NodeJS.Platform): string | null {
+function verifyBridgeInvariant(harnessDir: string, platform: NodeJS.Platform): string | null {
   if (platform !== 'win32') return null
-  const bundle = join(resourcesDir, 'dsh', 'node_modules', '@deepseek-ai',
+  const bundle = join(harnessDir, 'dsh', 'node_modules', '@deepseek-ai',
     'dsh-host-directory-picker-native', 'lib', 'index.js');
   if (!existsSync(bundle)) return null; // already reported as missing above
   try {
@@ -85,8 +87,8 @@ function verifyBridgeInvariant(resourcesDir: string, platform: NodeJS.Platform):
  * supervisor starts, where the failure would otherwise look like a generic
  * harness boot timeout.
  */
-function verifyManifestInvariant(resourcesDir: string): string | null {
-  const manifestPath = join(resourcesDir, 'runtime-manifest.json');
+function verifyManifestInvariant(harnessDir: string): string | null {
+  const manifestPath = join(harnessDir, 'runtime-manifest.json');
   if (!existsSync(manifestPath)) return null; // already reported as missing
   try {
     const contents = readFileSync(manifestPath, 'utf8');
@@ -159,10 +161,11 @@ export async function awaitHarnessLayout(options: PreflightRetryOptions): Promis
  */
 export function verifyHarnessLayout(options: PreflightOptions): PreflightResult {
   const platform = options.platform ?? process.platform;
+  const harnessDir = options.harnessDir ?? options.resourcesDir;
   const missing: string[] = [];
   const warnings: string[] = [];
 
-  for (const { path, label } of criticalPaths(options.resourcesDir, platform)) {
+  for (const { path, label } of criticalPaths(options.resourcesDir, harnessDir, platform)) {
     if (!existsSync(path)) {
       missing.push(`${label}: ${path}`);
       continue;
@@ -179,10 +182,10 @@ export function verifyHarnessLayout(options: PreflightOptions): PreflightResult 
     }
   }
 
-  const bridgeWarning = verifyBridgeInvariant(options.resourcesDir, platform);
+  const bridgeWarning = verifyBridgeInvariant(harnessDir, platform);
   if (bridgeWarning) warnings.push(bridgeWarning);
 
-  const manifestWarning = verifyManifestInvariant(options.resourcesDir);
+  const manifestWarning = verifyManifestInvariant(harnessDir);
   if (manifestWarning) warnings.push(manifestWarning);
 
   return { ok: missing.length === 0 && warnings.length === 0, missing, warnings };

@@ -102,6 +102,16 @@ verificando HTTPS y SHA-256. No modifica `PATH`, no requiere administrador y no
 abre una consola. Un bootstrap fallido deja la app principal recuperable y
 expone el problema MCP en la tab/log.
 
+### Candidato 0.9.2: runtime del Harness en el primer inicio
+
+El candidato pendiente 0.9.2 deja el runtime grande de DSH fuera del setup y
+del portable, y descarga el asset Windows publicado más reciente la primera
+vez que se inicia la app. Verifica el digest de release y la compatibilidad del
+runtime con Electron; luego lo guarda en `<userData>/harness-runtime`. Los
+arranques posteriores reutilizan esa copia validada sin conexión. El primer
+inicio sí necesita Internet. Si no hay un runtime compatible disponible, la
+app ofrece Reintentar o Cerrar antes de iniciar el Harness.
+
 ## MCP: Engram y free-search
 
 En el primer arranque FreeCode crea atómicamente:

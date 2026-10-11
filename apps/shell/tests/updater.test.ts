@@ -1,10 +1,40 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
 import { checkUpstreamUpdate, createUpdateService, isNewerVersion, resolveUpdaterAdapter, type UpdaterAdapter } from '../src/main/updater.js';
 import { checkHarnessRelease, harnessAssetName, installHarnessRuntime, resolveTarExecutable } from '../src/main/harness-updater.js';
+
+function writeValidHarnessRuntime(
+  root: string,
+  version: string,
+  cliContents: string,
+  nodeEngine = '^22.19.0 || >=24.0.0',
+): void {
+  const dsh = join(root, 'dsh');
+  mkdirSync(join(dsh, 'apps', 'cli', 'lib'), { recursive: true });
+  writeFileSync(join(dsh, 'apps', 'cli', 'lib', 'bin.js'), cliContents);
+  mkdirSync(join(dsh, 'packages'), { recursive: true });
+  writeFileSync(join(dsh, 'packages', 'core'), 'fixture');
+  const bridgeDir = join(dsh, 'node_modules', '@deepseek-ai', 'dsh-host-directory-picker-native', 'lib');
+  mkdirSync(bridgeDir, { recursive: true });
+  writeFileSync(join(bridgeDir, 'index.js'), [
+    'FREECODE_DIALOG_BRIDGE_ENDPOINT',
+    'FREECODE_DIALOG_BRIDGE_TOKEN',
+    'x-freecode-dialog-token',
+    'fetch(',
+  ].join('\n'));
+  writeFileSync(join(dsh, 'package.json'), JSON.stringify({ engines: { node: nodeEngine } }));
+  writeFileSync(join(root, 'runtime-manifest.json'), JSON.stringify({ version, cli: 'dsh/apps/cli/lib/bin.js' }));
+}
+
+function createHarnessArchive(archivePath: string, archiveRoot: string): Buffer {
+  const result = spawnSync(resolveTarExecutable(), ['-czf', archivePath, '-C', archiveRoot, 'dsh', 'runtime-manifest.json'], { windowsHide: true });
+  if (result.status !== 0) throw new Error(`fixture tar failed: ${String(result.status)}`);
+  return readFileSync(archivePath);
+}
 
 describe('update service', () => {
   it('only treats a strictly newer release as available', () => {
@@ -127,6 +157,24 @@ describe('update service', () => {
     });
   });
 
+  it('makes the latest compatible runtime available when no runtime is installed yet', async () => {
+    const assetName = harnessAssetName('0.1.8', 'win32', 'x64');
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
+      tag_name: 'v0.1.8',
+      assets: [{ name: assetName, browser_download_url: `https://example.test/${assetName}`, digest: 'sha256:abc' }],
+    }), { status: 200 }));
+
+    await expect(checkHarnessRelease(undefined, 'win32', 'x64', fetchImpl)).resolves.toMatchObject({
+      latestVersion: '0.1.8',
+      assetName,
+      available: true,
+    });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://api.github.com/repos/Akunimal/free-code-deepseek-harness/releases/latest',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
   it('uses the Harness asset version when the app release tag has a different version', async () => {
     const assetName = harnessAssetName('0.1.1-rc.2', 'win32', 'x64');
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
@@ -167,27 +215,93 @@ describe('update service', () => {
       const archiveRoot = join(root, 'archive-root');
       const archivePath = join(root, 'harness.tar.gz');
       for (const base of [resources, archiveRoot]) mkdirSync(base, { recursive: true });
-      mkdirSync(join(resources, 'dsh', 'apps', 'cli', 'lib'), { recursive: true });
-      mkdirSync(join(archiveRoot, 'dsh', 'apps', 'cli', 'lib'), { recursive: true });
-      writeFileSync(join(resources, 'dsh', 'apps', 'cli', 'lib', 'bin.js'), 'old');
-      writeFileSync(join(resources, 'runtime-manifest.json'), JSON.stringify({ version: 'old', cli: 'dsh/apps/cli/lib/bin.js' }));
-      writeFileSync(join(archiveRoot, 'dsh', 'apps', 'cli', 'lib', 'bin.js'), 'new');
-      writeFileSync(join(archiveRoot, 'runtime-manifest.json'), JSON.stringify({ version: 'new', cli: 'dsh/apps/cli/lib/bin.js' }));
+      writeValidHarnessRuntime(resources, '0.1.7', 'old');
+      writeValidHarnessRuntime(archiveRoot, '0.1.8', 'new');
       // Build the fixture with the same tar the production extractor uses:
       // a PATH-resolved GNU tar misparses native D:\ paths as remote tapes.
-      const archive = spawnSync(resolveTarExecutable(), ['-czf', archivePath, '-C', archiveRoot, 'dsh', 'runtime-manifest.json'], { windowsHide: true });
-      expect(archive.status).toBe(0);
-      const bytes = readFileSync(archivePath);
+      const bytes = createHarnessArchive(archivePath, archiveRoot);
+      const digest = createHash('sha256').update(bytes).digest('hex');
+      const onProgress = vi.fn();
 
       await installHarnessRuntime(
-        { currentVersion: 'old', latestVersion: 'new', assetUrl: 'https://example.test/harness.tar.gz', available: true },
+        { currentVersion: '0.1.7', latestVersion: '0.1.8', assetUrl: 'https://github.com/Akunimal/free-code-deepseek-harness/releases/download/v0.1.8/harness.tar.gz', digest: `sha256:${digest}`, available: true },
         resources,
-        vi.fn(async () => new Response(bytes, { status: 200 })),
+        vi.fn(async () => new Response(new Uint8Array(bytes), { status: 200 })),
+        onProgress,
       );
 
       expect(readFileSync(join(resources, 'dsh', 'apps', 'cli', 'lib', 'bin.js'), 'utf8')).toBe('new');
-      expect(JSON.parse(readFileSync(join(resources, 'runtime-manifest.json'), 'utf8')).version).toBe('new');
+      expect(JSON.parse(readFileSync(join(resources, 'runtime-manifest.json'), 'utf8')).version).toBe('0.1.8');
       expect(readFileSync(join(resources, 'dsh', 'apps', 'cli', 'lib', 'bin.js'), 'utf8')).not.toBe('old');
+      expect(onProgress).toHaveBeenCalledWith(expect.objectContaining({ phase: 'download', receivedBytes: bytes.length }));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('installs a validated runtime when the user-data target is initially empty', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'freecode-updater-first-run-'));
+    try {
+      const resources = join(root, 'user-data', 'harness-runtime');
+      const archiveRoot = join(root, 'archive-root');
+      const archivePath = join(root, 'harness.tar.gz');
+      mkdirSync(archiveRoot, { recursive: true });
+      writeValidHarnessRuntime(archiveRoot, '0.1.8', 'first-run');
+      const bytes = createHarnessArchive(archivePath, archiveRoot);
+      const digest = createHash('sha256').update(bytes).digest('hex');
+
+      await expect(installHarnessRuntime({
+        latestVersion: '0.1.8',
+        assetUrl: 'https://github.com/Akunimal/free-code-deepseek-harness/releases/download/v0.1.8/harness.tar.gz',
+        digest: `sha256:${digest}`,
+        available: true,
+      }, resources, vi.fn(async () => new Response(new Uint8Array(bytes), { status: 200 })))).resolves.toBeUndefined();
+
+      expect(readFileSync(join(resources, 'dsh', 'apps', 'cli', 'lib', 'bin.js'), 'utf8')).toBe('first-run');
+      expect(JSON.parse(readFileSync(join(resources, 'runtime-manifest.json'), 'utf8')).version).toBe('0.1.8');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects an incompatible downloaded Node engine before replacing the working runtime', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'freecode-updater-incompatible-node-'));
+    try {
+      const resources = join(root, 'user-data', 'harness-runtime');
+      const archiveRoot = join(root, 'archive-root');
+      const archivePath = join(root, 'harness.tar.gz');
+      mkdirSync(resources, { recursive: true });
+      mkdirSync(archiveRoot, { recursive: true });
+      writeValidHarnessRuntime(resources, '0.1.7', 'working');
+      writeValidHarnessRuntime(archiveRoot, '0.1.8', 'incompatible', '>=25.0.0');
+      const bytes = createHarnessArchive(archivePath, archiveRoot);
+      const digest = createHash('sha256').update(bytes).digest('hex');
+
+      await expect(installHarnessRuntime({
+        latestVersion: '0.1.8',
+        assetUrl: 'https://github.com/Akunimal/free-code-deepseek-harness/releases/download/v0.1.8/harness.tar.gz',
+        digest: `sha256:${digest}`,
+        available: true,
+      }, resources, vi.fn(async () => new Response(new Uint8Array(bytes), { status: 200 })))).rejects.toThrow(
+        /does not satisfy DSH engines\.node >=25\.0\.0/,
+      );
+
+      expect(readFileSync(join(resources, 'dsh', 'apps', 'cli', 'lib', 'bin.js'), 'utf8')).toBe('working');
+      expect(JSON.parse(readFileSync(join(resources, 'runtime-manifest.json'), 'utf8')).version).toBe('0.1.7');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a runtime asset without a release checksum', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'freecode-updater-missing-digest-'));
+    try {
+      const resources = join(root, 'user-data', 'harness-runtime');
+      await expect(installHarnessRuntime({
+        latestVersion: '0.1.8',
+        assetUrl: 'https://github.com/Akunimal/free-code-deepseek-harness/releases/download/v0.1.8/harness.tar.gz',
+        available: true,
+      }, resources, vi.fn())).rejects.toThrow(/SHA-256 digest/);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

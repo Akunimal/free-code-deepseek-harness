@@ -8,7 +8,7 @@ export interface ResourcePathOptions {
   developmentRoot?: string;
 }
 
-/** Resolve the root that contains `dsh/` and `opencode2api/`. */
+/** Resolve the static resources root that contains `opencode2api/` and sidecars. */
 export function resolveResourcesDir(options: ResourcePathOptions): string {
   if (options.packaged && options.resourcesPath) {
     const bundled = resolve(options.resourcesPath, 'freecode');
@@ -19,6 +19,24 @@ export function resolveResourcesDir(options: ResourcePathOptions): string {
   const freecode = resolve(base, 'freecode');
   if (existsSync(freecode)) return freecode;
   return base;
+}
+
+export interface HarnessRuntimePathOptions {
+  packaged: boolean;
+  /** Static resources directory containing opencode2api, OCR, and Tor. */
+  resourcesDir: string;
+  /** Writable app data directory; packaged harness downloads live here. */
+  userDataDir?: string;
+}
+
+/**
+ * Packaged DSH is downloaded at first launch, so it must not be written under
+ * Program Files. Development continues to use the checked-out resource tree.
+ */
+export function resolveHarnessRuntimeDir(options: HarnessRuntimePathOptions): string {
+  if (!options.packaged) return resolve(options.resourcesDir);
+  if (!options.userDataDir) throw new Error('Packaged DSH runtime requires a writable user data directory');
+  return resolve(options.userDataDir, 'harness-runtime');
 }
 
 /** Find the platform worker binary in both the legacy dev layout and the

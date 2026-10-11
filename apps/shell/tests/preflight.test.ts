@@ -12,9 +12,10 @@ import { verifyHarnessLayout, awaitHarnessLayout, formatPreflightFailure } from 
 
 let root: string;
 
-function makeFullLayout(base: string, opts: { bundleHasBridge?: boolean } = {}): void {
+function makeFullLayout(base: string, opts: { bundleHasBridge?: boolean; harnessDir?: string } = {}): void {
   const hasBridge = opts.bundleHasBridge ?? true;
-  const dsh = join(base, 'dsh');
+  const harnessDir = opts.harnessDir ?? base;
+  const dsh = join(harnessDir, 'dsh');
   mkdirSync(join(dsh, 'apps', 'cli', 'lib'), { recursive: true });
   writeFileSync(join(dsh, 'apps', 'cli', 'lib', 'bin.js'), '// entry\n');
   mkdirSync(join(dsh, 'packages'), { recursive: true });
@@ -25,7 +26,8 @@ function makeFullLayout(base: string, opts: { bundleHasBridge?: boolean } = {}):
     ? '// bundle\nconst env = process.env.FREECODE_DIALOG_BRIDGE_ENDPOINT;\nconst token = process.env.FREECODE_DIALOG_BRIDGE_TOKEN;\nfetch(env, { headers: { \'x-freecode-dialog-token\': token } });\n'
     : '// bundle without bridge\n';
   writeFileSync(join(bundleDir, 'index.js'), bundle);
-  writeFileSync(join(base, 'runtime-manifest.json'), '{"version":"0.0.0","cli":"dsh/apps/cli/lib/bin.js"}');
+  mkdirSync(harnessDir, { recursive: true });
+  writeFileSync(join(harnessDir, 'runtime-manifest.json'), '{"version":"0.0.0","cli":"dsh/apps/cli/lib/bin.js"}');
   mkdirSync(join(base, 'opencode2api'), { recursive: true });
   writeFileSync(join(base, 'opencode2api', 'opencode2api-win-x64.exe'), '');
   writeFileSync(join(base, 'opencode2api', 'opencode2api-linux-x64'), '');
@@ -46,6 +48,16 @@ describe('verifyHarnessLayout', () => {
     expect(result.ok).toBe(true);
     expect(result.missing).toEqual([]);
     expect(result.warnings).toEqual([]);
+  });
+
+  it('validates downloaded DSH under user data while static sidecars remain in app resources', () => {
+    const resourcesDir = join(root, 'resources');
+    const harnessDir = join(root, 'user-data', 'harness-runtime');
+    makeFullLayout(resourcesDir, { harnessDir });
+
+    const result = verifyHarnessLayout({ resourcesDir, harnessDir, platform: 'win32' });
+
+    expect(result).toEqual({ ok: true, missing: [], warnings: [] });
   });
 
   it('reports missing bin.js — the v0.2.4 NSIS customInstall bug', () => {

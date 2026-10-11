@@ -22,6 +22,7 @@
     "electron-updater": "^6.3.9",
     "js-yaml": "^4.1.0",
     "pino": "^9.6.0",
+    "semver": "^7.8.5",
     "zod": "^3.24.0"
   },
   "devDependencies": {
@@ -29,7 +30,6 @@
     "electron": "^44.6.0",
     "electron-builder": "^25.1.8",
     "esbuild": "^0.28.2",
-    "semver": "^7.8.5",
     "vitest": "^2.1.9"
   }
 }

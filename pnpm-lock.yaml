@@ -38,6 +38,9 @@ importers:
       pino:
         specifier: ^9.6.0
         version: 9.14.0
+      semver:
+        specifier: ^7.8.5
+        version: 7.8.5
       zod:
         specifier: ^3.24.0
         version: 3.25.76
@@ -54,9 +57,6 @@ importers:
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
-      semver:
-        specifier: ^7.8.5
-        version: 7.8.5
       vitest:
         specifier: ^2.1.9
         version: 2.1.9(@types/node@24.13.3)(supports-color@7.2.0)

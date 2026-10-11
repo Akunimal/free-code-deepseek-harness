@@ -11,8 +11,10 @@ import type { EmbeddedMcpState, McpRuntimeStatus, WorkerHandle } from '@freecode
  */
 
 export interface ShellRuntimeConfig {
-  /** Resources dir containing the dsh CLI. */
+  /** Static resources dir containing sidecars such as opencode2api and OCR. */
   resourcesDir: string;
+  /** Root containing the DSH CLI; defaults to resourcesDir for development. */
+  harnessDir?: string;
   /** Node binary used to run the dsh CLI. */
   nodePath: string;
   /** User data dir (DSH_HOME + worker logs). */
@@ -142,7 +144,7 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
   const log = cfg.log ? (level: string, msg: string, meta?: Record<string, unknown>) =>
     cfg.log?.(level as 'debug' | 'info' | 'warn' | 'error', msg, meta) : undefined;
 
-  const cliEntry = resolve(join(cfg.resourcesDir, 'dsh', 'apps', 'cli', 'lib', 'bin.js'));
+  const cliEntry = resolve(join(cfg.harnessDir ?? cfg.resourcesDir, 'dsh', 'apps', 'cli', 'lib', 'bin.js'));
   const secretEnvNames = cfg.secretEnvNames ?? ['FREECODE_PUBLIC_KEY'];
   const extraEnv: Record<string, string> = {};
   if (cfg.secrets) {

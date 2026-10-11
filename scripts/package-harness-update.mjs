@@ -1,8 +1,8 @@
-import { createHash } from 'node:crypto';
 import { readFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { sha256File } from './sha256-file.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const resourcesDir = resolve(root, 'apps/shell/resources/freecode');
@@ -31,7 +31,7 @@ const result = spawnSync('tar', ['-czf', relArchive, '-C', relResources, 'dsh', 
 if (result.error) throw result.error;
 if (result.status !== 0) throw new Error(`package-harness-update: tar failed with exit ${result.status ?? 'unknown'}`);
 
-const digest = createHash('sha256').update(readFileSync(archivePath)).digest('hex');
+const digest = await sha256File(archivePath);
 writeFileSync(digestPath, `${digest}  ${assetName}\n`);
 console.log(`package-harness-update: wrote ${archivePath}`);
 console.log(`package-harness-update: sha256 ${digest}`);

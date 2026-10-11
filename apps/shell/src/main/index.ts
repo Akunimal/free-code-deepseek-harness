@@ -9,10 +9,11 @@ import { createSecretStore, ensureSecret } from './secret-store.js';
 import { seedProviders } from './provider-seeder.js';
 import { refreshModels, ModelCatalog } from './model-refresher.js';
 import { registerIpc } from './ipc.js';
-import { nodeRuntimeEnv, resolveNodePath, resolveResourcesDir } from './resource-paths.js';
+import { nodeRuntimeEnv, resolveHarnessRuntimeDir, resolveNodePath, resolveResourcesDir } from './resource-paths.js';
 import { createAppLogger, type AppLogger } from './logger.js';
 import { createUpdateService, isNewerVersion, type UpdateCheckResult, type UpdateService } from './updater.js';
-import { createHarnessUpdater } from './harness-updater.js';
+import { createHarnessUpdater, type HarnessDownloadProgress } from './harness-updater.js';
+import { ensureHarnessRuntime } from './harness-bootstrap.js';
 import { createEmbeddedBrowser, type EmbeddedBrowser } from './embedded-browser.js';
 import { createDialogBridge, type DialogBridge } from './dialog-bridge.js';
 import { buildHarnessExtraEnv } from './harness-env.js';
@@ -112,7 +113,7 @@ function findNode(): string {
   });
 }
 
-async function bootstrap(): Promise<ShellRuntime> {
+async function bootstrap(harnessDir: string): Promise<ShellRuntime> {
   const userDataDir = app.getPath('userData');
   appLogger?.logger.info({}, '[DEBUG-STARTUP] bootstrap 1/5 ensureUvxCommand starting');
   const uvxCommand = await ensureUvxCommand({
@@ -150,6 +151,7 @@ async function bootstrap(): Promise<ShellRuntime> {
   appLogger?.logger.info({}, '[DEBUG-STARTUP] bootstrap 5/5 createShellRuntime starting');
   const runtime = await createShellRuntime({
     resourcesDir: resources,
+    harnessDir,
     nodePath: findNode(),
     userDataDir,
     secrets,
@@ -169,6 +171,7 @@ async function bootstrap(): Promise<ShellRuntime> {
 }
 
 let splashWindow: BrowserWindow | null = null;
+let splashStatusText = '';
 let mainWindow: BrowserWindow | null = null;
 let harnessView: WebContentsView | null = null;
 let overlayWindow: BrowserWindow | null = null;
@@ -303,12 +306,21 @@ p{font-size:13px;color:#9da4b3;margin-bottom:24px}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style></head><body>
 <h1>FreeCode DeepSeek Harness</h1>
-<p>${t('splash.loading')}</p>
+<p id="splash-status">${t('splash.loading')}</p>
 <div class="spinner"></div>
 </body></html>`;
   splashWindow.loadURL('data:text/html,' + encodeURIComponent(html));
+  splashWindow.webContents.once('did-finish-load', () => updateSplashStatus(splashStatusText || t('splash.loading')));
   splashWindow.on('closed', () => { splashWindow = null; });
   trackManagedWindow(splashWindow);
+}
+
+function updateSplashStatus(message: string): void {
+  splashStatusText = message;
+  const win = splashWindow;
+  if (!win || win.isDestroyed()) return;
+  const safeMessage = JSON.stringify(message);
+  void win.webContents.executeJavaScript(`document.getElementById('splash-status').textContent = ${safeMessage}`).catch(() => {});
 }
 
 function closeSplash(): void {
@@ -740,6 +752,62 @@ function bundledHarnessVersion(resources: string): string | undefined {
   return undefined;
 }
 
+async function ensurePackagedHarnessRuntime(harnessRuntimeDir: string): Promise<boolean> {
+  const bootstrapUpdater = createHarnessUpdater({ resourcesDir: harnessRuntimeDir });
+  let lastProgressAt = 0;
+  let lastProgressBytes = 0;
+  let lastPhase: HarnessDownloadProgress['phase'] | undefined;
+  for (;;) {
+    try {
+      updateSplashStatus(t('splash.downloadingRuntime'));
+      const result = await ensureHarnessRuntime({
+        resourcesDir: harnessRuntimeDir,
+        updater: bootstrapUpdater,
+        onProgress: (progress) => {
+          const now = Date.now();
+          if (progress.phase === 'extract') {
+            if (lastPhase !== 'extract') updateSplashStatus(t('splash.extractingRuntime'));
+            lastPhase = progress.phase;
+            return;
+          }
+          if (progress.phase !== lastPhase || now - lastProgressAt >= 500 ||
+              (progress.receivedBytes ?? 0) - lastProgressBytes >= 8 * 1024 * 1024) {
+            const received = progress.receivedBytes ?? 0;
+            const progressText = progress.totalBytes
+              ? ` (${(received / 1_048_576).toFixed(0)} / ${(progress.totalBytes / 1_048_576).toFixed(0)} MB)`
+              : ` (${(received / 1_048_576).toFixed(0)} MB)`;
+            updateSplashStatus(`${t('splash.downloadingRuntime')}${progressText}`);
+            lastProgressAt = now;
+            lastProgressBytes = received;
+          }
+          lastPhase = progress.phase;
+        },
+      });
+      appLogger?.logger.info({ version: result.version, source: result.source }, 'DSH runtime ready');
+      return true;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      appLogger?.logger.error({ err: error }, 'first-run DSH runtime setup failed');
+      const choice = await dialog.showMessageBox({
+        type: 'error',
+        title: t('runtimeDownload.title'),
+        message: t('runtimeDownload.message', message),
+        buttons: [t('stuck.retry'), t('stuck.close')],
+        defaultId: 0,
+        cancelId: 1,
+      });
+      if (choice.response !== 0) {
+        closeSplash();
+        app.quit();
+        return false;
+      }
+      lastProgressAt = 0;
+      lastProgressBytes = 0;
+      lastPhase = undefined;
+    }
+  }
+}
+
 function projectRoot(): string {
   // dist/src/main -> repository root. This is used only by the source checkout
   // updater; packaged builds never execute the local rebuild path.
@@ -1083,6 +1151,12 @@ app.whenReady().then(async () => {
   appLogger = createAppLogger(join(userDataDir, 'logs'));
   appLogger.logger.info({ packaged: app.isPackaged, platform: process.platform }, 'shell starting');
   const resources = resourcesDir();
+  const harnessRuntimeDir = resolveHarnessRuntimeDir({
+    packaged: app.isPackaged,
+    resourcesDir: resources,
+    userDataDir,
+  });
+  if (app.isPackaged && !(await ensurePackagedHarnessRuntime(harnessRuntimeDir))) return;
   // Preflight: fail loud with a specific message BEFORE creating the
   // supervisor. Otherwise a broken install surfaces as a mystery
   // "supervisor gave up" 30+ seconds later.
@@ -1097,6 +1171,7 @@ app.whenReady().then(async () => {
   if (app.isPackaged) {
     const preflight = await awaitHarnessLayout({
       resourcesDir: resources,
+      harnessDir: harnessRuntimeDir,
       attempts: 6,
       delayMs: 1_000,
       onRetry: (attempt, result) => {
@@ -1115,13 +1190,13 @@ app.whenReady().then(async () => {
     }
   }
   const harnessUpdater = createHarnessUpdater({
-    resourcesDir: resources,
-    currentVersion: bundledHarnessVersion(resources),
+    resourcesDir: harnessRuntimeDir,
+    currentVersion: bundledHarnessVersion(harnessRuntimeDir),
   });
   updateService = createUpdateService({
     enabled: true,
     checkReleases: app.isPackaged,
-    upstreamCommit: bundledUpstreamCommit(resources),
+    upstreamCommit: bundledUpstreamCommit(harnessRuntimeDir),
     harness: {
       check: harnessUpdater.check,
       downloadAndInstall: async (info) => {
@@ -1162,7 +1237,7 @@ app.whenReady().then(async () => {
     }
   }
   appLogger?.logger.info({}, '[DEBUG-STARTUP] 7/10 before bootstrap()');
-  runtime = await bootstrap();
+  runtime = await bootstrap(harnessRuntimeDir);
   appLogger?.logger.info({}, '[DEBUG-STARTUP] 8/10 bootstrap() OK');
   // Register before start so MCP failures from the first child generation are
   // visible in the tray/notification path as well as in the Settings tab.

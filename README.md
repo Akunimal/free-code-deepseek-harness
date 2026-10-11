@@ -99,6 +99,16 @@ SHA-256 verification. It does not modify `PATH`, require administrator rights
 or open a console. A failed bootstrap leaves the main app recoverable and
 surfaces the MCP problem in the tab/log.
 
+### 0.9.2 candidate: Harness runtime on first launch
+
+The pending 0.9.2 candidate keeps the large DSH runtime out of setup/portable
+and downloads the latest published Windows runtime asset the first time the
+app starts. It verifies the release digest and the runtime's compatibility
+with Electron, then caches it under `<userData>/harness-runtime`; later starts
+reuse that verified copy offline. The first launch therefore needs network
+access. If no compatible release asset is reachable, the app offers Retry or
+Close before starting the Harness.
+
 ## MCP: Engram and free-search
 
 On first boot FreeCode atomically creates:

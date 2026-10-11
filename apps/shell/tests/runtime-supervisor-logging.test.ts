@@ -16,12 +16,15 @@ const waitFor = async (predicate: () => boolean, timeoutMs = 5_000): Promise<voi
 describe('runtime supervisor diagnostics', () => {
   it('forwards child startup diagnostics to the configured shell logger', async () => {
     const tempRoot = mkdtempSync(join(tmpdir(), 'dsh-runtime-logs-'));
-    const cliEntry = join(tempRoot, 'dsh', 'apps', 'cli', 'lib', 'bin.js');
-    mkdirSync(join(tempRoot, 'dsh', 'apps', 'cli', 'lib'), { recursive: true });
+    const resourcesDir = join(tempRoot, 'resources');
+    const harnessDir = join(tempRoot, 'user-data', 'harness-runtime');
+    const cliEntry = join(harnessDir, 'dsh', 'apps', 'cli', 'lib', 'bin.js');
+    mkdirSync(join(harnessDir, 'dsh', 'apps', 'cli', 'lib'), { recursive: true });
     writeFileSync(cliEntry, "process.stderr.write('fixture startup failure\\n', () => setTimeout(() => process.exit(0), 25));\n", 'utf8');
     const entries: Array<{ level: string; message: string; meta?: Record<string, unknown> }> = [];
     const runtime = await createShellRuntime({
-      resourcesDir: tempRoot,
+      resourcesDir,
+      harnessDir,
       nodePath: process.execPath,
       userDataDir: join(tempRoot, 'user-data'),
       log: (level, message, meta) => entries.push({ level, message, meta }),

@@ -24,6 +24,13 @@ flowchart LR
 
 ## Runtime sequence
 
+Before the process sequence below, a packaged app validates the DSH runtime in
+`<userData>/harness-runtime`. A clean install downloads the latest published
+platform asset, verifies its SHA-256 digest and Node engine range, then activates
+it before preflight or supervisor startup. Existing valid runtimes need no
+network access on later launches; download/compatibility failures are visible
+and retryable rather than consuming the supervisor restart budget.
+
 1. Electron resolves development resources or packaged `resources/freecode`.
 2. The shell starts the single bundled Tor instance (`tor-manager.ts`) on
    loopback (SOCKS `9050`, control `9051`) and waits for its bootstrap.

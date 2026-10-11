@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { mkdirSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
   nodeRuntimeEnv,
   resolveNodePath,
   resolveOpencodeBinary,
   resolveResourcesDir,
+  resolveHarnessRuntimeDir,
 } from '../src/main/resource-paths.js';
 
 describe('resource-paths', () => {
@@ -18,6 +19,19 @@ describe('resource-paths', () => {
     } finally {
       rmSync(base, { recursive: true, force: true });
     }
+  });
+
+  it('stores a packaged DSH runtime in writable per-user data, not Program Files', () => {
+    expect(resolveHarnessRuntimeDir({
+      packaged: true,
+      resourcesDir: 'C:/Program Files/FreeCode/resources/freecode',
+      userDataDir: 'C:/Users/test/AppData/Roaming/FreeCode',
+    })).toBe(join('C:/Users/test/AppData/Roaming/FreeCode', 'harness-runtime'));
+  });
+
+  it('keeps the development runtime beside its existing resources', () => {
+    expect(resolveHarnessRuntimeDir({ packaged: false, resourcesDir: '/repo/resources/freecode' }))
+      .toBe(resolve('/repo/resources/freecode'));
   });
 
   it('supports both the dev nested binary and the packaged root fallback', () => {

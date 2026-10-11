@@ -1,8 +1,16 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { createRequire } from 'node:module';
+import { createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync } from 'node:fs';
+import { basename, dirname, join, resolve } from 'node:path';
+import { Readable, Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { launchHiddenSync } from './freecode-launcher.js'
-import { tmpdir } from 'node:os';
+
+const semver = createRequire(import.meta.url)('semver') as {
+  satisfies(version: string, range: string): boolean;
+  valid(version: string): string | null;
+  validRange(range: string): string | null;
+};
 
 export interface HarnessUpdateInfo {
   currentVersion?: string;
@@ -16,8 +24,16 @@ export interface HarnessUpdateInfo {
 
 export interface HarnessUpdaterAdapter {
   check(): Promise<HarnessUpdateInfo>;
-  downloadAndInstall(info: HarnessUpdateInfo): Promise<void>;
+  downloadAndInstall(info: HarnessUpdateInfo, onProgress?: HarnessDownloadProgressHandler): Promise<void>;
 }
+
+export interface HarnessDownloadProgress {
+  phase: 'download' | 'extract';
+  receivedBytes?: number;
+  totalBytes?: number;
+}
+
+export type HarnessDownloadProgressHandler = (progress: HarnessDownloadProgress) => void;
 
 interface GitHubReleaseAsset {
   name?: unknown;
@@ -70,6 +86,7 @@ export async function checkHarnessRelease(
         accept: 'application/vnd.github+json',
         'user-agent': 'free-code-deepseek-harness-updater',
       },
+      signal: AbortSignal.timeout(15_000),
     });
     if (!response.ok) throw new Error(`GitHub harness release check returned HTTP ${response.status}`);
     const release = (await response.json()) as GitHubRelease;
@@ -95,7 +112,7 @@ export async function checkHarnessRelease(
       ...(assetName === undefined ? {} : { assetName }),
       ...(assetUrl === undefined ? {} : { assetUrl }),
       ...(digest === undefined ? {} : { digest }),
-      available: Boolean(currentVersion && latestVersion && currentVersion !== latestVersion && assetUrl),
+      available: Boolean(latestVersion && latestVersion !== currentVersion && assetUrl),
       ...(latestVersion && !assetUrl ? { error: `No compatible harness asset for ${latestVersion}` } : {}),
     };
   } catch (error) {
@@ -120,7 +137,7 @@ export function createHarnessUpdater(options: {
   const fetchImpl = options.fetchImpl ?? fetch;
   return {
     check: () => checkHarnessRelease(options.currentVersion, platform, arch, fetchImpl, options.repo),
-    downloadAndInstall: (info) => installHarnessRuntime(info, options.resourcesDir, fetchImpl),
+    downloadAndInstall: (info, onProgress) => installHarnessRuntime(info, options.resourcesDir, fetchImpl, onProgress),
   };
 }
 
@@ -128,50 +145,84 @@ export async function installHarnessRuntime(
   info: HarnessUpdateInfo,
   resourcesDir: string,
   fetchImpl: typeof fetch = fetch,
+  onProgress?: HarnessDownloadProgressHandler,
 ): Promise<void> {
   if (!info.assetUrl) throw new Error('Harness update has no compatible runtime asset');
-  const tempRoot = mkdtempSync(join(tmpdir(), 'freecode-harness-update-'));
-  const archivePath = join(tempRoot, info.assetName ?? 'harness.tar.gz');
+  validateHarnessAssetUrl(info.assetUrl);
+  if (!info.digest) throw new Error('Harness release asset is missing the required SHA-256 digest');
+  const targetRoot = resolve(resourcesDir);
+  mkdirSync(dirname(targetRoot), { recursive: true });
+  // Keep staging and final runtime on the same volume so directory renames are
+  // atomic even when a portable install lives on a different drive from %TEMP%.
+  const tempRoot = mkdtempSync(join(dirname(targetRoot), '.freecode-harness-update-'));
+  const archivePath = join(tempRoot, basename(info.assetName ?? 'harness.tar.gz'));
   const extractRoot = join(tempRoot, 'extract');
   try {
+    mkdirSync(targetRoot, { recursive: true });
     mkdirSync(extractRoot);
     const response = await fetchImpl(info.assetUrl, {
       headers: { 'user-agent': 'free-code-deepseek-harness-updater' },
+      signal: AbortSignal.timeout(10 * 60_000),
     });
     if (!response.ok) throw new Error(`Harness download returned HTTP ${response.status}`);
-    const archive = Buffer.from(await response.arrayBuffer());
-    verifyDigest(archive, info.digest);
-    writeFileSync(archivePath, archive);
+    if (!response.body) throw new Error('Harness download returned an empty response body');
+    const digest = createHash('sha256');
+    let receivedBytes = 0;
+    const headerLength = Number(response.headers.get('content-length'));
+    const totalBytes = Number.isFinite(headerLength) && headerLength > 0 ? headerLength : undefined;
+    const meter = new Transform({
+      transform(chunk: Buffer | string, _encoding, callback) {
+        const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        digest.update(bytes);
+        receivedBytes += bytes.length;
+        onProgress?.({ phase: 'download', receivedBytes, ...(totalBytes === undefined ? {} : { totalBytes }) });
+        callback(null, bytes);
+      },
+    });
+    await pipeline(
+      Readable.fromWeb(response.body as import('node:stream/web').ReadableStream<Uint8Array>),
+      meter,
+      createWriteStream(archivePath, { flags: 'wx' }),
+    );
+    verifyDigest(digest.digest('hex'), info.digest);
+    onProgress?.({ phase: 'extract' });
     const extracted = launchHiddenSync({
       executable: resolveTarExecutable(),
       args: ['-xzf', archivePath, '-C', extractRoot],
       encoding: 'utf8',
+      timeout: 15 * 60_000,
     });
     if (extracted.status !== 0) throw new Error(`Could not extract harness runtime (exit ${extracted.status ?? 'unknown'})`);
 
     const nextHarness = resolve(extractRoot, 'dsh');
     const nextManifest = resolve(extractRoot, 'runtime-manifest.json');
     validateHarnessRuntime(nextHarness, nextManifest);
-    const currentHarness = resolve(resourcesDir, 'dsh');
-    if (!existsSync(currentHarness)) throw new Error(`Current harness runtime not found: ${currentHarness}`);
+    const currentHarness = resolve(targetRoot, 'dsh');
     if (!existsSync(nextManifest)) throw new Error('Harness runtime is missing runtime-manifest.json');
-    const backupHarness = resolve(resourcesDir, `.dsh-backup-${process.pid}-${Date.now()}`);
-    const currentManifest = resolve(resourcesDir, 'runtime-manifest.json');
-    const backupManifest = resolve(resourcesDir, `.runtime-manifest-backup-${process.pid}-${Date.now()}`);
-
-    renameSync(currentHarness, backupHarness);
-    if (existsSync(currentManifest)) renameSync(currentManifest, backupManifest);
+    const backupHarness = resolve(targetRoot, `.dsh-backup-${process.pid}-${Date.now()}`);
+    const currentManifest = resolve(targetRoot, 'runtime-manifest.json');
+    const backupManifest = resolve(targetRoot, `.runtime-manifest-backup-${process.pid}-${Date.now()}`);
+    let harnessBackedUp = false;
+    let manifestBackedUp = false;
     try {
+      if (existsSync(currentHarness)) {
+        renameSync(currentHarness, backupHarness);
+        harnessBackedUp = true;
+      }
+      if (existsSync(currentManifest)) {
+        renameSync(currentManifest, backupManifest);
+        manifestBackedUp = true;
+      }
       renameSync(nextHarness, currentHarness);
       renameSync(nextManifest, currentManifest);
       validateHarnessRuntime(currentHarness, currentManifest);
-      rmSync(backupHarness, { recursive: true, force: true });
-      rmSync(backupManifest, { force: true });
+      if (harnessBackedUp) rmSync(backupHarness, { recursive: true, force: true });
+      if (manifestBackedUp) rmSync(backupManifest, { force: true });
     } catch (error) {
       if (existsSync(currentHarness)) rmSync(currentHarness, { recursive: true, force: true });
-      if (existsSync(backupHarness)) renameSync(backupHarness, currentHarness);
+      if (harnessBackedUp && existsSync(backupHarness)) renameSync(backupHarness, currentHarness);
       if (existsSync(currentManifest)) rmSync(currentManifest, { force: true });
-      if (existsSync(backupManifest)) renameSync(backupManifest, currentManifest);
+      if (manifestBackedUp && existsSync(backupManifest)) renameSync(backupManifest, currentManifest);
       throw error;
     }
   } finally {
@@ -179,19 +230,57 @@ export async function installHarnessRuntime(
   }
 }
 
-export function validateHarnessRuntime(harnessDir: string, manifestPath = join(harnessDir, 'runtime-manifest.json')): void {
+export function validateHarnessRuntime(
+  harnessDir: string,
+  manifestPath = join(dirname(harnessDir), 'runtime-manifest.json'),
+  platform: NodeJS.Platform = process.platform,
+): void {
   const cliPath = join(harnessDir, 'apps', 'cli', 'lib', 'bin.js');
   if (!existsSync(cliPath)) throw new Error('Harness runtime is missing apps/cli/lib/bin.js');
+  for (const dir of [join(harnessDir, 'packages'), join(harnessDir, 'node_modules')]) {
+    if (!existsSync(dir) || readdirSync(dir).length === 0) throw new Error(`Harness runtime has an empty or missing directory: ${dir}`);
+  }
+  const packagePath = join(harnessDir, 'package.json');
+  if (!existsSync(packagePath)) throw new Error('Harness runtime is missing package.json');
+  const dshPackage = JSON.parse(readFileSync(packagePath, 'utf8')) as { engines?: { node?: unknown } };
+  const engineRange = dshPackage.engines?.node;
+  if (typeof engineRange !== 'string' || !semver.validRange(engineRange)) {
+    throw new Error('Harness runtime package.json is missing or has an invalid engines.node');
+  }
+  if (!semver.valid(process.versions.node) || !semver.satisfies(process.versions.node, engineRange)) {
+    throw new Error(`Node ${process.versions.node} does not satisfy DSH engines.node ${engineRange}`);
+  }
+  if (platform === 'win32') {
+    const bridgeBundle = join(harnessDir, 'node_modules', '@deepseek-ai', 'dsh-host-directory-picker-native', 'lib', 'index.js');
+    if (!existsSync(bridgeBundle)) throw new Error('Harness runtime is missing the Windows directory-picker bridge bundle');
+    const bridge = readFileSync(bridgeBundle, 'utf8');
+    if (['FREECODE_DIALOG_BRIDGE_ENDPOINT', 'FREECODE_DIALOG_BRIDGE_TOKEN', 'x-freecode-dialog-token', 'fetch('].some((marker) => !bridge.includes(marker))) {
+      throw new Error('Harness runtime Windows directory-picker bridge bundle is stale');
+    }
+  }
   if (!existsSync(manifestPath)) throw new Error('Harness runtime is missing runtime-manifest.json');
-  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { cli?: unknown };
-  if (manifest.cli !== undefined && manifest.cli !== 'dsh/apps/cli/lib/bin.js') {
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as { version?: unknown; cli?: unknown };
+  if (typeof manifest.version !== 'string' || !manifest.version.trim()) throw new Error('Harness runtime manifest is missing version');
+  if (manifest.cli !== 'dsh/apps/cli/lib/bin.js') {
     throw new Error('Harness runtime manifest points to an unexpected CLI');
   }
 }
 
-function verifyDigest(archive: Buffer, digest: string | undefined): void {
-  if (!digest) return;
+function validateHarnessAssetUrl(assetUrl: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(assetUrl);
+  } catch {
+    throw new Error('Harness update asset URL is invalid');
+  }
+  if (parsed.protocol !== 'https:' || parsed.hostname !== 'github.com') {
+    throw new Error('Harness update asset must use the configured HTTPS GitHub release host');
+  }
+}
+
+function verifyDigest(actual: string, digest: string | undefined): void {
+  if (!digest) throw new Error('Harness release asset is missing the required SHA-256 digest');
   const expected = digest.replace(/^sha256:/i, '').toLowerCase();
-  const actual = createHash('sha256').update(archive).digest('hex');
+  if (!/^[a-f0-9]{64}$/.test(expected)) throw new Error('Harness release asset SHA-256 digest is invalid');
   if (expected !== actual) throw new Error('Harness update digest does not match the release asset');
 }

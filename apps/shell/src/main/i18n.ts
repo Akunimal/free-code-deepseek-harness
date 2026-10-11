@@ -212,6 +212,13 @@ const strings = {
   // Splash
   'splash.loading': { es: 'Iniciando harness…', en: 'Starting harness…' },
   'splash.pool': { es: 'Preparando pool de workers…', en: 'Preparing worker pool…' },
+  'splash.downloadingRuntime': { es: 'Descargando el runtime de DSH para el primer inicio…', en: 'Downloading the DSH runtime for first launch…' },
+  'splash.extractingRuntime': { es: 'Preparando el runtime de DSH…', en: 'Preparing the DSH runtime…' },
+  'runtimeDownload.title': { es: 'No se pudo preparar DSH', en: 'Could not prepare DSH' },
+  'runtimeDownload.message': {
+    es: 'El runtime de DSH no pudo descargarse o validarse: $1',
+    en: 'The DSH runtime could not be downloaded or validated: $1',
+  },
 
   // Portable stale warning
   'portable.stale.title': { es: 'Portable desactualizado', en: 'Outdated portable' },
@@ -359,6 +366,10 @@ const zhStrings = {
   'tor.status.failed': '失败',
   'splash.loading': '正在启动 Harness…',
   'splash.pool': '正在准备 worker 池…',
+  'splash.downloadingRuntime': '正在为首次启动下载 DSH runtime…',
+  'splash.extractingRuntime': '正在准备 DSH runtime…',
+  'runtimeDownload.title': '无法准备 DSH',
+  'runtimeDownload.message': '无法下载或验证 DSH runtime：$1',
   'portable.stale.title': 'Portable 已过时',
   'portable.stale.message': '检测到更新的安装版本 ($1)。此 Portable ($2) 可能存在已修复的问题。请更新或移除此 Portable。',
   'dialog.selectWorkspace': '选择工作目录',
