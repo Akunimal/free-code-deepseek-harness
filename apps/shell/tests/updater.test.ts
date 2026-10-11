@@ -264,6 +264,130 @@ describe('update service', () => {
     }
   });
 
+  it('keeps a first-run runtime download alive while bytes continue arriving past the idle timeout', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'freecode-updater-slow-stream-'));
+    const resources = join(root, 'user-data', 'harness-runtime');
+    const archiveRoot = join(root, 'archive-root');
+    const archivePath = join(root, 'harness.tar.gz');
+    mkdirSync(resources, { recursive: true });
+    mkdirSync(archiveRoot, { recursive: true });
+    writeValidHarnessRuntime(resources, '0.1.7', 'old');
+    writeValidHarnessRuntime(archiveRoot, '0.1.8', 'slow-stream');
+    const bytes = createHarnessArchive(archivePath, archiveRoot);
+    const digest = createHash('sha256').update(bytes).digest('hex');
+    const chunkSize = Math.ceil(bytes.length / 24);
+    const chunkCount = Math.ceil(bytes.length / chunkSize);
+    expect(chunkCount * 20).toBeGreaterThan(250);
+
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout').mockImplementation(() => {
+      throw new Error('the asset body must not use an absolute timeout');
+    });
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        let offset = 0;
+        const emit = () => {
+          if (offset >= bytes.length) {
+            controller.close();
+            return;
+          }
+          const end = Math.min(offset + chunkSize, bytes.length);
+          controller.enqueue(new Uint8Array(bytes.subarray(offset, end)));
+          offset = end;
+          setTimeout(emit, 20);
+        };
+        setTimeout(emit, 20);
+      },
+    });
+
+    try {
+      await expect(installHarnessRuntime({
+        latestVersion: '0.1.8',
+        assetUrl: 'https://github.com/Akunimal/free-code-deepseek-harness/releases/download/v0.1.8/harness.tar.gz',
+        digest: `sha256:${digest}`,
+        available: true,
+      }, resources, vi.fn(async () => new Response(body, {
+        status: 200,
+        headers: { 'content-length': String(bytes.length) },
+      })), undefined, { responseTimeoutMs: 1_000, idleTimeoutMs: 250 })).resolves.toBeUndefined();
+
+      expect(timeoutSpy).not.toHaveBeenCalled();
+      expect(readFileSync(join(resources, 'dsh', 'apps', 'cli', 'lib', 'bin.js'), 'utf8')).toBe('slow-stream');
+      expect(JSON.parse(readFileSync(join(resources, 'runtime-manifest.json'), 'utf8')).version).toBe('0.1.8');
+    } finally {
+      timeoutSpy.mockRestore();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('times out a stalled runtime stream by inactivity and preserves the working runtime', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'freecode-updater-stalled-stream-'));
+    const resources = join(root, 'user-data', 'harness-runtime');
+    mkdirSync(resources, { recursive: true });
+    writeValidHarnessRuntime(resources, '0.1.7', 'working');
+    const legacyTimeout = new AbortController();
+    legacyTimeout.abort(new DOMException('legacy absolute timeout', 'TimeoutError'));
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(legacyTimeout.signal);
+    const fetchImpl = vi.fn(async (_url, init?: RequestInit) => {
+      if (init?.signal?.aborted) throw init.signal.reason;
+      return new Response(new ReadableStream<Uint8Array>({ start() {} }), { status: 200 });
+    });
+
+    try {
+      await expect(installHarnessRuntime({
+        latestVersion: '0.1.8',
+        assetUrl: 'https://github.com/Akunimal/free-code-deepseek-harness/releases/download/v0.1.8/harness.tar.gz',
+        digest: `sha256:${'0'.repeat(64)}`,
+        available: true,
+      }, resources, fetchImpl, undefined, { responseTimeoutMs: 500, idleTimeoutMs: 25 })).rejects.toThrow(
+        /Harness download stalled: no data received for 25 ms/,
+      );
+
+      expect(timeoutSpy).not.toHaveBeenCalled();
+      expect(readFileSync(join(resources, 'dsh', 'apps', 'cli', 'lib', 'bin.js'), 'utf8')).toBe('working');
+      expect(JSON.parse(readFileSync(join(resources, 'runtime-manifest.json'), 'utf8')).version).toBe('0.1.7');
+    } finally {
+      timeoutSpy.mockRestore();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('times out if the runtime asset never returns response headers', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'freecode-updater-response-timeout-'));
+    const resources = join(root, 'user-data', 'harness-runtime');
+    const legacyTimeout = new AbortController();
+    legacyTimeout.abort(new DOMException('legacy absolute timeout', 'TimeoutError'));
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(legacyTimeout.signal);
+    const fetchImpl = vi.fn(async (_url, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      const signal = init?.signal;
+      if (!signal) {
+        reject(new Error('missing request signal'));
+        return;
+      }
+      if (signal.aborted) {
+        reject(signal.reason);
+        return;
+      }
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+    }));
+
+    try {
+      await expect(installHarnessRuntime({
+        latestVersion: '0.1.8',
+        assetUrl: 'https://github.com/Akunimal/free-code-deepseek-harness/releases/download/v0.1.8/harness.tar.gz',
+        digest: `sha256:${'0'.repeat(64)}`,
+        available: true,
+      }, resources, fetchImpl, undefined, { responseTimeoutMs: 25, idleTimeoutMs: 50 })).rejects.toThrow(
+        /Timed out waiting 25 ms for the harness download response/,
+      );
+
+      expect(timeoutSpy).not.toHaveBeenCalled();
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+    } finally {
+      timeoutSpy.mockRestore();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('rejects an incompatible downloaded Node engine before replacing the working runtime', async () => {
     const root = mkdtempSync(join(tmpdir(), 'freecode-updater-incompatible-node-'));
     try {
