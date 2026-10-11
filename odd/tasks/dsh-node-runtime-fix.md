@@ -1,54 +1,59 @@
-# DSH Runtime Node Compatibility
+# DSH First-Run Runtime and Fast Installer
 
 ## Goal
-Fix the 0.9.2 startup regression where `dsh` exits successfully without starting, and prevent packaging a shell runtime that cannot execute the shipped DSH CLI.
+Fix the v0.9.2 DSH startup failure, fetch the large DSH runtime on first app start instead of installing it with the desktop app, and reduce end-to-end installation cost without inflating the setup unnecessarily.
 
 ## Problem and why
-The installed 0.9.2 shell runs `dsh` through Electron 35.7.5's embedded Node v22.16.0. The shipped DSH CLI only calls `runCli()` behind `if (import.meta.main)`, an API added in Node v22.18.0; its package also declares `engines.node: ^22.19.0 || >=24.0.0`. Under Electron 35.7.5 the CLI therefore exits with code 0 and no output, so the supervisor retries five times with an empty output tail and never reaches readiness. Fixed by packaging Electron 44.7.0, whose embedded Node is v24.21.0.
+The installed 0.9.2 application shows `El harness no pudo arrancar`: DSH fails five readiness attempts with an empty tail. The intended shell Electron dependency is 44.7.0 (Node 24.21.0), but the actual `release/win-unpacked/FreeCode DeepSeek Harness.exe` and installed executable report Electron 35.7.5 (Node 22.16.0, ABI 133). The installed executable hash exactly matches that generated unpacked artifact. File timestamps show this was a stale pre-fix package: `win-unpacked` was written at 01:17 local and setup at 01:24 local, while the source Electron 44.7.0 fix was committed at 08:24 local. DSH uses `import.meta.main` and declares Node `^22.19.0 || >=24.0.0`, so the old Electron 35 runtime is incompatible and can exit silently.
 
-Evidence gathered read-only:
-- `apps/shell/package.json` resolves Electron 35.7.5; its bundled Electron Node reports `v22.16.0` and module ABI 133.
-- Installed `resources/freecode/dsh/package.json` requires `^22.19.0 || >=24.0.0`.
-- Installed `dsh/apps/cli/lib/bin.js` ends with `if (import.meta.main) await runCli()`.
-- Running the installed CLI `--version` under system Node v24.12.0 prints `0.2.1-alpha.1`; the same invocation under Electron 35.7.5 exits 0 with empty stdout/stderr. A temporary-home `dsh web` probe under that Electron also exited 0 without readiness.
-- `app.log` recorded `harness supervisor gave up` with `restarts: 5, tail: ""`. Before DSH-NODE-2, `createShellRuntime()` did not forward its configured logger to `HarnessSupervisor`, hiding per-child exit information.
-- RED: the new exact-Electron CLI test failed under 35.7.5 with `expected '' to be '0.2.1-alpha.1'`.
-- GREEN: the same test passes with Electron 44.7.0; its embedded Node probe reports v24.21.0, which satisfies the staged DSH engine.
+The setup grew from 304,119,145 bytes (0.9.1) to 526,172,056 bytes (0.9.2); the DSH runtime archive grew from 154,456,550 to 421,091,099 bytes. The previous electron-builder compression was `normal`; the current candidate configuration uses `store`. The 0.9.2 installer was active and doing substantial CPU/I/O for about 18 minutes, then completed; it was not hung. The app remains running and must not be killed or disturbed.
 
 ## Scope
-- Keep the release version at 0.9.2; update the packaged Electron runtime to v44.7.0 and add a regression test that executes the real CLI through that exact Electron binary.
-- Add a fail-closed prepackage compatibility check for the DSH Node engine requirement, alongside the existing native-addon ABI verification.
-- Forward the shell logger into `HarnessSupervisor` and retain exit code/signal evidence so future failures are diagnosable.
-- Run focused and applicable shell checks, then prepare—not install—the 0.9.2 artifacts after notifying the user.
+- Trace and fail closed on an Electron/Node mismatch in the actual electron-builder `appOutDir`, not only in `node_modules`; ensure no bad setup/portable artifact is accepted.
+- On packaged app first start, download the existing configured GitHub runtime asset into writable per-user app data, verify its digest and runtime manifest, extract safely, validate, and atomically activate it. Do not bundle the DSH payload in the setup. Preserve progress/error/retry behavior so a network failure does not turn into five silent supervisor restarts.
+- Stream large downloads to disk instead of holding the complete archive in memory. Keep subsequent starts offline when a validated runtime is already installed; keep update checks and replacement atomic.
+- Exclude DSH from the setup/portable payload and honor the user's explicit request to use `store` (no compression) for faster package/install processing. Measure the resulting artifact against the known 526,172,056-byte 0.9.2 setup before delivery; DSH exclusion is the intended source of the size reduction, while `store` may trade some compression for speed.
+- Add regression tests in TDD order and update applicable packaging/runtime gates. Version remains 0.9.2 until the user asks otherwise.
 
 ## Constraints and authorization
-- User authorized finding and fixing the regression, chose TDD Red-Green-Refactor, and asked that the currently running app/process not be killed or disturbed.
-- Do not close/restart the installed app, modify its user data, run its installer, tag/release, push, or merge anything upstream. The user installs the resulting build.
-- Before invoking `electron-builder`, notify the user and wait for their go-ahead for that build.
-- Work locally on `codex/dsh-node-runtime-fix`; this is a fork. No upstream PR/merge work is in scope.
-- Engram mirror is pending: this runtime did not provide an authoritative session identity, so agent-attributed Engram writes are disabled. Preserve this complete document locally and sync the mirror only after the host registers the identity.
+- User explicitly authorized downloading DSH on first startup and optimizing installer/runtime packaging.
+- This is a fork-local task. Do not push, open PRs, merge upstream, tag, publish a release, or install artifacts.
+- Preserve the installed app and all user processes. Never stop or close the user's running application.
+- Before invoking `electron-builder` for a new installer/portable build, notify the user and wait for explicit go-ahead; previous build approval does not pre-approve a new build.
+- Use the existing configured public runtime release source; do not inspect or reuse credentials or perform remote probes. Earlier missing package dependencies were explicitly authorized; this continuation used cached dependencies and made no new registry or release requests.
+- Continue on `codex/dsh-node-runtime-fix`; preserve unrelated untracked files.
+- Engram mirror is pending because the runtime has no authoritative session identity; retain this local document and sync only after the host registers one.
 
 ## TDD and delivery
-- Mode: RED → GREEN → REFACTOR.
-- Source: explicit user selection earlier in this task.
-- Runner: pnpm + Vitest; focused command will be `pnpm --dir apps/shell exec vitest run <focused-test>`.
-- Forecast: about 230 authored changed lines, generated artifacts excluded.
-- Delivery strategy: `ask-on-risk` (default); forecast is below the advisory ~400-line threshold. No push or PR is authorized.
+- Mode: RED -> GREEN -> REFACTOR.
+- Source: explicit user selection earlier in this task; reaffirmed as the active feature's mode.
+- Runner: pnpm + Vitest; focused command `pnpm --dir apps/shell exec vitest run <focused-test>`.
+- Forecast at start: approximately 500 authored changed lines, generated artifacts excluded. Current source work units total 1,063 authored changed lines (702 + 361); the focused runtime bootstrap and package/payload gate are coherent units, so they remain split by behavior instead of being artificially reduced. The accepted `exception-ok` strategy applies because this is fork-local work with no upstream PR/merge.
+- Delivery strategy: `exception-ok`; this is authorized fork-local work only and the user explicitly excluded upstream PR/merge work. Keep one conventional work-unit commit per completed task; no remote delivery.
 
 ## Tasks
-- [x] **DSH-NODE-1 — Pin compatible Electron and add runtime compatibility gates.** Added the real Electron-backed regression test, observed RED at Electron 35.7.5, then upgraded the shell runtime to Electron 44.7.0 and added a fail-closed `engines.node` prepackage gate with tested semver boundaries. GREEN: the CLI prints its version under Electron 44.7.0/Node 24.21.0, the runtime engine check passes, and native ABI verification passes (14/26 load; 12 foreign-platform/non-ABI warnings). Work-unit commit: `5e3646f`.
-- [x] **DSH-NODE-2 — Preserve supervisor failure diagnostics.** Observed RED for both missing logger forwarding and an empty silent-exit tail; forwarded the configured shell logger and appended bounded code/signal exit evidence. Focused runtime tests pass and preserve the tail limit. Full shell test suite also passes. Work-unit commit: `28f33dc`.
-- [x] **DSH-NODE-3 — Validate the 0.9.2 build and produce setup/portable artifacts.** Typecheck, shell build, all shell Vitest tests, prepackage verification, and Graphify update passed. After the user's explicit go-ahead, `pnpm --dir apps/shell package` completed and generated the v0.9.2 setup and portable executables. Verified both embedded file product versions are 0.9.2; setup SHA-512 matches `latest.yml`, and portable SHA-256 was computed. Setup: 526,172,056 bytes; portable: 526,009,162 bytes. Work-unit commit: `548551944a`.
+- [x] **DSH-NODE-1 - Pin a DSH-compatible Electron and check source runtime compatibility.** Added an Electron-backed CLI regression test, observed RED on Electron 35.7.5, upgraded the shell dependency to Electron 44.7.0, and added the staged DSH `engines.node` gate. Verified Electron 44.7.0/Node 24.21.0 passes and native ABI verification passes. Work-unit commit: `5e3646f`.
+- [x] **DSH-NODE-2 - Preserve supervisor startup failure diagnostics.** Forwarded the shell logger and retained bounded exit code/signal evidence; focused and full shell tests passed. Work-unit commit: `28f33dc`.
+- [ ] **DSH-NODE-3 - Gate the actual packaged Electron runtime.** Implemented `scripts/verify-packaged-electron-runtime.mjs` and the Windows `afterPack` hook to probe the executable in `appOutDir`, compare exact Electron version, and ensure embedded Node satisfies staged DSH `engines.node`. RED observed (4 failures before implementation); GREEN observed (4/4 focused tests). Source gate is in work-unit commit `5bcf75d0d4b587d68e8c0f2da5ea660907a97405`; hook execution against a newly packaged executable remains pending an approved fresh builder run.
+- [x] **DSH-NODE-4 - Bootstrap DSH from a first-run download.** Implemented writable per-user runtime paths, offline reuse of a valid local runtime, streaming SHA-256-checked download, extraction and rollback-capable activation, splash progress, and visible Retry/Close failure handling before supervisor startup. RED was observed for missing bootstrap/downloader behavior; full shell suite passed 30 files/200 tests, including bootstrap, incompatible Node cache repair, rejection of incompatible downloaded runtimes, and stream download/update cases. Actual installed first-run smoke remains pending under DSH-NODE-6. Work-unit commit: `818951cb4541b9ba595b93084245232e298b8252`.
+- [ ] **DSH-NODE-5 - Shrink and accelerate setup packaging.** Added `extraResources` exclusions for `dsh/` and `runtime-manifest.json`; the separate `.tar.gz` DSH asset and streamed SHA-256 sidecar remain so first-launch downloads avoid an uncompressed multi-gigabyte transfer. Package resource policy tests pass 5/5. Top-level electron-builder compression is `store` (no installer compression) per the user's speed request; source/config is in work-unit commit `5bcf75d0d4b587d68e8c0f2da5ea660907a97405`. Setup size and elapsed-time measurements remain pending a fresh builder approval.
+- [ ] **DSH-NODE-6 - Run regression gates and prepare, but do not install or publish, artifacts.** Shell suite passes 30 files/200 tests; shell typecheck passes; prepackage gates pass (manifest, source bundles, Node engine; 14/26 Windows Electron native probes load, with 12 expected foreign-platform/unavailable prebuild skips); script syntax checks and `git diff --check` pass. The Windows process/startup-visibility suites also pass 24/24. Graphify refresh was attempted but failed on an encrypted `[Content_Types].xml` in a ZIP; the previous graph remains stale at checkpoint `e0fa648`. Still pending: successful graph refresh if the offending archive can be safely excluded, proof of actual `afterPack`/setup/portable payload and size/timing in a fresh builder run, and installed-runtime smoke only if explicitly authorized. Before any new electron-builder invocation, notify the user and receive fresh approval. Do not install, tag, publish, or touch/stop the user's app.
+- [x] **DSH-NODE-7 - Prevent DSH `pwsh` commands from flashing visible Windows consoles.** Confirmed this is already fixed in the fork's vendored Win32 process implementation: both restricted and current-token paths pass `STARTF_USESHOWWINDOW` with `SW_HIDE`, while preserving inherited stdio; the `subprocess-local` path also sets `windowsHide` on Windows. Existing regression coverage asserts the `STARTUPINFO` hide flags (`process.spec.ts`, `ordinary-process.spec.ts`) and checks an actual descendant has no visible console (`native-windows.spec.ts`). The relevant sync arrived in `3b46b46ae9`; focused Windows tests passed 24/24, so no duplicate vendor patch was needed.
 
 ## Progress and next step
-DSH-NODE-1/2 are implemented and validated in commits `5e3646f` and `28f33dc`. `pnpm --dir apps/shell typecheck`, `pnpm --dir apps/shell build`, full Vitest (26 files, 177 tests), `prepackage:verify`, and frozen lockfile validation all pass. The real DSH smoke reached readiness. Graphify's tracked root graph has 713 nodes/1,351 edges/34 communities (checkpoint `e0fa648`). The user approved packaging; the build completed and produced `apps/shell/release/FreeCode-DeepSeek-Harness-0.9.2-win-x64-setup.exe` and `apps/shell/release/FreeCode-DeepSeek-Harness-0.9.2-win-x64-portable.exe`. Their file versions are 0.9.2; sizes are 526,172,056 and 526,009,162 bytes respectively. `latest.yml` setup SHA-512 matches the independently calculated file hash; portable SHA-256 is `af158c7d99781168ac5520e732c7ba3079aeafc2b0f50ef4b32e9fc9db38d21e`. User will install after finishing with the currently running app. Neither the installed app/processes nor profile were touched; no install, tag, release, push, or upstream merge was performed. Next: deliver artifact paths and await the user's install/result before any release action.
+Prior source tasks DSH-NODE-1/2 are complete in commits `5e3646f` and `28f33dc`. The v0.9.2 artifact documented in `548551944a` is not accepted as delivery: its 01:17/01:24 local file timestamps predate the Electron fix committed at 08:24, and post-install inspection found Electron 35.7.5. The installer finished after about 18 minutes and is no longer running; the user's app remains open and untouched. Graphify was queried before source reads (713 nodes, 1,351 edges, 34 communities; checkpoint `e0fa648`). The Win32 `pwsh` no-window fix and its tests were verified in sync commit `3b46b46ae9`; no running app/process was touched during this continuation.
+
+Code work is committed locally in `818951cb4541b9ba595b93084245232e298b8252` (first-run bootstrap) and `5bcf75d0d4b587d68e8c0f2da5ea660907a97405` (package size/compression and actual Electron gate); no push or upstream merge. Reconciled evidence: packaged-Electron policy test RED 4/4 then GREEN 4/4; full shell suite GREEN 30 files/200 tests; shell typecheck passed; package resource policy passed 5/5; Win32 process/no-visible-console suite passed 24/24; prepackage checks passed with 12 foreign-platform native-addon skips; script syntax and whitespace checks passed. Code-level DSH bootstrap work is complete, but actual artifact verification remains open. No installer/build was run and no user process was touched during this continuation.
+
+Next: task progress and commit identities are recorded locally. Graphify refresh failed on an encrypted ZIP content entry and needs safe exclusion or a tool fix before the graph is fresh. Then notify the user and wait for fresh approval before a new electron-builder invocation; record setup/portable sizes and elapsed time against the old 526,172,056-byte setup. The configured latest published DSH asset was not queried; its availability/compatibility for an installed first-run smoke remains unverified. No release action was taken. Engram mirror remains pending because the host has not registered an authoritative runtime session.
 
 ## Relevant files
-- `apps/shell/package.json` — packaged Electron version and shell scripts.
-- `apps/shell/src/main/runtime.ts` — constructs `HarnessSupervisor` and forwards the configured shell logger.
-- `apps/shell/src/main/harness-supervisor.ts` — child startup/retry and stuck diagnostics.
-- `apps/shell/tests/supervisor.smoke.test.ts` — existing DSH supervisor smoke tests.
-- `scripts/verify-native-abi.mjs` — prepackage native ABI gate paired with the new DSH Node-engine gate.
-- `scripts/verify-dsh-node-engine.mjs` — probes Electron's embedded Node and checks it against DSH's declared engine.
-- `vendor/deepseek-harness/apps/cli/lib/bin.js` — vendored CLI entry guarded by `import.meta.main`.
-- `graphify-out/graph.json` — refreshed app-shell architecture graph (713 nodes, 1,351 edges).
+- `apps/shell/electron-builder.yml` - current resources and compression configuration.
+- `apps/shell/src/main/harness-updater.ts` - configured public runtime release discovery, download, validation, and replacement.
+- `apps/shell/src/main/index.ts` - packaged preflight, splash, updater setup, and runtime start order.
+- `apps/shell/src/main/runtime.ts` and `resource-paths.ts` - DSH and other packaged resource paths.
+- `scripts/verify-dsh-node-engine.mjs` - current gate probes only the Electron dependency, not the packaged output.
+- `scripts/package-harness-update.mjs` - emits release archive and SHA-256 sidecar.
+- `apps/shell/tests/updater.test.ts` - harness update/download regression tests.
+- `vendor/deepseek-harness/packages/subprocess/win32-process/src/process.ts` and `vendor/deepseek-harness/packages/subprocess/subprocess-local/tests/native-windows.spec.ts` - Win32 hidden child startup and actual no-visible-console regression checks.
+- `graphify-out/graph.json` - existing shell architecture graph.
