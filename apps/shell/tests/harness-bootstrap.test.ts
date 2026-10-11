@@ -157,6 +157,7 @@ describe('first-run DSH bootstrap', () => {
       requirements: compatibleRequirements,
     })).resolves.toMatchObject({ status: 'ready', version: '0.2.1-alpha.1', source: 'downloaded' });
     expect(updater.check).toHaveBeenCalledTimes(1);
+    expect(updater.check).toHaveBeenCalledWith(compatibleRequirements.minimumVersion);
     expect(updater.downloadAndInstall).toHaveBeenCalledTimes(1);
   });
 

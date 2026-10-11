@@ -41,7 +41,9 @@ export async function ensureHarnessRuntime(
   const existingVersion = readValidatedRuntimeVersion(harnessDir, manifestPath, platform, options.requirements);
   if (existingVersion) return { status: 'ready', version: existingVersion, source: 'existing' };
 
-  const update = await options.updater.check();
+  // Download the DSH source version paired with this shell's ABI manifest. A
+  // floating latest release can be older (or built for a different ABI).
+  const update = await options.updater.check(options.requirements?.minimumVersion);
   if (!update.available || !update.latestVersion || !update.assetUrl) {
     throw new Error(update.error ?? 'No compatible DSH runtime release is available');
   }

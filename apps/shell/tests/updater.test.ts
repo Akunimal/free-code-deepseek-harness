@@ -150,10 +150,10 @@ describe('update service', () => {
 
   it('selects a platform-specific Harness runtime asset', async () => {
     const assetName = harnessAssetName('0.1.8', 'win32', 'x64');
-    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify([{
       tag_name: 'v0.1.8',
       assets: [{ name: assetName, browser_download_url: `https://example.test/${assetName}`, digest: 'sha256:abc' }],
-    }), { status: 200 }));
+    }]), { status: 200 }));
     await expect(checkHarnessRelease('0.1.7', 'win32', 'x64', fetchImpl)).resolves.toMatchObject({
       latestVersion: '0.1.8',
       assetName,
@@ -164,10 +164,10 @@ describe('update service', () => {
 
   it('makes the latest compatible runtime available when no runtime is installed yet', async () => {
     const assetName = harnessAssetName('0.1.8', 'win32', 'x64');
-    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify([{
       tag_name: 'v0.1.8',
       assets: [{ name: assetName, browser_download_url: `https://example.test/${assetName}`, digest: 'sha256:abc' }],
-    }), { status: 200 }));
+    }]), { status: 200 }));
 
     await expect(checkHarnessRelease(undefined, 'win32', 'x64', fetchImpl)).resolves.toMatchObject({
       latestVersion: '0.1.8',
@@ -175,17 +175,66 @@ describe('update service', () => {
       available: true,
     });
     expect(fetchImpl).toHaveBeenCalledWith(
-      'https://api.github.com/repos/Akunimal/free-code-deepseek-harness/releases/latest',
+      'https://api.github.com/repos/Akunimal/free-code-deepseek-harness/releases?per_page=100',
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });
 
+  it('selects the exact packaged DSH prerelease instead of stale or newer release assets', async () => {
+    const staleAssetName = harnessAssetName('0.1.3-alpha.1', 'win32', 'x64');
+    const compatibleAssetName = harnessAssetName('0.2.1-alpha.1', 'win32', 'x64');
+    const newerAssetName = harnessAssetName('0.3.0-alpha.1', 'win32', 'x64');
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify([
+      {
+        tag_name: 'v0.9.2',
+        prerelease: false,
+        assets: [{ name: staleAssetName, browser_download_url: `https://example.test/${staleAssetName}`, digest: 'sha256:old' }],
+      },
+      {
+        tag_name: 'v0.2.1-alpha.1',
+        prerelease: true,
+        assets: [{ name: compatibleAssetName, browser_download_url: `https://example.test/${compatibleAssetName}`, digest: 'sha256:new' }],
+      },
+      {
+        tag_name: 'v0.3.0-alpha.1',
+        prerelease: true,
+        assets: [{ name: newerAssetName, browser_download_url: `https://example.test/${newerAssetName}`, digest: 'sha256:unmatched' }],
+      },
+    ]), { status: 200 }));
+
+    await expect(checkHarnessRelease(undefined, 'win32', 'x64', fetchImpl, undefined, '0.2.1-alpha.1')).resolves.toMatchObject({
+      latestVersion: '0.2.1-alpha.1',
+      assetName: compatibleAssetName,
+      assetUrl: `https://example.test/${compatibleAssetName}`,
+      digest: 'sha256:new',
+      available: true,
+    });
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'https://api.github.com/repos/Akunimal/free-code-deepseek-harness/releases?per_page=100',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it('does not fall back to another DSH version when the packaged runtime asset is missing', async () => {
+    const newerAssetName = harnessAssetName('0.3.0-alpha.1', 'win32', 'x64');
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify([{
+      tag_name: 'v0.3.0-alpha.1',
+      prerelease: true,
+      assets: [{ name: newerAssetName, browser_download_url: `https://example.test/${newerAssetName}`, digest: 'sha256:newer' }],
+    }]), { status: 200 }));
+
+    await expect(checkHarnessRelease(undefined, 'win32', 'x64', fetchImpl, undefined, '0.2.1-alpha.1')).resolves.toMatchObject({
+      available: false,
+      error: 'No harness runtime asset for packaged version 0.2.1-alpha.1 (win32-x64)',
+    });
+  });
+
   it('uses the Harness asset version when the app release tag has a different version', async () => {
     const assetName = harnessAssetName('0.1.1-rc.2', 'win32', 'x64');
-    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify([{
       tag_name: 'v0.1.7',
       assets: [{ name: assetName, browser_download_url: `https://example.test/${assetName}` }],
-    }), { status: 200 }));
+    }]), { status: 200 }));
     await expect(checkHarnessRelease('0.1.0', 'win32', 'x64', fetchImpl)).resolves.toMatchObject({
       latestVersion: '0.1.1-rc.2',
       assetName,

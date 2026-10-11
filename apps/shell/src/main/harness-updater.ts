@@ -11,6 +11,7 @@ const semver = createRequire(import.meta.url)('semver') as {
   satisfies(version: string, range: string): boolean;
   valid(version: string): string | null;
   validRange(range: string): string | null;
+  compare(versionA: string, versionB: string): number;
 };
 
 export interface HarnessUpdateInfo {
@@ -24,7 +25,7 @@ export interface HarnessUpdateInfo {
 }
 
 export interface HarnessUpdaterAdapter {
-  check(): Promise<HarnessUpdateInfo>;
+  check(requiredVersion?: string): Promise<HarnessUpdateInfo>;
   downloadAndInstall(
     info: HarnessUpdateInfo,
     onProgress?: HarnessDownloadProgressHandler,
@@ -53,7 +54,6 @@ interface GitHubReleaseAsset {
 }
 
 interface GitHubRelease {
-  tag_name?: unknown;
   assets?: unknown;
 }
 
@@ -92,9 +92,16 @@ export async function checkHarnessRelease(
   arch: string,
   fetchImpl: typeof fetch = fetch,
   repo = DEFAULT_REPO,
+  requiredVersion?: string,
 ): Promise<HarnessUpdateInfo> {
   try {
-    const response = await fetchImpl(`https://api.github.com/repos/${repo}/releases/latest`, {
+    if (requiredVersion !== undefined && semver.valid(requiredVersion) !== requiredVersion) {
+      throw new Error(`Requested DSH runtime version is invalid: ${requiredVersion}`);
+    }
+    // The packaged shell carries the exact DSH source version audited against
+    // its Electron ABI. Search published releases (including prereleases) and
+    // request that exact asset instead of GitHub's full-release-only `/latest`.
+    const response = await fetchImpl(`https://api.github.com/repos/${repo}/releases?per_page=100`, {
       headers: {
         accept: 'application/vnd.github+json',
         'user-agent': 'free-code-deepseek-harness-updater',
@@ -102,31 +109,41 @@ export async function checkHarnessRelease(
       signal: AbortSignal.timeout(15_000),
     });
     if (!response.ok) throw new Error(`GitHub harness release check returned HTTP ${response.status}`);
-    const release = (await response.json()) as GitHubRelease;
-    const releaseVersion = typeof release.tag_name === 'string'
-      ? release.tag_name.replace(/^v/i, '')
-      : undefined;
-    const expected = releaseVersion === undefined ? undefined : harnessAssetName(releaseVersion, platform, arch);
-    const assets = Array.isArray(release.assets) ? release.assets : [];
-    const candidates = assets
-      .map((candidate) => candidate as GitHubReleaseAsset)
-      .filter((candidate) => typeof candidate.name === 'string' && typeof candidate.browser_download_url === 'string');
+    const releases = (await response.json()) as unknown;
+    if (!Array.isArray(releases)) throw new Error('GitHub harness release check returned an invalid release list');
     const platformName = harnessPlatform(platform);
     const suffix = `-${platformName}-${arch}.tar.gz`;
-    const asset = candidates.find((candidate) => candidate.name === expected)
-      ?? candidates.find((candidate) => (candidate.name as string).startsWith('deepseek-harness-runtime-') && (candidate.name as string).endsWith(suffix));
-    const assetName = typeof asset?.name === 'string' ? asset.name : undefined;
-    const assetUrl = typeof asset?.browser_download_url === 'string' ? asset.browser_download_url : undefined;
-    const digest = typeof asset?.digest === 'string' ? asset.digest : undefined;
-    const latestVersion = assetName?.match(/^deepseek-harness-runtime-(.+)-[^-]+-[^-]+\.tar\.gz$/)?.[1] ?? releaseVersion;
+    const prefix = 'deepseek-harness-runtime-';
+    const candidates = releases.flatMap((release: unknown) => {
+      if (release === null || typeof release !== 'object') return [];
+      const releaseAssets = (release as GitHubRelease).assets;
+      return Array.isArray(releaseAssets) ? releaseAssets as GitHubReleaseAsset[] : [];
+    }).flatMap((asset) => {
+      if (typeof asset.name !== 'string' || !asset.name.startsWith(prefix) || !asset.name.endsWith(suffix) ||
+          typeof asset.browser_download_url !== 'string') return [];
+      const version = asset.name.slice(prefix.length, -suffix.length);
+      if (semver.valid(version) !== version) return [];
+      return [{ version, asset }];
+    });
+    const assetMatch = requiredVersion === undefined
+      ? candidates.sort((left, right) => semver.compare(right.version, left.version))[0]
+      : candidates.find(candidate => candidate.version === requiredVersion);
+    const assetName = typeof assetMatch?.asset.name === 'string' ? assetMatch.asset.name : undefined;
+    const assetUrl = typeof assetMatch?.asset.browser_download_url === 'string' ? assetMatch.asset.browser_download_url : undefined;
+    const digest = typeof assetMatch?.asset.digest === 'string' ? assetMatch.asset.digest : undefined;
+    const latestVersion = assetMatch?.version;
     return {
       currentVersion,
       latestVersion,
       ...(assetName === undefined ? {} : { assetName }),
       ...(assetUrl === undefined ? {} : { assetUrl }),
       ...(digest === undefined ? {} : { digest }),
-      available: Boolean(latestVersion && latestVersion !== currentVersion && assetUrl),
-      ...(latestVersion && !assetUrl ? { error: `No compatible harness asset for ${latestVersion}` } : {}),
+      available: Boolean(latestVersion && assetUrl && (requiredVersion !== undefined || latestVersion !== currentVersion)),
+      ...(!assetMatch ? {
+        error: requiredVersion === undefined
+          ? `No compatible harness asset for ${platformName}-${arch}`
+          : `No harness runtime asset for packaged version ${requiredVersion} (${platformName}-${arch})`,
+      } : {}),
     };
   } catch (error) {
     return {
@@ -149,7 +166,7 @@ export function createHarnessUpdater(options: {
   const arch = options.arch ?? process.arch;
   const fetchImpl = options.fetchImpl ?? fetch;
   return {
-    check: () => checkHarnessRelease(options.currentVersion, platform, arch, fetchImpl, options.repo),
+    check: requiredVersion => checkHarnessRelease(options.currentVersion, platform, arch, fetchImpl, options.repo, requiredVersion),
     downloadAndInstall: (info, onProgress, requirements) =>
       installHarnessRuntime(info, options.resourcesDir, fetchImpl, onProgress, {}, requirements),
   };
