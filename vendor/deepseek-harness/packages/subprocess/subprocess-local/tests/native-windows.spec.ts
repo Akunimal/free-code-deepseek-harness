@@ -1,10 +1,11 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
-import type { SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
+import type { SubprocessSpawnSpec, SubprocessTerminalHandle } from '@deepseek-ai/dsh-subprocess'
+import { resolvePwshPath } from '@deepseek-ai/dsh-pwsh-local/src/resolve.ts'
 import { targetEnvironment } from '../src/runner-launch.ts'
 import { bindManagedProcess } from '../src/spawn.ts'
 import { launchWindowsJob, probeWindowsJob } from '../src/windows-job.ts'
@@ -79,6 +80,67 @@ function directSpawnFailure(argv: readonly string[], cwd = scratch): Promise<Spa
 }
 
 const windowsNative = process.platform === 'win32' && probeWindowsJob()
+
+describe('node-pty ConPTY Windows startup contract', () => {
+  it('hides the native ConPTY client without removing its pseudo console attachment', () => {
+    const nodePtyEntry = fileURLToPath(import.meta.resolve('node-pty'))
+    const source = readFileSync(resolve(dirname(nodePtyEntry), '../src/win/conpty.cc'), 'utf8')
+
+    expect(source).toMatch(/StartupInfo\.dwFlags\s*\|=\s*STARTF_USESTDHANDLES\s*\|\s*STARTF_USESHOWWINDOW/u)
+    expect(source).toMatch(/StartupInfo\.wShowWindow\s*=\s*SW_HIDE/u)
+    expect(source).toContain('PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE')
+  })
+})
+
+const pwshPath = resolvePwshPath()
+const hasWindowsPwsh = process.platform === 'win32'
+  && spawnSync(pwshPath, ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', '$true'], {
+    encoding: 'utf8',
+    windowsHide: true,
+  }).status === 0
+
+describe.skipIf(!hasWindowsPwsh)('Windows ConPTY shell visibility', () => {
+  it('keeps a pwsh session and a native child out of the visible desktop', async () => {
+    const { default: LocalSubprocessRuntime } = await import('../src/index.ts')
+    const { Context } = await import('@deepseek-ai/cordis')
+    const ctx = new Context()
+    const fiber = await ctx.plugin(LocalSubprocessRuntime)
+    let handle: SubprocessTerminalHandle | undefined
+    let output = ''
+    const koffiEntry = fileURLToPath(import.meta.resolve('koffi'))
+    const probe = [
+      `const koffi = require(${JSON.stringify(koffiEntry)})`,
+      `const getConsoleWindow = koffi.load('kernel32.dll').func('void * __stdcall GetConsoleWindow()')`,
+      `const isWindowVisible = koffi.load('user32.dll').func('int __stdcall IsWindowVisible(void *)')`,
+      'const window = getConsoleWindow()',
+      `console.log(JSON.stringify({ attached: window !== null, visible: window !== null && isWindowVisible(window) !== 0 }))`,
+      'setTimeout(() => process.exit(0), 250)',
+    ].join('; ')
+    const quotePwsh = (value: string): string => `'${value.replaceAll("'", "''")}'`
+    const command = `& ${quotePwsh(process.execPath)} -e ${quotePwsh(probe)}; exit $LASTEXITCODE`
+
+    try {
+      handle = await ctx.subprocess.spawnTerminal({
+        argv: [pwshPath, '-NoLogo', '-NoProfile', '-NonInteractive', '-Command', command],
+        cwd: scratch,
+        rows: 24,
+        cols: 80,
+        terminalType: 'dumb',
+        graceMs: 100,
+      })
+      handle.output.setEncoding('utf8')
+      handle.output.on('data', chunk => { output += String(chunk) })
+
+      const outcome = await handle.done
+
+      expect(outcome.exitCode).toBe(0)
+      expect(output).toMatch(/\{"attached":(?:true|false),"visible":false\}/u)
+    } finally {
+      await handle?.terminate()
+      await fiber.dispose()
+    }
+  }, 30_000)
+})
 
 describe.skipIf(!windowsNative)('Windows Job native containment', () => {
   it('keeps ordinary descendants free of visible console windows', async () => {
