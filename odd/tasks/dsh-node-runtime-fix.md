@@ -84,3 +84,23 @@ DSH-NODE-15 is complete in work-unit commit `129886ed245d36a37ad5239d4cd59ed064e
 - `scripts/package-runtime.sh` - generates runtime ABI metadata from packaged Electron.
 - `vendor/deepseek-harness/packages/subprocess/win32-process/src/process.ts` and `vendor/deepseek-harness/packages/subprocess/subprocess-local/tests/native-windows.spec.ts` - Win32 hidden child startup and actual no-visible-console regression checks.
 - `graphify-out/graph.json` - existing shell architecture graph.
+
+## Headless-window regression follow-up
+
+### Goal and root-cause evidence
+Eliminate unexpected Windows console windows from PowerShell tool commands without interacting with the user's running app, and add regression coverage. The ordinary `PwshLocalExecutor` injects `$PSDefaultParameterValues["Start-Process:WindowStyle"]="Hidden"`; the persistent tool wrapper did not reassert that value per command. However, the `terminal-bash` pwsh backend sends the same `ENCODING_PREAMBLE` during session startup, so the omission is a narrower hardening gap (a prior command can remove the default), not yet a proven cause of the user's reported windows. The web-app minimal preset registers the persistent tool on Windows. Native subprocess and ConPTY launch paths are already designed to stay hidden; don't replace them without evidence. Root-cause identification for the currently observed windows remains open.
+
+### Scope and constraints
+- Add a focused RED-GREEN-REFACTOR regression test proving persistent PowerShell tool commands receive the hidden `Start-Process` default before user code; then implement the smallest consistent fix and add any necessary edge-case coverage.
+- Keep the ordinary executor's existing behavior and all other process paths intact; preserve explicit user overrides where the PowerShell API permits them.
+- Never kill, stop, restart, inspect command lines for, or otherwise disturb the currently running app/process. Do not build or execute an installer, launch the app, tag or publish in this follow-up without fresh authorization.
+- Local fork only; do not change upstream or perform remote operations.
+- TDD mode: RED -> GREEN -> REFACTOR (explicitly selected by user); runner: pnpm + Vitest.
+- Engram mirror pending: runtime has no authoritative registered session identity.
+
+### Tasks
+- [x] **DSH-NODE-17 - Reassert the hidden `Start-Process` default in persistent PowerShell commands.** Added a regression that removes the session preference in one mocked command and verifies both its wrapper and the following Git-launch wrapper reapply `WindowStyle=Hidden` before `Invoke-Expression`. TDD RED: 1 failed / 44 passed. GREEN: focused Vitest suite 45/45; package `tsc --project ... --noEmit` and focused Oxlint passed; `git diff --check` passed. A `tsc --build --noEmit` attempt was incompatible with the repository's project references (TS6310), so the package-level no-emit check was used instead. Graphify update was attempted and failed because an encrypted `[Content_Types].xml` requires a password; graph remains stale. This is defensive hardening, not proof that the active visible window originated here. Work-unit commit: pending.
+- [ ] **DSH-NODE-18 - Identify the remaining visible-console source without disturbing the active app.** Correlate any reported `pwsh`/Git window with its process path using read-only evidence; fix and add an end-to-end regression if the source is in the fork, or record the concrete external/runtime cause if it is not. Never stop or restart the user's process.
+
+### Progress and next step
+DSH-NODE-17 hardening and checks are complete, pending its local work-unit commit. The exact observed window source is still unverified: the terminal backend sets the hidden `Start-Process` default once on session start, and the new per-command reassertion protects against a prior command clearing it. Graphify refresh failed on encrypted `[Content_Types].xml`, so the graph is stale. Continue DSH-NODE-18 using read-only evidence only; do not build/install or disturb the running app.

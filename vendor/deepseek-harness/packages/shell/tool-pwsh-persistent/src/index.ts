@@ -19,6 +19,9 @@ const TRUNCATED_MESSAGE = '<response clipped><NOTE>To save on context only part 
 const LOST_PREFIX_MESSAGE = '<response clipped><NOTE>The beginning of this command output was dropped by the terminal scrollback limit. The following text is the earliest retained output.</NOTE>\n'
 const SHELL_RESET_MESSAGE = 'The persistent pwsh shell was reset; the next pwsh call starts from the workspace with a fresh current directory and environment.'
 const TIMEOUT_CODE = 'PERSISTENT_PWSH_TIMEOUT'
+// Mirror PwshLocalExecutor's headless child default. Reapply at each tool-call
+// boundary so a previous persistent command cannot leave it disabled.
+const HIDDEN_START_PROCESS_DEFAULT = '$PSDefaultParameterValues["Start-Process:WindowStyle"]="Hidden";'
 // One page is enough to find a just-emitted completion marker; the full
 // scrollback is assembled only when a command settles or needs partial output.
 const SCROLLBACK_PAGE_LINES = 1_000
@@ -95,7 +98,7 @@ function wrapCommand(command: string, marker: CommandMarkers): string {
   // regex needs digits immediately after it and the echo continues with
   // quote characters.
   const body = quoteForPwsh(command)
-  return `Write-Output '${marker.start}'; $LASTEXITCODE = $null; $__s = 1; try { Invoke-Expression "${body}"; $__ok = $? } catch { $__ok = $false }; if ($null -ne $LASTEXITCODE) { $__s = [int]$LASTEXITCODE } else { $__s = if ($__ok) { 0 } else { 1 } }; Write-Output ('${marker.end}' + $__s)`
+  return `Write-Output '${marker.start}'; $LASTEXITCODE = $null; $__s = 1; try { ${HIDDEN_START_PROCESS_DEFAULT} Invoke-Expression "${body}"; $__ok = $? } catch { $__ok = $false }; if ($null -ne $LASTEXITCODE) { $__s = [int]$LASTEXITCODE } else { $__s = if ($__ok) { 0 } else { 1 } }; Write-Output ('${marker.end}' + $__s)`
 }
 
 function trimTrailingNewline(text: string): string {

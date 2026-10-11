@@ -329,6 +329,25 @@ async function setup(
 }
 
 describe('tool-pwsh-persistent', () => {
+  it('reinstalls the hidden Start-Process default before every command', async () => {
+    const { ctx, owner, stub } = await setup({ backendType: 'stub' })
+    await call(ctx, owner, 'warm up')
+    const session = stub.sessions[0]
+    if (session === undefined) throw new Error('expected persistent pwsh session')
+    const send = vi.spyOn(session, 'startSend')
+
+    await call(ctx, owner, '$PSDefaultParameterValues.Remove("Start-Process:WindowStyle")')
+    await call(ctx, owner, 'Start-Process git -ArgumentList clone')
+
+    const wrappers = send.mock.calls.map(([request]) => request.text)
+    expect(wrappers).toHaveLength(2)
+    for (const wrapper of wrappers) {
+      const hiddenDefault = wrapper.indexOf('$PSDefaultParameterValues["Start-Process:WindowStyle"]="Hidden";')
+      expect(hiddenDefault).toBeGreaterThanOrEqual(0)
+      expect(hiddenDefault).toBeLessThan(wrapper.indexOf('Invoke-Expression'))
+    }
+  })
+
   it('registers a configurable schema and reuses one owner shell', async () => {
     const { ctx, owner, stub, fiber } = await setup({
       backendType: 'stub',
