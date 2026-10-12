@@ -25,20 +25,20 @@ afterEach(() => {
 describe('packaged DSH compatibility manifest', () => {
   it('provides the minimum runtime version and Electron native ABI requirement', () => {
     const path = temporaryManifest(JSON.stringify({
-      version: '0.2.1-alpha.1',
+      version: '0.2.1-alpha.2',
       nodeModuleVersion: process.versions.modules,
       cli: 'dsh/apps/cli/lib/bin.js',
     }));
 
     expect(readHarnessRuntimeRequirements(path)).toEqual({
-      minimumVersion: '0.2.1-alpha.1',
+      minimumVersion: '0.2.1-alpha.2',
       nodeModuleVersion: process.versions.modules,
     });
   });
 
   it('fails closed when the package manifest is missing the native ABI contract', () => {
     const path = temporaryManifest(JSON.stringify({
-      version: '0.2.1-alpha.1',
+      version: '0.2.1-alpha.2',
       cli: 'dsh/apps/cli/lib/bin.js',
     }));
 
@@ -47,7 +47,7 @@ describe('packaged DSH compatibility manifest', () => {
 
   it('rejects a package manifest generated for a different Electron ABI', () => {
     const path = temporaryManifest(JSON.stringify({
-      version: '0.2.1-alpha.1',
+      version: '0.2.1-alpha.2',
       nodeModuleVersion: '133',
       cli: 'dsh/apps/cli/lib/bin.js',
     }));
@@ -59,7 +59,7 @@ describe('packaged DSH compatibility manifest', () => {
 
   it('requires the generated runtime manifest gate to validate native ABI metadata', () => {
     const path = temporaryManifest(JSON.stringify({
-      version: '0.2.1-alpha.1',
+      version: '0.2.1-alpha.2',
       nodeModuleVersion: process.versions.modules,
       cli: 'dsh/apps/cli/lib/bin.js',
       install: 'core-allowlist',
@@ -69,7 +69,7 @@ describe('packaged DSH compatibility manifest', () => {
     expect(accepted.status, accepted.stderr).toBe(0);
 
     const missingAbi = temporaryManifest(JSON.stringify({
-      version: '0.2.1-alpha.1',
+      version: '0.2.1-alpha.2',
       cli: 'dsh/apps/cli/lib/bin.js',
       install: 'core-allowlist',
       optionalProviders: 'external-only',

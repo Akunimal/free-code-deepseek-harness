@@ -8,7 +8,7 @@ const roots: string[] = [];
 function makeValidRuntime(
   runtimeDir: string,
   nodeEngine = '^22.19.0 || >=24.0.0',
-  version = '0.2.1-alpha.1',
+  version = '0.2.1-alpha.2',
   nodeModuleVersion = process.versions.modules,
 ): void {
   const dsh = join(runtimeDir, 'dsh');
@@ -33,7 +33,7 @@ function makeValidRuntime(
 }
 
 const compatibleRequirements = {
-  minimumVersion: '0.2.1-alpha.1',
+  minimumVersion: '0.2.1-alpha.2',
   nodeModuleVersion: process.versions.modules,
 };
 
@@ -56,7 +56,7 @@ describe('first-run DSH bootstrap', () => {
 
     await expect(ensureHarnessRuntime({ resourcesDir, updater, platform: 'win32' })).resolves.toMatchObject({
       status: 'ready',
-      version: '0.2.1-alpha.1',
+      version: '0.2.1-alpha.2',
       source: 'existing',
     });
     expect(updater.check).not.toHaveBeenCalled();
@@ -67,8 +67,8 @@ describe('first-run DSH bootstrap', () => {
     const resourcesDir = tempRuntimeDir();
     const info = {
       available: true,
-      latestVersion: '0.2.1-alpha.1',
-      assetName: 'deepseek-harness-runtime-0.2.1-alpha.1-win32-x64.tar.gz',
+      latestVersion: '0.2.1-alpha.2',
+      assetName: 'deepseek-harness-runtime-0.2.1-alpha.2-win32-x64.tar.gz',
       assetUrl: 'https://example.test/runtime.tar.gz',
       digest: 'sha256:abc',
     };
@@ -81,7 +81,7 @@ describe('first-run DSH bootstrap', () => {
 
     await expect(ensureHarnessRuntime({ resourcesDir, updater, platform: 'win32', onProgress })).resolves.toMatchObject({
       status: 'ready',
-      version: '0.2.1-alpha.1',
+      version: '0.2.1-alpha.2',
       source: 'downloaded',
     });
     expect(updater.check).toHaveBeenCalledTimes(1);
@@ -92,10 +92,10 @@ describe('first-run DSH bootstrap', () => {
   it('repairs an incomplete runtime instead of starting the supervisor with it', async () => {
     const resourcesDir = tempRuntimeDir();
     mkdirSync(resourcesDir, { recursive: true });
-    writeFileSync(join(resourcesDir, 'runtime-manifest.json'), '{"version":"0.2.1-alpha.1"}');
+    writeFileSync(join(resourcesDir, 'runtime-manifest.json'), '{"version":"0.2.1-alpha.2"}');
     const info = {
       available: true,
-      latestVersion: '0.2.1-alpha.1',
+      latestVersion: '0.2.1-alpha.2',
       assetUrl: 'https://github.com/Akunimal/free-code-deepseek-harness/releases/download/v0.9.2/runtime.tar.gz',
       digest: 'sha256:abc',
     };
@@ -117,7 +117,7 @@ describe('first-run DSH bootstrap', () => {
     makeValidRuntime(resourcesDir, '>=25.0.0');
     const info = {
       available: true,
-      latestVersion: '0.2.1-alpha.1',
+      latestVersion: '0.2.1-alpha.2',
       assetUrl: 'https://github.com/Akunimal/free-code-deepseek-harness/releases/download/v0.9.2/runtime.tar.gz',
       digest: 'sha256:abc',
     };
@@ -140,7 +140,7 @@ describe('first-run DSH bootstrap', () => {
     makeValidRuntime(resourcesDir, undefined, '0.1.3-alpha.1');
     const info = {
       available: true,
-      latestVersion: '0.2.1-alpha.1',
+      latestVersion: '0.2.1-alpha.2',
       assetUrl: 'https://github.com/Akunimal/free-code-deepseek-harness/releases/download/v0.9.2/runtime.tar.gz',
       digest: 'sha256:abc',
     };
@@ -155,7 +155,7 @@ describe('first-run DSH bootstrap', () => {
       updater,
       platform: 'win32',
       requirements: compatibleRequirements,
-    })).resolves.toMatchObject({ status: 'ready', version: '0.2.1-alpha.1', source: 'downloaded' });
+    })).resolves.toMatchObject({ status: 'ready', version: '0.2.1-alpha.2', source: 'downloaded' });
     expect(updater.check).toHaveBeenCalledTimes(1);
     expect(updater.check).toHaveBeenCalledWith(compatibleRequirements.minimumVersion);
     expect(updater.downloadAndInstall).toHaveBeenCalledTimes(1);
@@ -179,16 +179,16 @@ describe('first-run DSH bootstrap', () => {
       updater,
       platform: 'win32',
       requirements: compatibleRequirements,
-    })).rejects.toThrow(/0\.1\.3-alpha\.1.*below.*0\.2\.1-alpha\.1/);
+    })).rejects.toThrow(/0\.1\.3-alpha\.1.*below.*0\.2\.1-alpha\.2/);
     expect(updater.downloadAndInstall).not.toHaveBeenCalled();
   });
 
   it('repairs a cached runtime built for a different Electron module ABI', async () => {
     const resourcesDir = tempRuntimeDir();
-    makeValidRuntime(resourcesDir, undefined, '0.2.1-alpha.1', '133');
+    makeValidRuntime(resourcesDir, undefined, '0.2.1-alpha.2', '133');
     const info = {
       available: true,
-      latestVersion: '0.2.1-alpha.1',
+      latestVersion: '0.2.1-alpha.2',
       assetUrl: 'https://github.com/Akunimal/free-code-deepseek-harness/releases/download/v0.9.2/runtime.tar.gz',
       digest: 'sha256:abc',
     };
@@ -211,13 +211,13 @@ describe('first-run DSH bootstrap', () => {
     const resourcesDir = tempRuntimeDir();
     const info = {
       available: true,
-      latestVersion: '0.2.1-alpha.1',
+      latestVersion: '0.2.1-alpha.2',
       assetUrl: 'https://github.com/Akunimal/free-code-deepseek-harness/releases/download/v0.9.2/runtime.tar.gz',
       digest: 'sha256:abc',
     };
     const updater = {
       check: vi.fn(async () => info),
-      downloadAndInstall: vi.fn(async () => makeValidRuntime(resourcesDir, undefined, '0.2.1-alpha.1', '133')),
+      downloadAndInstall: vi.fn(async () => makeValidRuntime(resourcesDir, undefined, '0.2.1-alpha.2', '133')),
     };
     const { ensureHarnessRuntime } = await import('../src/main/harness-bootstrap.js');
 
@@ -233,7 +233,7 @@ describe('first-run DSH bootstrap', () => {
     const resourcesDir = tempRuntimeDir();
     const info = {
       available: true,
-      latestVersion: '0.2.1-alpha.1',
+      latestVersion: '0.2.1-alpha.2',
       assetUrl: 'https://github.com/Akunimal/free-code-deepseek-harness/releases/download/v0.9.2/runtime.tar.gz',
       digest: 'sha256:abc',
     };

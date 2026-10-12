@@ -256,6 +256,7 @@ const manifest = {
 fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 NODE
 node "$ROOT/scripts/verify-runtime-closure.mjs" "$OUT/dsh"
+node "$ROOT/scripts/verify-headless-runtime.mjs" "$OUT/dsh"
 
 echo "package-runtime: ready at $OUT"
 du -sh "$OUT"

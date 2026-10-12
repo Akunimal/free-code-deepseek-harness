@@ -182,7 +182,7 @@ describe('update service', () => {
 
   it('selects the exact packaged DSH prerelease instead of stale or newer release assets', async () => {
     const staleAssetName = harnessAssetName('0.1.3-alpha.1', 'win32', 'x64');
-    const compatibleAssetName = harnessAssetName('0.2.1-alpha.1', 'win32', 'x64');
+    const compatibleAssetName = harnessAssetName('0.2.1-alpha.2', 'win32', 'x64');
     const newerAssetName = harnessAssetName('0.3.0-alpha.1', 'win32', 'x64');
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify([
       {
@@ -191,7 +191,7 @@ describe('update service', () => {
         assets: [{ name: staleAssetName, browser_download_url: `https://example.test/${staleAssetName}`, digest: 'sha256:old' }],
       },
       {
-        tag_name: 'v0.2.1-alpha.1',
+        tag_name: 'v0.2.1-alpha.2',
         prerelease: true,
         assets: [{ name: compatibleAssetName, browser_download_url: `https://example.test/${compatibleAssetName}`, digest: 'sha256:new' }],
       },
@@ -202,8 +202,8 @@ describe('update service', () => {
       },
     ]), { status: 200 }));
 
-    await expect(checkHarnessRelease(undefined, 'win32', 'x64', fetchImpl, undefined, '0.2.1-alpha.1')).resolves.toMatchObject({
-      latestVersion: '0.2.1-alpha.1',
+    await expect(checkHarnessRelease(undefined, 'win32', 'x64', fetchImpl, undefined, '0.2.1-alpha.2')).resolves.toMatchObject({
+      latestVersion: '0.2.1-alpha.2',
       assetName: compatibleAssetName,
       assetUrl: `https://example.test/${compatibleAssetName}`,
       digest: 'sha256:new',
@@ -223,9 +223,9 @@ describe('update service', () => {
       assets: [{ name: newerAssetName, browser_download_url: `https://example.test/${newerAssetName}`, digest: 'sha256:newer' }],
     }]), { status: 200 }));
 
-    await expect(checkHarnessRelease(undefined, 'win32', 'x64', fetchImpl, undefined, '0.2.1-alpha.1')).resolves.toMatchObject({
+    await expect(checkHarnessRelease(undefined, 'win32', 'x64', fetchImpl, undefined, '0.2.1-alpha.2')).resolves.toMatchObject({
       available: false,
-      error: 'No harness runtime asset for packaged version 0.2.1-alpha.1 (win32-x64)',
+      error: 'No harness runtime asset for packaged version 0.2.1-alpha.2 (win32-x64)',
     });
   });
 
@@ -327,17 +327,17 @@ describe('update service', () => {
       mkdirSync(resources, { recursive: true });
       mkdirSync(archiveRoot, { recursive: true });
       writeValidHarnessRuntime(resources, '0.2.0', 'last-known-good');
-      writeValidHarnessRuntime(archiveRoot, '0.2.1-alpha.1', 'wrong-abi', '^22.19.0 || >=24.0.0', '133');
+      writeValidHarnessRuntime(archiveRoot, '0.2.1-alpha.2', 'wrong-abi', '^22.19.0 || >=24.0.0', '133');
       const bytes = createHarnessArchive(archivePath, archiveRoot);
       const digest = createHash('sha256').update(bytes).digest('hex');
 
       await expect(installHarnessRuntime({
-        latestVersion: '0.2.1-alpha.1',
-        assetUrl: 'https://github.com/Akunimal/free-code-deepseek-harness/releases/download/v0.2.1-alpha.1/harness.tar.gz',
+        latestVersion: '0.2.1-alpha.2',
+        assetUrl: 'https://github.com/Akunimal/free-code-deepseek-harness/releases/download/v0.2.1-alpha.2/harness.tar.gz',
         digest: `sha256:${digest}`,
         available: true,
       }, resources, vi.fn(async () => new Response(new Uint8Array(bytes), { status: 200 })), undefined, {}, {
-        minimumVersion: '0.2.1-alpha.1',
+        minimumVersion: '0.2.1-alpha.2',
         nodeModuleVersion: process.versions.modules,
       })).rejects.toThrow(new RegExp(`133.*NODE_MODULE_VERSION ${process.versions.modules}`));
 
