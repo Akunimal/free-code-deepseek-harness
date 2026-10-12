@@ -62,6 +62,8 @@ test('release plan statically validates an isolated NSIS build without install o
   const plan = createReleaseGatePlan({ version: '0.9.3', outputDir });
   const commandText = plan.map((step) => `${step.label} ${step.args.join(' ')}`).join('\n');
 
+  assert.match(commandText, /release-artifacts\.test\.mjs/);
+  assert.match(commandText, /release-version-docs\.test\.mjs/);
   assert.doesNotMatch(commandText, /build:desktop|package:runtime|package-harness-update|smoke:nsis\b/);
   assert.match(commandText, /verify-pinned-runtime-asset\.mjs/);
   assert.match(commandText, /verify-nsis-package-output\.mjs/);

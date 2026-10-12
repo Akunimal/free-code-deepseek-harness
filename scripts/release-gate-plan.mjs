@@ -15,7 +15,13 @@ export function createReleaseGatePlan({ version, outputDir }) {
   const step = (label, args, env = {}) => ({ label, args, ...(Object.keys(env).length > 0 ? { env } : {}) });
 
   return [
-    step('release-gate-contract-tests', ['exec', 'node', '--test', 'scripts/release-gate-contract.test.mjs', 'scripts/nsis-smoke-safety.test.mjs']),
+    step('release-gate-contract-tests', [
+      'exec', 'node', '--test',
+      'scripts/release-gate-contract.test.mjs',
+      'scripts/nsis-smoke-safety.test.mjs',
+      'scripts/release-artifacts.test.mjs',
+      'scripts/release-version-docs.test.mjs',
+    ]),
     { label: 'whitespace-validation', tool: 'git', args: ['diff', '--check'] },
     step('mcp-configuration-contract', ['exec', 'node', '--test', 'scripts/mcp-config.test.mjs']),
     step('workspace-tests', ['test']),
