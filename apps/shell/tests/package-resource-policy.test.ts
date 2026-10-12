@@ -5,6 +5,8 @@ const builderConfig = new URL('../electron-builder.yml', import.meta.url);
 const runtimeArchiveScript = new URL('../../../scripts/package-harness-update.mjs', import.meta.url);
 const installedSmokeScript = new URL('../../../scripts/verify-nsis-install-layout.mjs', import.meta.url);
 const installedRuntimeScript = new URL('../../../scripts/verify-installed-runtime.mjs', import.meta.url);
+const rootPackage = new URL('../../../package.json', import.meta.url);
+const shellPackage = new URL('../package.json', import.meta.url);
 
 describe('desktop package payload policy', () => {
   it('excludes the large DSH runtime but packages its small compatibility manifest', () => {
@@ -27,6 +29,30 @@ describe('desktop package payload policy', () => {
     const script = readFileSync(runtimeArchiveScript, 'utf8');
     expect(script).toContain("'dsh', 'runtime-manifest.json'");
     expect(script).toContain('.sha256');
+    expect(script).toContain('assertRuntimeArchiveDestinationIsFree');
+    expect(script).not.toContain('rmSync(archivePath');
+  });
+
+  it('keeps ordinary desktop packaging separate from immutable runtime archive generation', () => {
+    const rootScripts = JSON.parse(readFileSync(rootPackage, 'utf8')).scripts;
+    const shellScripts = JSON.parse(readFileSync(shellPackage, 'utf8')).scripts;
+
+    expect(shellScripts.package).not.toContain('package-harness-update');
+    expect(rootScripts['build:desktop']).not.toContain('package:runtime');
+    expect(rootScripts['package:runtime:release']).toContain('package:runtime');
+    expect(rootScripts['package:runtime:release']).toContain('package-harness-update');
+  });
+
+  it('uses a package-versioned, configurable output path for the desktop package wrapper', () => {
+    const wrapper = readFileSync(new URL('../../../scripts/package-desktop.mjs', import.meta.url), 'utf8');
+    const shellScripts = JSON.parse(readFileSync(shellPackage, 'utf8')).scripts;
+
+    expect(shellScripts.package).toContain('package:desktop');
+    expect(shellScripts['package:desktop']).toContain('package-desktop.mjs');
+    expect(wrapper).toContain('FREECODE_RELEASE_OUTPUT');
+    expect(wrapper).toContain('release-${version}-local');
+    expect(wrapper).toContain("resolve(shellRoot, 'release')");
+    expect(wrapper).toContain("resolve('electron-builder/cli.js')");
   });
 
   it('validates the actual packaged Electron executable before installer targets are built', () => {

@@ -1,14 +1,19 @@
 #!/usr/bin/env node
 /**
- * Required local release gate for the Windows desktop artifact.
+ * Required non-interactive Windows release gate.
  *
- * Every installed-app exercise is isolated in the smoke scripts' temporary
- * directories. This gate never targets an existing user installation.
+ * It builds an NSIS artifact under a unique temporary output path, verifies
+ * that exact package statically, and never installs or launches the GUI. The
+ * pinned DSH runtime is validated in place and is never regenerated here.
+ * Interactive installer/runtime smoke is a separate, opt-in disposable-VM
+ * check because NSIS uses user-profile shortcuts and registration state.
  */
 
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { join, resolve, sep } from 'node:path';
+import { tmpdir } from 'node:os';
+import { createReleaseGatePlan } from './release-gate-plan.mjs';
 
 if (process.platform !== 'win32') {
   console.error('release-gate: Windows desktop release verification requires Windows; refusing to report green.');
@@ -16,21 +21,25 @@ if (process.platform !== 'win32') {
 }
 
 const root = resolve(import.meta.dirname, '..');
-const pnpmCommand = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
-const run = (label, args) => {
+const pnpmCommand = 'pnpm.cmd';
+const version = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).version;
+const temporaryRoot = resolve(tmpdir());
+const outputDir = mkdtempSync(join(temporaryRoot, `freecode-release-gate-${version}-`));
+
+function run(label, args, env = {}) {
   console.log(`\nrelease-gate: ${label}`);
   const result = spawnSync(pnpmCommand, args, {
     cwd: root,
     stdio: 'inherit',
     windowsHide: true,
-    shell: process.platform === 'win32',
-    env: { ...process.env, CI: 'true' },
+    shell: true,
+    env: { ...process.env, CI: 'true', ...env },
   });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${label} failed with exit code ${String(result.status)}`);
-};
+}
 
-const runGit = (label, args) => {
+function runGit(label, args) {
   console.log(`\nrelease-gate: ${label}`);
   const result = spawnSync('git.exe', args, {
     cwd: root,
@@ -39,30 +48,21 @@ const runGit = (label, args) => {
   });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${label} failed with exit code ${String(result.status)}`);
-};
+}
 
-const version = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).version;
-console.log(`release-gate: verifying local candidate ${version}`);
-
-runGit('whitespace validation', ['diff', '--check']);
-run('MCP configuration and enable/disable contract', ['exec', 'node', '--test', 'scripts/mcp-config.test.mjs']);
-run('all workspace tests', ['test']);
-run('all workspace contract tests', ['test:contract']);
-run('all workspace typechecks', ['typecheck']);
-run('stream and OCR contract verification', ['exec', 'node', 'scripts/verify-stream-contract.mjs']);
-run('locale and desktop capability contract verification', ['exec', 'node', 'scripts/verify-locale-contract.mjs']);
-run('offline MCP closure verification', ['exec', 'node', 'scripts/verify-offline-mcp.mjs']);
-run('Windows ACL regression tests', [
-  '--dir', 'vendor/deepseek-harness', 'exec', 'vitest', 'run',
-  'packages/sandbox/sandbox-windows-acl/tests/failure-paths.spec.ts',
-  'packages/sandbox/sandbox-windows-acl/tests/runner.spec.ts',
-]);
-run('desktop build and runtime packaging', ['build:desktop']);
-run('all vendored bundle freshness', ['exec', 'node', 'scripts/verify-vendor-bundles-fresh.mjs']);
-run('compiled conversation motion bundle', ['exec', 'node', 'scripts/verify-conversation-bundle.mjs', 'vendor/deepseek-harness']);
-run('runtime closure unit tests', ['exec', 'node', '--test', 'scripts/runtime-closure.test.mjs']);
-run('core runtime closure (no optional Claude/Codex payloads)', ['exec', 'node', 'scripts/verify-runtime-closure.mjs', 'apps/shell/resources/freecode/dsh']);
-run('packaged Serena and free-search initialize/tools/call smoke', ['test:mcp:real']);
-run('fresh NSIS install and installed-runtime smoke', ['--filter', '@freecode/shell', 'smoke:nsis']);
-
-console.log(`\nrelease-gate: ${version} local candidate passed every required gate.`);
+console.log(`release-gate: verifying local desktop candidate ${version}; DSH runtime remains separately pinned.`);
+try {
+  const plan = createReleaseGatePlan({ version, outputDir });
+  for (const step of plan) {
+    if (step.tool === 'git') runGit(step.label, step.args);
+    else run(step.label, step.args, step.env);
+  }
+  console.log(`\nrelease-gate: ${version} non-interactive desktop release checks passed; no installer/app was launched.`);
+} finally {
+  const relative = resolve(outputDir);
+  const tempPrefix = temporaryRoot.endsWith(sep) ? temporaryRoot : `${temporaryRoot}${sep}`;
+  if (!relative.startsWith(tempPrefix)) {
+    throw new Error(`release-gate: refusing to clean output outside OS temp: ${relative}`);
+  }
+  rmSync(relative, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+}

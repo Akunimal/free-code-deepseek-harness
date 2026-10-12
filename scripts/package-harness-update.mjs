@@ -1,8 +1,9 @@
-import { readFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { sha256File } from './sha256-file.mjs';
+import { assertRuntimeArchiveDestinationIsFree } from './runtime-archive-policy.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const resourcesDir = resolve(root, 'apps/shell/resources/freecode');
@@ -17,9 +18,8 @@ const releaseDir = resolve(root, 'apps/shell/release');
 const archivePath = join(releaseDir, assetName);
 const digestPath = `${archivePath}.sha256`;
 
+assertRuntimeArchiveDestinationIsFree(archivePath, digestPath);
 mkdirSync(releaseDir, { recursive: true });
-rmSync(archivePath, { force: true });
-rmSync(digestPath, { force: true });
 
 const relArchive = relative(root, archivePath);
 const relResources = relative(root, resourcesDir);
