@@ -223,6 +223,18 @@
         "packages/contract-tests/tests/release.contract.test.ts"
       ],
       "vendorOnly": true
+    },
+    {
+      "file": "163-freecode-vitest-react-dedupe.patch",
+      "order": 163,
+      "owner": "freecode",
+      "description": "Dedupe React and React DOM across Vitest workspace projects to preserve a single hook dispatcher",
+      "seam": "vitest.config.ts",
+      "contractTests": [
+        "packages/client/ui-primitives/tests/settings-form.client.spec.tsx",
+        "packages/client/ui-primitives/tests/settings-fields.client.spec.tsx"
+      ],
+      "vendorOnly": true
     }
   ]
 }

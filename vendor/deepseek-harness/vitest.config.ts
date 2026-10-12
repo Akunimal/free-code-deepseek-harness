@@ -171,7 +171,7 @@ const claudeCodeTestingAliases = {
 
 export default defineConfig({
   plugins: [pathsPlugin(), standardDecoratorPlugin()],
-  resolve: { alias: claudeCodeTestingAliases },
+  resolve: { alias: claudeCodeTestingAliases, dedupe: ['react', 'react-dom'] },
   test: {
     setupFiles: ['./scripts/test-proxy-environment.ts', './scripts/test-dom-environment.ts'],
     // .tsx: client component specs (jsdom via per-file @vitest-environment pragma).
@@ -182,7 +182,7 @@ export default defineConfig({
     projects: [
       {
         plugins: [pathsPlugin(), standardDecoratorPlugin()],
-        resolve: { alias: claudeCodeTestingAliases },
+        resolve: { alias: claudeCodeTestingAliases, dedupe: ['react', 'react-dom'] },
         test: {
           name: 'thread-safe',
           execArgv: vitestExecArgv,
@@ -202,7 +202,7 @@ export default defineConfig({
       },
       {
         plugins: [pathsPlugin(), standardDecoratorPlugin()],
-        resolve: { alias: claudeCodeTestingAliases },
+        resolve: { alias: claudeCodeTestingAliases, dedupe: ['react', 'react-dom'] },
         test: {
           name: 'process-bound',
           execArgv: vitestExecArgv,
