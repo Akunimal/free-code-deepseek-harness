@@ -140,6 +140,7 @@ export function launchAcpTestAgent(options: AcpTestLaunchOptions): LaunchedAcpTe
       cwd,
       env: { ...process.env, ...launch.env },
       stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
     },
   )
   // A spawn-level failure is an asynchronous `error` event. Observe it in the

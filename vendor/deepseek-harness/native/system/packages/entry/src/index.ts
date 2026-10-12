@@ -121,6 +121,7 @@ export function probe(
     timeout: options.timeoutMs ?? 2000,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'ignore'],
+    windowsHide: true,
   })
   if (result.status !== 0) return 'unusable'
   return /partially enforced/.test(result.stdout) ? 'partial' : 'full'

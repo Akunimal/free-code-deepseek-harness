@@ -10,10 +10,12 @@ import { Context } from '@deepseek-ai/cordis'
  * transitions independently of kernel buffering. The real-subprocess suite
  * remains in runtime.spec.ts.
  */
-const { execFileSyncMock, spawnMock } = vi.hoisted(() => ({ execFileSyncMock: vi.fn(), spawnMock: vi.fn() }))
+const { execFileSyncMock, spawnMock } = vi.hoisted(() => {
+  const execFileSyncMock = vi.fn(() => 'cpython 3 12 0')
+  return { execFileSyncMock, spawnMock: vi.fn() }
+})
 vi.mock('node:child_process', async (importOriginal) => {
   const original = await importOriginal<typeof import('node:child_process')>()
-  execFileSyncMock.mockImplementation(original.execFileSync)
   return { ...original, execFileSync: execFileSyncMock, spawn: spawnMock }
 })
 
@@ -193,7 +195,7 @@ describe('PythonPtcRuntime — controlled subprocess pipes', () => {
     expect(execFileSyncMock).toHaveBeenCalledWith(
       expect.any(String),
       expect.arrayContaining(['-I', '-c']),
-      expect.objectContaining({ timeout: 5_000, killSignal: 'SIGKILL' }),
+      expect.objectContaining({ timeout: 5_000, killSignal: 'SIGKILL', windowsHide: true }),
     )
     await fiber.dispose()
   })
@@ -232,8 +234,10 @@ describe('PythonPtcRuntime — controlled subprocess pipes', () => {
     // `dsh-ptc-runtime-python-*` dir in the window reads as a leak here. Keying
     // off our own argv is fully isolated from concurrent staging.
     let stagedBootstrap: string | undefined
-    spawnMock.mockImplementation((_bin: string, args: string[]) => {
+    let spawnOptions: unknown
+    spawnMock.mockImplementation((_bin: string, args: string[], options: unknown) => {
       stagedBootstrap = args[args.length - 1]
+      spawnOptions = options
       throw Object.assign(new Error('EMFILE: too many open files'), { code: 'EMFILE' })
     })
     const ctx = new Context()
@@ -246,6 +250,7 @@ describe('PythonPtcRuntime — controlled subprocess pipes', () => {
     expect(result.error?.message).toContain('python spawn error')
     expect(stagedBootstrap).toBeDefined()
     expect(existsSync(dirname(stagedBootstrap as string))).toBe(false)
+    expect(spawnOptions).toMatchObject({ windowsHide: true })
     await fiber.dispose()
   })
 

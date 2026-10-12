@@ -25,12 +25,10 @@ import ToolRegistry from '@deepseek-ai/dsh-tools'
 import * as ToolPwshPersistent from '@deepseek-ai/dsh-tool-pwsh-persistent'
 import { unsupportedInbox } from '@deepseek-ai/dsh-agent-loop-testkit'
 import { ReadinessTimeline, TIMELINE_HEADER } from './readiness-timeline.ts'
+import { isPwshAvailable } from '../../../../scripts/pwsh-probe.ts'
 
 const pwshPath = resolvePwshPath()
-const hasPwsh = spawnSync(
-  pwshPath, ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', '$true'],
-  { encoding: 'utf8' },
-).status === 0
+const hasPwsh = isPwshAvailable()
 
 // Shell and console-host versions for a failure message: the Windows console host, not this
 // process, decides how the prompt marker and its tail reach the session, and its build on the
@@ -43,7 +41,7 @@ const HOST_FACTS_COMMAND = [
 function hostFacts(): string {
   const probe = spawnSync(
     pwshPath, ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', HOST_FACTS_COMMAND],
-    { encoding: 'utf8', timeout: 30_000 },
+    { encoding: 'utf8', timeout: 30_000, windowsHide: true },
   )
   const shell = probe.status === 0
     ? probe.stdout.trim().split(/\r?\n/).join('; ')

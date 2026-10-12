@@ -108,7 +108,7 @@ export function composeProfile(repoRoot: string, profile: string): string {
         // shipped composition alone.
         '--dump-config',
       ],
-      { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, env: { ...process.env, [DSH_HOME_ENV]: home } },
+      { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, windowsHide: true, env: { ...process.env, [DSH_HOME_ENV]: home } },
     )
   } finally {
     rmSync(home, { recursive: true, force: true })

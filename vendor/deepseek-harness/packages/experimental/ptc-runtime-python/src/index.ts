@@ -514,6 +514,7 @@ function validatePythonBin(bin: string): void {
     ], {
       encoding: 'utf8',
       env: pythonEnvironment(),
+      windowsHide: true,
       timeout: PYTHON_PROBE_TIMEOUT_MS,
       // The configured executable is outside our control. Force-kill it at the
       // deadline so a wrapper that ignores SIGTERM cannot block plugin load.
@@ -1195,6 +1196,7 @@ export class PythonPtcRuntime extends PtcRuntime {
       // unaffected (it is a Python object, not the C-level stdio buffer).
       child = spawn(this.pythonBin, ['-u', '-I', bootstrapPath], {
         cwd: request.cwd,
+        windowsHide: true,
         // Preserve only the platform temp directory. macOS system Python emits a
         // startup warning when TMPDIR is absent; ambient credentials, PATH, HOME,
         // and other host state remain unavailable to model code.

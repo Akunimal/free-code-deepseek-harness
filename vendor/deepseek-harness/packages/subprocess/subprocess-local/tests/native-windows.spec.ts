@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { afterAll, describe, expect, it } from 'vitest'
 import type { SubprocessSpawnSpec, SubprocessTerminalHandle } from '@deepseek-ai/dsh-subprocess'
 import { resolvePwshPath } from '@deepseek-ai/dsh-pwsh-local/src/resolve.ts'
+import { isPwshAvailable } from '../../../../scripts/pwsh-probe.ts'
 import { targetEnvironment } from '../src/runner-launch.ts'
 import { bindManagedProcess } from '../src/spawn.ts'
 import { launchWindowsJob, probeWindowsJob } from '../src/windows-job.ts'
@@ -81,23 +82,20 @@ function directSpawnFailure(argv: readonly string[], cwd = scratch): Promise<Spa
 
 const windowsNative = process.platform === 'win32' && probeWindowsJob()
 
-describe('node-pty ConPTY Windows startup contract', () => {
-  it('hides the native ConPTY client without removing its pseudo console attachment', () => {
+describe('node-pty Windows helper-process startup contract', () => {
+  it('hides the console-list cleanup agent fork', () => {
     const nodePtyEntry = fileURLToPath(import.meta.resolve('node-pty'))
-    const source = readFileSync(resolve(dirname(nodePtyEntry), '../src/win/conpty.cc'), 'utf8')
+    const source = readFileSync(resolve(dirname(nodePtyEntry), 'windowsPtyAgent.js'), 'utf8')
 
-    expect(source).toMatch(/StartupInfo\.dwFlags\s*\|=\s*STARTF_USESTDHANDLES\s*\|\s*STARTF_USESHOWWINDOW/u)
-    expect(source).toMatch(/StartupInfo\.wShowWindow\s*=\s*SW_HIDE/u)
-    expect(source).toContain('PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE')
+    const cleanupAgentFork = source.split('\n').find(line => line.includes('conpty_console_list_agent'))
+    expect(cleanupAgentFork).toContain('silent: true')
+    expect(cleanupAgentFork).toContain('windowsHide: true')
   })
 })
 
 const pwshPath = resolvePwshPath()
 const hasWindowsPwsh = process.platform === 'win32'
-  && spawnSync(pwshPath, ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', '$true'], {
-    encoding: 'utf8',
-    windowsHide: true,
-  }).status === 0
+  && isPwshAvailable()
 
 describe.skipIf(!hasWindowsPwsh)('Windows ConPTY shell visibility', () => {
   it('keeps a pwsh session and a native child out of the visible desktop', async () => {

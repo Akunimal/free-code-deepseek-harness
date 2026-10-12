@@ -198,6 +198,7 @@ export class DesktopHostProcess {
       cwd: this.projectDir,
       env: desktopNodeEnvironment(this.node, undefined, this.environment),
       stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+      windowsHide: true,
     })
     this.child = child
     child.stderr?.setEncoding('utf8')

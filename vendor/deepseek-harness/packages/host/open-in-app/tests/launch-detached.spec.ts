@@ -15,6 +15,30 @@ afterEach(() => {
 })
 
 describe('launchDetachedApp watch window', () => {
+  it('hides a launcher console by default and preserves explicit visibility', async () => {
+    vi.useFakeTimers()
+    const hiddenChild = new ChildProcess()
+    const visibleChild = new ChildProcess()
+    vi.mocked(spawn).mockReturnValueOnce(hiddenChild).mockReturnValueOnce(visibleChild)
+    try {
+      const hidden = launchDetachedApp('fixture-cli', [], { watchMs: 10 })
+      await vi.advanceTimersByTimeAsync(10)
+      await expect(hidden).resolves.toBeUndefined()
+      expect(vi.mocked(spawn).mock.calls[0]?.[2]).toMatchObject({ windowsHide: true })
+
+      const visible = launchDetachedApp('fixture-gui-cli', [], { watchMs: 10, windowsHide: false })
+      await vi.advanceTimersByTimeAsync(10)
+      await expect(visible).resolves.toBeUndefined()
+      expect(vi.mocked(spawn).mock.calls[1]?.[2]).toMatchObject({ windowsHide: false })
+    } finally {
+      hiddenChild.removeAllListeners()
+      visibleChild.removeAllListeners()
+      vi.restoreAllMocks()
+      vi.mocked(spawn).mockReset()
+      vi.useRealTimers()
+    }
+  })
+
   it.each(['exit 0', 'exit 3', 'error'] as const)('ignores late %s after unref without killing the child', async (event) => {
     vi.useFakeTimers()
     const child = new ChildProcess()

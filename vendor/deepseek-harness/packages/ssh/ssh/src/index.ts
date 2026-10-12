@@ -228,7 +228,7 @@ export class SshConnection extends Service {
     combined.throwIfAborted()
     const result = Promise.withResolvers<undefined>()
     const command = execFile('ssh', ['-S', this.controlPath(), ...args, this.config.host], {
-      signal: combined, maxBuffer: 64 * 1024,
+      signal: combined, maxBuffer: 64 * 1024, windowsHide: true,
     }, (error) => { if (error === null) result.resolve(undefined); else result.reject(error) })
     const closed = new Promise<void>((resolve) => { command.once('close', () => { resolve() }) })
     let force: NodeJS.Timeout | undefined
@@ -264,7 +264,7 @@ export class SshConnection extends Service {
       '-T', '-M', '-S', this.controlPath(), '-o', 'ControlPersist=no', '-o', 'BatchMode=yes',
       '-o', 'StrictHostKeyChecking=yes', '-o', 'ForwardAgent=no', '-o', 'ClearAllForwardings=yes',
       '-o', 'ServerAliveInterval=10', '-o', 'ServerAliveCountMax=3', this.config.host, command,
-    ], { stdio: ['pipe', 'pipe', 'pipe'] })
+    ], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
     this.child = child
     this.childClosed = new Promise((resolve) => { child.once('close', () => { resolve() }) })
     child.stderr.resume() // SSH diagnostics can contain configured paths; operation errors remain structured.

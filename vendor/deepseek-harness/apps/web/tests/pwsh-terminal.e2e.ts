@@ -9,14 +9,13 @@
 // and no event references the workspace, so the lane replays on any host
 // with a usable `pwsh` — the lane mounts the pwsh stack through an overlay
 // (the shipped tree keeps the bash stack).
-import { spawnSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { Browser, Page } from 'playwright'
 import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
-import { resolvePwshPath } from '@deepseek-ai/dsh-pwsh-local'
+import { isPwshAvailable } from '../../../scripts/pwsh-probe.ts'
 import {
   assertFixtureInventory, captureStableAria, compareOrRefreshGolden,
   fixtureUserPrompts, launchWebScaffold, seedSession, webSnapshotMode,
@@ -38,10 +37,7 @@ const MODE = webSnapshotMode()
 // resolution (Program Files installs on Windows are found even when bare
 // `pwsh` is not on PATH), the same judgment the tool-pwsh tests reuse; record
 // mode skips the lane anyway, so the probe stays inert there.
-const HAS_PWSH = MODE === 'record' ? false : spawnSync(
-  resolvePwshPath(), ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', '$true'],
-  { encoding: 'utf8' },
-).status === 0
+const HAS_PWSH = MODE === 'record' ? false : isPwshAvailable()
 
 describe.skipIf(MODE === 'record' || !HAS_PWSH)('web e2e: pwsh calls use the bash terminal-card layout', () => {
   let scaffold: WebScaffold

@@ -69,7 +69,7 @@ async function check(mode: 'valid' | 'plaintext' | 'blank' | 'missing' | 'upload
   try {
     const result = await execute('pwsh', [
       '-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64'),
-    ], { env, timeout: 30_000 })
+    ], { env, timeout: 30_000, windowsHide: true })
     return { code: 0, output: result.stdout + result.stderr }
   }
   catch (error) {

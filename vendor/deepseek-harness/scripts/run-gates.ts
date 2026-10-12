@@ -1179,7 +1179,7 @@ export async function runGate(gate: Gate, signal?: AbortSignal): Promise<GateRes
       if (pid === undefined) return
       if (process.platform === 'win32') {
         for (const args of taskkillArgs(pid, descendants)) {
-          spawnSync('taskkill', args, { stdio: 'ignore' })
+          spawnSync('taskkill', args, { stdio: 'ignore', windowsHide: true })
         }
         return
       }
@@ -1488,7 +1488,7 @@ function descendantPids(root: number): number[] {
     // parent column, so this walk still finds the whole tree. A hung
     // PowerShell (WMI/CIM service trouble) must not stall the abort path
     // indefinitely, so the enumeration is bounded.
-    ps = spawnSync('powershell', processTableArgs('win32'), { encoding: 'utf8', timeout: 10000 })
+    ps = spawnSync('powershell', processTableArgs('win32'), { encoding: 'utf8', timeout: 10000, windowsHide: true })
   } else {
     ps = spawnSync('ps', processTableArgs('posix'), { encoding: 'utf8' })
   }
@@ -1535,6 +1535,7 @@ function descendantPidsAsync(root: number, platform: NodeJS.Platform): { promise
   const child = spawn(command, args, {
     stdio: ['ignore', 'pipe', 'ignore'],
     timeout: platform === 'win32' ? 10000 : undefined,
+    windowsHide: platform === 'win32',
   })
   child.stdout.setEncoding('utf8')
   let stdout = ''

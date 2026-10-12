@@ -3,7 +3,6 @@
 import { startHttpMcpFixture } from '../../packages/mcp/mcp-client/tests/http-fixture.ts'
 import { cp, copyFile, mkdir, mkdtemp, readFile, readdir, rm, symlink, utimes, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
-import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { basename, delimiter, dirname, isAbsolute, join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -51,7 +50,7 @@ import {
   type WorkspaceSnapshotEntry,
 } from '@deepseek-ai/dsh-session-snapshot'
 import { LOADER_SMOKE_TEST_TIMEOUT_MS, runLoaderSmoke } from '@deepseek-ai/dsh-loader-smoke'
-import { resolvePwshPath } from '@deepseek-ai/dsh-pwsh-local'
+import { isPwshAvailable } from '../../scripts/pwsh-probe.ts'
 import { parseSessionLog, prepareSessionSnapshotFixtureForComparison } from '@deepseek-ai/dsh-llm-replay'
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url))
@@ -542,12 +541,7 @@ async function collectScenarios(): Promise<HeadlessScenario[]> {
 }
 
 const scenarios = await collectScenarios()
-const hasPwsh = spawnSync(
-  resolvePwshPath(),
-  ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', '$true'],
-  { encoding: 'utf8' },
-).status === 0
-const scenarioByName = new Map(scenarios.map(scenario => [scenario.name, scenario]))
+const hasPwsh = isPwshAvailable()\nconst scenarioByName = new Map(scenarios.map(scenario => [scenario.name, scenario]))
 const compositionOwners = new Map<string, HeadlessScenario>()
 const headerPins = new Map<string, HeadlessScenario>()
 for (const scenario of scenarios) {

@@ -6,7 +6,6 @@
  * pwsh-local's suites); the helpers block is pure and always runs.
  */
 
-import { spawnSync } from 'node:child_process'
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -14,7 +13,7 @@ import { afterAll, describe, expect, it, vi } from 'vitest'
 import { Context, Service } from '@deepseek-ai/cordis'
 import { SandboxProvider, SandboxUnavailableError } from '@deepseek-ai/dsh-sandbox'
 import type { ConfinedArgv, RunnerFailureRule, SandboxExecutionPolicy, SandboxPolicy } from '@deepseek-ai/dsh-sandbox'
-import { resolvePwshPath } from '@deepseek-ai/dsh-pwsh-local'
+import { isPwshAvailable } from '../../../../scripts/pwsh-probe.ts'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
@@ -37,7 +36,7 @@ function start(x: { execute(spec: ShellExecSpec): Promise<ShellExecution> }, spe
 // spawnSync never throws on a missing binary (it reports status null), and
 // `where.exe pwsh` exits 1 when pwsh is absent — only the status is truth.
 function pwshAvailable(): boolean {
-  return spawnSync(resolvePwshPath(), ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', '$true'], { encoding: 'utf8' }).status === 0
+  return isPwshAvailable()
 }
 
 const spillDir = mkdtempSync(join(tmpdir(), 'dsh-pwsh-sandbox-spec-'))

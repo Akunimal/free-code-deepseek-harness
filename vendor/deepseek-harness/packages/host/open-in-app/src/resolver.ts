@@ -76,7 +76,7 @@ export const launchDetachedApp: OpenInAppLauncher = (command, args, options) =>
     const child = spawn(command, [...args], {
       detached: true,
       stdio: 'ignore',
-      windowsHide: options.windowsHide,
+      windowsHide: options.windowsHide ?? true,
       env: { ...scrubbedParentEnv(), ...options.env },
     })
     let settled = false

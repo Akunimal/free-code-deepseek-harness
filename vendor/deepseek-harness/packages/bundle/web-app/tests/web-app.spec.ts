@@ -467,6 +467,7 @@ describe('web-app runtime glue', () => {
     expect(options?.env).not.toHaveProperty('DEEPSEEK_API_KEY')
     expect(options?.env).not.toHaveProperty('DSH_HOME')
     expect(options?.env?.PATH).toBe(process.env.PATH)
+    expect(options?.windowsHide).toBe(true)
     expect(options?.stdio).toEqual(['ignore', 'inherit', 'pipe'])
     completed.emit('close', 0)
     await expect(completion).resolves.toBeUndefined()

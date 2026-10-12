@@ -162,6 +162,7 @@ describe.skipIf(process.platform === 'win32')('SSH connection startup', () => {
     expect(argv).toContain('StrictHostKeyChecking=yes')
     expect(argv).toContain('ForwardAgent=no')
     expect(argv.at(-1)).toBe("'/remote/node' '--disable-sigusr1' '/remote/helper'\\''s file.js'")
+    expect(transport.spawn.mock.calls[0]?.[2]).toMatchObject({ windowsHide: true })
     expect(test.calls[0]?.params).toEqual({ protocol: 1, workspace: '/remote/workspace', leaseMs: 30_000, bootstrapPath: '/remote/process.js' })
   })
 
@@ -231,6 +232,7 @@ describe.skipIf(process.platform === 'win32')('SSH connection startup', () => {
     }
     expect(transport.exec).not.toHaveBeenCalled()
     const socket = await test.service.connectStream({ path: '/tmp/remote-helper/control', capability: 'b'.repeat(64) })
+    expect(transport.exec.mock.calls[0]?.[2]).toMatchObject({ windowsHide: true })
     expect(socket).toBe(test.secure)
     expect(socket.readableFlowing).toBe(false)
     socket.destroy(new Error('data channel closed'))

@@ -270,6 +270,7 @@ function flushLogsAndExit(): void {
     spawn(process.execPath, ['-e', code], {
       detached: true,
       stdio: ['ignore', 'inherit', 'inherit'],
+      windowsHide: true,
     }).unref()
   }
   process.exit(0)

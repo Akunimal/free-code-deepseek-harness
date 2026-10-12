@@ -24,7 +24,7 @@ const isWin32 = process.platform === 'win32'
 
 function pwshAvailable(): boolean {
   try {
-    execFileSync('where.exe', ['pwsh'], { stdio: 'ignore' })
+    execFileSync('where.exe', ['pwsh'], { stdio: 'ignore', windowsHide: true })
     return true
   } catch {
     return false

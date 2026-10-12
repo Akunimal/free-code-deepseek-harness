@@ -62,7 +62,7 @@ const opensRealDialog = process.platform === 'win32' && spawnSync('powershell.ex
   '-NonInteractive',
   '-Command',
   `try { [void][Activator]::CreateInstance([Type]::GetTypeFromCLSID([Guid]'${CLSID_FILE_OPEN_DIALOG}')) } catch { exit 1 }`,
-], { encoding: 'utf8' }).status !== 1
+], { encoding: 'utf8', windowsHide: true }).status !== 1
 
 describe('pickWin32Directory', () => {
   it('resolves the selected path and the cancellation null', async () => {
