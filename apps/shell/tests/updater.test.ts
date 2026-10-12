@@ -144,7 +144,7 @@ describe('update service', () => {
     });
     expect(fetchImpl).toHaveBeenCalledWith(
       'https://api.github.com/repos/deepseek-ai/deepseek-harness/commits/main',
-      expect.objectContaining({ headers: expect.any(Object) }),
+      expect.objectContaining({ headers: expect.any(Object), signal: expect.any(AbortSignal) }),
     );
   });
 
@@ -162,7 +162,7 @@ describe('update service', () => {
     });
   });
 
-  it('makes the latest compatible runtime available when no runtime is installed yet', async () => {
+  it('does not offer a runtime update when the installed runtime version is unknown', async () => {
     const assetName = harnessAssetName('0.1.8', 'win32', 'x64');
     const fetchImpl = vi.fn(async () => new Response(JSON.stringify([{
       tag_name: 'v0.1.8',
@@ -172,7 +172,8 @@ describe('update service', () => {
     await expect(checkHarnessRelease(undefined, 'win32', 'x64', fetchImpl)).resolves.toMatchObject({
       latestVersion: '0.1.8',
       assetName,
-      available: true,
+      available: false,
+      error: expect.stringMatching(/installed.*version.*unknown/i),
     });
     expect(fetchImpl).toHaveBeenCalledWith(
       'https://api.github.com/repos/Akunimal/free-code-deepseek-harness/releases?per_page=100',

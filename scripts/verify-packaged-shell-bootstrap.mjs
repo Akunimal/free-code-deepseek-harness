@@ -18,6 +18,7 @@ const BOOTSTRAP_GUARD = 'app.isPackaged && !(await ensurePackagedHarnessRuntime(
 const COMPATIBILITY_REQUIREMENTS_CALL = "readHarnessRuntimeRequirements(join(staticResourcesDir, 'runtime-manifest.json'))";
 const RUNTIME_DOWNLOAD_CALL = 'ensureHarnessRuntime({';
 const DSH_PREFLIGHT_CALL = 'awaitHarnessLayout({';
+const TRANSPARENT_UPDATE_SURFACE_CALL = "updateIndicatorView.setBackgroundColor('#00000000')";
 
 function extractPackagedFile(archivePath, filePath) {
   const shellRequire = createRequire(join(root, 'apps', 'shell', 'package.json'));
@@ -43,6 +44,9 @@ function inspectPackagedMain(mainSource) {
   }
   if (bootstrapAt >= preflightAt) {
     return { ok: false, error: 'first-run DSH bootstrap must run before DSH preflight' };
+  }
+  if (!mainSource.includes(TRANSPARENT_UPDATE_SURFACE_CALL)) {
+    return { ok: false, error: 'packaged main is missing the transparent native surface for the update indicator' };
   }
   return { ok: true };
 }

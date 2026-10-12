@@ -96,6 +96,16 @@ export interface LaunchResult {
   metrics: LaunchMetrics
 }
 
+export interface LaunchWaitOptions extends LaunchOptions {
+  /** Finite bound for a child whose completion is required before continuing. */
+  timeoutMs: number
+}
+
+export interface LaunchWaitResult {
+  exitCode: number | null
+  signal: NodeJS.Signals | null
+}
+
 /**
  * Check if a path looks like an absolute/relative file path (contains a
  * directory separator) rather than a bare command name resolved via PATH.
@@ -185,6 +195,48 @@ export function launchHidden(options: LaunchOptions): LaunchResult {
   return { proc, metrics }
 }
 
+/**
+ * Spawn a hidden child and wait asynchronously, keeping Electron's main loop
+ * responsive. On timeout, terminate only the exact ChildProcess returned by
+ * this launch; never resolve or kill a process by name or PID lookup.
+ */
+export function launchHiddenAndWait(options: LaunchWaitOptions): Promise<LaunchWaitResult> {
+  const { timeoutMs, ...launchOptions } = options
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs <= 0) {
+    return Promise.reject(new RangeError(`timeoutMs must be a positive safe integer, got ${String(timeoutMs)}`))
+  }
+  const { proc } = launchHidden({ ...launchOptions, stdio: launchOptions.stdio ?? 'ignore' })
+
+  return new Promise((resolve, reject) => {
+    let timedOut = false
+    const timeout = setTimeout(() => {
+      timedOut = true
+      // This is the child created above, not the user's running application or
+      // another process that happens to share the executable's name.
+      proc.kill()
+    }, timeoutMs)
+    const cleanup = (): void => {
+      clearTimeout(timeout)
+      proc.removeListener('error', onError)
+    }
+    const onError = (error: Error): void => {
+      cleanup()
+      reject(error)
+    }
+    proc.once('error', onError)
+    proc.once('close', (exitCode, signal) => {
+      cleanup()
+      if (timedOut) {
+        const error = new Error(`Hidden process timed out after ${timeoutMs} ms: ${options.executable}`)
+        error.name = 'TimeoutError'
+        reject(error)
+        return
+      }
+      resolve({ exitCode, signal })
+    })
+  })
+}
+
 // ── Sync launcher ────────────────────────────────────────────────────
 
 export interface LaunchSyncOptions {
@@ -201,8 +253,8 @@ export interface LaunchSyncOptions {
 
 /**
  * Synchronous hidden process spawn. Use only for short-lived probes
- * (where.exe, PowerShell one-liners, tar extraction). Prefer async
- * launchHidden for anything that could block.
+ * (where.exe, PowerShell one-liners). Prefer async launchHidden or
+ * launchHiddenAndWait for anything that could block.
  */
 export function launchHiddenSync(options: LaunchSyncOptions): ReturnType<typeof spawnSync> {
   const id = launchId()

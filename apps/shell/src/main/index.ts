@@ -504,6 +504,7 @@ function ensureUpdateIndicator(): void {
   updateIndicatorView = new WebContentsView({
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
+  updateIndicatorView.setBackgroundColor('#00000000');
   mainWindow.contentView.addChildView(updateIndicatorView);
   updateIndicatorView.webContents.on('will-navigate', (event, url) => {
     if (url === 'freecode://updates/open') {

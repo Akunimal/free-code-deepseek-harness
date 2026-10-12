@@ -4,7 +4,7 @@ import { createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, re
 import { basename, dirname, join, resolve } from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
-import { launchHiddenSync } from './freecode-launcher.js'
+import { launchHiddenAndWait } from './freecode-launcher.js'
 
 const semver = createRequire(import.meta.url)('semver') as {
   gte(version: string, range: string): boolean;
@@ -132,6 +132,7 @@ export async function checkHarnessRelease(
     const assetUrl = typeof assetMatch?.asset.browser_download_url === 'string' ? assetMatch.asset.browser_download_url : undefined;
     const digest = typeof assetMatch?.asset.digest === 'string' ? assetMatch.asset.digest : undefined;
     const latestVersion = assetMatch?.version;
+    const unknownCurrentVersion = requiredVersion === undefined && currentVersion === undefined;
     return {
       currentVersion,
       latestVersion,
@@ -141,15 +142,18 @@ export async function checkHarnessRelease(
       available: Boolean(
         latestVersion && assetUrl && (
           requiredVersion !== undefined ||
-          currentVersion === undefined ||
-          semver.compare(latestVersion, currentVersion) > 0
+          (currentVersion !== undefined && semver.compare(latestVersion, currentVersion) > 0)
         ),
       ),
-      ...(!assetMatch ? {
-        error: requiredVersion === undefined
-          ? `No compatible harness asset for ${platformName}-${arch}`
-          : `No harness runtime asset for packaged version ${requiredVersion} (${platformName}-${arch})`,
-      } : {}),
+      ...(!assetMatch
+        ? {
+          error: requiredVersion === undefined
+            ? `No compatible harness asset for ${platformName}-${arch}`
+            : `No harness runtime asset for packaged version ${requiredVersion} (${platformName}-${arch})`,
+        }
+        : unknownCurrentVersion
+          ? { error: 'Installed harness runtime version is unknown; refusing to offer a runtime update' }
+          : {}),
     };
   } catch (error) {
     return {
@@ -257,13 +261,14 @@ export async function installHarnessRuntime(
     }
     verifyDigest(digest.digest('hex'), info.digest);
     onProgress?.({ phase: 'extract' });
-    const extracted = launchHiddenSync({
+    const extracted = await launchHiddenAndWait({
       executable: resolveTarExecutable(),
       args: ['-xzf', archivePath, '-C', extractRoot],
-      encoding: 'utf8',
-      timeout: 15 * 60_000,
+      timeoutMs: 15 * 60_000,
     });
-    if (extracted.status !== 0) throw new Error(`Could not extract harness runtime (exit ${extracted.status ?? 'unknown'})`);
+    if (extracted.exitCode !== 0) {
+      throw new Error(`Could not extract harness runtime (exit ${extracted.exitCode ?? 'unknown'}${extracted.signal ? `, signal ${extracted.signal}` : ''})`);
+    }
 
     const nextHarness = resolve(extractRoot, 'dsh');
     const nextManifest = resolve(extractRoot, 'runtime-manifest.json');

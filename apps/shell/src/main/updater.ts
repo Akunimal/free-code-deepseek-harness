@@ -108,6 +108,7 @@ export async function checkUpstreamUpdate(
         accept: 'application/vnd.github+json',
         'user-agent': 'free-code-deepseek-harness-updater',
       },
+      signal: AbortSignal.timeout(15_000),
     });
     if (!response.ok) throw new Error(`GitHub upstream check returned HTTP ${response.status}`);
     const payload = (await response.json()) as { sha?: unknown };

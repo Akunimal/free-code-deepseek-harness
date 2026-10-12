@@ -58,6 +58,7 @@ describe('packaged shell bootstrap gate', () => {
       "  const requirements = readHarnessRuntimeRequirements(join(staticResourcesDir, 'runtime-manifest.json'));",
       '  await ensureHarnessRuntime({ resourcesDir: harnessRuntimeDir, requirements });',
       '}',
+      "updateIndicatorView.setBackgroundColor('#00000000');",
       'if (app.isPackaged && !(await ensurePackagedHarnessRuntime(harnessRuntimeDir, resources))) return;',
       'await awaitHarnessLayout({ resourcesDir });',
     ].join('\n');
@@ -70,6 +71,26 @@ describe('packaged shell bootstrap gate', () => {
       .toMatchObject({ ok: true });
   });
 
+  it('rejects an opaque native backing surface for the circular update indicator', async () => {
+    const paths = fixture();
+    const bundledMain = [
+      'async function ensurePackagedHarnessRuntime(harnessRuntimeDir, staticResourcesDir) {',
+      "  const requirements = readHarnessRuntimeRequirements(join(staticResourcesDir, 'runtime-manifest.json'));",
+      '  await ensureHarnessRuntime({ resourcesDir: harnessRuntimeDir, requirements });',
+      '}',
+      'if (app.isPackaged && !(await ensurePackagedHarnessRuntime(harnessRuntimeDir, resources))) return;',
+      'await awaitHarnessLayout({ resourcesDir });',
+    ].join('\n');
+    const extractFile = (_archivePath: string, filePath: string) =>
+      filePath === packagedIndicatorPath ? circularIndicatorSource : bundledMain;
+    const { verifyPackagedShellBootstrap } = await loadVerifier();
+
+    const result = verifyPackagedShellBootstrap({ ...paths, extractFile });
+
+    expect(result).toMatchObject({ ok: false });
+    expect(result.error).toMatch(/transparent.*native.*surface/i);
+  });
+
   it('rejects a packaged update indicator that does not reset and round the circular button', async () => {
     const paths = fixture();
     const bundledMain = [
@@ -77,6 +98,7 @@ describe('packaged shell bootstrap gate', () => {
       "  const requirements = readHarnessRuntimeRequirements(join(staticResourcesDir, 'runtime-manifest.json'));",
       '  await ensureHarnessRuntime({ resourcesDir: harnessRuntimeDir, requirements });',
       '}',
+      "updateIndicatorView.setBackgroundColor('#00000000');",
       'if (app.isPackaged && !(await ensurePackagedHarnessRuntime(harnessRuntimeDir, resources))) return;',
       'await awaitHarnessLayout({ resourcesDir });',
     ].join('\n');
@@ -117,6 +139,7 @@ describe('packaged shell bootstrap gate', () => {
       "  const requirements = readHarnessRuntimeRequirements(join(staticResourcesDir, 'runtime-manifest.json'));",
       '  await ensureHarnessRuntime({ resourcesDir: harnessRuntimeDir, requirements });',
       '}',
+      "updateIndicatorView.setBackgroundColor('#00000000');",
       'if (app.isPackaged && !(await ensurePackagedHarnessRuntime(harnessRuntimeDir, resources))) return;',
       'await awaitHarnessLayout({ resourcesDir });',
     ].join('\n');
@@ -127,8 +150,9 @@ describe('packaged shell bootstrap gate', () => {
     await asar.createPackage(sourceRoot, paths.archivePath);
     const { verifyPackagedShellBootstrap } = await loadVerifier();
 
-    expect(verifyPackagedShellBootstrap({ appOutDir: paths.appOutDir }))
-      .toMatchObject({ ok: true, entryPath: packagedMainPath });
+    const result = verifyPackagedShellBootstrap({ appOutDir: paths.appOutDir });
+    expect(result.error).toBeUndefined();
+    expect(result).toMatchObject({ ok: true, entryPath: packagedMainPath });
   });
 
   it('rejects a bootstrap call placed after DSH preflight', async () => {
