@@ -270,32 +270,43 @@ implementation, a contract test and a replay/idempotence check. See
 
 ## Windows local release gate: v0.9.3
 
-Run from PowerShell on the maintainer Windows machine:
+Run from PowerShell on Windows x64. The gate is non-interactive: it builds an
+NSIS package in a unique temporary directory, verifies that exact package and
+the pinned runtime checksum, and never installs or launches the GUI.
 
 ```powershell
 pnpm install --frozen-lockfile
-pnpm apply:upstream-patches
-pnpm test
-pnpm typecheck
-pnpm build:vendor
-pnpm build:shell
-pnpm --filter @freecode/shell package:runtime
-pnpm --filter @freecode/shell package
-pnpm --filter @freecode/shell smoke:nsis
+pnpm release:gate
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.3-final'
+pnpm build:desktop
+pnpm verify:desktop-release-assets apps/shell/release-0.9.3-final
+Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
-For v0.9.3, the shell preflight, shell build, regression gates and setup/portable
-packaging passed; the user confirmed the installed setup works on Windows x64.
-The portable artifact was not separately installation-tested. The DSH runtime
-is the separate pinned asset described above. v0.9.0's earlier gate counts are
+`build:desktop` creates setup and portable artifacts in the new
+`apps/shell/release-0.9.3-final/` output directory; it refuses to replace an
+existing non-empty folder. `verify:desktop-release-assets` checks the exact PE
+files, setup blockmap, updater metadata and hashes without launching either
+executable. Desktop packaging does not rebuild or replace the separately versioned DSH runtime. Only when the DSH
+runtime itself changes should maintainers bump its manifest version and run
+`pnpm package:runtime:release`; existing runtime versions are immutable.
+
+The user confirmed the installed v0.9.3 application works on Windows x64. The
+portable executable is not separately installation-tested. The interactive
+`smoke:nsis` installs, launches and uninstalls the application, which can alter
+per-user shortcut/registration state; it is opt-in for a disposable Windows VM
+only, never part of `release:gate` or a maintainer workstation run. Details are
+in [release policy](docs/RELEASE-POLICY.md) and its
+[Spanish version](docs/RELEASE-POLICY.es.md). v0.9.0's earlier gate counts are
 historical and remain in [its release notes](release-notes-v0.9.0.md).
 
 The published [v0.9.3 release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.3)
 contains setup, portable, blockmap and `latest.yml`. The pinned Harness runtime
 tarball and its `.sha256` remain in the v0.9.2 release.
 
-v0.9.3 artifacts are built under `apps/shell/release-0.9.3-local/`; the
-historical v0.9.2 files under `apps/shell/release/` remain untouched.
+The final v0.9.3 release assets are staged under
+`apps/shell/release-0.9.3-final/`; the historical v0.9.2 files under
+`apps/shell/release/` remain untouched.
 
 ## Manual contributor builds for other operating systems
 
@@ -312,8 +323,9 @@ pnpm typecheck
 ```
 
 Do not use those builds as release evidence, do not upload them, and do not
-expect the Windows-only `package:runtime`/release gate to accept a non-Windows
-target. Reinstall dependencies when switching between Windows and WSL so
+expect the Windows-only desktop release gate to accept a non-Windows target.
+`package:runtime:release` is only for an intentional DSH runtime version change.
+Reinstall dependencies when switching between Windows and WSL so
 native modules and workspace links are not mixed.
 
 ## Project and license

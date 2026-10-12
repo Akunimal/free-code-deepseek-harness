@@ -35,41 +35,50 @@ The 0.7.0 roadmap is closed; its ledger is
 
 ## Local Windows build
 
-Run from PowerShell on Windows x64:
+Run from PowerShell on Windows x64. The ordinary gate is non-interactive and
+does not install or launch the GUI. It validates the existing pinned DSH
+runtime; it does not rebuild that runtime archive.
 
 ```powershell
 pnpm install --frozen-lockfile
-pnpm apply:upstream-patches
-pnpm test
-pnpm typecheck
-pnpm build:vendor
-pnpm build:shell
-pnpm --filter @freecode/shell package:runtime
-pnpm --filter @freecode/shell package
-pnpm --filter @freecode/shell smoke:nsis
+pnpm release:gate
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.3-final'
+pnpm build:desktop
+pnpm verify:desktop-release-assets apps/shell/release-0.9.3-final
+Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
-These commands are local and do not use GitHub Actions. Required resources
-fail the gate when missing; they are never silently skipped because a
-developer machine lacks a fixture.
+The gate runs tests, contracts, typechecks, build/prepackage validation, real
+MCP integration checks, verifies the v0.2.1-alpha.2 runtime SHA-256 in place,
+and builds one exact NSIS package into an OS-temporary directory for static
+validation. It never calls `package:runtime:release`, starts the installer,
+launches the FreeCode GUI, or modifies the active user's shortcuts/registry.
+The final build command creates both Windows targets in a fresh, versioned
+directory. `verify:desktop-release-assets` checks the exact setup and portable
+PE headers, blockmap, `latest.yml` version/path/size/SHA-512, and reports the
+artifacts' SHA-256 hashes. Neither executable is launched by this check.
+These commands are local and do not use GitHub Actions; missing required
+resources fail the gate rather than being silently skipped.
 
-The v0.9.3 Windows desktop artifacts were built into the isolated local output
+The v0.9.3 Windows desktop artifacts are staged in the isolated final output
 directory to preserve historical v0.9.2 files:
 
 ~~~
-apps/shell/release-0.9.3-local/FreeCode-DeepSeek-Harness-0.9.3-win-x64-setup.exe
-apps/shell/release-0.9.3-local/FreeCode-DeepSeek-Harness-0.9.3-win-x64-setup.exe.blockmap
-apps/shell/release-0.9.3-local/FreeCode-DeepSeek-Harness-0.9.3-win-x64-portable.exe
-apps/shell/release-0.9.3-local/latest.yml
-apps/shell/release-0.9.3-local/win-unpacked/FreeCode DeepSeek Harness.exe
+apps/shell/release-0.9.3-final/FreeCode-DeepSeek-Harness-0.9.3-win-x64-setup.exe
+apps/shell/release-0.9.3-final/FreeCode-DeepSeek-Harness-0.9.3-win-x64-setup.exe.blockmap
+apps/shell/release-0.9.3-final/FreeCode-DeepSeek-Harness-0.9.3-win-x64-portable.exe
+apps/shell/release-0.9.3-final/latest.yml
+apps/shell/release-0.9.3-final/win-unpacked/FreeCode DeepSeek Harness.exe
 ~~~
 
 Artifact names are generated from the package version and verified after
-packaging; do not copy an old name into a new release. If `release/win-unpacked`
-is locked by a running instance (the `Device or resource busy` case seen in
-0.9.0), package into a fresh output dir and copy the setup/portable/blockmap/
-`latest.yml` artifacts into `release/` instead of force-deleting the locked
-tree.
+packaging; do not copy an old name into a new release. `build:desktop` refuses
+to replace a non-empty target unless the caller explicitly enables replacement.
+Never force-delete or overwrite historical outputs. The interactive
+`smoke:nsis` install/runtime test is excluded from the regular gate because it
+changes per-user state and launches processes; it is permitted only in a
+disposable Windows VM/account with the explicit opt-ins documented in
+[the release policy](RELEASE-POLICY.md).
 
 ## Runtime dependency policy
 
@@ -100,8 +109,10 @@ testing on that platform. Do not mix Windows and WSL node_modules;
 reinstall dependencies for the active operating system.
 
 The repository has no release workflow. Pushes do not build or publish
-installers. Publication is a manual action after the local gate, review of
-checksums, clean NSIS/portable install and state-ledger lock.
+installers. Publication is a manual action after the non-interactive local gate,
+static verification of exact artifact hashes, bilingual note review and
+state-ledger lock. A workstation installer smoke is not a required gate; use a
+disposable VM only if an interactive smoke is specifically needed.
 
 ## Updater and runtime updates
 

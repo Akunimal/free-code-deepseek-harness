@@ -47,8 +47,8 @@ test('English and Spanish READMEs identify v0.9.3 as the latest published releas
   assert.match(spanish, /notas de la release v0\.9\.3/i);
   assert.match(english, /v0\.9\.3 GitHub release/i);
   assert.match(spanish, /release v0\.9\.3 en GitHub/i);
-  assert.match(english, /v0\.9\.3 artifacts are built under `apps\/shell\/release-0\.9\.3-local\/`/i);
-  assert.match(spanish, /artefactos locales de v0\.9\.3 quedaron en `apps\/shell\/release-0\.9\.3-local\/`/i);
+  assert.match(english, /final v0\.9\.3 release assets are staged under\s+`apps\/shell\/release-0\.9\.3-final\/`/i);
+  assert.match(spanish, /artefactos finales de v0\.9\.3 quedan en `apps\/shell\/release-0\.9\.3-final\/`/i);
   assert.match(english, /portable Windows executable \(~651 MB/i);
   assert.match(spanish, /ejecutable portable de Windows \(~651 MB/i);
 });
@@ -79,4 +79,46 @@ test('release guides and known-issues ledger identify v0.9.3 as the supported ba
   assert.match(roadmap, /^Baseline: `v0\.9\.3`$/m);
   assert.match(roadmap, /^### `v0\.9\.3`/m);
   assert.match(translations, /baseline publicada v0\.9\.3/i);
+});
+
+test('current release policy and EN/ES build guidance match the separate-runtime non-interactive gate', () => {
+  const policyEn = read('docs/RELEASE-POLICY.md');
+  const policyEs = read('docs/RELEASE-POLICY.es.md');
+  const readmeEn = read('README.md');
+  const readmeEs = read('README.es.md');
+  const releaseEn = read('docs/RELEASE.md');
+  const releaseEs = read('docs/RELEASE.es.md');
+
+  for (const policy of [policyEn, policyEs]) {
+    assert.match(policy, /package:runtime:release/);
+    assert.match(policy, /v0\.9\.2/);
+    assert.match(policy, /release:gate/);
+  }
+  assert.match(policyEn, /disposable/i);
+  assert.match(policyEs, /desechable/i);
+  assert.match(policyEn, /does not install or\s+launch/i);
+  assert.match(policyEn, /separate DSH runtime/i);
+  assert.match(policyEs, /no instala ni inicia/i);
+  assert.match(policyEs, /runtime DSH separado/i);
+  assert.match(policyEn, /RELEASE-POLICY\.es\.md/);
+  assert.match(policyEs, /RELEASE-POLICY\.md/);
+
+  for (const readme of [readmeEn, readmeEs]) {
+    assert.match(readme, /pnpm build:desktop/);
+    assert.match(readme, /pnpm release:gate/);
+    assert.match(readme, /pnpm verify:desktop-release-assets/);
+    assert.match(readme, /apps\/shell\/release-0\.9\.3-final/);
+  }
+  for (const releaseGuide of [releaseEn, releaseEs]) {
+    assert.match(releaseGuide, /package:runtime:release/);
+    assert.match(releaseGuide, /release:gate/);
+    assert.match(releaseGuide, /release-0\.9\.3-final/);
+  }
+  assert.match(releaseEn, /disposable/i);
+  assert.match(releaseEs, /desechable/i);
+
+  const staleEnBuild = releaseEn.split('## Local Windows build')[1]?.split('## Runtime dependency policy')[0] ?? '';
+  const staleEsBuild = releaseEs.match(/## Build local de Windows([\s\S]*?)## Pol.tica de dependencias runtime/)?.[1] ?? '';
+  assert.doesNotMatch(staleEnBuild, /pnpm --filter @freecode\/shell package:runtime/);
+  assert.doesNotMatch(staleEsBuild, /pnpm --filter @freecode\/shell package:runtime/);
 });

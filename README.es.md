@@ -266,32 +266,42 @@ directa de `vendor/deepseek-harness`. Ver
 
 ## Gate local de Windows: v0.9.3
 
-Ejecutá desde PowerShell en la workstation mantenedora:
+Ejecutá desde PowerShell en Windows x64. El gate no es interactivo: compila un
+paquete NSIS en un directorio temporal único, verifica ese paquete y el checksum
+del runtime fijado, y nunca instala ni inicia la GUI.
 
 ```powershell
 pnpm install --frozen-lockfile
-pnpm apply:upstream-patches
-pnpm test
-pnpm typecheck
-pnpm build:vendor
-pnpm build:shell
-pnpm --filter @freecode/shell package:runtime
-pnpm --filter @freecode/shell package
-pnpm --filter @freecode/shell smoke:nsis
+pnpm release:gate
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.3-final'
+pnpm build:desktop
+pnpm verify:desktop-release-assets apps/shell/release-0.9.3-final
+Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
-Para v0.9.3 pasaron el preflight del shell, el build del shell, los gates de
-regresión y el empaquetado setup/portable; el usuario confirmó que el setup
-instalado funciona en Windows x64. El portable no se probó con instalación por
-separado. El runtime DSH es el asset separado fijado que se describe arriba.
-Los conteos del gate de 0.9.0
-son históricos y siguen en sus [notas de release](release-notes-v0.9.0.md).
+`build:desktop` crea setup y portable en la nueva carpeta
+`apps/shell/release-0.9.3-final/`; rechaza reemplazar una carpeta no vacía.
+`verify:desktop-release-assets` valida los PE exactos, el blockmap, los metadatos
+del updater y sus hashes sin iniciar ninguno de los ejecutables. El packaging
+desktop no reconstruye ni reemplaza el runtime DSH, que tiene su propia versión.
+Sólo cuando cambie el runtime DSH
+se debe subir su versión en el manifest y ejecutar `pnpm package:runtime:release`;
+las versiones existentes del runtime son inmutables.
+
+El usuario confirmó que la aplicación v0.9.3 instalada funciona en Windows x64.
+El portable no se probó con instalación por separado. El `smoke:nsis`
+interactivo instala, inicia y desinstala la aplicación, y puede alterar accesos
+directos/registro del usuario; requiere opt-in y una VM Windows desechable. Nunca
+forma parte de `release:gate` ni debe ejecutarse en la workstation mantenedora.
+Ver la [política de release](docs/RELEASE-POLICY.es.md) y su
+[versión en inglés](docs/RELEASE-POLICY.md). Los conteos del gate de 0.9.0 son
+históricos y siguen en sus [notas de release](release-notes-v0.9.0.md).
 
 La [release publicada v0.9.3](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.3)
 contiene setup, portable, blockmap y `latest.yml`. El tarball fijado del runtime
 del Harness y su checksum `.sha256` siguen en la release v0.9.2.
 
-Los artefactos locales de v0.9.3 quedaron en `apps/shell/release-0.9.3-local/`;
+Los artefactos finales de v0.9.3 quedan en `apps/shell/release-0.9.3-final/`;
 los archivos históricos de v0.9.2 en `apps/shell/release/` permanecen intactos.
 
 ## Builds manuales de otros sistemas
@@ -310,7 +320,8 @@ pnpm typecheck
 ```
 
 No uses esos builds como evidencia de release, no los subas y no esperes que el
-`package:runtime`/release gate Windows-only acepte un target no Windows. Al
+gate desktop Windows-only acepte un target no Windows. `package:runtime:release`
+sólo corresponde a un cambio intencional de versión del runtime DSH. Al
 cambiar entre Windows y WSL reinstalá dependencias para no mezclar módulos
 nativos ni links de workspace. Cualquier binario Linux existente necesita
 testing real en Linux antes de anunciarse como usable.

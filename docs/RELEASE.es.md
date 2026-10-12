@@ -35,41 +35,51 @@ están en [AUDIT-0.6.0-TEST-PLAN.md](AUDIT-0.6.0-TEST-PLAN.md).
 
 ## Build local de Windows
 
-Ejecutá desde PowerShell en Windows x64:
+Ejecutá desde PowerShell en Windows x64. El gate habitual no es interactivo y
+no instala ni inicia la GUI. Valida el runtime DSH fijado que ya existe; no
+reconstruye ese tarball.
 
-~~~
+```powershell
 pnpm install --frozen-lockfile
-pnpm apply:upstream-patches
-pnpm test
-pnpm typecheck
-pnpm build:vendor
-pnpm build:shell
-pnpm --filter @freecode/shell package:runtime
-pnpm --filter @freecode/shell package
-pnpm --filter @freecode/shell smoke:nsis
+pnpm release:gate
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.3-final'
+pnpm build:desktop
+pnpm verify:desktop-release-assets apps/shell/release-0.9.3-final
+Remove-Item Env:FREECODE_RELEASE_OUTPUT
+```
+
+El gate ejecuta tests, contratos, typechecks, build/preflight, checks de
+integración MCP reales, verifica in situ el SHA-256 del runtime `0.2.1-alpha.2`
+y compila un setup NSIS exacto en una carpeta temporal del sistema para su
+validación estática. Nunca ejecuta `package:runtime:release`, inicia el
+instalador, lanza la GUI de FreeCode ni modifica accesos directos/registro del
+usuario activo. El build final crea ambos targets Windows en una carpeta
+versionada nueva. `verify:desktop-release-assets` valida los PE exactos de setup
+y portable, el blockmap, versión/ruta/tamaño/SHA-512 de `latest.yml`, y reporta
+los hashes SHA-256 de los artefactos. Este check no inicia ninguno de los
+ejecutables.
+
+Los comandos son locales y no usan GitHub Actions. Si faltan recursos
+obligatorios, el gate falla en vez de saltearlos silenciosamente.
+
+Los artefactos desktop v0.9.3 quedan en el directorio final aislado para
+preservar los archivos históricos v0.9.2:
+
+~~~
+apps/shell/release-0.9.3-final/FreeCode-DeepSeek-Harness-0.9.3-win-x64-setup.exe
+apps/shell/release-0.9.3-final/FreeCode-DeepSeek-Harness-0.9.3-win-x64-setup.exe.blockmap
+apps/shell/release-0.9.3-final/FreeCode-DeepSeek-Harness-0.9.3-win-x64-portable.exe
+apps/shell/release-0.9.3-final/latest.yml
+apps/shell/release-0.9.3-final/win-unpacked/FreeCode DeepSeek Harness.exe
 ~~~
 
-Estos comandos son locales y no usan GitHub Actions. Los recursos
-obligatorios hacen fallar el gate cuando faltan; nunca se saltean
-silenciosamente porque la máquina del desarrollador no tenga un fixture.
-
-Los artefactos desktop v0.9.3 se compilaron en el directorio local aislado
-para preservar los archivos históricos v0.9.2:
-
-~~~
-apps/shell/release-0.9.3-local/FreeCode-DeepSeek-Harness-0.9.3-win-x64-setup.exe
-apps/shell/release-0.9.3-local/FreeCode-DeepSeek-Harness-0.9.3-win-x64-setup.exe.blockmap
-apps/shell/release-0.9.3-local/FreeCode-DeepSeek-Harness-0.9.3-win-x64-portable.exe
-apps/shell/release-0.9.3-local/latest.yml
-apps/shell/release-0.9.3-local/win-unpacked/FreeCode DeepSeek Harness.exe
-~~~
-
-Los nombres se generan desde la versión del paquete y se verifican después
-de empaquetar; no copies un nombre viejo en una release nueva. Si
-`release/win-unpacked` está lockeado por una instancia en ejecución (el caso
-`Device or resource busy` visto en 0.9.0), empaquetá en un directorio de
-salida nuevo y copiá setup/portable/blockmap/`latest.yml` a `release/` en vez
-de forzar el borrado del árbol lockeado.
+Los nombres se generan desde la versión del paquete y se verifican después de
+empaquetar; no copies un nombre viejo en una release nueva. `build:desktop`
+rechaza reemplazar un destino no vacío salvo opt-in explícito. Nunca borres ni
+sobrescribas salidas históricas a la fuerza. El smoke interactivo `smoke:nsis`
+se excluye del gate regular porque modifica estado por usuario y lanza
+procesos; sólo se permite dentro de una VM/cuenta Windows desechable con los
+opt-ins explícitos de la [política de release](RELEASE-POLICY.es.md).
 
 ## Política de dependencias runtime
 
@@ -100,9 +110,10 @@ No mezcles node_modules de Windows y WSL; reinstalá dependencias para el
 sistema operativo activo.
 
 El repositorio no tiene workflow de release. Los pushes no compilan ni
-publican instaladores. La publicación es manual, después del gate local, la
-revisión de checksums, la instalación limpia NSIS/portable y el lock del
-ledger.
+publican instaladores. La publicación es manual, después del gate local no
+interactivo, la verificación estática de hashes exactos, la revisión de notas
+bilingües y el lock del ledger. Una prueba de instalación no es un gate
+obligatorio en la workstation; si hace falta, usá sólo una VM desechable.
 
 ## Updater y actualizaciones del runtime
 
