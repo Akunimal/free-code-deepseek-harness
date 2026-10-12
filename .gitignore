@@ -18,6 +18,8 @@ apps/shell/release-*/
 # Local release staging; upload these assets but do not commit binaries.
 release-assets-v0.5.0/
 graphify-out/cache/
+# Local dated Graphify backups; canonical graph outputs stay tracked.
+graphify-out/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
 *.exe
 !native/**/build/
 
