@@ -4,6 +4,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
 import type { RemoteFailure } from '@deepseek-ai/dsh-typert-protocol'
 import type { SessionRequestId } from '../../types.ts'
+import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence'
 
 /** One image displayed by a local submission echo before durable admission. */
 export interface PendingSubmissionImage {
@@ -79,6 +80,8 @@ export interface SessionSnapshot {
   readonly removed: boolean
   readonly openState: OpenState
   readonly openError: RemoteFailure | null
+  /** Present when the Host opened only the valid prefix of a corrupt stored log; the Session is read-only. */
+  readonly recovery?: SessionHandleReadRecovery
   readonly hasMore: boolean
   readonly loadingOlder: boolean
   readonly promptError: PromptError | null

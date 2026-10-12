@@ -8,6 +8,7 @@ import { agentPresetProjectionDefinition } from '@deepseek-ai/dsh-agent-preset-r
 import SessionStore, { SESSION_FORMAT_VERSION, SessionLogOffset, SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
 import { SessionAlreadyOwnedError } from '@deepseek-ai/dsh-session-persistence'
+import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence'
 import type { SessionObservation } from '@deepseek-ai/dsh-session-query'
 import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -15,6 +16,7 @@ import {
   ApiSessionAgentController,
   ApiSessionCwdConflict,
   ApiSessionNotFound,
+    ApiSessionRecoveredReadOnly,
   ApiSessionSubagentOwnership,
   inspectApiSession,
 } from '../src/agent.ts'
@@ -214,6 +216,29 @@ describe('ApiSession Agent lookup and recovery', () => {
     await expect(child.agents.resolveAgent(childMeta.id)).resolves.toMatchObject({
       error: { code: 'session/agent-busy' },
     })
+  })
+
+  it('refuses to activate or adopt a session whose persisted log recovered an invalid tail', async () => {
+    const { ctx, agents } = await harness()
+    const meta = header('recovered-read-only')
+    const recovery: SessionHandleReadRecovery = {
+      kind: 'invalid-tail',
+      firstInvalidSeq: 3,
+      discardedEvents: 2,
+      reason: 'invalid tool result',
+    }
+    providePersistence(ctx, {
+      list: () => Promise.resolve([meta]),
+      inspect: () => Promise.resolve({ meta, events: [], recovery }),
+    })
+    const resume = vi.spyOn(ctx.agents, 'resume')
+
+    await expect(agents.resolveAgent(meta.id)).resolves.toMatchObject({
+      error: { code: 'gateway/bad-request', message: expect.stringContaining('read-only') as string },
+    })
+    await expect(agents.ensureSession(meta.id, '/workspace', true))
+      .rejects.toBeInstanceOf(ApiSessionRecoveredReadOnly)
+    expect(resume).not.toHaveBeenCalled()
   })
 
   it('reports not-found and ordinary resume failures without fabricating an Agent', async () => {

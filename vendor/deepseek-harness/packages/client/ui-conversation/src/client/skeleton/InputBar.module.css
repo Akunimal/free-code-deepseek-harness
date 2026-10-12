@@ -42,6 +42,12 @@
   line-height: 18px;
 }
 
+.recoveryNotice {
+  border: 1px solid var(--dsw-alias-border-secondary);
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
 .card {
   box-sizing: border-box;
   position: relative; /* overlay anchor positioning context */

@@ -82,6 +82,42 @@ describe('Session open', () => {
     expect(session.eventSource.getSnapshot().change).toMatchObject({ kind: 'replace' })
   })
 
+  it('keeps a recovered history read-only and blocks prompt before the Remote boundary', async ({ mock, start }) => {
+    const session = await sessionBench(mock, start, SID)
+    const recovery = {
+      kind: 'invalid-tail',
+      firstInvalidSeq: 4,
+      discardedEvents: 2,
+      reason: 'invalid tool result',
+    } as const
+    mock.stream(FOLLOW, followScript(history(plainTurn(SessionSeq(0), 1, 'valid prefix', 'reply')), { recovery }))
+
+    await session.open()
+
+    expect((session.getSnapshot() as unknown as { recovery?: typeof recovery }).recovery).toEqual(recovery)
+    expect(eventSeqs(session)).toEqual([0, 1, 2, 3, 4, 5])
+    expect(session.getSnapshot().promptAttempted).toBe(false)
+    await expect(session.prompt([{ type: 'text', text: 'must not send' }], 'queue'))
+      .resolves.toMatchObject({ ok: false, error: { code: 'gateway/bad-request' } })
+    await expect(session.updateQueue('queued-item' as never, { kind: 'remove' }))
+      .resolves.toMatchObject({ ok: false, error: { code: 'gateway/bad-request' } })
+    await expect(session.cancel()).resolves.toMatchObject({
+      ok: false, error: { code: 'gateway/bad-request' },
+    })
+    await expect(session.rename('must not rename')).resolves.toMatchObject({
+      ok: false, error: { code: 'gateway/bad-request' },
+    })
+    await expect(session.command('/must-not-run')).resolves.toMatchObject({
+      ok: false, error: { code: 'gateway/bad-request' },
+    })
+    expect(mock.log.requests('session/prompt')).toHaveLength(0)
+    expect(mock.log.requests('session/updateQueue')).toHaveLength(0)
+    expect(mock.log.requests('session/cancel')).toHaveLength(0)
+    expect(mock.log.requests('session/rename')).toHaveLength(0)
+    expect(mock.log.requests('commands/execute')).toHaveLength(0)
+    expect(session.getSnapshot().promptAttempted).toBe(false)
+  }, COLD_BOOT_TIMEOUT_MS)
+
   it('is idempotent: concurrent opens share one follow, reopening when open is a no-op', async ({ mock, start }) => {
     const session = await sessionBench(mock, start, SID)
     await Promise.all([session.open(), session.open()])

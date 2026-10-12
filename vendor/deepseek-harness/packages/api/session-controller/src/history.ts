@@ -173,6 +173,14 @@ export class SessionHistoryController {
         })
         notify()
       }, { global: true })
+    let listenersDisposed = false
+    const disposeListeners = (): void => {
+      if (listenersDisposed) return
+      listenersDisposed = true
+      disposeCreated()
+      disposeEvent()
+      disposeAssistantStream?.()
+    }
     const onAbort = (): void => { notify() }
     signal.addEventListener('abort', onAbort, { once: true })
     try {
@@ -199,7 +207,17 @@ export class SessionHistoryController {
         projections: source.projections === undefined
           ? { asOfSeq: cursor, values: {} }
           : projectionBlock(source.projections),
+        ...(source.recovery === undefined ? {} : { recovery: source.recovery }),
         ...assistantStream === undefined ? {} : { assistantStream },
+      }
+      if (source.recovery !== undefined) {
+        // A recovered prefix is useful for reading but must never be promoted
+        // into an Agent or accept a later event as if the omitted suffix existed.
+        disposeListeners()
+        while (!follower.closed && !signal.aborted) {
+          await new Promise<void>((resolve) => { wake = resolve })
+        }
+        return
       }
       if (address.kind === 'session' && source.source === 'prepared') {
         const promotion = source.retain()
@@ -234,9 +252,7 @@ export class SessionHistoryController {
     } finally {
       this.closeFollowers.delete(close)
       signal.removeEventListener('abort', onAbort)
-      disposeCreated()
-      disposeEvent()
-      disposeAssistantStream?.()
+      disposeListeners()
     }
   }
 

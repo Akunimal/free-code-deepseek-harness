@@ -61,6 +61,8 @@ export const InputBar = memo(function InputBar({
   useEffect(() => { setActivity(false) }, [sessionId])
   const promptError = useSession(s => s.promptError) ?? null
   const running = useSession(s => s.running) ?? false
+  const recovery = useSession(s => s.recovery)
+  const recoveredReadOnly = recovery !== undefined
   const subagent = useSession(s => s.subagent) ?? null
   const removed = useSession(s => s.removed) ?? false
   // Plan mode swaps the composer placeholder (the projection is the folded
@@ -136,13 +138,13 @@ export const InputBar = memo(function InputBar({
   // inert no-workspace state, the machine faces absent (no session), or a
   // parent-offline continuable child. An owner block also disables input;
   // adjudicating and submitting render read-only so the draft stays visible.
-  const disabled = removed || inert || !live || blocked !== undefined || parentOffline
+  const disabled = removed || inert || !live || blocked !== undefined || parentOffline || recoveredReadOnly
   const locked = disabled
   // The model seat is the ONE control a block leaves live: every block this
   // contract has is cleared by choosing a model, so locking it too would leave
   // the composer asking for the only thing it prevents. The other reasons to
   // be disabled do lock it — there is no session to choose a model for.
-  const modelSeatLocked = removed || inert || !live
+  const modelSeatLocked = removed || inert || !live || recoveredReadOnly
   const machineBusy = input?.phase === 'adjudicating' || input?.phase === 'submitting'
   // The no-workspace surface remains the resident DOM node but acts as the
   // existing picker trigger. Message controls stay locked until a Session
@@ -209,7 +211,7 @@ export const InputBar = memo(function InputBar({
   // The host enforces the same image limits at submit for callers that bypass
   // this composer.
   const intakeFiles = useCallback((files: readonly File[], directories?: ReadonlySet<File>): void => {
-    if (subagent !== null || addFiles === undefined || files.length === 0) return
+    if (recoveredReadOnly || locked || subagent !== null || addFiles === undefined || files.length === 0) return
     const rejected = ((): string | null => {
       if (imageLimits !== undefined) {
         const mediaTypes = imageLimits.mediaTypes as readonly string[]
@@ -230,7 +232,7 @@ export const InputBar = memo(function InputBar({
       return addFiles(files, directories)
     })()
     if (rejected !== null) showToast(rejected)
-  }, [subagent, addFiles, attachments, imageLimits, showToast, t])
+  }, [recoveredReadOnly, locked, subagent, addFiles, attachments, imageLimits, showToast, t])
 
   const canAcceptDrop = subagent === null && !locked && !machineBusy && addFiles !== undefined
 
@@ -300,10 +302,10 @@ export const InputBar = memo(function InputBar({
   // describes a delivery the click cannot or does not perform; every other
   // state keeps plain Send. A continuable child keeps Send primary and
   // exposes Stop independently.
-  const primaryStops = running && subagent === null && (empty || blocked !== undefined)
+  const primaryStops = !recoveredReadOnly && running && subagent === null && (empty || blocked !== undefined)
   // Disabled native buttons may omit mouseleave; their tooltip must close from state.
   const primaryDisabled = primaryStops ? stop === undefined : empty || disabled || machineBusy || uploadsPending
-  const interruptible = running && continuable
+  const interruptible = !recoveredReadOnly && running && continuable
   const primarySubmitMode = resolveSubmitMode(busyEnter, running, 'enter', steeringAvailable)
   const plainMessageDraft = !empty && input?.phase === 'plain' && !draft.trimStart().startsWith('/')
   const primaryLabel = primaryStops
@@ -365,6 +367,15 @@ export const InputBar = memo(function InputBar({
       {notice?.level === 'info' && (
         <div className={css.notice} role="status">
           {notice.text}
+        </div>
+      )}
+      {recovery !== undefined && (
+        <div className={clsx(css.notice, css.recoveryNotice)} role="status" data-session-recovery>
+          {t('history.recoveredReadOnly', {
+            count: recovery.discardedEvents,
+            seq: recovery.firstInvalidSeq,
+            reason: recovery.reason,
+          })}
         </div>
       )}
       {/* Trigger clicks land on the card, not the editor: the toolbar row's
@@ -435,7 +446,7 @@ export const InputBar = memo(function InputBar({
               ref={fileInputRef}
               type="file"
               multiple
-              disabled={subagent !== null}
+              disabled={subagent !== null || locked}
               hidden
               onChange={onPickFiles}
             />

@@ -3,13 +3,14 @@
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry, { type Agent, type AssistantStreamFrame } from '@deepseek-ai/dsh-agent'
-import SessionStore from '@deepseek-ai/dsh-session'
+import SessionStore, { SESSION_FORMAT_VERSION, SessionId } from '@deepseek-ai/dsh-session'
 import { LlmAttemptId, ToolCallId, createMessage, createToolResultMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { MessageSource } from '@deepseek-ai/dsh-llm'
-import type { Session, SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
+import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
+import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence'
 import { SessionHistoryController } from '@deepseek-ai/dsh-api-session-controller/src/history.ts'
 import type { SessionFollowFrame, SessionPage, SessionWireEvent } from '@deepseek-ai/dsh-api-session-controller/types'
-import { createSessionTestRemote, installSessionReadTestServices } from './test-remote.ts'
+import { createSessionTestRemote, installSessionReadTestServices, testSessionPersistence } from './test-remote.ts'
 
 type CheckpointSource = Extract<MessageSource, { readonly kind: 'compact-checkpoint' }>
 
@@ -102,6 +103,59 @@ function pageEvents(page: SessionPage): SessionWireEvent[] {
 }
 
 describe('Session history raw journal', () => {
+  it('streams a recovered valid prefix as read-only without promoting it', async () => {
+    const { ctx } = await harness()
+    const fixture = ctx.sessions.create(undefined, { meta: { cwd: '/workspace' } })
+    fixture.append('turn/start', { turn: 1 })
+    appendUserText(fixture, 'retained prefix')
+    const events = fixture.snapshotEvents()
+    const meta = {
+      ...fixture.header,
+      id: SessionId('cold-recovered-prefix'),
+      version: SESSION_FORMAT_VERSION,
+      cwd: '/workspace',
+    }
+    const recovery: SessionHandleReadRecovery = {
+      kind: 'invalid-tail',
+      firstInvalidSeq: events.length,
+      discardedEvents: 2,
+      reason: 'invalid tool result',
+    }
+    ctx.provide('sessionPersistence', testSessionPersistence(ctx, {
+      list: () => Promise.resolve([meta]),
+      inspect: () => Promise.resolve({ meta, events, recovery }),
+    }) as never)
+    const promote = vi.fn((observation: import('@deepseek-ai/dsh-session-query').SessionObservation) => {
+      observation[Symbol.dispose]()
+    })
+    const history = new SessionHistoryController(ctx, promote)
+    const abort = new AbortController()
+    const iterator = history.follow({
+      address: { kind: 'session', sessionId: meta.id },
+      assistantStream: true,
+    }, abort.signal)[Symbol.asyncIterator]()
+
+    try {
+      const opening = await iterator.next()
+      expect(opening.value).toMatchObject({
+        type: 'snapshot',
+        cursor: 2,
+        recovery,
+      })
+      if (opening.value?.type !== 'snapshot') throw new Error('recovered history did not open with a snapshot')
+      expect(opening.value.records.map(record => record.event.type))
+        .toEqual(['turn/start', 'user/message', 'turn/end'])
+      expect(opening.value.records.slice(0, 2).map(record => record.event.seq)).toEqual([0, 1])
+      const follows = iterator.next()
+      await Promise.resolve()
+      expect(promote).not.toHaveBeenCalled()
+      abort.abort()
+      await expect(follows).resolves.toMatchObject({ done: true })
+    } finally {
+      await disposeFollow(ctx, iterator, abort)
+    }
+  })
+
   it('opens an empty opted-in Assistant baseline before any live attempt exists', async () => {
     const { ctx } = await harness()
     const session = ctx.sessions.create(undefined, { meta: { cwd: '/workspace' } })

@@ -4,6 +4,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
 import type { Session, SessionEvent, SessionHeader, SessionId , SessionLogOffset as SessionLogOffsetType , SessionSeqCursor } from '@deepseek-ai/dsh-session'
 import type SessionPersistence from '@deepseek-ai/dsh-session-persistence'
+import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence'
 import type {
   SessionPersistenceRevision,
   SessionPersistenceSnapshot,
@@ -31,6 +32,8 @@ export interface SessionObservation extends Disposable {
   readonly cursor: SessionSeqCursor
   /** Durable source revision for a cold prepared observation. */
   readonly revision?: SessionPersistenceRevision
+  /** Present when the persisted suffix failed semantic validation and was omitted from this read-only prefix. */
+  readonly recovery?: SessionHandleReadRecovery
   /** Exact projection baseline at {@link cursor}, when the registry is mounted. */
   readonly projections?: ProjectionSnapshot
   /**
@@ -62,6 +65,8 @@ interface PreparedEntry {
   readonly session: Session
   /** Immutable balanced log (stored events plus in-memory interrupted-turn closers). */
   readonly events: readonly SessionEvent[]
+  /** Immutable suffix-recovery diagnostic, retained with this exact persisted revision. */
+  readonly recovery?: SessionHandleReadRecovery
   /** Active observation leases; a pinned entry (`refs > 0`) is never evicted. */
   refs: number
 }
@@ -143,6 +148,7 @@ export class SessionObservationReader {
           revision: snapshot.revision,
           session,
           events: Object.freeze(seed),
+          ...(loaded.recovery === undefined ? {} : { recovery: loaded.recovery }),
           refs: 0,
         }
         this.store(sessionId, entry)
@@ -255,6 +261,7 @@ export class SessionObservationReader {
         events: entry.events,
         cursor: entry.events.at(-1)?.seq ?? -1,
         revision: entry.revision,
+        ...(entry.recovery === undefined ? {} : { recovery: entry.recovery }),
         ...projections === undefined ? {} : { projections },
         retain: () => {
           if (disposed) throw new Error(`session observation "${sessionId}" is disposed`)

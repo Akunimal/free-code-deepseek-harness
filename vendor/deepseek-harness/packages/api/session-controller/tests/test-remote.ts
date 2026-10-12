@@ -16,6 +16,7 @@ import {
   SessionPersistenceRevision,
   SessionReadOnlyError,
   type SessionAccess,
+  type SessionHandleReadRecovery,
   type SessionHandle,
   type SessionHandleReadOptions,
   type SessionPersistenceListOptions,
@@ -120,6 +121,7 @@ const TEST_IMAGE_LIMITS: ImageAttachmentLimits = Object.freeze({
 interface TestSessionInspection {
   readonly meta: SessionHeader
   readonly events: readonly SessionEvent[]
+  readonly recovery?: SessionHandleReadRecovery
 }
 
 type LegacyTestPersistence = Record<string, unknown> & {
@@ -155,6 +157,7 @@ function testReadHandle(
       return Promise.resolve({
         eventState: 'detached',
         events: structuredClone(events.slice(offset, length === undefined ? undefined : offset + length)),
+        ...(inspection.recovery === undefined ? {} : { recovery: inspection.recovery }),
       } as const)
     },
     append: () => Promise.reject(new SessionReadOnlyError(sessionId, 'append')),

@@ -20,6 +20,7 @@ import type {
   SessionPageRequest,
   SessionProjectionBaseline,
 } from '../types.ts'
+import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence'
 import {
   historyEntries,
   historyRecordFirstSeq,
@@ -44,6 +45,7 @@ export type SessionRemote = ClientRemote['session']
 interface SessionJournalPage extends SessionPage {
   readonly projections?: SessionProjectionBaseline
   readonly assistantStream?: SessionAssistantStreamBaseline
+  readonly recovery?: SessionHandleReadRecovery
 }
 
 /** One complete publication from the Session journal stream. */
@@ -199,6 +201,7 @@ export class SessionEventStream extends RemoteJournalStream<
             hasMore: frame.hasMore,
             projections: frame.projections,
             assistantStream: frame.assistantStream,
+            ...(frame.recovery === undefined ? {} : { recovery: frame.recovery }),
           },
         }
         continue

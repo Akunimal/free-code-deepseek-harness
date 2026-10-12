@@ -33,6 +33,7 @@ import { isRemoteFailure } from '@deepseek-ai/dsh-api-gateway/client'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { SessionRemotes } from './remotes.ts'
+import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence'
 import { ProjectionValueStore } from './projection-store.ts'
 import type { ProjectionsBaseline } from './projection-store.ts'
 import { resolvedClientTimeZone } from '../time-zone.ts'
@@ -46,6 +47,17 @@ function projectionsBaseline(value: SessionProjectionBaseline): ProjectionsBasel
     ...value,
     asOfSeq: value.asOfSeq === -1 ? -1 : SessionSeq(value.asOfSeq),
   }
+}
+
+function recoveredReadOnlyError(
+  sessionId: SessionId,
+  recovery: SessionHandleReadRecovery,
+): RemoteError<'gateway/bad-request'> {
+  return new RemoteError(
+    'gateway/bad-request',
+    `session "${sessionId}" is read-only after recovering an invalid stored suffix at seq ${String(recovery.firstInvalidSeq)}`,
+    {},
+  )
 }
 
 /** Minimum message count for ordinary history windows. */
@@ -99,6 +111,7 @@ export class Session implements SessionFace {
   private hasMore = false
   private openState: OpenState = 'cold'
   private openError: RemoteFailure | null = null
+  private recovery: SessionHandleReadRecovery | undefined
   private openPromise: Promise<void> | null = null
   /** Bumped by stream replacement to invalidate an in-flight doOpen. Stale
    *  passes drop all writes once the generation moves on. */
@@ -257,6 +270,13 @@ export class Session implements SessionFace {
     signal?: AbortSignal,
     requestId?: SessionRequestId,
   ): Promise<RemoteResult<{ accepted: true }>> {
+    if (this.recovery !== undefined) {
+      const error = recoveredReadOnlyError(this.sessionId, this.recovery)
+      if (requestId !== undefined) this.retireFailedSubmission(requestId)
+      this.promptError = { op: 'send', error }
+      this.notifier.markDirty()
+      return { ok: false, error }
+    }
     this.promptError = null
     this.lastAgentError = null
     // Synchronous, before the first await: the blank → engaging edge must be
@@ -334,6 +354,7 @@ export class Session implements SessionFace {
 
   /** Apply one operation to a still-pending queue occurrence. */
   async updateQueue(itemId: MessageId, action: QueueAction): Promise<RemoteResult<{ accepted: true }>> {
+    if (this.recovery !== undefined) return { ok: false, error: recoveredReadOnlyError(this.sessionId, this.recovery) }
     return this.remote.session.updateQueue({ sessionId: this.sessionId, itemId, action })
   }
 
@@ -345,6 +366,7 @@ export class Session implements SessionFace {
    * @returns the cancel result.
    */
   async cancel(): Promise<RemoteResult<{ accepted: true }>> {
+    if (this.recovery !== undefined) return { ok: false, error: recoveredReadOnlyError(this.sessionId, this.recovery) }
     const address = this.address
     const result = address !== undefined
       ? await this.remote.subagents.interruptByParent(
@@ -370,6 +392,7 @@ export class Session implements SessionFace {
    * @returns the rename result (normalized accepted title + title event seq).
    */
   async rename(title: string): Promise<RemoteResult<{ title: string; seq: SessionSeq }>> {
+    if (this.recovery !== undefined) return { ok: false, error: recoveredReadOnlyError(this.sessionId, this.recovery) }
     const result = await this.remote.session.rename({ sessionId: this.sessionId, title })
     if (!result.ok) return result
     const seq = SessionSeq(result.value.seq)
@@ -385,6 +408,7 @@ export class Session implements SessionFace {
    * @returns the admission result.
    */
   async command(line: string): Promise<RemoteResult<{ matched: boolean }>> {
+    if (this.recovery !== undefined) return { ok: false, error: recoveredReadOnlyError(this.sessionId, this.recovery) }
     const result = await this.remote.commands.execute(this.sessionId, line, [])
     if (!result.ok) return result
     return { ok: true, value: { matched: result.value !== undefined } }
@@ -651,6 +675,7 @@ export class Session implements SessionFace {
           change.hasMore,
           change.page.projections === undefined ? undefined : projectionsBaseline(change.page.projections),
           change.page.assistantStream,
+          change.page.recovery,
         )
         return
       case 'prepend':
@@ -670,6 +695,7 @@ export class Session implements SessionFace {
     hasMore: boolean,
     projections?: ProjectionsBaseline,
     assistantStream?: SessionAssistantStreamBaseline,
+    recovery?: SessionHandleReadRecovery,
   ): void {
     // A durable gap-repair page has no assistant baseline. Clearing transient
     // attempts makes a held notification reopen follow once for an atomic
@@ -677,6 +703,7 @@ export class Session implements SessionFace {
     const visible = this.assistantStream.replace(entries, assistantStream)
     this.baseSeq = SessionLogOffset(entries[0]?.event.seq ?? 0)
     this.hasMore = hasMore
+    this.recovery = recovery
     if (this.pendingHistory !== null) {
       this.pendingHistory.beforeSeq = this.baseSeq
       this.pendingHistory.hasMore = hasMore
@@ -902,6 +929,7 @@ export class Session implements SessionFace {
       removed: this.removed,
       openState: this.openState,
       openError: this.openError,
+      ...(this.recovery === undefined ? {} : { recovery: this.recovery }),
       hasMore: this.hasMore,
       loadingOlder: this.loadingOlder,
       promptError: this.promptError,

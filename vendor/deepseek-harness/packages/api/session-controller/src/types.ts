@@ -11,6 +11,7 @@ import type { SessionId, SessionSeqCursor } from '@deepseek-ai/dsh-session/types
 import type { SessionProjectionMap } from '@deepseek-ai/dsh-session-projection/types'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
+import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence'
 
 declare module '@deepseek-ai/dsh-session-projection/types' {
   interface SessionProjectionStateMap {
@@ -560,6 +561,8 @@ export type SessionFollowFrame =
     readonly hasMore: boolean
     readonly projections: SessionProjectionBaseline
     readonly assistantStream?: SessionAssistantStreamBaseline
+    /** The event prefix is recovered from a corrupt suffix; clients must keep this Session read-only. */
+    readonly recovery?: SessionHandleReadRecovery
   }
   | SessionEventEntry
   | { readonly type: 'assistant-stream'; readonly frame: SessionAssistantStreamFrame }

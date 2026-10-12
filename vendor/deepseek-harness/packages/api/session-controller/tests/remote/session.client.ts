@@ -9,6 +9,7 @@
 import { AttachmentId, type FileAttachmentRef, type ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import { ok, type RemoteMock, type RemoteTable, type StreamScript, type UnaryRuleFn } from '@deepseek-ai/dsh-remote-mock'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
+import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence'
 import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type {
   SessionAssistantStreamBaseline, SessionFollowFrame, SessionFollowRequest,
@@ -79,6 +80,7 @@ export function followScript(
   options: {
     cursor?: number
     assistantStream?: SessionAssistantStreamBaseline | (() => SessionAssistantStreamBaseline)
+    recovery?: SessionHandleReadRecovery
   } = {},
 ): StreamScript {
   return async ([request], stream) => {
@@ -91,7 +93,10 @@ export function followScript(
     const assistantStream = typeof options.assistantStream === 'function'
       ? options.assistantStream()
       : options.assistantStream
-    stream.push(followSnapshot(result.value, follow, options.cursor, assistantStream))
+    stream.push({
+      ...followSnapshot(result.value, follow, options.cursor, assistantStream),
+      ...(options.recovery === undefined ? {} : { recovery: options.recovery }),
+    } as Extract<SessionFollowFrame, { readonly type: 'snapshot' }>)
   }
 }
 

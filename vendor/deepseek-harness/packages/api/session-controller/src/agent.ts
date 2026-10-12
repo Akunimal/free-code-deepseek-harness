@@ -10,7 +10,7 @@ import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionId } from '@deepseek-ai/dsh-session'
-import type { SessionInspection } from '@deepseek-ai/dsh-session-persistence'
+import type { SessionHandleReadRecovery, SessionInspection } from '@deepseek-ai/dsh-session-persistence'
 import { SessionQueryError, type SessionObservation } from '@deepseek-ai/dsh-session-query'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import type {} from '@deepseek-ai/dsh-typert-registry'
@@ -18,6 +18,16 @@ import type { ModelSelection } from './types.ts'
 
 /** Cold Session identity absent from persistence. */
 export class ApiSessionNotFound extends Error {}
+
+/** Persisted history recovered a valid prefix whose missing suffix forbids Agent activation and writes. */
+export class ApiSessionRecoveredReadOnly extends Error {
+  constructor(
+    readonly sessionId: SessionId,
+    readonly recovery: SessionHandleReadRecovery,
+  ) {
+    super(`session "${sessionId}" is read-only after recovering an invalid stored suffix`)
+  }
+}
 
 /** Session identity whose lifecycle belongs to subagent routing. */
 export class ApiSessionSubagentOwnership extends Error {
@@ -58,7 +68,7 @@ export class ApiSessionPresetConflict extends Error {
 }
 
 /** Failures produced while resolving one ordinary Session identity to its live Agent. */
-export type ApiSessionAgentError = RemoteError<'session/not-found' | 'session/agent-busy' | 'session/writer-held' | 'gateway/internal'>
+export type ApiSessionAgentError = RemoteError<'session/not-found' | 'session/agent-busy' | 'session/writer-held' | 'gateway/bad-request' | 'gateway/internal'>
 
 /** Result of resolving one ordinary Session identity to its live Agent. */
 export type ApiSessionAgentResult =
@@ -203,6 +213,11 @@ export class ApiSessionAgentController {
       const published = this.liveAgent(sessionId)
       return published ?? { agent }
     } catch (error: unknown) {
+      if (error instanceof ApiSessionRecoveredReadOnly) {
+        return {
+          error: new RemoteError('gateway/bad-request', error.message, {}),
+        }
+      }
       if (error instanceof ApiSessionNotFound) {
         return { error: new RemoteError('session/not-found', error.message, { sessionId }) }
       }
@@ -428,6 +443,9 @@ export class ApiSessionAgentController {
     if (hasApiSessionSubagentOwner(this.ctx, { header: observation.header }, undefined)) {
       throw new ApiSessionSubagentOwnership(sessionId)
     }
+    if (observation.recovery !== undefined) {
+      throw new ApiSessionRecoveredReadOnly(sessionId, observation.recovery)
+    }
     const composition = await this.composeAgent(this.presetForObservation(observation))
     const published = this.ctx.sessions.get(sessionId)
     const live = this.ctx.agents.get(sessionId)
@@ -459,6 +477,9 @@ export class ApiSessionAgentController {
         using observation = await this.ctx.sessionQuery.observeSession(sessionId)
         if (hasApiSessionSubagentOwner(this.ctx, { header: observation.header }, undefined)) {
           throw new ApiSessionSubagentOwnership(sessionId)
+        }
+        if (observation.recovery !== undefined) {
+          throw new ApiSessionRecoveredReadOnly(sessionId, observation.recovery)
         }
         if (observation.header.cwd !== cwd) {
           throw new ApiSessionCwdConflict(sessionId, cwd, observation.header.cwd)

@@ -33,7 +33,7 @@ import type {
 import type { DraftAttachmentId } from '../src/client/contract/input.ts'
 import { InputBar } from '../src/client/skeleton/InputBar.tsx'
 import type { InputBarProps } from '../src/client/skeleton/InputBar.tsx'
-import { en, zh } from '../src/client/locales.ts'
+import { en, es, zh } from '../src/client/locales.ts'
 
 // Every fixture carries the resource hook the resources plugin merges into GlobalStandardProps.
 const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined })) as GlobalStandardProps['useResource']
@@ -77,6 +77,12 @@ interface BenchOptions {
   running?: boolean
   subagent?: Exclude<SessionSnapshot['subagent'], null>
   disabled?: boolean
+  recovery?: {
+    readonly kind: 'invalid-tail'
+    readonly firstInvalidSeq: number
+    readonly discardedEvents: number
+    readonly reason: string
+  }
   inert?: boolean
   blocked?: { readonly reason: string }
   workspacePickerOpen?: boolean
@@ -128,7 +134,8 @@ function bench(over?: BenchOptions) {
     subagent: over?.subagent ?? null,
     removed: over?.disabled ?? false,
     promptError: over?.promptError ?? null,
-  }))
+    ...(over?.recovery === undefined ? {} : { recovery: over.recovery }),
+  } as never))
   type ShellDeps = ConstructorParameters<typeof SessionInputShell>[0]
   const shell = new SessionInputShell({
     actx: SCTX,
@@ -292,6 +299,45 @@ describe('composer focus handoff', () => {
     // land the caret at the start of the draft. jsdom carries no caret, so the
     // selection itself is asserted in the browser lane.
     expect(lexicalFocus).toHaveBeenCalled()
+  })
+})
+
+describe('recovered session read-only composer', () => {
+  const recovery = {
+    kind: 'invalid-tail' as const,
+    firstInvalidSeq: 4,
+    discardedEvents: 2,
+    reason: 'invalid tool result',
+  }
+
+  it('announces the discarded suffix in Spanish and disables every composer intake', () => {
+    const addFiles = vi.fn(() => null)
+    const result = bench({
+      draft: 'visible draft',
+      recovery,
+      addFiles,
+      t: makeTranslate(es, commonZh),
+    })
+
+    const warning = result.view.getByRole('status').textContent ?? ''
+    expect(warning).toContain('solo lectura')
+    expect(warning).toContain('2 eventos')
+    expect(warning).toContain('secuencia 4')
+    expect(warning).toContain('invalid tool result')
+    expect(editableOf(result.textarea)).toBe(false)
+    expect(result.button.disabled).toBe(true)
+    expect(attachmentOwner(result.slotCalls).canAcceptDrop).toBe(false)
+    attachmentOwner(result.slotCalls).onAddFiles([new File(['x'], 'notes.txt')])
+    expect(addFiles).not.toHaveBeenCalled()
+  })
+
+  it('announces the same recovery in English', () => {
+    const result = bench({ recovery, t: makeTranslate(en, {}) })
+    const warning = result.view.getByRole('status').textContent ?? ''
+    expect(warning).toContain('read-only')
+    expect(warning).toContain('2 events')
+    expect(warning).toContain('sequence 4')
+    expect(warning).toContain('invalid tool result')
   })
 })
 

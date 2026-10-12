@@ -3,7 +3,7 @@
 import { interruptedTurnClosers } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionHeader, SessionId, SessionLogOffset, SessionSeedEventState } from '@deepseek-ai/dsh-session'
 import type SessionPersistence from '@deepseek-ai/dsh-session-persistence'
-import type { SessionHandleReadResult } from '@deepseek-ai/dsh-session-persistence'
+import type { SessionHandleReadRecovery, SessionHandleReadResult } from '@deepseek-ai/dsh-session-persistence'
 
 /** A stored session log balanced for read-only viewing. */
 export interface ColdSessionLog {
@@ -15,6 +15,8 @@ export interface ColdSessionLog {
   readonly inheritedEventCount: SessionLogOffset
   /** Stored events plus deterministic in-memory closers for an interrupted final turn; nothing is written back. */
   readonly events: SessionEvent[]
+  /** Recovery diagnostic when a semantically invalid suffix was discarded for this read-only view. */
+  readonly recovery?: SessionHandleReadRecovery
 }
 
 /**
@@ -47,11 +49,12 @@ export async function readColdSessionLog(
     throw error
   }
   await handle.close()
-  const { events } = read
+  const { events, recovery } = read
   return {
     eventState: read.eventState,
     header: handle.header,
     inheritedEventCount: handle.inheritedEventCount,
     events: [...events, ...interruptedTurnClosers(events)],
+    ...(recovery === undefined ? {} : { recovery: Object.freeze({ ...recovery }) }),
   }
 }
