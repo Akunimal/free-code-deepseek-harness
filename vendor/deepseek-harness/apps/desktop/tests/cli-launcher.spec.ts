@@ -44,9 +44,9 @@ function fixture() {
     // cmd fixture inputs contain no metacharacters; POSIX cases exercise literal expansion characters separately.
     const child = platform === 'win32'
       ? spawn(process.env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', `""${executable}" ${args.map(value => `"${value}"`).join(' ')}"`], {
-        cwd: root, env: { ...process.env, DSH_CLI_TEST_VALUE: 'kept' }, stdio: 'pipe', windowsVerbatimArguments: true,
+        cwd: root, env: { ...process.env, DSH_CLI_TEST_VALUE: 'kept' }, stdio: 'pipe', windowsVerbatimArguments: true, windowsHide: true,
       })
-      : spawn(executable, args, { cwd: root, env: { ...process.env, DSH_CLI_TEST_VALUE: 'kept' }, stdio: 'pipe' })
+      : spawn(executable, args, { cwd: root, env: { ...process.env, DSH_CLI_TEST_VALUE: 'kept' }, stdio: 'pipe', windowsHide: true })
     children.push(child)
     const closed = new Promise<number | null>((resolve, reject) => {
       child.once('error', reject)

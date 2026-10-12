@@ -66,6 +66,7 @@ function runBuiltWeb(cwd: string): Promise<{ stdout: string; stderr: string; cod
       cwd,
       env,
       stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
     })
     let stdout = ''
     let stderr = ''

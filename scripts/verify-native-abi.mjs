@@ -13,7 +13,8 @@
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
+import { classifyNativeAddon } from './native-addon-target.mjs';
 
 const root = resolve(import.meta.dirname, '..');
 const runtimeDir = resolve(process.argv[2] ?? join(root, 'apps', 'shell', 'resources', 'freecode', 'dsh'));
@@ -63,7 +64,23 @@ if (nodeFiles.length === 0) {
   process.exit(2);
 }
 
-console.log(`verify-native-abi: probing ${nodeFiles.length} native addons with ${electronBinary}`);
+const hostNodeFiles = [];
+const foreignNodeFiles = [];
+for (const file of nodeFiles) {
+  const target = classifyNativeAddon(file);
+  if (target.kind === 'foreign') {
+    foreignNodeFiles.push(file);
+    console.log(`verify-native-abi: SKIP foreign native addon ${relative(runtimeDir, file)} (${target.target}) — ${target.reason}`);
+  } else {
+    hostNodeFiles.push(file);
+  }
+}
+if (hostNodeFiles.length === 0) {
+  console.error(`verify-native-abi: no host-compatible .node addons found under ${runtimeDir}; fail closed`);
+  process.exit(2);
+}
+
+console.log(`verify-native-abi: probing ${hostNodeFiles.length} host-applicable native addons with ${electronBinary}`);
 
 // Single Electron invocation: load every addon, classify failures.
 const probeScript = [
@@ -80,7 +97,7 @@ const probeScript = [
   'process.stdout.write(JSON.stringify({ nodeModuleVersion, results }));',
 ].join('\n');
 
-const probe = spawnSync(electronBinary, ['-e', probeScript, ...nodeFiles], {
+const probe = spawnSync(electronBinary, ['-e', probeScript, ...hostNodeFiles], {
   cwd: root,
   encoding: 'utf8',
   maxBuffer: 64 * 1024 * 1024,
@@ -112,20 +129,20 @@ if (!Array.isArray(results)) {
 }
 
 const mismatches = results.filter((result) => !result.ok && result.abiMismatch);
-const otherFailures = results.filter((result) => !result.ok && !result.abiMismatch);
+const hostLoadFailures = results.filter((result) => !result.ok && !result.abiMismatch);
 
 for (const failure of mismatches) {
   const rel = failure.file.replace(runtimeDir, '');
   console.error(`verify-native-abi: ABI MISMATCH ${rel} — built for ${failure.got}, Electron requires ${failure.want}`);
 }
-for (const failure of otherFailures) {
+for (const failure of hostLoadFailures) {
   const rel = failure.file.replace(runtimeDir, '');
-  console.warn(`verify-native-abi: WARNING load failed (not ABI) ${rel}: ${failure.message}`);
+  console.error(`verify-native-abi: HOST NATIVE LOAD FAILURE ${rel}: ${failure.message}`);
 }
 
-if (mismatches.length > 0) {
-  console.error(`verify-native-abi: FAIL — ${mismatches.length}/${results.length} addons compiled for the wrong ABI. Run: node scripts/rebuild-runtime-native.mjs`);
+if (mismatches.length > 0 || hostLoadFailures.length > 0) {
+  console.error(`verify-native-abi: FAIL — ${hostLoadFailures.length} host native addon load failure(s), ${mismatches.length} ABI mismatch(es). Run: node scripts/rebuild-runtime-native.mjs`);
   process.exit(1);
 }
 const loaded = results.filter((result) => result.ok).length;
-console.log(`verify-native-abi: PASS — ${loaded}/${results.length} addons load under the packaged Electron (${otherFailures.length} non-ABI skips, e.g. foreign-platform prebuilds)`);
+console.log(`verify-native-abi: PASS — ${loaded}/${results.length} host-applicable addons load under packaged Electron; ${foreignNodeFiles.length} foreign-platform/architecture prebuild(s) skipped explicitly`);
