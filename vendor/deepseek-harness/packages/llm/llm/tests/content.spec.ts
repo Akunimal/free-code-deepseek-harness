@@ -320,6 +320,31 @@ describe('projectImagesForTextModel', () => {
 })
 
 describe('projectImagesForTextModelWithOcr', () => {
+  it('projects OCR for identity-free one-shot user input', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-content-ocr-request-'))
+    const path = join(dir, 'sample.png')
+    await writeFile(path, Buffer.from('request image fixture'))
+    const restore = setOcrRunnerForTests(async () => 'request image text')
+    try {
+      const request: RequestUserInput = { role: 'user', content: [image(3)] }
+      const projected = await projectImagesForTextModelWithOcr(
+        [request],
+        () => ({ readonlyPath: path }),
+      )
+
+      expect(projected).toEqual([{
+        role: 'user',
+        content: [{ type: 'text', text: '[OCR text for attached image]\nrequest image text' }],
+      }])
+      expect(projected[0]).not.toHaveProperty('id')
+      expect(projected[0]).not.toHaveProperty('source')
+      expect(request.content).toEqual([image(3)])
+    } finally {
+      restore()
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it('replaces direct and nested images with bounded OCR text and caches an attachment', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'dsh-content-ocr-'))
     const path = join(dir, 'sample.png')

@@ -229,24 +229,34 @@ index cecbfba938..200da9f842 100644
  
  /** Execution-world path that model tools can use to read one normalized attachment. */
  export interface ImageAttachmentAccess {
-@@ -365,6 +366,56 @@ export function projectImagesForTextModel(messages: readonly RequestMessage[]):
+@@ -365,6 +366,69 @@ export function projectImagesForTextModel(messages: readonly RequestMessage[]):
    })
  }
  
 +/**
-+ * Project durable image history into OCR text for an exact text-only model.
++ * Project durable and request-only image inputs into OCR text for a text-only model.
 + * Missing image access or OCR failure rejects rather than silently discarding
-+ * the user's image. The original durable messages remain untouched.
-+ * @param messages - complete durable request history.
++ * the user's image. The original request inputs remain untouched.
++ * @param messages - complete request input history.
 + * @param resolvePath - resolve one attachment into this execution world's read-only path.
 + * @param signal - optional request cancellation signal.
 + * @returns original messages when image-free, otherwise projected shallow copies.
 + */
-+export async function projectImagesForTextModelWithOcr(
++export function projectImagesForTextModelWithOcr(
 +  messages: readonly Message[],
 +  resolvePath: ImageAttachmentAccessResolver,
 +  signal?: AbortSignal,
-+): Promise<readonly Message[]> {
++): Promise<readonly Message[]>
++export function projectImagesForTextModelWithOcr(
++  messages: readonly RequestMessage[],
++  resolvePath: ImageAttachmentAccessResolver,
++  signal?: AbortSignal,
++): Promise<readonly RequestMessage[]>
++export async function projectImagesForTextModelWithOcr(
++  messages: readonly RequestMessage[],
++  resolvePath: ImageAttachmentAccessResolver,
++  signal?: AbortSignal,
++): Promise<readonly RequestMessage[]> {
 +  if (!messages.some(message => contentHasImage(message.content))) return messages
 +  const cache = new Map<string, Promise<string>>()
 +  const project = async (blocks: readonly ContentBlock[]): Promise<ContentBlock[]> => {
@@ -268,8 +278,11 @@ index cecbfba938..200da9f842 100644
 +        next.push({ type: 'text', text: `[OCR text for ${block.attachment.name ?? 'attached image'}]\n${text}` })
 +        continue
 +      }
-+      if (block.type === 'tool-result') {
-+        next.push({ ...block, content: await project(block.content) })
++      // Legacy nested result wrappers can occur in request content even though
++      // the current core ContentBlockMap intentionally excludes them.
++      const nested = block as unknown as { type: unknown; content?: unknown }
++      if (nested.type === 'tool-result' && Array.isArray(nested.content)) {
++        next.push({ ...block, content: await project(nested.content as readonly ContentBlock[]) } as unknown as ContentBlock)
 +        continue
 +      }
 +      next.push(block)
@@ -395,11 +408,36 @@ index 19bb84e460..76c706809a 100644
  } from '../src/index.ts'
  import type { ContentBlock, RequestMessage, RequestUserInput, ToolHistory, ToolSchema } from '../src/index.ts'
  
-@@ -314,6 +319,59 @@ describe('projectImagesForTextModel', () => {
+@@ -314,6 +319,84 @@ describe('projectImagesForTextModel', () => {
    })
  })
  
 +describe('projectImagesForTextModelWithOcr', () => {
++  it('projects OCR for identity-free one-shot user input', async () => {
++    const dir = await mkdtemp(join(tmpdir(), 'dsh-content-ocr-request-'))
++    const path = join(dir, 'sample.png')
++    await writeFile(path, Buffer.from('request image fixture'))
++    const restore = setOcrRunnerForTests(async () => 'request image text')
++    try {
++      const request: RequestUserInput = { role: 'user', content: [image(3)] }
++      const projected = await projectImagesForTextModelWithOcr(
++        [request],
++        () => ({ readonlyPath: path }),
++      )
++
++      expect(projected).toEqual([{
++        role: 'user',
++        content: [{ type: 'text', text: '[OCR text for attached image]\nrequest image text' }],
++      }])
++      expect(projected[0]).not.toHaveProperty('id')
++      expect(projected[0]).not.toHaveProperty('source')
++      expect(request.content).toEqual([image(3)])
++    } finally {
++      restore()
++      await rm(dir, { recursive: true, force: true })
++    }
++  })
++
 +  it('replaces direct and nested images with bounded OCR text and caches an attachment', async () => {
 +    const dir = await mkdtemp(join(tmpdir(), 'dsh-content-ocr-'))
 +    const path = join(dir, 'sample.png')

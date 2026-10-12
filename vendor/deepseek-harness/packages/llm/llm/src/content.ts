@@ -367,19 +367,29 @@ export function projectImagesForTextModel(messages: readonly RequestMessage[]): 
 }
 
 /**
- * Project durable image history into OCR text for an exact text-only model.
+ * Project durable and request-only image inputs into OCR text for a text-only model.
  * Missing image access or OCR failure rejects rather than silently discarding
- * the user's image. The original durable messages remain untouched.
- * @param messages - complete durable request history.
+ * the user's image. The original request inputs remain untouched.
+ * @param messages - complete request input history.
  * @param resolvePath - resolve one attachment into this execution world's read-only path.
  * @param signal - optional request cancellation signal.
  * @returns original messages when image-free, otherwise projected shallow copies.
  */
-export async function projectImagesForTextModelWithOcr(
+export function projectImagesForTextModelWithOcr(
   messages: readonly Message[],
   resolvePath: ImageAttachmentAccessResolver,
   signal?: AbortSignal,
-): Promise<readonly Message[]> {
+): Promise<readonly Message[]>
+export function projectImagesForTextModelWithOcr(
+  messages: readonly RequestMessage[],
+  resolvePath: ImageAttachmentAccessResolver,
+  signal?: AbortSignal,
+): Promise<readonly RequestMessage[]>
+export async function projectImagesForTextModelWithOcr(
+  messages: readonly RequestMessage[],
+  resolvePath: ImageAttachmentAccessResolver,
+  signal?: AbortSignal,
+): Promise<readonly RequestMessage[]> {
   if (!messages.some(message => contentHasImage(message.content))) return messages
   const cache = new Map<string, Promise<string>>()
   const project = async (blocks: readonly ContentBlock[]): Promise<ContentBlock[]> => {
@@ -401,8 +411,11 @@ export async function projectImagesForTextModelWithOcr(
         next.push({ type: 'text', text: `[OCR text for ${block.attachment.name ?? 'attached image'}]\n${text}` })
         continue
       }
-      if (block.type === 'tool-result') {
-        next.push({ ...block, content: await project(block.content) })
+      // Legacy nested result wrappers can occur in request content even though
+      // the current core ContentBlockMap intentionally excludes them.
+      const nested = block as unknown as { type: unknown; content?: unknown }
+      if (nested.type === 'tool-result' && Array.isArray(nested.content)) {
+        next.push({ ...block, content: await project(nested.content as readonly ContentBlock[]) } as unknown as ContentBlock)
         continue
       }
       next.push(block)
