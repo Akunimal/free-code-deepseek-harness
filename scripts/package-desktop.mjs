@@ -37,6 +37,9 @@ if (!['all', 'nsis', 'portable'].includes(targets)) {
 const requireFromShell = createRequire(join(shellRoot, 'package.json'));
 const electronBuilderEntrypoint = requireFromShell.resolve('electron-builder/cli.js');
 const args = [electronBuilderEntrypoint, '--config', 'electron-builder.yml', '--publish', 'never'];
+// prepackage:verify loads every host-applicable addon with the packaged Electron ABI;
+// avoid electron-builder's separate header download/rebuild path after that check.
+args.push('--config.npmRebuild=false');
 if (targets !== 'all') args.push('--win', targets);
 args.push(`--config.directories.output=${outputPath}`);
 

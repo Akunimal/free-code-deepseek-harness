@@ -20,6 +20,7 @@
     "package:runtime:release": "pnpm package:runtime && node scripts/package-harness-update.mjs",
     "build:desktop": "pnpm build && pnpm --filter @freecode/shell package:desktop",
     "release:gate": "node scripts/release-gate.mjs",
+    "verify:desktop-release-assets": "node scripts/verify-desktop-release-assets.mjs",
     "verify:linux-appimage": "node scripts/verify-linux-appimage.mjs",
     "setup:mcp": "node scripts/setup-mcp-servers.mjs --all",
     "test:mcp": "node --test scripts/mcp-config.test.mjs",

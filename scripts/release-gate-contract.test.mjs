@@ -11,10 +11,19 @@ import { verifyNsisPackageOutput } from './verify-nsis-package-output.mjs';
 
 const repositoryRoot = new URL('../', import.meta.url);
 
+function createPeFixture(label) {
+  const bytes = Buffer.alloc(0x48 + Buffer.byteLength(label));
+  bytes.write('MZ', 0, 'ascii');
+  bytes.writeUInt32LE(0x40, 0x3c);
+  bytes.write('PE\0\0', 0x40, 'binary');
+  bytes.write(label, 0x44, 'utf8');
+  return bytes;
+}
+
 function createNsisFixture(directory, version) {
   const setupName = `FreeCode-DeepSeek-Harness-${version}-win-x64-setup.exe`;
   const setupPath = join(directory, setupName);
-  const bytes = Buffer.from('MZfake-release-installer');
+  const bytes = createPeFixture('fake-release-installer');
   const sha512 = createHash('sha512').update(bytes).digest('base64');
   writeFileSync(setupPath, bytes);
   writeFileSync(`${setupPath}.blockmap`, 'blockmap');
@@ -29,7 +38,6 @@ function createNsisFixture(directory, version) {
     `    size: ${bytes.length}`,
     `path: ${setupName}`,
     `sha512: ${sha512}`,
-    `size: ${bytes.length}`,
   ].join('\n'));
   return { setupPath, bytes, sha512 };
 }
@@ -42,6 +50,11 @@ test('desktop packaging stays separate from immutable runtime archive generation
   assert.doesNotMatch(rootPackage.scripts['build:desktop'], /package:runtime/);
   assert.match(rootPackage.scripts['package:runtime:release'], /package:runtime/);
   assert.match(rootPackage.scripts['package:runtime:release'], /package-harness-update/);
+});
+
+test('desktop packaging relies on the preflight ABI check and skips Electron header rebuilds', () => {
+  const packageDesktop = readFileSync(new URL('scripts/package-desktop.mjs', repositoryRoot), 'utf8');
+  assert.match(packageDesktop, /--config\.npmRebuild=false/);
 });
 
 test('release plan statically validates an isolated NSIS build without install or runtime rebuild', () => {
@@ -148,6 +161,25 @@ test('NSIS output verifier rejects wrong setup version and bundled DSH', async (
     const { setupPath } = createNsisFixture(validFixture, '0.9.3');
     mkdirSync(join(validFixture, 'win-unpacked', 'resources', 'freecode', 'dsh'), { recursive: true });
     await assert.rejects(verifyNsisPackageOutput(setupPath, '0.9.3'), /DSH runtime payload must remain a separate release asset/);
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test('NSIS output verifier rejects a truncated MZ stub without a PE signature', async () => {
+  const temp = mkdtempSync(join(tmpdir(), 'freecode-nsis-output-invalid-pe-test-'));
+  try {
+    const { setupPath } = createNsisFixture(temp, '0.9.3');
+    const invalid = Buffer.from('MZnot-a-pe');
+    const sha512 = createHash('sha512').update(invalid).digest('base64');
+    writeFileSync(setupPath, invalid);
+    writeFileSync(join(temp, 'latest.yml'), [
+      'version: 0.9.3',
+      `path: ${setupPath.split(/[\\/]/).at(-1)}`,
+      `sha512: ${sha512}`,
+      `size: ${invalid.length}`,
+    ].join('\n'));
+    await assert.rejects(verifyNsisPackageOutput(setupPath, '0.9.3'), /PE header|PE signature/i);
   } finally {
     rmSync(temp, { recursive: true, force: true });
   }

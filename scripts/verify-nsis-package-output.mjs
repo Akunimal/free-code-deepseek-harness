@@ -2,14 +2,53 @@
 
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { access, open, readFile, stat } from 'node:fs/promises';
+import { access, readFile, stat } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { verifyWindowsPeFile } from './windows-pe.mjs';
 
 async function sha512File(path) {
   const hash = createHash('sha512');
   for await (const chunk of createReadStream(path)) hash.update(chunk);
   return hash.digest('base64');
+}
+
+function yamlScalar(value) {
+  const trimmed = value.trim();
+  if (trimmed.length >= 2 && trimmed[0] === "'" && trimmed.at(-1) === "'") {
+    return trimmed.slice(1, -1).replaceAll("''", "'");
+  }
+  if (trimmed.length >= 2 && trimmed[0] === '"' && trimmed.at(-1) === '"') {
+    try { return JSON.parse(trimmed); } catch { return trimmed.slice(1, -1); }
+  }
+  return trimmed;
+}
+
+function parseElectronBuilderLatest(text) {
+  const topLevel = {};
+  const files = [];
+  let readingFiles = false;
+  let currentFile;
+
+  for (const line of text.split(/\r?\n/)) {
+    const top = /^([A-Za-z][A-Za-z0-9_-]*):\s*(.*)$/.exec(line);
+    if (top) {
+      readingFiles = top[1] === 'files';
+      currentFile = undefined;
+      topLevel[top[1]] = yamlScalar(top[2]);
+      continue;
+    }
+    if (!readingFiles) continue;
+    const entry = /^\s*-\s+url:\s*(.*?)\s*$/.exec(line);
+    if (entry) {
+      currentFile = { url: yamlScalar(entry[1]) };
+      files.push(currentFile);
+      continue;
+    }
+    const field = /^\s+([A-Za-z][A-Za-z0-9_-]*):\s*(.*)$/.exec(line);
+    if (currentFile && field) currentFile[field[1]] = yamlScalar(field[2]);
+  }
+  return { topLevel, files };
 }
 
 export async function verifyNsisPackageOutput(setupPath, version) {
@@ -20,13 +59,7 @@ export async function verifyNsisPackageOutput(setupPath, version) {
   }
   const outputDir = dirname(absoluteSetup);
   const setupStat = await stat(absoluteSetup);
-  if (setupStat.size < 2) throw new Error('verify-nsis-package-output: setup executable is empty');
-  const handle = await open(absoluteSetup, 'r');
-  const header = Buffer.alloc(2);
-  try { await handle.read(header, 0, 2, 0); } finally { await handle.close(); }
-  if (header.length !== 2 || header[0] !== 0x4d || header[1] !== 0x5a) {
-    throw new Error('verify-nsis-package-output: setup does not have a Windows PE signature');
-  }
+  await verifyWindowsPeFile(absoluteSetup, 'verify-nsis-package-output: setup');
 
   const blockmapPath = `${absoluteSetup}.blockmap`;
   const latestPath = join(outputDir, 'latest.yml');
@@ -36,24 +69,26 @@ export async function verifyNsisPackageOutput(setupPath, version) {
   for (const required of [blockmapPath, latestPath, unpackedExe, runtimeManifest]) {
     await access(required).catch(() => { throw new Error(`verify-nsis-package-output: missing ${required}`); });
   }
+  const blockmapStat = await stat(blockmapPath);
+  if (blockmapStat.size === 0) throw new Error('verify-nsis-package-output: setup blockmap is empty');
   await access(forbiddenDsh).then(
     () => { throw new Error('verify-nsis-package-output: DSH runtime payload must remain a separate release asset'); },
     () => undefined,
   );
 
-  const latest = await readFile(latestPath, 'utf8');
-  const readScalar = (key) => latest.match(new RegExp(`^${key}:\\s*(.+)$`, 'm'))?.[1]?.trim();
-  const latestVersion = readScalar('version');
-  const latestPathName = readScalar('path');
-  const latestSha512 = readScalar('sha512');
-  const latestSize = Number(readScalar('size'));
-  if (latestVersion !== version || latestPathName !== expectedName || latestSize !== setupStat.size) {
-    throw new Error('verify-nsis-package-output: latest.yml version/path/size do not match setup artifact');
-  }
+  const latest = parseElectronBuilderLatest(await readFile(latestPath, 'utf8'));
+  const entry = latest.files.find((file) => file.url === expectedName);
   const actualSha512 = await sha512File(absoluteSetup);
-  if (latestSha512 !== actualSha512) throw new Error('verify-nsis-package-output: latest.yml SHA-512 does not match setup artifact');
+  const latestSize = Number(entry?.size ?? latest.topLevel.size);
+  const sha512Values = [entry?.sha512, latest.topLevel.sha512].filter((value) => value !== undefined);
+  if (latest.topLevel.version !== version || latest.topLevel.path !== expectedName || !entry || latestSize !== setupStat.size) {
+    throw new Error('verify-nsis-package-output: latest.yml version/path/files size do not match setup artifact');
+  }
+  if (sha512Values.length === 0 || sha512Values.some((value) => value !== actualSha512)) {
+    throw new Error('verify-nsis-package-output: latest.yml SHA-512 does not match setup artifact');
+  }
 
-  return { setupPath: absoluteSetup, size: setupStat.size, sha512: actualSha512 };
+  return { setupPath: absoluteSetup, size: setupStat.size, sha512: actualSha512, blockmapSize: blockmapStat.size };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
