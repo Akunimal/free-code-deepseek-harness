@@ -1,11 +1,11 @@
 # Known issues / Problemas conocidos
 
 Última sincronización documental / Last documentation sync: 2026-10-12
-Baseline documentada / Documented baseline: `v0.9.2`
+Baseline documentada / Documented baseline: `v0.9.3`
 
 ## Estado actual / Current status
 
-La release publicada `v0.9.2` mantiene la resiliencia Tor (una instancia única
+La release publicada `v0.9.3` mantiene la resiliencia Tor (una instancia única
 `tor.exe` empaquetada, con rotación `NEWNYM` y failover para opencode2api),
 consolida el lane de modelos a un único `deepseek-free` sin duplicados, hace
 que el seeder respete el modelo elegido por el usuario, incorpora el modo
@@ -13,19 +13,19 @@ Gentle AI integrado de 0.8.0, elimina freellmpool y WARP, y mantiene Engram
 como tercera fila MCP administrada con el locale español corregido. Las
 limitaciones honestas restantes: la cuota del upstream gobierna el lane
 anónimo, los binarios RTK/Caveman/free-search no están empaquetados, y las
-demás plataformas no están probadas. En v0.9.2 sólo se soporta Windows x64;
+demás plataformas no están probadas. En v0.9.3 sólo se soporta Windows x64;
 Windows ARM64, Linux y macOS no están soportados. El runtime DSH `0.2.1-alpha.2`
 se descarga de forma separada en el primer inicio sin caché válida, por lo que
 esa primera ejecución requiere Internet.
 
-The published `v0.9.2` release retains Tor resilience (a single bundled
+The published `v0.9.3` release retains Tor resilience (a single bundled
 `tor.exe` instance with `NEWNYM` rotation and opencode2api failover),
 consolidates the model lane into a single duplicate-free `deepseek-free`, makes
 the seeder preserve the user-chosen model, carries the 0.8.0 Gentle AI mode,
 removes freellmpool and WARP, and keeps Engram as the third managed MCP row
 with the fixed Spanish locale. Honest limitations remain: upstream quota
 governs the anonymous lane, the RTK/Caveman/free-search binaries are not
-vendored, and other platforms are untested. v0.9.2 supports Windows x64 only;
+vendored, and other platforms are untested. v0.9.3 supports Windows x64 only;
 Windows ARM64, Linux and macOS are unsupported. The DSH `0.2.1-alpha.2` runtime
 is fetched separately on first launch when no valid cache exists, so that
 launch needs Internet access.
@@ -40,15 +40,15 @@ La ruta OpenCode Free depende del puente local, los workers disponibles, los lí
 
 ### KI-002 — Separate first-launch runtime download / Descarga del runtime en el primer inicio
 
-The v0.9.2 setup is ~178.5 MB and portable is ~178.2 MB; the DSH runtime is not
-inside either desktop installer. A first launch without a valid cache downloads
+The v0.9.3 setup is ~178.5 MB and portable is ~651 MB (~620.8 MiB); the DSH
+runtime is not inside either desktop installer. A first launch without a valid cache downloads
 the separate pinned `0.2.1-alpha.2` Windows x64 runtime archive (~421.6 MB),
 then caches the validated runtime per user for offline later starts. This
 network/download step is part of the current packaging, not by itself evidence
 that the application is hung.
 
-El setup v0.9.2 pesa ~178,5 MB y el portable ~178,2 MB; ninguno incluye el
-runtime DSH. En un primer inicio sin caché válida se descarga por separado el
+El setup v0.9.3 pesa ~178,5 MB y el portable ~651 MB (~620,8 MiB); ninguno
+incluye el runtime DSH. En un primer inicio sin caché válida se descarga por separado el
 runtime Windows x64 fijado en `0.2.1-alpha.2` (~421,6 MB), y después de
 validarlo se guarda por usuario para los arranques sin conexión. Este paso de
 red/descarga forma parte del empaquetado actual y, por sí solo, no indica que
@@ -56,12 +56,12 @@ la aplicación esté colgada.
 
 ### KI-003 — RTK/Caveman are PATH helpers, not bundled / RTK/Caveman son helpers por PATH, no empaquetados
 
-RTK and Caveman are not bundled in the published `v0.9.2` artifact. The code
+RTK and Caveman are not bundled in the published `v0.9.3` artifact. The code
 probes the user PATH and treats a missing binary as an explicit no-op, so
 the release works but is not self-contained for these helpers. Vendoring
 them with version/hash/license metadata remains deferred work.
 
-RTK y Caveman no están incluidos en el artefacto publicado de `v0.9.2`: el
+RTK y Caveman no están incluidos en el artefacto publicado de `v0.9.3`: el
 código consulta el PATH del usuario y la ausencia es un no-op explícito. La
 release funciona pero no es autocontenida para estos helpers. Empaquetarlos
 con metadata de versión/hash/licencia queda diferido.
@@ -131,22 +131,21 @@ de arranque del shell.
 
 ### KI-009 — A semantic session tail can hide valid history / Un sufijo semántico puede ocultar historial válido
 
-The published v0.9.2 reader treats a complete V4 row with a broken tool-result
-identity as corruption of the whole log, so earlier valid events are not
-returned to the caller. The unreleased v0.9.3 source candidate recovers only
-the validated prefix in read-only mode, reports the first invalid sequence,
+Before v0.9.3, the reader treated a complete V4 row with a broken tool-result
+identity as corruption of the whole log, so earlier valid events were not
+returned to the caller. Resolved in v0.9.3: the reader recovers only the
+validated prefix in read-only mode, reports the first invalid sequence,
 preserves the original raw/Zstandard bytes, and refuses write-open. It does not
-repair or reconstruct the discarded suffix. Until v0.9.3 is built and
-installed, preserve the original session file; do not overwrite it.
+repair or reconstruct the discarded suffix; keep the original session file
+unchanged if manual recovery is needed.
 
-El lector publicado en v0.9.2 trata una fila V4 completa con identidad de
+Antes de v0.9.3, el lector trataba una fila V4 completa con identidad de
 resultado de herramienta rota como corrupción de todo el log, por lo que no
-devuelve los eventos válidos anteriores. El candidato v0.9.3 aún sin publicar
-recupera solo el prefijo validado en modo de solo lectura, informa la primera
-secuencia inválida, preserva los bytes originales raw/Zstandard y rechaza
-abrir para escritura. No repara ni reconstruye el sufijo descartado. Hasta que
-v0.9.3 se compile y se instale, conservá el archivo de sesión original; no lo
-sobrescribas.
+devolvía los eventos válidos anteriores. Resuelto en v0.9.3: recupera solo el
+prefijo validado en modo de solo lectura, informa la primera secuencia inválida,
+preserva los bytes originales raw/Zstandard y rechaza abrir para escritura. No
+repara ni reconstruye el sufijo descartado; si se requiere recuperación manual,
+conservá intacto el archivo de sesión original.
 
 ## Issues resueltos / Resolved historical issues
 

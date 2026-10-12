@@ -1,10 +1,13 @@
 # Changelog
 
-## 0.9.3 — In development (unreleased)
+## 0.9.3 — 2026-10-12
 
 See the [bilingual v0.9.3 release notes](release-notes-v0.9.3.md).
-The source version is 0.9.3; desktop packages, installation, tag and release
-are still pending verification. The latest published version remains 0.9.2.
+Published for Windows x64 with NSIS setup and portable packages. The user
+confirmed the installed setup works; the portable executable was not separately
+installation-tested. The setup is ~178.5 MB; the portable executable is ~651 MB
+(~620.8 MiB). The DSH runtime remains a separately pinned asset in the v0.9.2
+release.
 
 ### Reliability / Confiabilidad
 
@@ -34,13 +37,15 @@ are still pending verification. The latest published version remains 0.9.2.
 
 ### Verification / Verificación
 
-- Focused regression suites and package-scoped typechecks passed. The full
-  composite build still reports unrelated existing errors in
-  `packages/llm/llm`; setup/portable, installation, tag and publication have
-  not been performed. / Pasaron las suites de regresión focalizadas y los
-  typechecks por paquete. El build compuesto completo sigue mostrando errores
-  preexistentes y ajenos en `packages/llm/llm`; no se generaron setup/portable,
-  ni se instaló, etiquetó o publicó esta versión.
+- Focused regression suites, shell preflight, shell build and Windows setup/
+  portable packaging passed. The full vendor composite build still reports
+  unrelated existing TypeScript errors in `packages/llm/llm`. The user confirmed
+  the installed setup works; portable was built but not installation-tested.
+  Source range: `v0.9.2..v0.9.3`. / Pasaron las suites focalizadas, el preflight
+  y build del shell y el empaquetado setup/portable. El build compuesto del
+  vendor sigue mostrando errores TypeScript preexistentes y ajenos en
+  `packages/llm/llm`. El usuario confirmó que el setup instalado funciona; el
+  portable se compiló pero no se probó con instalación. Rango: `v0.9.2..v0.9.3`.
 
 ## 0.9.2 — 2026-10-12
 

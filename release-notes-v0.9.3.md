@@ -21,13 +21,20 @@
 - Native ABI checks fail closed for host-applicable addon load errors and
   explicitly skip foreign-target prebuilds.
 
+### Distribution
+
+v0.9.3 is published for Windows x64 with NSIS setup (~178.5 MB) and a portable
+package (~651 MB / 620.8 MiB).
+The pinned DSH `0.2.1-alpha.2` runtime remains a separate download from the
+v0.9.2 release and is fetched only when required.
+
 ### Verification status
 
-Focused regression suites and package-scoped typechecks passed. The full
-composite build still reports unrelated existing TypeScript errors in
-`packages/llm/llm`. Setup and portable packages have not been built, the app has
-not been installed, and no v0.9.3 tag or release has been created. v0.9.2
-remains the latest published release.
+Focused regression suites, shell preflight, shell build and Windows packaging
+passed. The full vendor composite build still reports unrelated existing
+TypeScript errors in `packages/llm/llm`. The user confirmed the installed NSIS
+setup works on Windows x64; the portable executable was built but not separately
+installation-tested. Windows x64 is the only supported release target.
 
 ## Español
 
@@ -52,10 +59,18 @@ remains the latest published release.
 - La comprobación de ABI falla de forma cerrada ante errores de carga de addons
   aplicables al host y omite explícitamente prebuilds de otros targets.
 
+### Distribución
+
+v0.9.3 está publicada para Windows x64 con setup NSIS (~178,5 MB) y portable
+(~651 MB / 620,8 MiB). El runtime
+DSH fijado en `0.2.1-alpha.2` sigue siendo una descarga separada desde la
+release v0.9.2 y se baja solo cuando hace falta.
+
 ### Estado de verificación
 
-Pasaron las suites de regresión focalizadas y los typechecks por paquete. El
-build compuesto completo sigue mostrando errores TypeScript preexistentes y
-ajenos en `packages/llm/llm`. Todavía no se compilaron setup ni portable, no se
-instaló la app y no se creó tag ni release v0.9.3. v0.9.2 sigue siendo la
-última release publicada.
+Pasaron las suites de regresión focalizadas, el preflight del shell, el build
+del shell y el empaquetado Windows. El build compuesto completo del vendor sigue
+mostrando errores TypeScript preexistentes y ajenos en `packages/llm/llm`. El
+usuario confirmó que el setup instalado funciona en Windows x64; el ejecutable
+portable se compiló pero no se probó mediante una instalación por separado.
+Windows x64 es el único target soportado.

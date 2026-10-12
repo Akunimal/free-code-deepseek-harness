@@ -8,21 +8,23 @@ servidores MCP y llamadas al modelo.
 
 ## Español
 
-## Estado actual: versión de la fuente 0.9.3 en desarrollo; última release publicada: v0.9.2 (Windows x64)
+## Estado actual: última release publicada: v0.9.3 (Windows x64)
 
-Versión de la fuente: 0.9.3 en desarrollo; última release publicada: v0.9.2 (Windows x64).
+Versión de la fuente: 0.9.3; última release publicada: v0.9.3 (Windows x64).
 
-El candidato de código 0.9.3 todavía no se compiló ni publicó. Los detalles de
-descarga de abajo corresponden a la release v0.9.2 ya publicada.
+v0.9.3 está publicada para Windows x64. El usuario instaló el setup NSIS y
+confirmó que funciona; el ejecutable portable se compiló, pero no se probó con
+una instalación por separado.
 
-v0.9.2 está publicado para Windows x64 con:
+La release v0.9.3 incluye:
 
 - un instalador NSIS (~178,5 MB);
-- un ejecutable portable de Windows (~178,2 MB);
-- el runtime DSH fijado en `0.2.1-alpha.2` como asset separado de ~421,6 MB,
-  descargado en el primer inicio si no existe una caché válida por usuario.
+- un ejecutable portable de Windows (~651 MB / 620,8 MiB);
+- `latest.yml` y el blockmap del setup para las actualizaciones;
+- el runtime DSH fijado en `0.2.1-alpha.2` sigue como asset separado de ~421,6 MB
+  en la release v0.9.2 y se descarga si no existe caché válida.
 
-**Soporte de plataformas: solo Windows x64** (v0.9.2 se empaquetó y se confirmó
+**Soporte de plataformas: solo Windows x64** (el setup v0.9.3 se empaquetó y se confirmó
 que funciona después de instalarlo en Windows x64). Windows ARM64, Linux
 (cualquier distribución/arquitectura) y macOS (ninguna arquitectura) no están
 probados ni soportados. No se publican artefactos para estas plataformas. Los
@@ -31,7 +33,7 @@ tratarse como releases utilizables. Las compilaciones son locales y no usan
 workflows de GitHub Actions.
 
 `0.4.3` es una referencia histórica de recuperación, no la release actual ni
-la fuente de verdad. v0.9.2 es la baseline publicada actual para Windows x64.
+la fuente de verdad. v0.9.3 es la baseline publicada actual para Windows x64.
 
 ## Qué incluye
 
@@ -89,12 +91,12 @@ superficie de memoria semántica.
 ## Instalación y primer uso
 
 1. Descargá el setup o portable de Windows de la
-   [release v0.9.2 en GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.2).
+   [release v0.9.3 en GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.3).
 2. Instalalo o descomprimilo y abrí el acceso directo/ejecutable real.
 3. Elegí la carpeta de tu proyecto en el picker.
 4. Pedile al modelo que inspeccione o modifique el proyecto.
 
-El instalador v0.9.2 incluye Electron, el gateway opencode2api, Tor, las
+El instalador v0.9.3 incluye Electron, el gateway opencode2api, Tor, las
 dependencias nativas y Tesseract (~178 MB). El runtime DSH grande se distribuye
 como asset separado: en el primer inicio, FreeCode descarga el archivo Windows
 x64 fijado en `0.2.1-alpha.2` (~421,6 MB), verifica su SHA-256 y ABI de
@@ -104,7 +106,7 @@ válida requiere Internet; si falla la descarga o validación, ofrece
 Reintentar/Cerrar y no inicia el Harness. Los MCP administrados todavía
 resuelven `uvx` (incluido, con fallbacks al PATH del usuario y descarga
 fijada). Si detecta una instalación incompleta, muestra el log y recomienda
-reinstalar desde la release oficial v0.9.2.
+reinstalar desde la release oficial v0.9.3.
 
 El bootstrap de Windows reutiliza silenciosamente un `uvx.exe` ya instalado o
 descarga el ZIP oficial fijado de uv en una carpeta de herramientas por usuario,
@@ -206,11 +208,11 @@ distingue un fallo de permisos de uno de herramienta/MCP.
 
 ## Updater y versión
 
-About usa `app.getVersion()`, por lo que el binario empaquetado v0.9.2 dice 0.9.2.
+About usa `app.getVersion()`, por lo que el binario empaquetado v0.9.3 dice 0.9.3.
 La app chequea updates al iniciar y cada seis horas. El control de actualizar
 es exactamente el botón circular primario de Enviar, con la flecha apuntando
 hacia abajo. Al descargar, tooltip/menú de tray y notificación nativa lo
-informan; la instalación/reinicio también es visible. v0.9.2 evita que el
+informan; la instalación/reinicio también es visible. v0.9.3 evita que el
 updater ofrezca como actualización un runtime DSH más viejo; la release desktop
 y el bootstrap de su runtime fijado son pasos separados.
 
@@ -262,7 +264,7 @@ limitado a vendor y fail-closed. No dejes una feature permanente como edición
 directa de `vendor/deepseek-harness`. Ver
 [docs/UPSTREAM-PATCHING.md](docs/UPSTREAM-PATCHING.md).
 
-## Gate local de Windows: v0.9.2
+## Gate local de Windows: v0.9.3
 
 Ejecutá desde PowerShell en la workstation mantenedora:
 
@@ -278,21 +280,23 @@ pnpm --filter @freecode/shell package
 pnpm --filter @freecode/shell smoke:nsis
 ```
 
-Para v0.9.2 se verificaron la suite Vitest del shell, el typecheck del shell y
-el empaquetado desktop; después se confirmó que la release instalada funciona
-en Windows x64. Setup y portable pesan unos 178 MB cada uno; el runtime DSH es el
-asset separado fijado que se describe arriba. Los conteos del gate de 0.9.0
+Para v0.9.3 pasaron el preflight del shell, el build del shell, los gates de
+regresión y el empaquetado setup/portable; el usuario confirmó que el setup
+instalado funciona en Windows x64. El portable no se probó con instalación por
+separado. El runtime DSH es el asset separado fijado que se describe arriba.
+Los conteos del gate de 0.9.0
 son históricos y siguen en sus [notas de release](release-notes-v0.9.0.md).
 
-La [release publicada v0.9.2](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.2)
-contiene setup, portable, blockmap, `latest.yml`, el tarball fijado del runtime
-del Harness y su checksum `.sha256`.
+La [release publicada v0.9.3](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.3)
+contiene setup, portable, blockmap y `latest.yml`. El tarball fijado del runtime
+del Harness y su checksum `.sha256` siguen en la release v0.9.2.
 
-Los artefactos quedan en `apps/shell/release/`.
+Los artefactos locales de v0.9.3 quedaron en `apps/shell/release-0.9.3-local/`;
+los archivos históricos de v0.9.2 en `apps/shell/release/` permanecen intactos.
 
 ## Builds manuales de otros sistemas
 
-Linux y macOS no son targets de release de v0.9.2, y Windows ARM64 tampoco
+Linux y macOS no son targets de release de v0.9.3, y Windows ARM64 tampoco
 está probado. Un contribuidor puede trabajar en un host nativo con Node,
 pnpm, Git, herramientas de build de Electron y dependencias nativas del
 sistema:
@@ -334,7 +338,7 @@ local en ambos idiomas.
 ## Índice de documentación
 
 - [Inventario de features upstream](docs/UPSTREAM-FEATURES.md)
-- [Notas de la release v0.9.3 (sin publicar)](release-notes-v0.9.3.md)
+- [Notas de la release v0.9.3](release-notes-v0.9.3.md)
 - [Notas de la release v0.9.2](release-notes-v0.9.2.md)
 - [Notas de la release 0.9.1](release-notes-v0.9.1.md)
 - [Notas de la release 0.9.0](release-notes-v0.9.0.md)

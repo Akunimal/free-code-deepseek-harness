@@ -7,26 +7,26 @@ through the ordered patch stack.
 
 ## Current baseline
 
-The published v0.9.2 release is the current Windows x64 baseline:
+The published v0.9.3 release is the current Windows x64 baseline:
 
-Source candidate: v0.9.3 (unreleased). No setup/portable package, installation,
-tag or release has been produced; the artifacts and install evidence below
-still describe published v0.9.2.
-
-- v0.9.2 Windows NSIS installer (~178.5 MB);
-- v0.9.2 Windows portable executable (~178.2 MB);
-- `latest.yml` plus blockmap for the updater;
+- v0.9.3 Windows NSIS installer (~178.5 MB), installed and confirmed working by
+  the user;
+- v0.9.3 Windows portable executable (~651 MB / 620.8 MiB), built but not
+  separately installation-tested;
+- `latest.yml` plus the setup blockmap for the updater;
 - pinned DSH `0.2.1-alpha.2` Windows x64 runtime tarball (~421.6 MB) and its
-  `.sha256` file, distributed separately from the desktop installers.
+  `.sha256` file remain in the v0.9.2 release, separately from desktop installers.
 
-For v0.9.2, the shell Vitest suite, shell typecheck and desktop packaging were
-verified; the installed release was then confirmed working on Windows x64.
+For v0.9.3, shell preflight, regression gates, shell build and Windows setup/
+portable packaging were verified; the user confirmed the installed setup works.
+The full vendor composite typecheck still reports unrelated existing errors in
+`packages/llm/llm`; the portable executable was not separately installed.
 Windows x64 is the only tested and supported release target. Windows ARM64, Linux
 and macOS are NOT tested and NOT supported; no artifacts are published for
 them.
 
 0.4.3 is a historical recovery reference, not a compatibility guarantee or the
-source of truth for current code. Release validation uses the current v0.9.2
+source of truth for current code. Release validation uses the current v0.9.3
 install and its pinned runtime bootstrap.
 
 The 0.7.0 roadmap is closed; its ledger is
@@ -53,16 +53,15 @@ These commands are local and do not use GitHub Actions. Required resources
 fail the gate when missing; they are never silently skipped because a
 developer machine lacks a fixture.
 
-The expected v0.9.2 Windows artifacts are:
+The v0.9.3 Windows desktop artifacts were built into the isolated local output
+directory to preserve historical v0.9.2 files:
 
 ~~~
-apps/shell/release/FreeCode-DeepSeek-Harness-0.9.2-win-x64-setup.exe
-apps/shell/release/FreeCode-DeepSeek-Harness-0.9.2-win-x64-portable.exe
-apps/shell/release/FreeCode-DeepSeek-Harness-0.9.2-win-x64-setup.exe.blockmap
-apps/shell/release/latest.yml
-apps/shell/release/deepseek-harness-runtime-0.2.1-alpha.2-win32-x64.tar.gz
-apps/shell/release/deepseek-harness-runtime-0.2.1-alpha.2-win32-x64.tar.gz.sha256
-apps/shell/release/win-unpacked/FreeCode DeepSeek Harness.exe
+apps/shell/release-0.9.3-local/FreeCode-DeepSeek-Harness-0.9.3-win-x64-setup.exe
+apps/shell/release-0.9.3-local/FreeCode-DeepSeek-Harness-0.9.3-win-x64-setup.exe.blockmap
+apps/shell/release-0.9.3-local/FreeCode-DeepSeek-Harness-0.9.3-win-x64-portable.exe
+apps/shell/release-0.9.3-local/latest.yml
+apps/shell/release-0.9.3-local/win-unpacked/FreeCode DeepSeek Harness.exe
 ~~~
 
 Artifact names are generated from the package version and verified after
@@ -74,7 +73,7 @@ tree.
 
 ## Runtime dependency policy
 
-The v0.9.2 desktop installers contain Electron, the opencode2api gateway (sole
+The v0.9.3 desktop installers contain Electron, the opencode2api gateway (sole
 model gateway — freellmpool removed), the bundled Tor binaries (`tor.exe`,
 `geoip`, `geoip6`), native picker/runtime files and Tesseract. The DSH runtime
 is intentionally excluded from setup/portable and shipped as a separate asset.
@@ -109,7 +108,7 @@ checksums, clean NSIS/portable install and state-ledger lock.
 The application updater is not a substitute for a release gate. It must keep
 the Send-shaped downward-arrow control, check at startup and on its scheduled
 interval, show tray/native progress during download/install and preserve the
-user data contract. v0.9.2 also prevents older DSH runtimes from appearing as
+user data contract. v0.9.3 also prevents older DSH runtimes from appearing as
 available upgrades.
 
 The source-only upstream update path is:
@@ -130,8 +129,8 @@ See [docs/UPSTREAM-PATCHING.md](UPSTREAM-PATCHING.md) and
 Older documents under docs/RELEASE-NOTES-v*.md describe historical releases
 and are intentionally not rewritten as current instructions. The published
 baseline is tracked at
-[GitHub release v0.9.2](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.2);
-full bilingual notes live in [release-notes-v0.9.2.md](../release-notes-v0.9.2.md).
+[GitHub release v0.9.3](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.3);
+full bilingual notes live in [release-notes-v0.9.3.md](../release-notes-v0.9.3.md).
 
 Previous baselines:
 [GitHub release v0.9.1](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.1) —
