@@ -69,6 +69,7 @@ function querySystemctl(command: string, args: readonly string[]): Promise<Syste
       encoding: 'utf8',
       env: managerEnvironment(),
       timeout: SYSTEMCTL_TIMEOUT_MS,
+      windowsHide: true,
     }, (error, stdout, stderr) => {
       const code = error === null ? 0 : (error as Error & { code?: string | number }).code
       resolveResult({

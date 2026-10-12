@@ -173,8 +173,8 @@
       "file": "141-freecode-spanish-translations.patch",
       "order": 141,
       "owner": "freecode",
-      "description": "Neutral Spanish dictionaries for all 30 upstream component locales (es stubs identical to en)",
-      "seam": "packages/client/* locales + experimental + extensions + session-query",
+      "description": "Neutral Spanish dictionaries for all 30 upstream component locales plus the EN/ES/ZH read-only recovery warning",
+      "seam": "packages/client/* locales + experimental + extensions + session-query + ui-conversation",
       "contractTests": [
         "packages/contract-tests/tests/locale.contract.test.ts"
       ],
@@ -234,6 +234,29 @@
         "packages/client/ui-primitives/tests/settings-form.client.spec.tsx",
         "packages/client/ui-primitives/tests/settings-fields.client.spec.tsx"
       ],
+      "vendorOnly": true
+    },
+    {
+      "file": "164-freecode-recovered-history-read-only.patch",
+      "order": 164,
+      "owner": "freecode",
+      "description": "Expose semantically recovered session prefixes as read-only history without Agent promotion or writes",
+      "seam": "packages/session-query + packages/api/session-controller + packages/client/ui-conversation",
+      "contractTests": [
+        "packages/api/session-controller/tests/agent.host.spec.ts",
+        "packages/api/session-controller/tests/session-history-journal.host.spec.ts",
+        "packages/api/session-controller/tests/session.client.spec.ts",
+        "packages/client/ui-conversation/tests/input-bar.client.spec.tsx"
+      ],
+      "vendorOnly": true
+    },
+    {
+      "file": "165-freecode-headless-process-inventory.patch",
+      "order": 165,
+      "owner": "freecode",
+      "description": "Hide remaining Node child-process launches found by the fail-closed source inventory",
+      "seam": "apps/desktop + packages/subprocess/subprocess-local",
+      "contractTests": [],
       "vendorOnly": true
     }
   ]

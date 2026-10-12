@@ -1,0 +1,60 @@
+diff --git a/vendor/deepseek-harness/apps/desktop/src/command-installation.ts b/vendor/deepseek-harness/apps/desktop/src/command-installation.ts
+index 3e181ae984..1374140115 100644
+--- a/vendor/deepseek-harness/apps/desktop/src/command-installation.ts
++++ b/vendor/deepseek-harness/apps/desktop/src/command-installation.ts
+@@ -158,7 +158,7 @@ async function restoreEntry(options: FileCommandInstallation, source: string, de
+ 
+ async function linkEntry(options: FileCommandInstallation, source: string, destination: string): Promise<void> {
+   // macOS Node link() follows symlinks; linkat preserves their identity and refuses occupied destinations.
+-  if (process.platform === 'darwin') await promisify(execFile)(options.linkHelper, [source, destination])
++  if (process.platform === 'darwin') await promisify(execFile)(options.linkHelper, [source, destination], { windowsHide: true })
+   else await link(source, destination)
+ }
+ 
+diff --git a/vendor/deepseek-harness/apps/desktop/src/command-management.ts b/vendor/deepseek-harness/apps/desktop/src/command-management.ts
+index 34c7848dfb..0413032d96 100644
+--- a/vendor/deepseek-harness/apps/desktop/src/command-management.ts
++++ b/vendor/deepseek-harness/apps/desktop/src/command-management.ts
+@@ -113,7 +113,7 @@ async function shellCommand(): Promise<{ activeCommand?: string; selectionUnknow
+   const shell = userInfo().shell
+   if (shell === null) return { selectionUnknown: true }
+   const script = "printf '\\0DSH_COMMAND\\0'; command -v dsh; printf '\\0'"
+-  const { stdout } = await promisify(execFile)(shell, ['-ilc', script], { timeout: 5000, maxBuffer: 65536 })
++  const { stdout } = await promisify(execFile)(shell, ['-ilc', script], { timeout: 5000, maxBuffer: 65536, windowsHide: true })
+   const value = stdout.split('\0DSH_COMMAND\0')[1]?.split('\0')[0]?.trim()
+   if (value === undefined) return { selectionUnknown: true }
+   if (value === '') return {}
+@@ -143,7 +143,7 @@ export class DesktopCommandManager {
+       if (elevated) {
+         const appleScript = 'on run argv\nset cmd to "/usr/bin/env -i " & quoted form of (item 1 of argv) & " " & quoted form of (item 2 of argv) & " " & quoted form of (item 3 of argv) & " " & quoted form of (item 4 of argv)\ndo shell script cmd with administrator privileges\nend run'
+         stdout = (await promisify(execFile)('/usr/bin/osascript', ['-e', appleScript, node, entry, operation, expected ?? ''],
+-          { maxBuffer: 65536 })).stdout
++          { maxBuffer: 65536, windowsHide: true })).stdout
+       } else {
+         const env = Object.fromEntries(Object.entries(process.env)
+           .filter(([name]) => !/KEY|SECRET|TOKEN|PASSWORD|^NODE_OPTIONS$|^NODE_PATH$/iu.test(name)))
+diff --git a/vendor/deepseek-harness/packages/subprocess/subprocess-local/src/linux-scope.ts b/vendor/deepseek-harness/packages/subprocess/subprocess-local/src/linux-scope.ts
+index 370d859167..ccd6e45bc6 100644
+--- a/vendor/deepseek-harness/packages/subprocess/subprocess-local/src/linux-scope.ts
++++ b/vendor/deepseek-harness/packages/subprocess/subprocess-local/src/linux-scope.ts
+@@ -69,6 +69,7 @@ function querySystemctl(command: string, args: readonly string[]): Promise<Syste
+       encoding: 'utf8',
+       env: managerEnvironment(),
+       timeout: SYSTEMCTL_TIMEOUT_MS,
++      windowsHide: true,
+     }, (error, stdout, stderr) => {
+       const code = error === null ? 0 : (error as Error & { code?: string | number }).code
+       resolveResult({
+diff --git a/vendor/deepseek-harness/packages/subprocess/subprocess-local/src/process-inspector.ts b/vendor/deepseek-harness/packages/subprocess/subprocess-local/src/process-inspector.ts
+index 297843584a..9632103795 100644
+--- a/vendor/deepseek-harness/packages/subprocess/subprocess-local/src/process-inspector.ts
++++ b/vendor/deepseek-harness/packages/subprocess/subprocess-local/src/process-inspector.ts
+@@ -120,7 +120,7 @@ const DEFAULT_INTERNALS: ProcessInspectorInternals = {
+   open: path => openSync(path, 'r'),
+   read: (fd, buffer, length, position) => readSync(fd, buffer, 0, length, position),
+   close: closeSync,
+-  exec: (file, args) => execFileSync(file, args, { encoding: 'utf8' }),
++  exec: (file, args) => execFileSync(file, args, { encoding: 'utf8', windowsHide: true }),
+   kill: (pid, signal) => process.kill(pid, signal),
+ }
+ /* v8 ignore stop */

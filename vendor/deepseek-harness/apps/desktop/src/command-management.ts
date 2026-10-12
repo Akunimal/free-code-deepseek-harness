@@ -113,7 +113,7 @@ async function shellCommand(): Promise<{ activeCommand?: string; selectionUnknow
   const shell = userInfo().shell
   if (shell === null) return { selectionUnknown: true }
   const script = "printf '\\0DSH_COMMAND\\0'; command -v dsh; printf '\\0'"
-  const { stdout } = await promisify(execFile)(shell, ['-ilc', script], { timeout: 5000, maxBuffer: 65536 })
+  const { stdout } = await promisify(execFile)(shell, ['-ilc', script], { timeout: 5000, maxBuffer: 65536, windowsHide: true })
   const value = stdout.split('\0DSH_COMMAND\0')[1]?.split('\0')[0]?.trim()
   if (value === undefined) return { selectionUnknown: true }
   if (value === '') return {}
@@ -143,7 +143,7 @@ export class DesktopCommandManager {
       if (elevated) {
         const appleScript = 'on run argv\nset cmd to "/usr/bin/env -i " & quoted form of (item 1 of argv) & " " & quoted form of (item 2 of argv) & " " & quoted form of (item 3 of argv) & " " & quoted form of (item 4 of argv)\ndo shell script cmd with administrator privileges\nend run'
         stdout = (await promisify(execFile)('/usr/bin/osascript', ['-e', appleScript, node, entry, operation, expected ?? ''],
-          { maxBuffer: 65536 })).stdout
+          { maxBuffer: 65536, windowsHide: true })).stdout
       } else {
         const env = Object.fromEntries(Object.entries(process.env)
           .filter(([name]) => !/KEY|SECRET|TOKEN|PASSWORD|^NODE_OPTIONS$|^NODE_PATH$/iu.test(name)))

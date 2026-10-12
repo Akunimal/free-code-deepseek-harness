@@ -1,0 +1,811 @@
+diff --git a/vendor/deepseek-harness/packages/api/session-controller/src/agent.ts b/vendor/deepseek-harness/packages/api/session-controller/src/agent.ts
+index 3f0fa77944..01e9eceafb 100644
+--- a/vendor/deepseek-harness/packages/api/session-controller/src/agent.ts
++++ b/vendor/deepseek-harness/packages/api/session-controller/src/agent.ts
+@@ -10,7 +10,7 @@ import type {} from '@deepseek-ai/dsh-agent-default-model'
+ import type {} from '@deepseek-ai/dsh-agent-preset-registry'
+ import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
+ import type { Session, SessionId } from '@deepseek-ai/dsh-session'
+-import type { SessionInspection } from '@deepseek-ai/dsh-session-persistence'
++import type { SessionHandleReadRecovery, SessionInspection } from '@deepseek-ai/dsh-session-persistence'
+ import { SessionQueryError, type SessionObservation } from '@deepseek-ai/dsh-session-query'
+ import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
+ import type {} from '@deepseek-ai/dsh-typert-registry'
+@@ -19,6 +19,16 @@ import type { ModelSelection } from './types.ts'
+ /** Cold Session identity absent from persistence. */
+ export class ApiSessionNotFound extends Error {}
+ 
++/** Persisted history recovered a valid prefix whose missing suffix forbids Agent activation and writes. */
++export class ApiSessionRecoveredReadOnly extends Error {
++  constructor(
++    readonly sessionId: SessionId,
++    readonly recovery: SessionHandleReadRecovery,
++  ) {
++    super(`session "${sessionId}" is read-only after recovering an invalid stored suffix`)
++  }
++}
++
+ /** Session identity whose lifecycle belongs to subagent routing. */
+ export class ApiSessionSubagentOwnership extends Error {
+   /** @param sessionId - identity reserved to subagent routing. */
+@@ -58,7 +68,7 @@ export class ApiSessionPresetConflict extends Error {
+ }
+ 
+ /** Failures produced while resolving one ordinary Session identity to its live Agent. */
+-export type ApiSessionAgentError = RemoteError<'session/not-found' | 'session/agent-busy' | 'session/writer-held' | 'gateway/internal'>
++export type ApiSessionAgentError = RemoteError<'session/not-found' | 'session/agent-busy' | 'session/writer-held' | 'gateway/bad-request' | 'gateway/internal'>
+ 
+ /** Result of resolving one ordinary Session identity to its live Agent. */
+ export type ApiSessionAgentResult =
+@@ -203,6 +213,11 @@ export class ApiSessionAgentController {
+       const published = this.liveAgent(sessionId)
+       return published ?? { agent }
+     } catch (error: unknown) {
++      if (error instanceof ApiSessionRecoveredReadOnly) {
++        return {
++          error: new RemoteError('gateway/bad-request', error.message, {}),
++        }
++      }
+       if (error instanceof ApiSessionNotFound) {
+         return { error: new RemoteError('session/not-found', error.message, { sessionId }) }
+       }
+@@ -428,6 +443,9 @@ export class ApiSessionAgentController {
+     if (hasApiSessionSubagentOwner(this.ctx, { header: observation.header }, undefined)) {
+       throw new ApiSessionSubagentOwnership(sessionId)
+     }
++    if (observation.recovery !== undefined) {
++      throw new ApiSessionRecoveredReadOnly(sessionId, observation.recovery)
++    }
+     const composition = await this.composeAgent(this.presetForObservation(observation))
+     const published = this.ctx.sessions.get(sessionId)
+     const live = this.ctx.agents.get(sessionId)
+@@ -460,6 +478,9 @@ export class ApiSessionAgentController {
+         if (hasApiSessionSubagentOwner(this.ctx, { header: observation.header }, undefined)) {
+           throw new ApiSessionSubagentOwnership(sessionId)
+         }
++        if (observation.recovery !== undefined) {
++          throw new ApiSessionRecoveredReadOnly(sessionId, observation.recovery)
++        }
+         if (observation.header.cwd !== cwd) {
+           throw new ApiSessionCwdConflict(sessionId, cwd, observation.header.cwd)
+         }
+diff --git a/vendor/deepseek-harness/packages/api/session-controller/src/client/contract/snapshot.ts b/vendor/deepseek-harness/packages/api/session-controller/src/client/contract/snapshot.ts
+index 161cd858b4..fa5d3579c8 100644
+--- a/vendor/deepseek-harness/packages/api/session-controller/src/client/contract/snapshot.ts
++++ b/vendor/deepseek-harness/packages/api/session-controller/src/client/contract/snapshot.ts
+@@ -4,6 +4,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
+ import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
+ import type { RemoteFailure } from '@deepseek-ai/dsh-typert-protocol'
+ import type { SessionRequestId } from '../../types.ts'
++import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence'
+ 
+ /** One image displayed by a local submission echo before durable admission. */
+ export interface PendingSubmissionImage {
+@@ -79,6 +80,8 @@ export interface SessionSnapshot {
+   readonly removed: boolean
+   readonly openState: OpenState
+   readonly openError: RemoteFailure | null
++  /** Present when the Host opened only the valid prefix of a corrupt stored log; the Session is read-only. */
++  readonly recovery?: SessionHandleReadRecovery
+   readonly hasMore: boolean
+   readonly loadingOlder: boolean
+   readonly promptError: PromptError | null
+diff --git a/vendor/deepseek-harness/packages/api/session-controller/src/client/sessions/session.ts b/vendor/deepseek-harness/packages/api/session-controller/src/client/sessions/session.ts
+index 284abc5656..406f7a31a0 100644
+--- a/vendor/deepseek-harness/packages/api/session-controller/src/client/sessions/session.ts
++++ b/vendor/deepseek-harness/packages/api/session-controller/src/client/sessions/session.ts
+@@ -33,6 +33,7 @@ import { isRemoteFailure } from '@deepseek-ai/dsh-api-gateway/client'
+ import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
+ import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
+ import type { SessionRemotes } from './remotes.ts'
++import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence'
+ import { ProjectionValueStore } from './projection-store.ts'
+ import type { ProjectionsBaseline } from './projection-store.ts'
+ import { resolvedClientTimeZone } from '../time-zone.ts'
+@@ -48,6 +49,17 @@ function projectionsBaseline(value: SessionProjectionBaseline): ProjectionsBasel
+   }
+ }
+ 
++function recoveredReadOnlyError(
++  sessionId: SessionId,
++  recovery: SessionHandleReadRecovery,
++): RemoteError<'gateway/bad-request'> {
++  return new RemoteError(
++    'gateway/bad-request',
++    `session "${sessionId}" is read-only after recovering an invalid stored suffix at seq ${String(recovery.firstInvalidSeq)}`,
++    {},
++  )
++}
++
+ /** Minimum message count for ordinary history windows. */
+ export const PAGE_MESSAGES = 50
+ 
+@@ -99,6 +111,7 @@ export class Session implements SessionFace {
+   private hasMore = false
+   private openState: OpenState = 'cold'
+   private openError: RemoteFailure | null = null
++  private recovery: SessionHandleReadRecovery | undefined
+   private openPromise: Promise<void> | null = null
+   /** Bumped by stream replacement to invalidate an in-flight doOpen. Stale
+    *  passes drop all writes once the generation moves on. */
+@@ -257,6 +270,13 @@ export class Session implements SessionFace {
+     signal?: AbortSignal,
+     requestId?: SessionRequestId,
+   ): Promise<RemoteResult<{ accepted: true }>> {
++    if (this.recovery !== undefined) {
++      const error = recoveredReadOnlyError(this.sessionId, this.recovery)
++      if (requestId !== undefined) this.retireFailedSubmission(requestId)
++      this.promptError = { op: 'send', error }
++      this.notifier.markDirty()
++      return { ok: false, error }
++    }
+     this.promptError = null
+     this.lastAgentError = null
+     // Synchronous, before the first await: the blank → engaging edge must be
+@@ -334,6 +354,7 @@ export class Session implements SessionFace {
+ 
+   /** Apply one operation to a still-pending queue occurrence. */
+   async updateQueue(itemId: MessageId, action: QueueAction): Promise<RemoteResult<{ accepted: true }>> {
++    if (this.recovery !== undefined) return { ok: false, error: recoveredReadOnlyError(this.sessionId, this.recovery) }
+     return this.remote.session.updateQueue({ sessionId: this.sessionId, itemId, action })
+   }
+ 
+@@ -345,6 +366,7 @@ export class Session implements SessionFace {
+    * @returns the cancel result.
+    */
+   async cancel(): Promise<RemoteResult<{ accepted: true }>> {
++    if (this.recovery !== undefined) return { ok: false, error: recoveredReadOnlyError(this.sessionId, this.recovery) }
+     const address = this.address
+     const result = address !== undefined
+       ? await this.remote.subagents.interruptByParent(
+@@ -370,6 +392,7 @@ export class Session implements SessionFace {
+    * @returns the rename result (normalized accepted title + title event seq).
+    */
+   async rename(title: string): Promise<RemoteResult<{ title: string; seq: SessionSeq }>> {
++    if (this.recovery !== undefined) return { ok: false, error: recoveredReadOnlyError(this.sessionId, this.recovery) }
+     const result = await this.remote.session.rename({ sessionId: this.sessionId, title })
+     if (!result.ok) return result
+     const seq = SessionSeq(result.value.seq)
+@@ -385,6 +408,7 @@ export class Session implements SessionFace {
+    * @returns the admission result.
+    */
+   async command(line: string): Promise<RemoteResult<{ matched: boolean }>> {
++    if (this.recovery !== undefined) return { ok: false, error: recoveredReadOnlyError(this.sessionId, this.recovery) }
+     const result = await this.remote.commands.execute(this.sessionId, line, [])
+     if (!result.ok) return result
+     return { ok: true, value: { matched: result.value !== undefined } }
+@@ -651,6 +675,7 @@ export class Session implements SessionFace {
+           change.hasMore,
+           change.page.projections === undefined ? undefined : projectionsBaseline(change.page.projections),
+           change.page.assistantStream,
++          change.page.recovery,
+         )
+         return
+       case 'prepend':
+@@ -670,6 +695,7 @@ export class Session implements SessionFace {
+     hasMore: boolean,
+     projections?: ProjectionsBaseline,
+     assistantStream?: SessionAssistantStreamBaseline,
++    recovery?: SessionHandleReadRecovery,
+   ): void {
+     // A durable gap-repair page has no assistant baseline. Clearing transient
+     // attempts makes a held notification reopen follow once for an atomic
+@@ -677,6 +703,7 @@ export class Session implements SessionFace {
+     const visible = this.assistantStream.replace(entries, assistantStream)
+     this.baseSeq = SessionLogOffset(entries[0]?.event.seq ?? 0)
+     this.hasMore = hasMore
++    this.recovery = recovery
+     if (this.pendingHistory !== null) {
+       this.pendingHistory.beforeSeq = this.baseSeq
+       this.pendingHistory.hasMore = hasMore
+@@ -902,6 +929,7 @@ export class Session implements SessionFace {
+       removed: this.removed,
+       openState: this.openState,
+       openError: this.openError,
++      ...(this.recovery === undefined ? {} : { recovery: this.recovery }),
+       hasMore: this.hasMore,
+       loadingOlder: this.loadingOlder,
+       promptError: this.promptError,
+diff --git a/vendor/deepseek-harness/packages/api/session-controller/src/client/transport.ts b/vendor/deepseek-harness/packages/api/session-controller/src/client/transport.ts
+index fc2a11a0bb..4229f9a3df 100644
+--- a/vendor/deepseek-harness/packages/api/session-controller/src/client/transport.ts
++++ b/vendor/deepseek-harness/packages/api/session-controller/src/client/transport.ts
+@@ -20,6 +20,7 @@ import type {
+   SessionPageRequest,
+   SessionProjectionBaseline,
+ } from '../types.ts'
++import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence'
+ import {
+   historyEntries,
+   historyRecordFirstSeq,
+@@ -44,6 +45,7 @@ export type SessionRemote = ClientRemote['session']
+ interface SessionJournalPage extends SessionPage {
+   readonly projections?: SessionProjectionBaseline
+   readonly assistantStream?: SessionAssistantStreamBaseline
++  readonly recovery?: SessionHandleReadRecovery
+ }
+ 
+ /** One complete publication from the Session journal stream. */
+@@ -199,6 +201,7 @@ export class SessionEventStream extends RemoteJournalStream<
+             hasMore: frame.hasMore,
+             projections: frame.projections,
+             assistantStream: frame.assistantStream,
++            ...(frame.recovery === undefined ? {} : { recovery: frame.recovery }),
+           },
+         }
+         continue
+diff --git a/vendor/deepseek-harness/packages/api/session-controller/src/history.ts b/vendor/deepseek-harness/packages/api/session-controller/src/history.ts
+index 07fbbfe6be..37bd2b2ba5 100644
+--- a/vendor/deepseek-harness/packages/api/session-controller/src/history.ts
++++ b/vendor/deepseek-harness/packages/api/session-controller/src/history.ts
+@@ -173,6 +173,14 @@ export class SessionHistoryController {
+         })
+         notify()
+       }, { global: true })
++    let listenersDisposed = false
++    const disposeListeners = (): void => {
++      if (listenersDisposed) return
++      listenersDisposed = true
++      disposeCreated()
++      disposeEvent()
++      disposeAssistantStream?.()
++    }
+     const onAbort = (): void => { notify() }
+     signal.addEventListener('abort', onAbort, { once: true })
+     try {
+@@ -199,8 +207,18 @@ export class SessionHistoryController {
+         projections: source.projections === undefined
+           ? { asOfSeq: cursor, values: {} }
+           : projectionBlock(source.projections),
++        ...(source.recovery === undefined ? {} : { recovery: source.recovery }),
+         ...assistantStream === undefined ? {} : { assistantStream },
+       }
++      if (source.recovery !== undefined) {
++        // A recovered prefix is useful for reading but must never be promoted
++        // into an Agent or accept a later event as if the omitted suffix existed.
++        disposeListeners()
++        while (!follower.closed && !signal.aborted) {
++          await new Promise<void>((resolve) => { wake = resolve })
++        }
++        return
++      }
+       if (address.kind === 'session' && source.source === 'prepared') {
+         const promotion = source.retain()
+         try {
+@@ -234,9 +252,7 @@ export class SessionHistoryController {
+     } finally {
+       this.closeFollowers.delete(close)
+       signal.removeEventListener('abort', onAbort)
+-      disposeCreated()
+-      disposeEvent()
+-      disposeAssistantStream?.()
++      disposeListeners()
+     }
+   }
+ 
+diff --git a/vendor/deepseek-harness/packages/api/session-controller/src/types.ts b/vendor/deepseek-harness/packages/api/session-controller/src/types.ts
+index 4dfb1c39d1..a671d861ff 100644
+--- a/vendor/deepseek-harness/packages/api/session-controller/src/types.ts
++++ b/vendor/deepseek-harness/packages/api/session-controller/src/types.ts
+@@ -11,6 +11,7 @@ import type { SessionId, SessionSeqCursor } from '@deepseek-ai/dsh-session/types
+ import type { SessionProjectionMap } from '@deepseek-ai/dsh-session-projection/types'
+ import type { JsonValue } from '@deepseek-ai/dsh-util-values'
+ import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
++import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence'
+ 
+ declare module '@deepseek-ai/dsh-session-projection/types' {
+   interface SessionProjectionStateMap {
+@@ -560,6 +561,8 @@ export type SessionFollowFrame =
+     readonly hasMore: boolean
+     readonly projections: SessionProjectionBaseline
+     readonly assistantStream?: SessionAssistantStreamBaseline
++    /** The event prefix is recovered from a corrupt suffix; clients must keep this Session read-only. */
++    readonly recovery?: SessionHandleReadRecovery
+   }
+   | SessionEventEntry
+   | { readonly type: 'assistant-stream'; readonly frame: SessionAssistantStreamFrame }
+diff --git a/vendor/deepseek-harness/packages/api/session-controller/tests/agent.host.spec.ts b/vendor/deepseek-harness/packages/api/session-controller/tests/agent.host.spec.ts
+index 4756ae45b0..34236493cc 100644
+--- a/vendor/deepseek-harness/packages/api/session-controller/tests/agent.host.spec.ts
++++ b/vendor/deepseek-harness/packages/api/session-controller/tests/agent.host.spec.ts
+@@ -8,6 +8,7 @@ import { agentPresetProjectionDefinition } from '@deepseek-ai/dsh-agent-preset-r
+ import SessionStore, { SESSION_FORMAT_VERSION, SessionLogOffset, SessionId } from '@deepseek-ai/dsh-session'
+ import type { SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
+ import { SessionAlreadyOwnedError } from '@deepseek-ai/dsh-session-persistence'
++import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence'
+ import type { SessionObservation } from '@deepseek-ai/dsh-session-query'
+ import TypertRegistry from '@deepseek-ai/dsh-typert-registry'
+ import { afterEach, describe, expect, it, vi } from 'vitest'
+@@ -15,6 +16,7 @@ import {
+   ApiSessionAgentController,
+   ApiSessionCwdConflict,
+   ApiSessionNotFound,
++    ApiSessionRecoveredReadOnly,
+   ApiSessionSubagentOwnership,
+   inspectApiSession,
+ } from '../src/agent.ts'
+@@ -216,6 +218,29 @@ describe('ApiSession Agent lookup and recovery', () => {
+     })
+   })
+ 
++  it('refuses to activate or adopt a session whose persisted log recovered an invalid tail', async () => {
++    const { ctx, agents } = await harness()
++    const meta = header('recovered-read-only')
++    const recovery: SessionHandleReadRecovery = {
++      kind: 'invalid-tail',
++      firstInvalidSeq: 3,
++      discardedEvents: 2,
++      reason: 'invalid tool result',
++    }
++    providePersistence(ctx, {
++      list: () => Promise.resolve([meta]),
++      inspect: () => Promise.resolve({ meta, events: [], recovery }),
++    })
++    const resume = vi.spyOn(ctx.agents, 'resume')
++
++    await expect(agents.resolveAgent(meta.id)).resolves.toMatchObject({
++      error: { code: 'gateway/bad-request', message: expect.stringContaining('read-only') as string },
++    })
++    await expect(agents.ensureSession(meta.id, '/workspace', true))
++      .rejects.toBeInstanceOf(ApiSessionRecoveredReadOnly)
++    expect(resume).not.toHaveBeenCalled()
++  })
++
+   it('reports not-found and ordinary resume failures without fabricating an Agent', async () => {
+     const missing = await harness()
+     providePersistence(missing.ctx, {
+diff --git a/vendor/deepseek-harness/packages/api/session-controller/tests/remote/session.client.ts b/vendor/deepseek-harness/packages/api/session-controller/tests/remote/session.client.ts
+index 4d86abcf9e..6e016fcf84 100644
+--- a/vendor/deepseek-harness/packages/api/session-controller/tests/remote/session.client.ts
++++ b/vendor/deepseek-harness/packages/api/session-controller/tests/remote/session.client.ts
+@@ -9,6 +9,7 @@
+ import { AttachmentId, type FileAttachmentRef, type ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
+ import { ok, type RemoteMock, type RemoteTable, type StreamScript, type UnaryRuleFn } from '@deepseek-ai/dsh-remote-mock'
+ import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
++import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence'
+ import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
+ import type {
+   SessionAssistantStreamBaseline, SessionFollowFrame, SessionFollowRequest,
+@@ -79,6 +80,7 @@ export function followScript(
+   options: {
+     cursor?: number
+     assistantStream?: SessionAssistantStreamBaseline | (() => SessionAssistantStreamBaseline)
++    recovery?: SessionHandleReadRecovery
+   } = {},
+ ): StreamScript {
+   return async ([request], stream) => {
+@@ -91,7 +93,10 @@ export function followScript(
+     const assistantStream = typeof options.assistantStream === 'function'
+       ? options.assistantStream()
+       : options.assistantStream
+-    stream.push(followSnapshot(result.value, follow, options.cursor, assistantStream))
++    stream.push({
++      ...followSnapshot(result.value, follow, options.cursor, assistantStream),
++      ...(options.recovery === undefined ? {} : { recovery: options.recovery }),
++    } as Extract<SessionFollowFrame, { readonly type: 'snapshot' }>)
+   }
+ }
+ 
+diff --git a/vendor/deepseek-harness/packages/api/session-controller/tests/session-history-journal.host.spec.ts b/vendor/deepseek-harness/packages/api/session-controller/tests/session-history-journal.host.spec.ts
+index 86ed42a678..d5431d9b5d 100644
+--- a/vendor/deepseek-harness/packages/api/session-controller/tests/session-history-journal.host.spec.ts
++++ b/vendor/deepseek-harness/packages/api/session-controller/tests/session-history-journal.host.spec.ts
+@@ -3,13 +3,14 @@
+ import { describe, expect, it, onTestFinished, vi } from 'vitest'
+ import { Context } from '@deepseek-ai/cordis'
+ import AgentRegistry, { type Agent, type AssistantStreamFrame } from '@deepseek-ai/dsh-agent'
+-import SessionStore from '@deepseek-ai/dsh-session'
++import SessionStore, { SESSION_FORMAT_VERSION, SessionId } from '@deepseek-ai/dsh-session'
+ import { LlmAttemptId, ToolCallId, createMessage, createToolResultMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
+ import type { MessageSource } from '@deepseek-ai/dsh-llm'
+-import type { Session, SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
++import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
++import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence'
+ import { SessionHistoryController } from '@deepseek-ai/dsh-api-session-controller/src/history.ts'
+ import type { SessionFollowFrame, SessionPage, SessionWireEvent } from '@deepseek-ai/dsh-api-session-controller/types'
+-import { createSessionTestRemote, installSessionReadTestServices } from './test-remote.ts'
++import { createSessionTestRemote, installSessionReadTestServices, testSessionPersistence } from './test-remote.ts'
+ 
+ type CheckpointSource = Extract<MessageSource, { readonly kind: 'compact-checkpoint' }>
+ 
+@@ -102,6 +103,59 @@ function pageEvents(page: SessionPage): SessionWireEvent[] {
+ }
+ 
+ describe('Session history raw journal', () => {
++  it('streams a recovered valid prefix as read-only without promoting it', async () => {
++    const { ctx } = await harness()
++    const fixture = ctx.sessions.create(undefined, { meta: { cwd: '/workspace' } })
++    fixture.append('turn/start', { turn: 1 })
++    appendUserText(fixture, 'retained prefix')
++    const events = fixture.snapshotEvents()
++    const meta = {
++      ...fixture.header,
++      id: SessionId('cold-recovered-prefix'),
++      version: SESSION_FORMAT_VERSION,
++      cwd: '/workspace',
++    }
++    const recovery: SessionHandleReadRecovery = {
++      kind: 'invalid-tail',
++      firstInvalidSeq: events.length,
++      discardedEvents: 2,
++      reason: 'invalid tool result',
++    }
++    ctx.provide('sessionPersistence', testSessionPersistence(ctx, {
++      list: () => Promise.resolve([meta]),
++      inspect: () => Promise.resolve({ meta, events, recovery }),
++    }) as never)
++    const promote = vi.fn((observation: import('@deepseek-ai/dsh-session-query').SessionObservation) => {
++      observation[Symbol.dispose]()
++    })
++    const history = new SessionHistoryController(ctx, promote)
++    const abort = new AbortController()
++    const iterator = history.follow({
++      address: { kind: 'session', sessionId: meta.id },
++      assistantStream: true,
++    }, abort.signal)[Symbol.asyncIterator]()
++
++    try {
++      const opening = await iterator.next()
++      expect(opening.value).toMatchObject({
++        type: 'snapshot',
++        cursor: 2,
++        recovery,
++      })
++      if (opening.value?.type !== 'snapshot') throw new Error('recovered history did not open with a snapshot')
++      expect(opening.value.records.map(record => record.event.type))
++        .toEqual(['turn/start', 'user/message', 'turn/end'])
++      expect(opening.value.records.slice(0, 2).map(record => record.event.seq)).toEqual([0, 1])
++      const follows = iterator.next()
++      await Promise.resolve()
++      expect(promote).not.toHaveBeenCalled()
++      abort.abort()
++      await expect(follows).resolves.toMatchObject({ done: true })
++    } finally {
++      await disposeFollow(ctx, iterator, abort)
++    }
++  })
++
+   it('opens an empty opted-in Assistant baseline before any live attempt exists', async () => {
+     const { ctx } = await harness()
+     const session = ctx.sessions.create(undefined, { meta: { cwd: '/workspace' } })
+diff --git a/vendor/deepseek-harness/packages/api/session-controller/tests/session.client.spec.ts b/vendor/deepseek-harness/packages/api/session-controller/tests/session.client.spec.ts
+index ccba6d3a6a..42900157bb 100644
+--- a/vendor/deepseek-harness/packages/api/session-controller/tests/session.client.spec.ts
++++ b/vendor/deepseek-harness/packages/api/session-controller/tests/session.client.spec.ts
+@@ -82,6 +82,42 @@ describe('Session open', () => {
+     expect(session.eventSource.getSnapshot().change).toMatchObject({ kind: 'replace' })
+   })
+ 
++  it('keeps a recovered history read-only and blocks prompt before the Remote boundary', async ({ mock, start }) => {
++    const session = await sessionBench(mock, start, SID)
++    const recovery = {
++      kind: 'invalid-tail',
++      firstInvalidSeq: 4,
++      discardedEvents: 2,
++      reason: 'invalid tool result',
++    } as const
++    mock.stream(FOLLOW, followScript(history(plainTurn(SessionSeq(0), 1, 'valid prefix', 'reply')), { recovery }))
++
++    await session.open()
++
++    expect((session.getSnapshot() as unknown as { recovery?: typeof recovery }).recovery).toEqual(recovery)
++    expect(eventSeqs(session)).toEqual([0, 1, 2, 3, 4, 5])
++    expect(session.getSnapshot().promptAttempted).toBe(false)
++    await expect(session.prompt([{ type: 'text', text: 'must not send' }], 'queue'))
++      .resolves.toMatchObject({ ok: false, error: { code: 'gateway/bad-request' } })
++    await expect(session.updateQueue('queued-item' as never, { kind: 'remove' }))
++      .resolves.toMatchObject({ ok: false, error: { code: 'gateway/bad-request' } })
++    await expect(session.cancel()).resolves.toMatchObject({
++      ok: false, error: { code: 'gateway/bad-request' },
++    })
++    await expect(session.rename('must not rename')).resolves.toMatchObject({
++      ok: false, error: { code: 'gateway/bad-request' },
++    })
++    await expect(session.command('/must-not-run')).resolves.toMatchObject({
++      ok: false, error: { code: 'gateway/bad-request' },
++    })
++    expect(mock.log.requests('session/prompt')).toHaveLength(0)
++    expect(mock.log.requests('session/updateQueue')).toHaveLength(0)
++    expect(mock.log.requests('session/cancel')).toHaveLength(0)
++    expect(mock.log.requests('session/rename')).toHaveLength(0)
++    expect(mock.log.requests('commands/execute')).toHaveLength(0)
++    expect(session.getSnapshot().promptAttempted).toBe(false)
++  }, COLD_BOOT_TIMEOUT_MS)
++
+   it('is idempotent: concurrent opens share one follow, reopening when open is a no-op', async ({ mock, start }) => {
+     const session = await sessionBench(mock, start, SID)
+     await Promise.all([session.open(), session.open()])
+diff --git a/vendor/deepseek-harness/packages/api/session-controller/tests/test-remote.ts b/vendor/deepseek-harness/packages/api/session-controller/tests/test-remote.ts
+index 71db06b22b..5d4258b7cf 100644
+--- a/vendor/deepseek-harness/packages/api/session-controller/tests/test-remote.ts
++++ b/vendor/deepseek-harness/packages/api/session-controller/tests/test-remote.ts
+@@ -16,6 +16,7 @@ import {
+   SessionPersistenceRevision,
+   SessionReadOnlyError,
+   type SessionAccess,
++  type SessionHandleReadRecovery,
+   type SessionHandle,
+   type SessionHandleReadOptions,
+   type SessionPersistenceListOptions,
+@@ -120,6 +121,7 @@ const TEST_IMAGE_LIMITS: ImageAttachmentLimits = Object.freeze({
+ interface TestSessionInspection {
+   readonly meta: SessionHeader
+   readonly events: readonly SessionEvent[]
++  readonly recovery?: SessionHandleReadRecovery
+ }
+ 
+ type LegacyTestPersistence = Record<string, unknown> & {
+@@ -155,6 +157,7 @@ function testReadHandle(
+       return Promise.resolve({
+         eventState: 'detached',
+         events: structuredClone(events.slice(offset, length === undefined ? undefined : offset + length)),
++        ...(inspection.recovery === undefined ? {} : { recovery: inspection.recovery }),
+       } as const)
+     },
+     append: () => Promise.reject(new SessionReadOnlyError(sessionId, 'append')),
+diff --git a/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/InputBar.module.css b/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/InputBar.module.css
+index 4676f4cd7d..4009d23b13 100644
+--- a/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/InputBar.module.css
++++ b/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/InputBar.module.css
+@@ -42,6 +42,12 @@
+   line-height: 18px;
+ }
+ 
++.recoveryNotice {
++  border: 1px solid var(--dsw-alias-border-secondary);
++  background: var(--dsw-alias-interactive-bg-hover);
++  color: var(--dsw-alias-label-primary);
++}
++
+ .card {
+   box-sizing: border-box;
+   position: relative; /* overlay anchor positioning context */
+diff --git a/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/InputBar.tsx b/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/InputBar.tsx
+index 031413132b..2ae355cbc5 100644
+--- a/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/InputBar.tsx
++++ b/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/InputBar.tsx
+@@ -61,6 +61,8 @@ export const InputBar = memo(function InputBar({
+   useEffect(() => { setActivity(false) }, [sessionId])
+   const promptError = useSession(s => s.promptError) ?? null
+   const running = useSession(s => s.running) ?? false
++  const recovery = useSession(s => s.recovery)
++  const recoveredReadOnly = recovery !== undefined
+   const subagent = useSession(s => s.subagent) ?? null
+   const removed = useSession(s => s.removed) ?? false
+   // Plan mode swaps the composer placeholder (the projection is the folded
+@@ -136,13 +138,13 @@ export const InputBar = memo(function InputBar({
+   // inert no-workspace state, the machine faces absent (no session), or a
+   // parent-offline continuable child. An owner block also disables input;
+   // adjudicating and submitting render read-only so the draft stays visible.
+-  const disabled = removed || inert || !live || blocked !== undefined || parentOffline
++  const disabled = removed || inert || !live || blocked !== undefined || parentOffline || recoveredReadOnly
+   const locked = disabled
+   // The model seat is the ONE control a block leaves live: every block this
+   // contract has is cleared by choosing a model, so locking it too would leave
+   // the composer asking for the only thing it prevents. The other reasons to
+   // be disabled do lock it — there is no session to choose a model for.
+-  const modelSeatLocked = removed || inert || !live
++  const modelSeatLocked = removed || inert || !live || recoveredReadOnly
+   const machineBusy = input?.phase === 'adjudicating' || input?.phase === 'submitting'
+   // The no-workspace surface remains the resident DOM node but acts as the
+   // existing picker trigger. Message controls stay locked until a Session
+@@ -209,7 +211,7 @@ export const InputBar = memo(function InputBar({
+   // The host enforces the same image limits at submit for callers that bypass
+   // this composer.
+   const intakeFiles = useCallback((files: readonly File[], directories?: ReadonlySet<File>): void => {
+-    if (subagent !== null || addFiles === undefined || files.length === 0) return
++    if (recoveredReadOnly || locked || subagent !== null || addFiles === undefined || files.length === 0) return
+     const rejected = ((): string | null => {
+       if (imageLimits !== undefined) {
+         const mediaTypes = imageLimits.mediaTypes as readonly string[]
+@@ -230,7 +232,7 @@ export const InputBar = memo(function InputBar({
+       return addFiles(files, directories)
+     })()
+     if (rejected !== null) showToast(rejected)
+-  }, [subagent, addFiles, attachments, imageLimits, showToast, t])
++  }, [recoveredReadOnly, locked, subagent, addFiles, attachments, imageLimits, showToast, t])
+ 
+   const canAcceptDrop = subagent === null && !locked && !machineBusy && addFiles !== undefined
+ 
+@@ -300,10 +302,10 @@ export const InputBar = memo(function InputBar({
+   // describes a delivery the click cannot or does not perform; every other
+   // state keeps plain Send. A continuable child keeps Send primary and
+   // exposes Stop independently.
+-  const primaryStops = running && subagent === null && (empty || blocked !== undefined)
++  const primaryStops = !recoveredReadOnly && running && subagent === null && (empty || blocked !== undefined)
+   // Disabled native buttons may omit mouseleave; their tooltip must close from state.
+   const primaryDisabled = primaryStops ? stop === undefined : empty || disabled || machineBusy || uploadsPending
+-  const interruptible = running && continuable
++  const interruptible = !recoveredReadOnly && running && continuable
+   const primarySubmitMode = resolveSubmitMode(busyEnter, running, 'enter', steeringAvailable)
+   const plainMessageDraft = !empty && input?.phase === 'plain' && !draft.trimStart().startsWith('/')
+   const primaryLabel = primaryStops
+@@ -367,6 +369,15 @@ export const InputBar = memo(function InputBar({
+           {notice.text}
+         </div>
+       )}
++      {recovery !== undefined && (
++        <div className={clsx(css.notice, css.recoveryNotice)} role="status" data-session-recovery>
++          {t('history.recoveredReadOnly', {
++            count: recovery.discardedEvents,
++            seq: recovery.firstInvalidSeq,
++            reason: recovery.reason,
++          })}
++        </div>
++      )}
+       {/* Trigger clicks land on the card, not the editor: the toolbar row's
+           disabled controls swallow clicks otherwise (the CSS state disarms
+           their pointer events), so the WHOLE capsule is the pick target.
+@@ -435,7 +446,7 @@ export const InputBar = memo(function InputBar({
+               ref={fileInputRef}
+               type="file"
+               multiple
+-              disabled={subagent !== null}
++              disabled={subagent !== null || locked}
+               hidden
+               onChange={onPickFiles}
+             />
+diff --git a/vendor/deepseek-harness/packages/client/ui-conversation/tests/input-bar.client.spec.tsx b/vendor/deepseek-harness/packages/client/ui-conversation/tests/input-bar.client.spec.tsx
+index 3b025155eb..a3ffd65c94 100644
+--- a/vendor/deepseek-harness/packages/client/ui-conversation/tests/input-bar.client.spec.tsx
++++ b/vendor/deepseek-harness/packages/client/ui-conversation/tests/input-bar.client.spec.tsx
+@@ -33,7 +33,7 @@ import type {
+ import type { DraftAttachmentId } from '../src/client/contract/input.ts'
+ import { InputBar } from '../src/client/skeleton/InputBar.tsx'
+ import type { InputBarProps } from '../src/client/skeleton/InputBar.tsx'
+-import { en, zh } from '../src/client/locales.ts'
++import { en, es, zh } from '../src/client/locales.ts'
+ 
+ // Every fixture carries the resource hook the resources plugin merges into GlobalStandardProps.
+ const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined })) as GlobalStandardProps['useResource']
+@@ -77,6 +77,12 @@ interface BenchOptions {
+   running?: boolean
+   subagent?: Exclude<SessionSnapshot['subagent'], null>
+   disabled?: boolean
++  recovery?: {
++    readonly kind: 'invalid-tail'
++    readonly firstInvalidSeq: number
++    readonly discardedEvents: number
++    readonly reason: string
++  }
+   inert?: boolean
+   blocked?: { readonly reason: string }
+   workspacePickerOpen?: boolean
+@@ -128,7 +134,8 @@ function bench(over?: BenchOptions) {
+     subagent: over?.subagent ?? null,
+     removed: over?.disabled ?? false,
+     promptError: over?.promptError ?? null,
+-  }))
++    ...(over?.recovery === undefined ? {} : { recovery: over.recovery }),
++  } as never))
+   type ShellDeps = ConstructorParameters<typeof SessionInputShell>[0]
+   const shell = new SessionInputShell({
+     actx: SCTX,
+@@ -295,6 +302,45 @@ describe('composer focus handoff', () => {
+   })
+ })
+ 
++describe('recovered session read-only composer', () => {
++  const recovery = {
++    kind: 'invalid-tail' as const,
++    firstInvalidSeq: 4,
++    discardedEvents: 2,
++    reason: 'invalid tool result',
++  }
++
++  it('announces the discarded suffix in Spanish and disables every composer intake', () => {
++    const addFiles = vi.fn(() => null)
++    const result = bench({
++      draft: 'visible draft',
++      recovery,
++      addFiles,
++      t: makeTranslate(es, commonZh),
++    })
++
++    const warning = result.view.getByRole('status').textContent ?? ''
++    expect(warning).toContain('solo lectura')
++    expect(warning).toContain('2 eventos')
++    expect(warning).toContain('secuencia 4')
++    expect(warning).toContain('invalid tool result')
++    expect(editableOf(result.textarea)).toBe(false)
++    expect(result.button.disabled).toBe(true)
++    expect(attachmentOwner(result.slotCalls).canAcceptDrop).toBe(false)
++    attachmentOwner(result.slotCalls).onAddFiles([new File(['x'], 'notes.txt')])
++    expect(addFiles).not.toHaveBeenCalled()
++  })
++
++  it('announces the same recovery in English', () => {
++    const result = bench({ recovery, t: makeTranslate(en, {}) })
++    const warning = result.view.getByRole('status').textContent ?? ''
++    expect(warning).toContain('read-only')
++    expect(warning).toContain('2 events')
++    expect(warning).toContain('sequence 4')
++    expect(warning).toContain('invalid tool result')
++  })
++})
++
+ describe('composer placeholder visibility', () => {
+   it.each([' ', '   ', '\t', '\n'])('hides for whitespace %j and returns after deletion', async (draft) => {
+     const { view, shell, textarea, button, sink, props } = bench()
+diff --git a/vendor/deepseek-harness/packages/session-query/session-query/src/cold-read.ts b/vendor/deepseek-harness/packages/session-query/session-query/src/cold-read.ts
+index b8477cb083..607c3d2032 100644
+--- a/vendor/deepseek-harness/packages/session-query/session-query/src/cold-read.ts
++++ b/vendor/deepseek-harness/packages/session-query/session-query/src/cold-read.ts
+@@ -3,7 +3,7 @@
+ import { interruptedTurnClosers } from '@deepseek-ai/dsh-session'
+ import type { SessionEvent, SessionHeader, SessionId, SessionLogOffset, SessionSeedEventState } from '@deepseek-ai/dsh-session'
+ import type SessionPersistence from '@deepseek-ai/dsh-session-persistence'
+-import type { SessionHandleReadResult } from '@deepseek-ai/dsh-session-persistence'
++import type { SessionHandleReadRecovery, SessionHandleReadResult } from '@deepseek-ai/dsh-session-persistence'
+ 
+ /** A stored session log balanced for read-only viewing. */
+ export interface ColdSessionLog {
+@@ -15,6 +15,8 @@ export interface ColdSessionLog {
+   readonly inheritedEventCount: SessionLogOffset
+   /** Stored events plus deterministic in-memory closers for an interrupted final turn; nothing is written back. */
+   readonly events: SessionEvent[]
++  /** Recovery diagnostic when a semantically invalid suffix was discarded for this read-only view. */
++  readonly recovery?: SessionHandleReadRecovery
+ }
+ 
+ /**
+@@ -47,11 +49,12 @@ export async function readColdSessionLog(
+     throw error
+   }
+   await handle.close()
+-  const { events } = read
++  const { events, recovery } = read
+   return {
+     eventState: read.eventState,
+     header: handle.header,
+     inheritedEventCount: handle.inheritedEventCount,
+     events: [...events, ...interruptedTurnClosers(events)],
++    ...(recovery === undefined ? {} : { recovery: Object.freeze({ ...recovery }) }),
+   }
+ }
+diff --git a/vendor/deepseek-harness/packages/session-query/session-query/src/observation.ts b/vendor/deepseek-harness/packages/session-query/session-query/src/observation.ts
+index adfe84fd0b..4075b9077f 100644
+--- a/vendor/deepseek-harness/packages/session-query/session-query/src/observation.ts
++++ b/vendor/deepseek-harness/packages/session-query/session-query/src/observation.ts
+@@ -4,6 +4,7 @@ import type { Context } from '@deepseek-ai/cordis'
+ import { SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
+ import type { Session, SessionEvent, SessionHeader, SessionId , SessionLogOffset as SessionLogOffsetType , SessionSeqCursor } from '@deepseek-ai/dsh-session'
+ import type SessionPersistence from '@deepseek-ai/dsh-session-persistence'
++import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence'
+ import type {
+   SessionPersistenceRevision,
+   SessionPersistenceSnapshot,
+@@ -31,6 +32,8 @@ export interface SessionObservation extends Disposable {
+   readonly cursor: SessionSeqCursor
+   /** Durable source revision for a cold prepared observation. */
+   readonly revision?: SessionPersistenceRevision
++  /** Present when the persisted suffix failed semantic validation and was omitted from this read-only prefix. */
++  readonly recovery?: SessionHandleReadRecovery
+   /** Exact projection baseline at {@link cursor}, when the registry is mounted. */
+   readonly projections?: ProjectionSnapshot
+   /**
+@@ -62,6 +65,8 @@ interface PreparedEntry {
+   readonly session: Session
+   /** Immutable balanced log (stored events plus in-memory interrupted-turn closers). */
+   readonly events: readonly SessionEvent[]
++  /** Immutable suffix-recovery diagnostic, retained with this exact persisted revision. */
++  readonly recovery?: SessionHandleReadRecovery
+   /** Active observation leases; a pinned entry (`refs > 0`) is never evicted. */
+   refs: number
+ }
+@@ -143,6 +148,7 @@ export class SessionObservationReader {
+           revision: snapshot.revision,
+           session,
+           events: Object.freeze(seed),
++          ...(loaded.recovery === undefined ? {} : { recovery: loaded.recovery }),
+           refs: 0,
+         }
+         this.store(sessionId, entry)
+@@ -255,6 +261,7 @@ export class SessionObservationReader {
+         events: entry.events,
+         cursor: entry.events.at(-1)?.seq ?? -1,
+         revision: entry.revision,
++        ...(entry.recovery === undefined ? {} : { recovery: entry.recovery }),
+         ...projections === undefined ? {} : { projections },
+         retain: () => {
+           if (disposed) throw new Error(`session observation "${sessionId}" is disposed`)

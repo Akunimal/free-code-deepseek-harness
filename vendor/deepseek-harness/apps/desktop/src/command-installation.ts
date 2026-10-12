@@ -158,7 +158,7 @@ async function restoreEntry(options: FileCommandInstallation, source: string, de
 
 async function linkEntry(options: FileCommandInstallation, source: string, destination: string): Promise<void> {
   // macOS Node link() follows symlinks; linkat preserves their identity and refuses occupied destinations.
-  if (process.platform === 'darwin') await promisify(execFile)(options.linkHelper, [source, destination])
+  if (process.platform === 'darwin') await promisify(execFile)(options.linkHelper, [source, destination], { windowsHide: true })
   else await link(source, destination)
 }
 

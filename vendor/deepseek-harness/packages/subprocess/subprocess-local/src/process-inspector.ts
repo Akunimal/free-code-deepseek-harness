@@ -120,7 +120,7 @@ const DEFAULT_INTERNALS: ProcessInspectorInternals = {
   open: path => openSync(path, 'r'),
   read: (fd, buffer, length, position) => readSync(fd, buffer, 0, length, position),
   close: closeSync,
-  exec: (file, args) => execFileSync(file, args, { encoding: 'utf8' }),
+  exec: (file, args) => execFileSync(file, args, { encoding: 'utf8', windowsHide: true }),
   kill: (pid, signal) => process.kill(pid, signal),
 }
 /* v8 ignore stop */
