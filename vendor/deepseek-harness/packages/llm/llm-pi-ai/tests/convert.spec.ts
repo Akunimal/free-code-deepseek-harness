@@ -815,13 +815,14 @@ describe('toStreamChunks', () => {
     ])
   })
 
-  it('tolerates toolcall_start with a missing partial entry', async () => {
-    const chunks = await collect(toStreamChunks(feed(
-      { type: 'toolcall_start', contentIndex: 0, partial: assistant() },
-      { type: 'toolcall_delta', contentIndex: 0, delta: '{}', partial: assistant() },
-      { type: 'done', reason: 'stop', message: assistant() },
-    )))
-    expect(chunks[1]).toEqual({ type: 'tool-call-delta', index: 0, id: '', argumentsDelta: '{}' })
+  it.each([
+    ['missing partial entry', assistant()],
+    ['empty id', assistant({ content: [{ type: 'toolCall', id: '', name: 'f', arguments: {} }] })],
+    ['empty name', assistant({ content: [{ type: 'toolCall', id: 'call-1', name: '', arguments: {} }] })],
+  ])('rejects toolcall_start with %s before emitting a chunk', async (_label, partial) => {
+    await expect(collect(toStreamChunks(feed(
+      { type: 'toolcall_start', contentIndex: 0, partial },
+    )))).rejects.toMatchObject({ code: 'INVALID_TOOL_CALL' })
   })
 
   it('maps error events to error finish chunks (in-stream error style)', async () => {
@@ -1000,24 +1001,24 @@ describe('mapStopReason / mapUsage', () => {
   })
 })
 
-describe('toStreamChunks edge branches', () => {
-  it('omits the name field for tool calls whose partial carried an empty name', async () => {
-    const blank = assistant({ content: [{ type: 'toolCall', id: 'x', name: '', arguments: {} }] })
-    const chunks = await collect(toStreamChunks(feed(
-      { type: 'toolcall_start', contentIndex: 0, partial: blank },
-      { type: 'toolcall_delta', contentIndex: 0, delta: '{}', partial: blank },
-      { type: 'done', reason: 'stop', message: assistant() },
-    )))
-    expect(chunks[1]).toEqual({ type: 'tool-call-delta', index: 0, id: 'x', argumentsDelta: '{}' })
-  })
-})
-
 describe('toStreamChunks defensive branches', () => {
-  it('tolerates a toolcall_delta with no preceding toolcall_start', async () => {
-    const chunks = await collect(toStreamChunks(feed(
+  it('rejects a toolcall_delta with no preceding toolcall_start', async () => {
+    await expect(collect(toStreamChunks(feed(
       { type: 'toolcall_delta', contentIndex: 0, delta: '{}', partial: assistant() },
-      { type: 'done', reason: 'stop', message: assistant() },
-    )))
-    expect(chunks[0]).toEqual({ type: 'tool-call-delta', index: 0, id: '', argumentsDelta: '{}' })
+    )))).rejects.toMatchObject({ code: 'INVALID_TOOL_CALL' })
+  })
+
+  it('rejects a toolcall_end whose id or name differs from the validated start', async () => {
+    const partial = assistant({ content: [{ type: 'toolCall', id: 'call-1', name: 'f', arguments: {} }] })
+    await expect(collect(toStreamChunks(feed(
+      { type: 'toolcall_start', contentIndex: 0, partial },
+      { type: 'toolcall_delta', contentIndex: 0, delta: '{}', partial },
+      {
+        type: 'toolcall_end',
+        contentIndex: 0,
+        toolCall: { type: 'toolCall', id: 'call-other', name: 'f', arguments: {} },
+        partial,
+      },
+    )))).rejects.toMatchObject({ code: 'INVALID_TOOL_CALL' })
   })
 })

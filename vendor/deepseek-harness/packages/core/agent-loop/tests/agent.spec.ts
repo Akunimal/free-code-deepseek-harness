@@ -1,4 +1,4 @@
-import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, LlmError } from '@deepseek-ai/dsh-llm'
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
@@ -134,6 +134,24 @@ describe('Agent', () => {
     await agent.whenIdle()
 
     expect(statuses).toEqual(['running', 'idle'])
+  })
+
+  it('settles a malformed provider tool call as an attempt without persisting a tool lifecycle', async () => {
+    const adapter = new MockAdapter([() => {
+      throw new LlmError('pi-ai tool call has an empty correlation id', 'INVALID_TOOL_CALL')
+    }])
+    const ctx = await harness(adapter)
+    const agent = await ctx.agentLoop.create(SessionId('malformed-tool-call'), { provider: 'mock', model: 'mock' })
+
+    send(agent, 'run the tool')
+    await agent.whenIdle()
+
+    const events = agent.session.snapshotEvents()
+    const types = events.map(event => event.type)
+    expect(types).toContain('assistant/attempt')
+    expect(types).not.toContain('assistant/message')
+    expect(types).not.toContain('tool/call')
+    expect(types).not.toContain('tool/result')
   })
 
   it('whenIdle() resolves immediately without active work', async () => {

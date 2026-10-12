@@ -67,6 +67,18 @@ function classifyPiAiError(message: string): string {
   return 'PI_AI_ERROR'
 }
 
+function requireToolCallIdentity(
+  id: unknown,
+  name: unknown,
+  index: number,
+  phase: string,
+): { id: string; name: string } {
+  if (typeof id !== 'string' || id.length === 0 || typeof name !== 'string' || name.length === 0) {
+    throw new LlmError(`pi-ai tool call at content index ${index} has a missing id or name during ${phase}`, 'INVALID_TOOL_CALL')
+  }
+  return { id, name }
+}
+
 /**
  * Map a terminal pi-ai event to the harness finish reason.
  * @param message - the assistant message carried by the `done` or `error` event.
@@ -173,39 +185,60 @@ export async function* toStreamChunks(
         break
       case 'toolcall_start': {
         // The id/name live on the partial's content at this index.
+        if (toolIds.has(event.contentIndex)) {
+          throw new LlmError(`pi-ai repeated toolcall_start at content index ${event.contentIndex}`, 'INVALID_TOOL_CALL')
+        }
         const partial = event.partial.content[event.contentIndex]
-        const id = partial?.type === 'toolCall' ? partial.id : ''
-        const name = partial?.type === 'toolCall' ? partial.name : ''
-        toolIds.set(event.contentIndex, { id, name })
+        if (partial?.type !== 'toolCall') {
+          throw new LlmError(`pi-ai toolcall_start at content index ${event.contentIndex} has no partial tool call`, 'INVALID_TOOL_CALL')
+        }
+        const identity = requireToolCallIdentity(partial.id, partial.name, event.contentIndex, 'start')
+        toolIds.set(event.contentIndex, identity)
         yield { type: 'block-start', index: event.contentIndex, blockType: 'tool-call' }
         break
       }
       case 'toolcall_delta': {
         const known = toolIds.get(event.contentIndex)
+        if (!known) {
+          throw new LlmError(`pi-ai toolcall_delta at content index ${event.contentIndex} has no matching start`, 'INVALID_TOOL_CALL')
+        }
         yield {
           type: 'tool-call-delta',
           index: event.contentIndex,
-          id: brandString<ToolCallId>(known?.id ?? ''),
-          ...known?.name !== undefined && known.name.length > 0 ? { name: known.name } : {},
+          id: brandString<ToolCallId>(known.id),
+          name: known.name,
           argumentsDelta: event.delta,
         }
         break
       }
-      case 'toolcall_end':
+      case 'toolcall_end': {
+        const known = toolIds.get(event.contentIndex)
+        if (!known) {
+          throw new LlmError(`pi-ai toolcall_end at content index ${event.contentIndex} has no matching start`, 'INVALID_TOOL_CALL')
+        }
+        const identity = requireToolCallIdentity(event.toolCall?.id, event.toolCall?.name, event.contentIndex, 'end')
+        if (identity.id !== known.id || identity.name !== known.name) {
+          throw new LlmError(`pi-ai toolcall_end at content index ${event.contentIndex} changed its id or name`, 'INVALID_TOOL_CALL')
+        }
+        toolIds.delete(event.contentIndex)
         yield {
           type: 'block-end',
           index: event.contentIndex,
           block: {
             type: 'tool-call',
-            id: brandString<ToolCallId>(event.toolCall.id),
-            name: event.toolCall.name,
+            id: brandString<ToolCallId>(identity.id),
+            name: identity.name,
             // pi-ai hands back the PARSED arguments; the harness vocabulary
             // keeps the raw string.
             arguments: JSON.stringify(event.toolCall.arguments),
           },
         }
         break
+      }
       case 'done':
+        if (toolIds.size > 0) {
+          throw new LlmError('pi-ai stream ended with an unfinished tool call', 'INVALID_TOOL_CALL')
+        }
         yield { type: 'usage', usage: mapUsage(event.message.usage) }
         yield {
           type: 'finish',
@@ -214,6 +247,9 @@ export async function* toStreamChunks(
         }
         return
       case 'error':
+        if (toolIds.size > 0) {
+          throw new LlmError('pi-ai stream failed with an unfinished tool call', 'INVALID_TOOL_CALL')
+        }
         // In-stream error delivery (pi-ai's style) → error finish chunk
         // (the harness's other sanctioned error path besides throwing).
         yield { type: 'usage', usage: mapUsage(event.error.usage) }
