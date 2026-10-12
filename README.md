@@ -8,7 +8,12 @@ calls.
 
 ## English
 
-## Current status: 0.9.2 released (Windows x64)
+## Current status: source 0.9.3 in development; latest published release: v0.9.2 (Windows x64)
+
+Source version: 0.9.3 in development; latest published release: v0.9.2 (Windows x64).
+
+The 0.9.3 source candidate is not packaged or released. The download details
+below describe the published v0.9.2 release.
 
 v0.9.2 is published for Windows x64 with:
 
@@ -331,6 +336,7 @@ hardening y release local en ambos idiomas.
 ## Documentation index
 
 - [Upstream feature inventory](docs/UPSTREAM-FEATURES.md)
+- [v0.9.3 release notes (unreleased)](release-notes-v0.9.3.md)
 - [v0.9.2 release notes](release-notes-v0.9.2.md)
 - [0.9.1 release notes](release-notes-v0.9.1.md)
 - [0.9.0 release notes](release-notes-v0.9.0.md)

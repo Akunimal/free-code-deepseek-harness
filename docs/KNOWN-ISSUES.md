@@ -129,6 +129,25 @@ es asíncrona — el circuito nuevo surte efecto dentro de la ventana de
 fijos en loopback: otra instancia de Tor ya ligada ahí hará fallar el chequeo
 de arranque del shell.
 
+### KI-009 — A semantic session tail can hide valid history / Un sufijo semántico puede ocultar historial válido
+
+The published v0.9.2 reader treats a complete V4 row with a broken tool-result
+identity as corruption of the whole log, so earlier valid events are not
+returned to the caller. The unreleased v0.9.3 source candidate recovers only
+the validated prefix in read-only mode, reports the first invalid sequence,
+preserves the original raw/Zstandard bytes, and refuses write-open. It does not
+repair or reconstruct the discarded suffix. Until v0.9.3 is built and
+installed, preserve the original session file; do not overwrite it.
+
+El lector publicado en v0.9.2 trata una fila V4 completa con identidad de
+resultado de herramienta rota como corrupción de todo el log, por lo que no
+devuelve los eventos válidos anteriores. El candidato v0.9.3 aún sin publicar
+recupera solo el prefijo validado en modo de solo lectura, informa la primera
+secuencia inválida, preserva los bytes originales raw/Zstandard y rechaza
+abrir para escritura. No repara ni reconstruye el sufijo descartado. Hasta que
+v0.9.3 se compile y se instale, conservá el archivo de sesión original; no lo
+sobrescribas.
+
 ## Issues resueltos / Resolved historical issues
 
 These entries are kept here so an old report is easy to classify:

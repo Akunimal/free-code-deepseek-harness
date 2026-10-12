@@ -10,7 +10,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `db16131f`
+- Built from commit: `1665f14f`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -68,16 +68,16 @@
 10. `registerIpc()` - 12 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `createHarnessArchive()` --calls--> `resolveTarExecutable()`  [EXTRACTED]
-  tests/updater.test.ts → src/main/harness-updater.ts
 - `createDialogBridge()` --calls--> `t()`  [EXTRACTED]
-  src/main/dialog-bridge.ts → src/main/i18n.ts
+  apps/shell/src/main/dialog-bridge.ts → apps/shell/src/main/i18n.ts
 - `copy()` --calls--> `t()`  [EXTRACTED]
-  src/main/embedded-browser.ts → src/main/i18n.ts
+  apps/shell/src/main/embedded-browser.ts → apps/shell/src/main/i18n.ts
 - `runLocalUpstreamUpdate()` --calls--> `launchHidden()`  [EXTRACTED]
-  src/main/index.ts → src/main/freecode-launcher.ts
+  apps/shell/src/main/index.ts → apps/shell/src/main/freecode-launcher.ts
 - `extractText()` --calls--> `launchHidden()`  [EXTRACTED]
-  src/main/ocr.ts → src/main/freecode-launcher.ts
+  apps/shell/src/main/ocr.ts → apps/shell/src/main/freecode-launcher.ts
+- `bundledUpstreamCommit()` --calls--> `launchHiddenSync()`  [EXTRACTED]
+  apps/shell/src/main/index.ts → apps/shell/src/main/freecode-launcher.ts
 
 ## Import Cycles
 - None detected.

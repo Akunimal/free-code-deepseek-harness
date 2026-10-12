@@ -9,6 +9,10 @@ reproducen mediante el stack ordenado de patches.
 
 La release publicada v0.9.2 es la baseline actual para Windows x64:
 
+Candidato de código: v0.9.3 (sin publicar). No se generaron setup/portable,
+instalación, tag ni release; los artefactos y la evidencia de instalación de
+abajo siguen describiendo la v0.9.2 publicada.
+
 - instalador NSIS de Windows v0.9.2 (~178,5 MB);
 - ejecutable portable de Windows v0.9.2 (~178,2 MB);
 - `latest.yml` más blockmap para el updater;

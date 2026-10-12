@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.9.3 — In development (unreleased)
+
+See the [bilingual v0.9.3 release notes](release-notes-v0.9.3.md).
+The source version is 0.9.3; desktop packages, installation, tag and release
+are still pending verification. The latest published version remains 0.9.2.
+
+### Reliability / Confiabilidad
+
+- Raw and Zstandard session logs with a semantically invalid tail now expose
+  only the validated prefix and bounded recovery diagnostics. The original
+  bytes are preserved and write-open is refused. / Los logs de sesión raw y
+  Zstandard con una cola semánticamente inválida exponen solo el prefijo
+  validado y un diagnóstico acotado. Se preservan los bytes originales y se
+  rechaza abrir para escritura.
+- Malformed streamed tool-call identities are rejected before the agent can
+  persist an incomplete assistant/tool lifecycle. / Las identidades
+  incompletas de llamadas a herramientas se rechazan antes de persistir un
+  ciclo assistant/tool inválido.
+
+### Fixed / Corregido
+
+- Unknown installed-runtime versions no longer advertise false updates; the
+  update surface stays circular, network checks are bounded, and archive
+  extraction no longer blocks Electron's main thread. / Una versión instalada
+  desconocida ya no anuncia updates falsos; el indicador sigue siendo
+  circular, las consultas de red tienen límite y la extracción no bloquea el
+  hilo principal de Electron.
+- Native ABI verification now rejects load failures for applicable host
+  addons while explicitly skipping foreign-target prebuilds. / La
+  verificación de ABI rechaza fallos de carga para addons del host y omite
+  explícitamente los prebuilds de otros targets.
+
+### Verification / Verificación
+
+- Focused regression suites and package-scoped typechecks passed. The full
+  composite build still reports unrelated existing errors in
+  `packages/llm/llm`; setup/portable, installation, tag and publication have
+  not been performed. / Pasaron las suites de regresión focalizadas y los
+  typechecks por paquete. El build compuesto completo sigue mostrando errores
+  preexistentes y ajenos en `packages/llm/llm`; no se generaron setup/portable,
+  ni se instaló, etiquetó o publicó esta versión.
+
 ## 0.9.2 — 2026-10-12
 
 See the [bilingual v0.9.2 release notes](release-notes-v0.9.2.md).

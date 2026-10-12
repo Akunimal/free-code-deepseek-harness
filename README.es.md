@@ -8,7 +8,12 @@ servidores MCP y llamadas al modelo.
 
 ## Español
 
-## Estado actual: 0.9.2 publicado (Windows x64)
+## Estado actual: versión de la fuente 0.9.3 en desarrollo; última release publicada: v0.9.2 (Windows x64)
+
+Versión de la fuente: 0.9.3 en desarrollo; última release publicada: v0.9.2 (Windows x64).
+
+El candidato de código 0.9.3 todavía no se compiló ni publicó. Los detalles de
+descarga de abajo corresponden a la release v0.9.2 ya publicada.
 
 v0.9.2 está publicado para Windows x64 con:
 
@@ -329,6 +334,7 @@ local en ambos idiomas.
 ## Índice de documentación
 
 - [Inventario de features upstream](docs/UPSTREAM-FEATURES.md)
+- [Notas de la release v0.9.3 (sin publicar)](release-notes-v0.9.3.md)
 - [Notas de la release v0.9.2](release-notes-v0.9.2.md)
 - [Notas de la release 0.9.1](release-notes-v0.9.1.md)
 - [Notas de la release 0.9.0](release-notes-v0.9.0.md)
