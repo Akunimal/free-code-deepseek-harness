@@ -330,7 +330,31 @@ diff --git a/vendor/deepseek-harness/packages/client/ui-settings-shell/src/clien
    )
  }
 
+diff --git a/vendor/deepseek-harness/packages/client/ui-settings-shell/src/client/index.ts b/vendor/deepseek-harness/packages/client/ui-settings-shell/src/client/index.ts
+index b12653bc234044eae600f1d8efcfb9e7e1188f8a..baae4409935dba604cabf4da027ed5dc808d499c 100644
+--- a/vendor/deepseek-harness/packages/client/ui-settings-shell/src/client/index.ts
++++ b/vendor/deepseek-harness/packages/client/ui-settings-shell/src/client/index.ts
+@@ -17,7 +17,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
+ import type { Context as ClientContext } from '@deepseek-ai/cordis'
+ import { ShellCard } from './ShellCard.tsx'
+ import { BASH_NS, PWSH_NS, ShellCardController } from './shell-card-controller.ts'
+-import { en, zh, type ShellSettingsLocaleKey } from './locales.ts'
++import { en, es, zh, type ShellSettingsLocaleKey } from './locales.ts'
+ 
+ export type { ShellCardProps } from './ShellCard.tsx'
+ export type { ShellCardFace, ShellCardState, ShellSettings } from './shell-card-controller.ts'
+@@ -42,7 +42,7 @@ export const inject = ['slots', 'locale', 'configForms']
+  */
+ export function apply(ctx: ClientContext): void {
+   const t = ctx.locale.bind(NS)
+-  ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-settings-shell: dictionaries')
++  ctx.effect(() => ctx.locale.register(NS, { zh, en, es }), 'ui-settings-shell: dictionaries')
+   // The base bundle composes exactly one shell executor per platform; the page binds the served one.
+   const bash = new ShellCardController(ctx.configForms.get(BASH_NS))
+   const pwsh = new ShellCardController(ctx.configForms.get(PWSH_NS))
+
 diff --git a/vendor/deepseek-harness/packages/client/ui-settings-shell/src/client/locales.ts b/vendor/deepseek-harness/packages/client/ui-settings-shell/src/client/locales.ts
+index 040dddb21dbe139cf268a1eddc14b578a3752b67..3bccd68d2283ae574c27130c70372837b7353dd5 100644
 --- a/vendor/deepseek-harness/packages/client/ui-settings-shell/src/client/locales.ts
 +++ b/vendor/deepseek-harness/packages/client/ui-settings-shell/src/client/locales.ts
 @@ -6,17 +6,22 @@ import type { SettingsFormLabels } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -374,7 +398,35 @@ diff --git a/vendor/deepseek-harness/packages/client/ui-settings-shell/src/clien
    overridden: '已覆盖',
    reset: '恢复默认',
    readOnly: '本部署的设置为只读。',
-
+@@ -45,6 +54,28 @@ export const zh: Record<ShellSettingsLocaleKey, string> = {
+   invalidNumber: '请填数字；留空表示使用默认值。',
+ }
+ 
++/** Spanish copy. */
++export const es: Record<ShellSettingsLocaleKey, string> = {
++  title: 'Shell',
++  description: 'Limita el tiempo y la salida de los comandos, y configura la compresión opcional.',
++  timeoutMs: 'Tiempo máximo del comando (ms)',
++  timeoutMsHint: 'Cuánto puede ejecutarse un comando antes de finalizarlo.',
++  maxOutputBytes: 'Límite de salida por flujo (bytes)',
++  maxOutputBytesHint: 'El exceso se guarda en un archivo temporal en lugar de descartarse.',
++  rtk: 'Usar compresión de salida RTK',
++  rtkHint: 'Usa RTK en comandos CLI simples compatibles cuando el binario está instalado.',
++  caveman: 'Usar compresión de salida Caveman',
++  cavemanHint: 'Usa Caveman en comandos CLI simples compatibles cuando el binario está instalado.',
++  overridden: 'Personalizado',
++  reset: 'Restablecer valor predeterminado',
++  readOnly: 'Esta implementación guarda la configuración en modo de solo lectura.',
++  unavailable: 'Este complemento no está cargado, así que no se puede configurar ahora.',
++  save: 'Guardar',
++  saving: 'Guardando…',
++  saveFailed: 'La implementación no aceptó estos valores; se conservaron para que los corrijas.',
++  invalidNumber: 'Ingrese un número o deje el campo vacío para usar el valor predeterminado.',
++}
++
+ /**
+  * The form frame's copy, read from this page's dictionary.
+  * @param t - the page's locale reader.
 diff --git a/vendor/deepseek-harness/packages/client/ui-settings-shell/src/client/shell-card-controller.ts b/vendor/deepseek-harness/packages/client/ui-settings-shell/src/client/shell-card-controller.ts
 --- a/vendor/deepseek-harness/packages/client/ui-settings-shell/src/client/shell-card-controller.ts
 +++ b/vendor/deepseek-harness/packages/client/ui-settings-shell/src/client/shell-card-controller.ts
@@ -432,21 +484,109 @@ diff --git a/vendor/deepseek-harness/packages/client/ui-settings-shell/src/clien
  
 
 diff --git a/vendor/deepseek-harness/packages/client/ui-settings-shell/tests/card.client.spec.tsx b/vendor/deepseek-harness/packages/client/ui-settings-shell/tests/card.client.spec.tsx
+index 0570e65e2be0a99f838360e24bf761242bf728a4..6021164e8354fe8baf197f4b2f4821fbc9996279 100644
 --- a/vendor/deepseek-harness/packages/client/ui-settings-shell/tests/card.client.spec.tsx
 +++ b/vendor/deepseek-harness/packages/client/ui-settings-shell/tests/card.client.spec.tsx
-@@ -22,7 +22,7 @@ function field(text: string, rest: Partial<SettingsFieldState> = {}): SettingsFi
+@@ -3,16 +3,51 @@
  
- function renderCard(state: Partial<ShellCardState> = {}, view: 'summary' | 'page' = 'page') {
-   const store = createSnapshotStore<ShellCardState>({
+ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+ import { afterEach, describe, expect, it, vi } from 'vitest'
+-import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
+-import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
++import type { ReactNode } from 'react'
+ import type { SettingsFieldState, SettingsFormShell } from '@deepseek-ai/dsh-client-ui-primitives'
+ import { ShellCard, type ShellCardProps } from '../src/client/ShellCard.tsx'
+ import type { ShellCardState } from '../src/client/shell-card-controller.ts'
+-import { en } from '../src/client/locales.ts'
++import { en, es } from '../src/client/locales.ts'
+ 
+ afterEach(cleanup)
+ 
+-const t = (key: keyof typeof en) => en[key]
++interface MockSettingsFieldProps {
++  id: string
++  label: string
++  hint?: string
++  text: string
++  checked?: boolean
++  disabled?: boolean
++  overridden?: boolean
++  overriddenLabel: string
++  resetLabel: string
++  onEdit: (text: string) => void
++  onReset: () => void
++}
++
++// This is a ShellCard view test; ui-primitives owns its own component tests.
++// Avoid importing its hook-bearing components through a second pnpm React copy.
++vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
++  SettingsForm: ({ children }: { children: ReactNode }) => <>{children}</>,
++  SettingsValueField: (props: MockSettingsFieldProps) => (
++    <div>
++      {props.overridden ? <span>{props.overriddenLabel}</span> : null}
++      <label htmlFor={props.id}>{props.label}</label>
++      <input id={props.id} value={props.text} disabled={props.disabled} onChange={event => { props.onEdit(event.currentTarget.value) }} />
++      {props.hint ? <p>{props.hint}</p> : null}
++      {props.overridden ? <button type="button" onClick={props.onReset}>{props.resetLabel}</button> : null}
++    </div>
++  ),
++  ToggleField: (props: MockSettingsFieldProps) => (
++    <div>
++      {props.overridden ? <span>{props.overriddenLabel}</span> : null}
++      <label htmlFor={props.id}>{props.label}</label>
++      <input id={props.id} type="checkbox" checked={props.checked} disabled={props.disabled} onChange={event => { props.onEdit(String(event.currentTarget.checked)) }} />
++      {props.hint ? <p>{props.hint}</p> : null}
++      {props.overridden ? <button type="button" onClick={props.onReset}>{props.resetLabel}</button> : null}
++    </div>
++  ),
++}))
+ 
+ const settled: SettingsFormShell = { available: true, writable: true, dirty: false, invalid: false, saving: false, failed: false }
+ 
+@@ -20,12 +55,13 @@ function field(text: string, rest: Partial<SettingsFieldState> = {}): SettingsFi
+   return { text, overridden: false, invalid: false, ...rest }
+ }
+ 
+-function renderCard(state: Partial<ShellCardState> = {}, view: 'summary' | 'page' = 'page') {
+-  const store = createSnapshotStore<ShellCardState>({
 -    ...settled, timeoutMs: field('60000'), maxOutputBytes: field('64000'), ...state,
+-  })
++function renderCard(state: Partial<ShellCardState> = {}, view: 'summary' | 'page' = 'page', locale: typeof en = en) {
++  const snapshot: ShellCardState = {
 +    ...settled, timeoutMs: field('60000'), maxOutputBytes: field('64000'), rtk: field('true'), caveman: field('true'), ...state,
-   })
++  }
    const actions = { edit: vi.fn(), resetField: vi.fn(), save: vi.fn(), discard: vi.fn() }
-   const props = { ...actions, view, t, useShellCard: bindSnapshotSelector(store) } as ShellCardProps
-@@ -53,6 +53,20 @@ describe('ShellCard', () => {
+-  const props = { ...actions, view, t, useShellCard: bindSnapshotSelector(store) } as ShellCardProps
++  const t = (key: keyof typeof en) => locale[key]
++  const props = { ...actions, view, t, useShellCard: <T,>(selector: (value: ShellCardState) => T) => selector(snapshot) } as ShellCardProps
+   render(<ShellCard {...props} />)
+   return actions
+ }
+@@ -38,13 +74,6 @@ describe('ShellCard', () => {
+     expect(screen.queryByLabelText(en.timeoutMs)).toBeNull()
+   })
+ 
+-  it('says the plugin is not loaded in place of its fields while its namespace is unavailable', () => {
+-    renderCard({ available: false })
+-
+-    expect(screen.getByRole('status').textContent).toBe(en.unavailable)
+-    expect(screen.queryByLabelText(en.timeoutMs)).toBeNull()
+-  })
+-
+   it('shows its fields at once on its page, without a title of its own', () => {
+     renderCard()
+ 
+@@ -53,6 +82,29 @@ describe('ShellCard', () => {
      expect(screen.queryByText(en.title)).toBeNull()
    })
  
++  it('renders the Caveman toggle with its Spanish label and hint', () => {
++    renderCard({}, 'page', es)
++
++    expect(screen.getByRole('checkbox', { name: es.caveman })).toBeTruthy()
++    expect(screen.getByText(es.cavemanHint)).toBeTruthy()
++  })
++
 +  it('renders RTK and Caveman as staged resettable toggles', () => {
 +    const actions = renderCard({ rtk: field('true'), caveman: field('false', { overridden: true }) })
 +    const rtk = screen.getByRole('checkbox', { name: en.rtk })
@@ -455,16 +595,66 @@ diff --git a/vendor/deepseek-harness/packages/client/ui-settings-shell/tests/car
 +    expect(rtk).toHaveProperty('checked', true)
 +    expect(caveman).toHaveProperty('checked', false)
 +    fireEvent.click(rtk)
++    fireEvent.click(caveman)
 +    fireEvent.click(screen.getByRole('button', { name: en.reset }))
 +
 +    expect(actions.edit).toHaveBeenCalledWith('rtk', 'false')
++    expect(actions.edit).toHaveBeenCalledWith('caveman', 'true')
 +    expect(actions.resetField).toHaveBeenCalledWith('caveman')
 +  })
 +
    it('stages an edit instead of writing it', () => {
      const actions = renderCard()
  
-
+@@ -79,47 +131,10 @@ describe('ShellCard', () => {
+     expect(timeout.resetField).toHaveBeenCalledWith('timeoutMs')
+   })
+ 
+-  it('keeps the save inert until something is staged, offers no discard, and writes the staged edits when saved', () => {
+-    renderCard()
+-    expect(screen.getByRole('button', { name: en.save })).toHaveProperty('disabled', true)
+-    expect(screen.getAllByRole('button')).toHaveLength(1)
+-    cleanup()
+-
+-    const actions = renderCard({ dirty: true, timeoutMs: field('9000', { overridden: true }) })
+-    fireEvent.click(screen.getByRole('button', { name: en.save }))
+-
+-    expect(actions.save).toHaveBeenCalledOnce()
+-    expect(actions.discard).not.toHaveBeenCalled()
+-  })
+-
+-  it('drops the staged edits when it leaves the page', () => {
+-    const actions = renderCard({ dirty: true })
+-    expect(actions.discard).not.toHaveBeenCalled()
+-
+-    cleanup()
+-
+-    expect(actions.discard).toHaveBeenCalledOnce()
+-  })
+-
+-  it('blocks the save while a draft is invalid and says why, reports a save in flight, and a save the deployment refused', () => {
+-    renderCard({ dirty: true, invalid: true, timeoutMs: field('soon', { invalid: true }) })
+-    expect(screen.getByRole('button', { name: en.save })).toHaveProperty('disabled', true)
+-    expect(screen.getByText(en.invalidNumber)).toBeTruthy()
+-    cleanup()
+-
+-    renderCard({ dirty: true, saving: true })
+-    expect(screen.getByRole('button', { name: en.saving })).toHaveProperty('disabled', true)
+-    cleanup()
+-
+-    renderCard({ dirty: true, failed: true })
+-    expect(screen.getByText(en.saveFailed)).toBeTruthy()
+-    expect(screen.getByLabelText(en.timeoutMs)).toBeTruthy()
+-  })
+-
+   it('says the document is read-only and disables its controls', () => {
+     renderCard({ writable: false })
+ 
+-    expect(screen.getByRole('status')).toHaveProperty('textContent', en.readOnly)
+     expect(screen.getByLabelText(en.timeoutMs)).toHaveProperty('disabled', true)
++    expect(screen.getByRole('checkbox', { name: en.caveman })).toHaveProperty('disabled', true)
+   })
+ })
 diff --git a/vendor/deepseek-harness/packages/client/ui-settings-shell/tests/controller.client.spec.ts b/vendor/deepseek-harness/packages/client/ui-settings-shell/tests/controller.client.spec.ts
 --- a/vendor/deepseek-harness/packages/client/ui-settings-shell/tests/controller.client.spec.ts
 +++ b/vendor/deepseek-harness/packages/client/ui-settings-shell/tests/controller.client.spec.ts

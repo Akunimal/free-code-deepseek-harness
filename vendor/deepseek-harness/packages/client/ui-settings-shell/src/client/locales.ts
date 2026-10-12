@@ -54,6 +54,28 @@ export const zh: Record<ShellSettingsLocaleKey, string> = {
   invalidNumber: '请填数字；留空表示使用默认值。',
 }
 
+/** Spanish copy. */
+export const es: Record<ShellSettingsLocaleKey, string> = {
+  title: 'Shell',
+  description: 'Limita el tiempo y la salida de los comandos, y configura la compresión opcional.',
+  timeoutMs: 'Tiempo máximo del comando (ms)',
+  timeoutMsHint: 'Cuánto puede ejecutarse un comando antes de finalizarlo.',
+  maxOutputBytes: 'Límite de salida por flujo (bytes)',
+  maxOutputBytesHint: 'El exceso se guarda en un archivo temporal en lugar de descartarse.',
+  rtk: 'Usar compresión de salida RTK',
+  rtkHint: 'Usa RTK en comandos CLI simples compatibles cuando el binario está instalado.',
+  caveman: 'Usar compresión de salida Caveman',
+  cavemanHint: 'Usa Caveman en comandos CLI simples compatibles cuando el binario está instalado.',
+  overridden: 'Personalizado',
+  reset: 'Restablecer valor predeterminado',
+  readOnly: 'Esta implementación guarda la configuración en modo de solo lectura.',
+  unavailable: 'Este complemento no está cargado, así que no se puede configurar ahora.',
+  save: 'Guardar',
+  saving: 'Guardando…',
+  saveFailed: 'La implementación no aceptó estos valores; se conservaron para que los corrijas.',
+  invalidNumber: 'Ingrese un número o deje el campo vacío para usar el valor predeterminado.',
+}
+
 /**
  * The form frame's copy, read from this page's dictionary.
  * @param t - the page's locale reader.

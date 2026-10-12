@@ -156,10 +156,19 @@ logCheck(
 
 logCheck(
   'update-button-exists',
-  indexTsSrc !== null
-    && indexTsSrc.includes('renderUpdateIndicatorHtml')
-    && indexTsSrc.includes('rotate(180'),
-  'Update button must exist with rotated arrow',
+  (() => {
+    const htmlSrc = readFileSafe(join(APPS, 'src/main/update-indicator-html.ts'));
+    const testSrc = readFileSafe(join(APPS, 'tests/update-indicator.test.ts'));
+    return htmlSrc !== null
+      && htmlSrc.includes('renderUpdateIndicatorHtml')
+      && htmlSrc.includes('rotate(180 8 8)')
+      && htmlSrc.includes('border-radius:50%')
+      && htmlSrc.includes('background:transparent')
+      && testSrc !== null
+      && testSrc.includes('renders the 34px action as a circular, reset native button')
+      && testSrc.includes('transform="rotate(180 8 8)"');
+  })(),
+  'Update-button HTML and regression test must keep the rotated arrow, round target, and transparent surface',
 );
 
 // ── CHECK 10: Directory picker bridge exists ────────────────────────
@@ -186,13 +195,35 @@ logCheck(
 
 // ── CHECK 12: Caveman settings card exists ──────────────────────────
 
-const bashCardPath = join(VENDOR, 'packages/client/ui-settings-plugins/src/client/BashCard.tsx');
-const bashCardExists = existsSync(bashCardPath);
+const cavemanCardPath = join(VENDOR, 'packages/client/ui-settings-shell/src/client/ShellCard.tsx');
+const cavemanCardSrc = readFileSafe(cavemanCardPath);
+const cavemanCardTestPath = join(VENDOR, 'packages/client/ui-settings-shell/tests/card.client.spec.tsx');
+const cavemanCardTestSrc = readFileSafe(cavemanCardTestPath);
+const cavemanControllerTestPath = join(VENDOR, 'packages/client/ui-settings-shell/tests/controller.client.spec.ts');
+const cavemanControllerTestSrc = readFileSafe(cavemanControllerTestPath);
+const cavemanLocalesPath = join(VENDOR, 'packages/client/ui-settings-shell/src/client/locales.ts');
+const cavemanLocalesSrc = readFileSafe(cavemanLocalesPath);
+const cavemanClientIndexPath = join(VENDOR, 'packages/client/ui-settings-shell/src/client/index.ts');
+const cavemanClientIndexSrc = readFileSafe(cavemanClientIndexPath);
 
 logCheck(
   'caveman-settings-card-exists',
-  bashCardExists,
-  'BashCard.tsx must exist for Caveman toggle',
+  cavemanCardSrc !== null
+    && cavemanCardSrc.includes('plugin-config-shell-caveman')
+    && cavemanCardSrc.includes("props.edit('caveman', text)")
+    && cavemanCardTestSrc !== null
+    && cavemanCardTestSrc.includes('renders RTK and Caveman as staged resettable toggles')
+    && cavemanCardTestSrc.includes("toHaveBeenCalledWith('caveman', 'true')")
+    && cavemanCardTestSrc.includes('renders the Caveman toggle with its Spanish label and hint')
+    && cavemanLocalesSrc !== null
+    && cavemanLocalesSrc.includes('export const es: Record<ShellSettingsLocaleKey, string>')
+    && cavemanLocalesSrc.includes('Usar compresión de salida Caveman')
+    && cavemanClientIndexSrc !== null
+    && cavemanClientIndexSrc.includes('import { en, es, zh')
+    && cavemanClientIndexSrc.includes('register(NS, { zh, en, es })')
+    && cavemanControllerTestSrc !== null
+    && cavemanControllerTestSrc.includes('projects RTK and Caveman toggles and saves boolean values'),
+  'ShellCard, Spanish copy/registration, and UI/controller regression tests must preserve the Caveman toggle',
 );
 
 // ── CHECK 13: Preload exposes locale.set ────────────────────────────

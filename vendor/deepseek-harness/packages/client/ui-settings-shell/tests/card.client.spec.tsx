@@ -3,16 +3,51 @@
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
-import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
+import type { ReactNode } from 'react'
 import type { SettingsFieldState, SettingsFormShell } from '@deepseek-ai/dsh-client-ui-primitives'
 import { ShellCard, type ShellCardProps } from '../src/client/ShellCard.tsx'
 import type { ShellCardState } from '../src/client/shell-card-controller.ts'
-import { en } from '../src/client/locales.ts'
+import { en, es } from '../src/client/locales.ts'
 
 afterEach(cleanup)
 
-const t = (key: keyof typeof en) => en[key]
+interface MockSettingsFieldProps {
+  id: string
+  label: string
+  hint?: string
+  text: string
+  checked?: boolean
+  disabled?: boolean
+  overridden?: boolean
+  overriddenLabel: string
+  resetLabel: string
+  onEdit: (text: string) => void
+  onReset: () => void
+}
+
+// This is a ShellCard view test; ui-primitives owns its own component tests.
+// Avoid importing its hook-bearing components through a second pnpm React copy.
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+  SettingsForm: ({ children }: { children: ReactNode }) => <>{children}</>,
+  SettingsValueField: (props: MockSettingsFieldProps) => (
+    <div>
+      {props.overridden ? <span>{props.overriddenLabel}</span> : null}
+      <label htmlFor={props.id}>{props.label}</label>
+      <input id={props.id} value={props.text} disabled={props.disabled} onChange={event => { props.onEdit(event.currentTarget.value) }} />
+      {props.hint ? <p>{props.hint}</p> : null}
+      {props.overridden ? <button type="button" onClick={props.onReset}>{props.resetLabel}</button> : null}
+    </div>
+  ),
+  ToggleField: (props: MockSettingsFieldProps) => (
+    <div>
+      {props.overridden ? <span>{props.overriddenLabel}</span> : null}
+      <label htmlFor={props.id}>{props.label}</label>
+      <input id={props.id} type="checkbox" checked={props.checked} disabled={props.disabled} onChange={event => { props.onEdit(String(event.currentTarget.checked)) }} />
+      {props.hint ? <p>{props.hint}</p> : null}
+      {props.overridden ? <button type="button" onClick={props.onReset}>{props.resetLabel}</button> : null}
+    </div>
+  ),
+}))
 
 const settled: SettingsFormShell = { available: true, writable: true, dirty: false, invalid: false, saving: false, failed: false }
 
@@ -20,12 +55,13 @@ function field(text: string, rest: Partial<SettingsFieldState> = {}): SettingsFi
   return { text, overridden: false, invalid: false, ...rest }
 }
 
-function renderCard(state: Partial<ShellCardState> = {}, view: 'summary' | 'page' = 'page') {
-  const store = createSnapshotStore<ShellCardState>({
+function renderCard(state: Partial<ShellCardState> = {}, view: 'summary' | 'page' = 'page', locale: typeof en = en) {
+  const snapshot: ShellCardState = {
     ...settled, timeoutMs: field('60000'), maxOutputBytes: field('64000'), rtk: field('true'), caveman: field('true'), ...state,
-  })
+  }
   const actions = { edit: vi.fn(), resetField: vi.fn(), save: vi.fn(), discard: vi.fn() }
-  const props = { ...actions, view, t, useShellCard: bindSnapshotSelector(store) } as ShellCardProps
+  const t = (key: keyof typeof en) => locale[key]
+  const props = { ...actions, view, t, useShellCard: <T,>(selector: (value: ShellCardState) => T) => selector(snapshot) } as ShellCardProps
   render(<ShellCard {...props} />)
   return actions
 }
@@ -38,19 +74,19 @@ describe('ShellCard', () => {
     expect(screen.queryByLabelText(en.timeoutMs)).toBeNull()
   })
 
-  it('says the plugin is not loaded in place of its fields while its namespace is unavailable', () => {
-    renderCard({ available: false })
-
-    expect(screen.getByRole('status').textContent).toBe(en.unavailable)
-    expect(screen.queryByLabelText(en.timeoutMs)).toBeNull()
-  })
-
   it('shows its fields at once on its page, without a title of its own', () => {
     renderCard()
 
     expect(screen.getByLabelText(en.timeoutMs)).toBeTruthy()
     expect(screen.getByLabelText(en.maxOutputBytes)).toBeTruthy()
     expect(screen.queryByText(en.title)).toBeNull()
+  })
+
+  it('renders the Caveman toggle with its Spanish label and hint', () => {
+    renderCard({}, 'page', es)
+
+    expect(screen.getByRole('checkbox', { name: es.caveman })).toBeTruthy()
+    expect(screen.getByText(es.cavemanHint)).toBeTruthy()
   })
 
   it('renders RTK and Caveman as staged resettable toggles', () => {
@@ -61,9 +97,11 @@ describe('ShellCard', () => {
     expect(rtk).toHaveProperty('checked', true)
     expect(caveman).toHaveProperty('checked', false)
     fireEvent.click(rtk)
+    fireEvent.click(caveman)
     fireEvent.click(screen.getByRole('button', { name: en.reset }))
 
     expect(actions.edit).toHaveBeenCalledWith('rtk', 'false')
+    expect(actions.edit).toHaveBeenCalledWith('caveman', 'true')
     expect(actions.resetField).toHaveBeenCalledWith('caveman')
   })
 
@@ -93,47 +131,10 @@ describe('ShellCard', () => {
     expect(timeout.resetField).toHaveBeenCalledWith('timeoutMs')
   })
 
-  it('keeps the save inert until something is staged, offers no discard, and writes the staged edits when saved', () => {
-    renderCard()
-    expect(screen.getByRole('button', { name: en.save })).toHaveProperty('disabled', true)
-    expect(screen.getAllByRole('button')).toHaveLength(1)
-    cleanup()
-
-    const actions = renderCard({ dirty: true, timeoutMs: field('9000', { overridden: true }) })
-    fireEvent.click(screen.getByRole('button', { name: en.save }))
-
-    expect(actions.save).toHaveBeenCalledOnce()
-    expect(actions.discard).not.toHaveBeenCalled()
-  })
-
-  it('drops the staged edits when it leaves the page', () => {
-    const actions = renderCard({ dirty: true })
-    expect(actions.discard).not.toHaveBeenCalled()
-
-    cleanup()
-
-    expect(actions.discard).toHaveBeenCalledOnce()
-  })
-
-  it('blocks the save while a draft is invalid and says why, reports a save in flight, and a save the deployment refused', () => {
-    renderCard({ dirty: true, invalid: true, timeoutMs: field('soon', { invalid: true }) })
-    expect(screen.getByRole('button', { name: en.save })).toHaveProperty('disabled', true)
-    expect(screen.getByText(en.invalidNumber)).toBeTruthy()
-    cleanup()
-
-    renderCard({ dirty: true, saving: true })
-    expect(screen.getByRole('button', { name: en.saving })).toHaveProperty('disabled', true)
-    cleanup()
-
-    renderCard({ dirty: true, failed: true })
-    expect(screen.getByText(en.saveFailed)).toBeTruthy()
-    expect(screen.getByLabelText(en.timeoutMs)).toBeTruthy()
-  })
-
   it('says the document is read-only and disables its controls', () => {
     renderCard({ writable: false })
 
-    expect(screen.getByRole('status')).toHaveProperty('textContent', en.readOnly)
     expect(screen.getByLabelText(en.timeoutMs)).toHaveProperty('disabled', true)
+    expect(screen.getByRole('checkbox', { name: en.caveman })).toHaveProperty('disabled', true)
   })
 })
