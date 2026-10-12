@@ -25,6 +25,7 @@ import {
   SessionAlreadyExistsError, SessionPersistenceNotFoundError,
   assertStoredId, materializeCreateHeader, sessionFormatVersionRefusal, validateStoredEvents,
   type SessionAccess, type SessionHandle,
+  type SessionHandleReadRecovery,
   type SessionHandleReadResult,
   type SessionLocation, type SessionPersistenceCreateOptions,
   type SessionPersistenceListOptions, type SessionPersistenceOpenOptions,
@@ -382,6 +383,13 @@ class JsonlSessionPersistence extends SessionPersistence {
       lease = await this.acquireLease(id, undefined, dirname(resolved.currentPath))
       const prepared = await this.requireStoredLog(id, options?.signal)
       options?.signal?.throwIfAborted()
+      if (prepared.recovery !== undefined) {
+        throw new SessionPersistenceCorruptionError(
+          `session "${id}": write open refused because the stored log is in read-only recovery mode; `
+          + `first invalid seq ${prepared.recovery.firstInvalidSeq} (raw log: ${resolved.sourcePath})`,
+          { cause: new Error(prepared.recovery.reason) },
+        )
+      }
       let stored: CurrentStoredLog
       if (prepared.status === 'prepared') {
         stored = await this.publishStoredMigration(id, prepared)
@@ -770,19 +778,20 @@ class JsonlSessionPersistence extends SessionPersistence {
       events: SessionEvent[]
       tornTruncateTo: number | undefined
       recoveredTail: SessionEvent[]
+      recovery?: SessionHandleReadRecovery
     }
     try {
       if (this.compression === 'zstd') {
         parsed = await this.readZstdPrefix(buffer, signal)
       } else {
         signal?.throwIfAborted()
-        const { meta, inheritedEventCount, events, committedBytes } = scanLog(buffer)
+        const scanned = scanLog(buffer)
         signal?.throwIfAborted()
         parsed = {
-          meta,
-          inheritedEventCount,
-          events,
-          tornTruncateTo: committedBytes < buffer.byteLength ? committedBytes : undefined,
+          ...scanned,
+          tornTruncateTo: scanned.recovery === undefined && scanned.committedBytes < buffer.byteLength
+            ? scanned.committedBytes
+            : undefined,
           // A torn raw tail is one incomplete JSONL line; it holds no complete
           // record to recover.
           recoveredTail: [],
@@ -945,6 +954,7 @@ class JsonlSessionPersistence extends SessionPersistence {
     events: SessionEvent[]
     tornTruncateTo: number | undefined
     recoveredTail: SessionEvent[]
+    recovery?: SessionHandleReadRecovery
   }> {
     signal?.throwIfAborted()
     const { frames, tornStart } = scanZstdFrames(buffer)
@@ -976,7 +986,7 @@ class JsonlSessionPersistence extends SessionPersistence {
       }
       signal?.throwIfAborted()
       const complete = scanner.checkpoint()
-      if (complete.committedBytes !== complete.inputBytes) {
+      if (complete.committedBytes !== complete.inputBytes && complete.recovery === undefined) {
         throw new Error('corrupt Zstandard session log: complete frame contains a torn JSONL record')
       }
       if (tornStart === undefined) {
@@ -987,6 +997,7 @@ class JsonlSessionPersistence extends SessionPersistence {
           events: prefix.events,
           tornTruncateTo: undefined,
           recoveredTail: [],
+          ...prefix.recovery === undefined ? {} : { recovery: prefix.recovery },
         }
       }
       // A torn final frame's append never resolved, but complete JSONL records
@@ -1011,6 +1022,7 @@ class JsonlSessionPersistence extends SessionPersistence {
         events: prefix.events,
         tornTruncateTo: tornStart,
         recoveredTail: prefix.events.slice(complete.eventCount),
+        ...prefix.recovery === undefined ? {} : { recovery: prefix.recovery },
       }
     } catch (error) {
       /* v8 ignore next -- decoder failure plus concurrent abort is timing-dependent */

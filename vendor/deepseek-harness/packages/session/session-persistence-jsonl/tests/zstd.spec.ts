@@ -21,6 +21,7 @@ import { PublicZstdFrameDecoder } from '../src/zstd-public-decoder.ts'
 import {
   runPersistenceContract, meta, oneTurnLog, releasedV1OneTurnLog,
 } from '../../session-persistence/tests/contract.ts'
+import { semanticInvalidToolResultTail } from './helpers/semantic-invalid-tool-result.ts'
 
 const MAGIC = Buffer.from([0x28, 0xB5, 0x2F, 0xFD])
 const roots: string[] = []
@@ -375,6 +376,37 @@ describe('Zstandard frame structure', () => {
 })
 
 describe('JsonlSessionPersistence: default Zstandard encoding', () => {
+  it('recovers a semantic tool-result identity tail without modifying or extending the compressed log', async () => {
+    const root = await freshRoot()
+    const ctx = await mount(root)
+    const header = meta('semantic-tool-tail-zstd', '/work')
+    const events = semanticInvalidToolResultTail()
+    const path = logPath(root, header.cwd, header.id, 'zstd')
+    const bytes = Buffer.concat([
+      await compressZstdFrame(`${JSON.stringify(toHeaderLine(header))}\n`),
+      await compressZstdFrame(`${events.map(event => JSON.stringify(event)).join('\n')}\n`),
+    ])
+    await mkdir(sessionDir(root, header.cwd, header.id), { recursive: true })
+    await writeFile(path, bytes)
+
+    const reader = await ctx.sessionPersistence.open(header.id, 'read')
+    try {
+      const recovered = await reader.read()
+      expect(recovered.events).toEqual(events.slice(0, 5))
+      expect(recovered.recovery).toMatchObject({
+        kind: 'invalid-tail',
+        firstInvalidSeq: 5,
+        discardedEvents: 2,
+      })
+      expect(recovered.recovery?.reason).toMatch(/toolCallId matching its tool source/)
+    } finally {
+      await reader.close()
+    }
+
+    await expect(ctx.sessionPersistence.open(header.id, 'write')).rejects.toThrow(/read-only recovery/)
+    expect(await readFile(path)).toEqual(bytes)
+  })
+
   it('materializes an explicitly durable empty session as one header frame', async () => {
     const root = await freshRoot()
     const ctx = await mount(root)

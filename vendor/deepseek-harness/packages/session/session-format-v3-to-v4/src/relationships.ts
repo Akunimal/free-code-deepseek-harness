@@ -379,7 +379,37 @@ function titleSources(
  * @param artifact - artifact whose V4 envelopes and messages have been admitted.
  * @param knownEventTypes - installed event types whose payloads this reader interprets.
  */
-export function assertV4LifecycleRelationships(artifact: SessionFormatArtifact, knownEventTypes: ReadonlySet<string>): void {
+export interface V4LifecycleRelationshipFailure {
+  /** Dense logical event index whose relationship first fails. */
+  readonly eventIndex: number
+  /** Original released-format diagnostic. */
+  readonly error: Error
+  /** Lifecycle-only failures are eligible for persistence's validated-prefix recovery. */
+  readonly recoveryEligible: true
+}
+
+/** Locate the earliest lifecycle relationship failure without mutating the artifact. */
+export function findV4LifecycleRelationshipFailure(
+  artifact: SessionFormatArtifact,
+  knownEventTypes: ReadonlySet<string>,
+): V4LifecycleRelationshipFailure | undefined {
   const state = new Relationships(artifact, knownEventTypes)
-  for (const event of artifact.events) state.accept(event)
+  for (const [eventIndex, event] of artifact.events.entries()) {
+    try {
+      state.accept(event)
+    } catch (error: unknown) {
+      return {
+        eventIndex,
+        error: error instanceof Error ? error : new SessionFormatError(String(error)),
+        recoveryEligible: true,
+      }
+    }
+  }
+  return undefined
+}
+
+/** Validate native V4 lifecycle and ownership facts without rewriting any event. */
+export function assertV4LifecycleRelationships(artifact: SessionFormatArtifact, knownEventTypes: ReadonlySet<string>): void {
+  const failure = findV4LifecycleRelationshipFailure(artifact, knownEventTypes)
+  if (failure !== undefined) throw failure.error
 }

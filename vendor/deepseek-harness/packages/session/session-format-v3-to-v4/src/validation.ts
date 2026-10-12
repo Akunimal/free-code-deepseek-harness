@@ -4,7 +4,7 @@ import { isAbsolute } from 'node:path'
 import { SessionFormatError, SessionFormatUnsupportedMigrationError, isSessionFormatJsonObject, sessionFormatCount } from '@deepseek-ai/dsh-session-format'
 import type { SessionFormatArtifact, SessionFormatEvent } from '@deepseek-ai/dsh-session-format'
 import { assertV4DeveloperData } from './developer.ts'
-import { assertV4LifecycleRelationships } from './relationships.ts'
+import { findV4LifecycleRelationshipFailure, type V4LifecycleRelationshipFailure } from './relationships.ts'
 import { assertV4MessageSources } from './message-sources.ts'
 import { catalogFact } from './facts.ts'
 import { assertV4RetiredSyntax } from './retired-syntax.ts'
@@ -107,24 +107,56 @@ export function validateDeliveryAccepted(event: SessionFormatEvent, currentVersi
  * @param artifact - decoded artifact with its final inherited cut.
  * @param knownEventTypes - installed event types whose payloads this reader interprets.
  */
-export function assertReleasedV4Relationships(artifact: SessionFormatArtifact, knownEventTypes: ReadonlySet<string>): void {
+export interface ReleasedV4RelationshipFailure {
+  /** Dense logical event index whose released V4 relationship first fails. */
+  readonly eventIndex: number
+  /** Original released-format diagnostic. */
+  readonly error: Error
+  /** Only cross-event lifecycle failures may be recovered as a suffix. */
+  readonly recoveryEligible: boolean
+}
+
+/** Locate the earliest V4 relationship failure while retaining whole-artifact lifecycle context. */
+export function findReleasedV4RelationshipFailure(
+  artifact: SessionFormatArtifact,
+  knownEventTypes: ReadonlySet<string>,
+): ReleasedV4RelationshipFailure | undefined {
   const ids = new Set<string>()
-  for (const event of artifact.events) {
+  let eventFailure: ReleasedV4RelationshipFailure | undefined
+  for (const [eventIndex, event] of artifact.events.entries()) {
     if (!knownEventTypes.has(event.type)) continue
-    assertV4DeveloperData(event)
-    assertV4MessageSources(event)
-    const deliveryId = validateDeliveryAccepted(event, 4)
-    if (deliveryId !== undefined
-      && !(artifact.header.parentSession !== undefined && event.seq < artifact.inheritedEventCount)
-      && deliveryId !== artifact.header.id) {
-      throw new SessionFormatError('current-generation delivery marker names the wrong Session')
-    }
-    if (event.type === 'subagent/catalog' && event.seq >= artifact.inheritedEventCount) {
-      const fact = catalogFact(event.data)
-      const id = fact['childId'] as string
-      if (ids.has(id)) throw new SessionFormatError(`duplicate catalog child ${id}`)
-      ids.add(id)
+    try {
+      assertV4DeveloperData(event)
+      assertV4MessageSources(event)
+      const deliveryId = validateDeliveryAccepted(event, 4)
+      if (deliveryId !== undefined
+        && !(artifact.header.parentSession !== undefined && event.seq < artifact.inheritedEventCount)
+        && deliveryId !== artifact.header.id) {
+        throw new SessionFormatError('current-generation delivery marker names the wrong Session')
+      }
+      if (event.type === 'subagent/catalog' && event.seq >= artifact.inheritedEventCount) {
+        const fact = catalogFact(event.data)
+        const id = fact['childId'] as string
+        if (ids.has(id)) throw new SessionFormatError(`duplicate catalog child ${id}`)
+        ids.add(id)
+      }
+    } catch (error: unknown) {
+      eventFailure = {
+        eventIndex,
+        error: error instanceof Error ? error : new SessionFormatError(String(error)),
+        recoveryEligible: false,
+      }
+      break
     }
   }
-  assertV4LifecycleRelationships(artifact, knownEventTypes)
+  const lifecycleFailure: V4LifecycleRelationshipFailure | undefined = findV4LifecycleRelationshipFailure(artifact, knownEventTypes)
+  if (eventFailure === undefined) return lifecycleFailure
+  if (lifecycleFailure === undefined || eventFailure.eventIndex <= lifecycleFailure.eventIndex) return eventFailure
+  return lifecycleFailure
+}
+
+/** Validate native V4 developer fields, messages, lifecycle, and delivery ownership. */
+export function assertReleasedV4Relationships(artifact: SessionFormatArtifact, knownEventTypes: ReadonlySet<string>): void {
+  const failure = findReleasedV4RelationshipFailure(artifact, knownEventTypes)
+  if (failure !== undefined) throw failure.error
 }

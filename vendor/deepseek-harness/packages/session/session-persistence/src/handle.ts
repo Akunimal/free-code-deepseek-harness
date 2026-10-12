@@ -19,6 +19,18 @@ export interface SessionHandleReadOptions {
   readonly signal?: AbortSignal
 }
 
+/** Read-only recovery details for a syntactically readable but semantically invalid suffix. */
+export interface SessionHandleReadRecovery {
+  /** Recovery never rewrites the original artifact. */
+  readonly kind: 'invalid-tail'
+  /** First event omitted from the returned contiguous prefix. */
+  readonly firstInvalidSeq: number
+  /** Complete event rows omitted from the returned suffix. */
+  readonly discardedEvents: number
+  /** Bounded released-format diagnostic for logs and UI surfaces. */
+  readonly reason: string
+}
+
 /** One persistence event slice returned by {@link SessionHandle.read}. */
 export interface SessionHandleReadResult {
   /**
@@ -28,6 +40,8 @@ export interface SessionHandleReadResult {
   readonly eventState: SessionSeedEventState
   /** Event values in a caller-owned outer array. */
   readonly events: readonly SessionEvent[]
+  /** Present when read-only mode recovered a valid prefix; write opens are refused. */
+  readonly recovery?: SessionHandleReadRecovery
 }
 
 /** Options for {@link SessionHandle.append}. */

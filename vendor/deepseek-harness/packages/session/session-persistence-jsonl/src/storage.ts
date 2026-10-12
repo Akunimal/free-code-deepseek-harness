@@ -158,7 +158,11 @@ export class JsonlSessionHandle implements SessionHandle {
   /** Read one slice from the prepared historical prefix retained by this handle. */
   private readPrimed(source: SessionHandleReadResult, offset: number, length: number): SessionHandleReadResult {
     this.observedLength = Math.max(this.observedLength, source.events.length)
-    return { eventState: source.eventState, events: source.events.slice(offset, offset + length) }
+    return {
+      eventState: source.eventState,
+      events: source.events.slice(offset, offset + length),
+      ...source.recovery === undefined ? {} : { recovery: source.recovery },
+    }
   }
 
   /** Read one current physical generation and enforce this handle's monotonic view. */
@@ -176,6 +180,7 @@ export class JsonlSessionHandle implements SessionHandle {
     return {
       eventState: source.eventState,
       events: source.events.slice(offset, offset + length),
+      ...source.recovery === undefined ? {} : { recovery: source.recovery },
     }
   }
 

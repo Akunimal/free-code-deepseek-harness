@@ -21,6 +21,7 @@ import { runLiveWritePathContract } from '../../session-persistence/tests/live-w
 import { LIVE_WRITE_BATCH_MAX_DELAY_MS, type JsonlSessionHandle } from '../src/storage.ts'
 import { JsonlGenerationSourceChangedError } from '../src/generation.ts'
 import SessionStore from '@deepseek-ai/dsh-session'
+import { semanticInvalidToolResultTail } from './helpers/semantic-invalid-tool-result.ts'
 
 const statRace = vi.hoisted(() => ({
   path: undefined as string | undefined,
@@ -1351,6 +1352,35 @@ describe('JsonlSessionPersistence: durability and crash semantics', () => {
   })
   afterEach(async () => { await ctx.fiber.dispose() })
 
+  it('returns only the valid prefix for a semantic tool-result identity tail and refuses writes', async () => {
+    const header = meta('semantic-tool-tail', '/work')
+    const events = semanticInvalidToolResultTail()
+    const path = rawLogPath(root, header.cwd, header.id)
+    const bytes = Buffer.from([
+      JSON.stringify(toHeaderLine(header)),
+      ...events.map(event => JSON.stringify(event)),
+    ].join('\n') + '\n')
+    await mkdir(dirname(path), { recursive: true })
+    await writeFile(path, bytes)
+
+    const reader = await ctx.sessionPersistence.open(header.id, 'read')
+    try {
+      const recovered = await reader.read()
+      expect(recovered.events).toEqual(events.slice(0, 5))
+      expect(recovered.recovery).toMatchObject({
+        kind: 'invalid-tail',
+        firstInvalidSeq: 5,
+        discardedEvents: 2,
+      })
+      expect(recovered.recovery?.reason).toMatch(/toolCallId matching its tool source/)
+    } finally {
+      await reader.close()
+    }
+
+    await expect(ctx.sessionPersistence.open(header.id, 'write')).rejects.toThrow(/read-only recovery/)
+    expect(await readFile(path)).toEqual(bytes)
+  })
+
   it('lazy materialization: create() writes no file until the first append', async () => {
     const m = meta('lazy', '/work')
     const handle = await ctx.sessionPersistence.create(m)
@@ -2261,6 +2291,37 @@ describe('JsonlSessionPersistence: scanLog unit', () => {
     expect(() => scanLog(Buffer.from(prefix + malformed))).toThrow(error)
     const committed = JSON.stringify({ type: 'turn/end', seq: 2, time: 3, data: { turn: 1, reason: { kind: 'completed' } } }) + '\n'
     expect(() => scanLog(Buffer.from(prefix + malformed + committed))).toThrow(error)
+  })
+
+  it('recovers the prefix at the first V4 tool-lifecycle relationship failure', () => {
+    const header = meta('scanner-tool-lifecycle-tail')
+    const events = semanticInvalidToolResultTail('missing-call', 'missing-call')
+    const log = Buffer.from([
+      JSON.stringify(toHeaderLine(header)),
+      ...events.map(event => JSON.stringify(event)),
+    ].join('\n') + '\n')
+
+    const scanned = scanLog(log)
+    expect(scanned.events).toEqual(events.slice(0, 5))
+    expect(scanned.recovery).toMatchObject({
+      kind: 'invalid-tail',
+      firstInvalidSeq: 5,
+      discardedEvents: 2,
+    })
+    expect(scanned.recovery?.reason).toMatch(/has no advertised tool lifecycle/)
+  })
+
+  it('does not recover a semantic tool-lifecycle failure before a later committed turn end', () => {
+    const header = meta('scanner-committed-tool-tail')
+    const events = semanticInvalidToolResultTail('missing-call', 'missing-call')
+    const turnEnd = { type: 'turn/end', seq: 7, time: 8, data: { turn: 1, reason: { kind: 'completed' } } }
+    const log = Buffer.from([
+      JSON.stringify(toHeaderLine(header)),
+      ...events.map(event => JSON.stringify(event)),
+      JSON.stringify(turnEnd),
+    ].join('\n') + '\n')
+
+    expect(() => scanLog(log)).toThrow(/has no advertised tool lifecycle/)
   })
 
   it.each([false, true])('rejects malformed native tool results before recovery (sealed=%s)', (sealed) => {

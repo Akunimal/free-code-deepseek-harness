@@ -24,10 +24,11 @@ import { parseSessionFormatLogFilename, sessionFormatLogFilename, SessionFormatU
 import type { SessionFormatEvent } from '@deepseek-ai/dsh-session-format'
 import type { SessionFormatRecovery, SessionFormatRestore } from '@deepseek-ai/dsh-session-format'
 import { sessionFormatCatalog } from '@deepseek-ai/dsh-session-format-catalog'
-import { assertV4RowAdmission, assertReleasedV4Relationships } from '@deepseek-ai/dsh-session-format-v3-to-v4'
+import { assertV4RowAdmission, findReleasedV4RelationshipFailure } from '@deepseek-ai/dsh-session-format-v3-to-v4'
 import {
   SessionFormatUnsupportedError,
   sessionFormatVersionRefusal,
+  type SessionHandleReadRecovery,
   type SessionStorageMetadata,
 } from '@deepseek-ai/dsh-session-persistence'
 
@@ -328,6 +329,37 @@ interface SessionLogScan {
   inheritedEventCount: SessionLogOffsetType
   events: SessionEvent[]
   committedBytes: number
+  recovery?: SessionHandleReadRecovery
+}
+
+interface MutableSessionLogRecovery {
+  kind: 'invalid-tail'
+  firstInvalidSeq: number
+  discardedEvents: number
+  reason: string
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** Only a well-shaped first-class tool result with broken correlation may use semantic-tail recovery. */
+function isRecoverableToolResultCorrelationFailure(row: unknown, error: unknown): boolean {
+  if (!(error instanceof Error) || !error.message.includes('requires toolCallId matching its tool source')) return false
+  if (!isRecord(row) || row['type'] !== 'tool/result' || !isRecord(row['data'])) return false
+  const message = row['data']['message']
+  if (!isRecord(message) || typeof message['id'] !== 'string' || message['id'].length === 0 || message['role'] !== 'tool') return false
+  const source = message['source']
+  if (!isRecord(source) || source['kind'] !== 'tool') return false
+  if (!Array.isArray(message['content'])
+    || message['content'].some(block => isRecord(block) && block['type'] === 'tool-result')) return false
+  if (message['isError'] !== undefined && typeof message['isError'] !== 'boolean') return false
+  if (row['data']['error'] !== undefined && message['isError'] !== true) return false
+  const toolCallId = message['toolCallId']
+  const sourceCallId = source['callId']
+  return !(typeof toolCallId === 'string' && toolCallId.length > 0
+    && typeof sourceCallId === 'string' && sourceCallId.length > 0
+    && toolCallId === sourceCallId)
 }
 
 /**
@@ -391,8 +423,11 @@ export class SessionLogScanner {
   private fragmentBytes = 0
   private inputBytes: number
   private committedBytes: number
+  private readonly headerBytes: number
+  private readonly eventEndOffsets: number[] = []
   private eventLine = 0
   private issue: Error | undefined
+  private recoverableTail: MutableSessionLogRecovery | undefined
   private finished = false
 
   /**
@@ -408,6 +443,7 @@ export class SessionLogScanner {
     this.restore = parsed.restore
     this.inputBytes = headerRecord.length
     this.committedBytes = headerRecord.length
+    this.headerBytes = headerRecord.length
   }
 
   /**
@@ -450,11 +486,13 @@ export class SessionLogScanner {
     inputBytes: number
     committedBytes: number
     eventCount: SessionLogOffsetType
+    recovery?: SessionHandleReadRecovery
   } {
     return {
       inputBytes: this.inputBytes,
       committedBytes: this.committedBytes,
       eventCount: SessionLogOffset(this.eventCount),
+      ...this.recoverableTail === undefined ? {} : { recovery: { ...this.recoverableTail } },
     }
   }
 
@@ -465,7 +503,40 @@ export class SessionLogScanner {
   finish(): SessionLogScan {
     this.finished = true
     const artifact = this.restore.finish()
-    assertReleasedV4Relationships(artifact, KNOWN_SESSION_EVENT_TYPES)
+    if (this.recoverableTail !== undefined) {
+      const prefixFailure = findReleasedV4RelationshipFailure(artifact, KNOWN_SESSION_EVENT_TYPES)
+      if (prefixFailure !== undefined) throw prefixFailure.error
+      return {
+        meta: this.meta,
+        inheritedEventCount: SessionLogOffset(artifact.inheritedEventCount),
+        events: artifact.events as unknown as SessionEvent[],
+        committedBytes: this.committedBytes,
+        recovery: { ...this.recoverableTail },
+      }
+    }
+    const failure = findReleasedV4RelationshipFailure(artifact, KNOWN_SESSION_EVENT_TYPES)
+    if (failure !== undefined) {
+      const hasLaterCommittedTurnEnd = artifact.events.slice(failure.eventIndex + 1)
+        .some(event => event.type === 'turn/end')
+      if (this.recovery !== 'recoverable' || !failure.recoveryEligible || hasLaterCommittedTurnEnd
+        || failure.eventIndex < artifact.inheritedEventCount) {
+        throw failure.error
+      }
+      const events = artifact.events.slice(0, failure.eventIndex) as unknown as SessionEvent[]
+      this.committedBytes = this.eventEndOffsets[failure.eventIndex - 1] ?? this.headerBytes
+      return {
+        meta: this.meta,
+        inheritedEventCount: SessionLogOffset(artifact.inheritedEventCount),
+        events,
+        committedBytes: this.committedBytes,
+        recovery: {
+          kind: 'invalid-tail',
+          firstInvalidSeq: failure.eventIndex,
+          discardedEvents: artifact.events.length - failure.eventIndex,
+          reason: failure.error.message.slice(0, 512),
+        },
+      }
+    }
     return {
       meta: this.meta,
       inheritedEventCount: SessionLogOffset(artifact.inheritedEventCount),
@@ -493,12 +564,30 @@ export class SessionLogScanner {
       assertV4RowAdmission(decoded, KNOWN_SESSION_EVENT_TYPES)
     } catch (error: unknown) {
       if (error instanceof SessionFormatUnsupportedMigrationError) throw new SessionFormatUnsupportedError(error.message)
+      if (this.recovery === 'recoverable'
+        && isRecoverableToolResultCorrelationFailure(decoded, error)
+        && (this.issue === undefined || this.recoverableTail !== undefined)) {
+        const detail = error instanceof Error ? error.message : String(error)
+        this.issue ??= error instanceof Error ? error : new Error(detail)
+        if (this.recoverableTail === undefined) {
+          this.recoverableTail = {
+            kind: 'invalid-tail',
+            firstInvalidSeq: this.eventCount,
+            discardedEvents: 1,
+            reason: detail.slice(0, 512),
+          }
+        } else {
+          this.recoverableTail.discardedEvents += 1
+        }
+        return
+      }
       throw error
     }
 
     if (this.issue !== undefined) {
       if (typeof decoded === 'object' && decoded !== null
         && (decoded as { type?: unknown }).type === 'turn/end') throw this.issue
+      if (this.recoverableTail !== undefined) this.recoverableTail.discardedEvents += 1
       return
     }
     try {
@@ -518,6 +607,7 @@ export class SessionLogScanner {
     }
     this.eventCount += 1
     this.committedBytes = endByte
+    this.eventEndOffsets.push(endByte)
   }
 }
 

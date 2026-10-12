@@ -20,6 +20,7 @@ export type {
   SessionHandleAppendOptions,
   SessionHandleFlushOptions,
   SessionHandleReadOptions,
+  SessionHandleReadRecovery,
   SessionHandleReadResult,
 } from './handle.ts'
 export {
