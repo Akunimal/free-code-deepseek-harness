@@ -138,7 +138,13 @@ export async function checkHarnessRelease(
       ...(assetName === undefined ? {} : { assetName }),
       ...(assetUrl === undefined ? {} : { assetUrl }),
       ...(digest === undefined ? {} : { digest }),
-      available: Boolean(latestVersion && assetUrl && (requiredVersion !== undefined || latestVersion !== currentVersion)),
+      available: Boolean(
+        latestVersion && assetUrl && (
+          requiredVersion !== undefined ||
+          currentVersion === undefined ||
+          semver.compare(latestVersion, currentVersion) > 0
+        ),
+      ),
       ...(!assetMatch ? {
         error: requiredVersion === undefined
           ? `No compatible harness asset for ${platformName}-${arch}`

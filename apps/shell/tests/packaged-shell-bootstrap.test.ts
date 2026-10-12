@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const roots: string[] = [];
 const packagedMainPath = join('dist', 'src', 'main', 'index.js');
+const packagedIndicatorPath = join('dist', 'src', 'main', 'update-indicator-html.js');
+const circularIndicatorSource = 'button{-webkit-appearance:none;appearance:none;width:34px;height:34px;padding:0;border-radius:50%}';
 const shellRequire = createRequire(new URL('../package.json', import.meta.url));
 const builderRequire = createRequire(shellRequire.resolve('electron-builder/package.json'));
 const asar = builderRequire('@electron/asar') as {
@@ -61,8 +63,31 @@ describe('packaged shell bootstrap gate', () => {
     ].join('\n');
     const { verifyPackagedShellBootstrap } = await loadVerifier();
 
-    expect(verifyPackagedShellBootstrap({ ...paths, extractFile: () => bundledMain }))
+    const extractFile = (_archivePath: string, filePath: string) =>
+      filePath === packagedIndicatorPath ? circularIndicatorSource : bundledMain;
+
+    expect(verifyPackagedShellBootstrap({ ...paths, extractFile }))
       .toMatchObject({ ok: true });
+  });
+
+  it('rejects a packaged update indicator that does not reset and round the circular button', async () => {
+    const paths = fixture();
+    const bundledMain = [
+      'async function ensurePackagedHarnessRuntime(harnessRuntimeDir, staticResourcesDir) {',
+      "  const requirements = readHarnessRuntimeRequirements(join(staticResourcesDir, 'runtime-manifest.json'));",
+      '  await ensureHarnessRuntime({ resourcesDir: harnessRuntimeDir, requirements });',
+      '}',
+      'if (app.isPackaged && !(await ensurePackagedHarnessRuntime(harnessRuntimeDir, resources))) return;',
+      'await awaitHarnessLayout({ resourcesDir });',
+    ].join('\n');
+    const extractFile = (_archivePath: string, filePath: string) =>
+      filePath === packagedIndicatorPath ? 'button{border-radius:4px}' : bundledMain;
+    const { verifyPackagedShellBootstrap } = await loadVerifier();
+
+    const result = verifyPackagedShellBootstrap({ ...paths, extractFile });
+
+    expect(result).toMatchObject({ ok: false });
+    expect(result.error).toMatch(/circular update indicator/);
   });
 
   it('rejects a packaged bootstrap that omits the runtime version and native ABI requirements', async () => {
@@ -86,6 +111,7 @@ describe('packaged shell bootstrap gate', () => {
     const paths = fixture();
     const sourceRoot = join(paths.appOutDir, 'stage');
     const mainPath = join(sourceRoot, packagedMainPath);
+    const indicatorPath = join(sourceRoot, packagedIndicatorPath);
     const bundledMain = [
       'async function ensurePackagedHarnessRuntime(harnessRuntimeDir, staticResourcesDir) {',
       "  const requirements = readHarnessRuntimeRequirements(join(staticResourcesDir, 'runtime-manifest.json'));",
@@ -96,6 +122,7 @@ describe('packaged shell bootstrap gate', () => {
     ].join('\n');
     mkdirSync(join(sourceRoot, 'dist', 'src', 'main'), { recursive: true });
     writeFileSync(mainPath, bundledMain);
+    writeFileSync(indicatorPath, circularIndicatorSource);
     rmSync(paths.archivePath);
     await asar.createPackage(sourceRoot, paths.archivePath);
     const { verifyPackagedShellBootstrap } = await loadVerifier();

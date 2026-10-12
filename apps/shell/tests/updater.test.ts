@@ -180,6 +180,23 @@ describe('update service', () => {
     );
   });
 
+  it('does not offer an older published runtime as an update', async () => {
+    const currentVersion = '0.2.1-alpha.2';
+    const olderAssetName = harnessAssetName('0.2.1-alpha.1', 'win32', 'x64');
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify([{
+      tag_name: 'v0.9.0',
+      prerelease: true,
+      assets: [{ name: olderAssetName, browser_download_url: `https://example.test/${olderAssetName}` }],
+    }]), { status: 200 }));
+
+    await expect(checkHarnessRelease(currentVersion, 'win32', 'x64', fetchImpl)).resolves.toMatchObject({
+      currentVersion,
+      latestVersion: '0.2.1-alpha.1',
+      assetName: olderAssetName,
+      available: false,
+    });
+  });
+
   it('selects the exact packaged DSH prerelease instead of stale or newer release assets', async () => {
     const staleAssetName = harnessAssetName('0.1.3-alpha.1', 'win32', 'x64');
     const compatibleAssetName = harnessAssetName('0.2.1-alpha.2', 'win32', 'x64');
