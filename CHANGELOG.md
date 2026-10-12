@@ -1,6 +1,29 @@
 # Changelog
 
-## 0.9.2 — unreleased
+## 0.9.2 — 2026-10-12
+
+### Added / Agregado
+
+- First launch downloads the pinned DSH `0.2.1-alpha.2` runtime to per-user
+  storage, validates its SHA-256 and Electron ABI, and reuses the verified
+  runtime offline on later starts. The runtime is a separate release asset
+  rather than part of the desktop installer. / En el primer inicio se descarga
+  el runtime DSH `0.2.1-alpha.2` a datos del usuario y se validan su SHA-256 y
+  ABI de Electron; luego se reutiliza sin conexión. El runtime se distribuye
+  separado del instalador.
+
+### Improved / Mejorado
+
+- Setup and portable packages are about 178 MB each, down from about 304 MB in
+  0.9.1. A machine without a cached runtime needs an internet connection on
+  first launch to download the 421.6 MB DSH runtime. / Los paquetes setup y
+  portable pesan unos 178 MB cada uno, frente a unos 304 MB en 0.9.1. Si no
+  hay runtime en caché, el primer inicio requiere internet para descargar los
+  421,6 MB del runtime DSH.
+- Update checks no longer offer an older DSH runtime as an upgrade, and the
+  update indicator renders as a circle. / El chequeo ya no ofrece como
+  actualización un runtime DSH más viejo y el indicador de actualización es
+  circular.
 
 ### Fixed / Corregido
 
@@ -9,6 +32,13 @@
   ordinary and restricted-token process creation paths. / Se evita que los
   procesos PowerShell hijos creados por Win32 muestren ventanas de consola y
   roben el foco; hay tests para ambas rutas de creación.
+
+### Verification / Verificación
+
+- Source range: `v0.9.1..v0.9.2`. Verified with the shell Vitest suite,
+  `pnpm --dir apps/shell typecheck`, and `pnpm --dir apps/shell package`.
+  / Rango: `v0.9.1..v0.9.2`. Verificado con Vitest del shell, el chequeo de
+  tipos y el empaquetado de `apps/shell`.
 
 ## 0.9.1 — unreleased
 
