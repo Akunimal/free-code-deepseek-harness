@@ -74,6 +74,14 @@ if (!patchHook.includes('patchInstDirSanitize') || !patchHook.includes('_freecod
   console.error('verify-nsis-hooks: $INSTDIR sanitize routine missing from patch-nsis.cjs.');
   process.exit(1);
 }
+if (/taskkill(?:\.exe)?\s+\/F\s+\/IM\b/i.test(source) || !source.includes('FREECODE_NSIS_TARGET_EXE') || !source.includes('ExecutablePath')) {
+  console.error('verify-nsis-hooks: process shutdown must target only the exact executable path under the current $INSTDIR.');
+  process.exit(1);
+}
+if (/taskkill(?:\.exe)?\s+\/F\s+\/IM\b/i.test(patchHook) || !patchHook.includes('FreeCode path-scoped process cleanup')) {
+  console.error('verify-nsis-hooks: installer template fallback must use path-scoped cleanup, never a global image-name kill.');
+  process.exit(1);
+}
 
 const shortcutContract = [
   /!macro\s+customInstall\b/i,

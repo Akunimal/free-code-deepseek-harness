@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Post-build NSIS smoke — installs the freshly built setup.exe silently
- * into a temporary directory, verifies only static resources are bundled,
- * launches the app to exercise first-run DSH download into user data, then uninstalls.
+ * Interactive NSIS smoke for a disposable Windows VM only — installs the
+ * exact versioned setup into a temporary directory, launches the app to
+ * exercise first-run DSH bootstrap, then uninstalls.
  *
  * This is the last-line defense against the v0.2.4 install crash: even if
  * the vendor bundle is fresh (gated by verify-vendor-bundles-fresh.mjs)
@@ -10,8 +10,9 @@
  * template changes upstream could reintroduce a post-extraction wipe.
  * This gate runs the actual installer against the actual filesystem.
  *
- * Only runs on Windows. Skips silently elsewhere. Requires a fresh setup
- * .exe in apps/shell/release/.
+ * Refuses to run on an ordinary workstation because NSIS changes user-scoped
+ * shortcuts/registration and launches the GUI. Requires both explicit VM
+ * opt-in variables and the exact package-version setup path.
  *
  * Exit codes:
  *   0 — install layout is complete.
@@ -27,10 +28,17 @@ import { fileURLToPath } from 'node:url';
 import { removeTestInstall } from './remove-test-install.mjs';
 import { stopInstalledProcesses, stopInstalledProcessesReferencing, verifyInstalledRuntime } from './verify-installed-runtime.mjs';
 import { cleanupInstalledShortcuts, verifyInstalledShortcuts } from './verify-nsis-shortcuts.mjs';
+import { interactiveNsisSmokeOptedIn } from './nsis-smoke-guard.mjs';
+import { resolveNsisSetup } from './nsis-smoke-setup.mjs';
 
 if (process.platform !== 'win32') {
   console.log('verify-nsis-install-layout: skipped (non-Windows host).');
   process.exit(0);
+}
+
+if (!interactiveNsisSmokeOptedIn(process.env)) {
+  console.error('verify-nsis-install-layout: refused; run only in a disposable Windows VM with FREECODE_ALLOW_INTERACTIVE_NSIS_SMOKE=1 and FREECODE_NSIS_SMOKE_ENV=disposable-vm.');
+  process.exit(2);
 }
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -39,20 +47,23 @@ const INSTALL_TIMEOUT_MS = Number(process.env.FREECODE_NSIS_SMOKE_TIMEOUT_MS ?? 
 if (!Number.isFinite(INSTALL_TIMEOUT_MS) || INSTALL_TIMEOUT_MS <= 0) {
   throw new Error('verify-nsis-install-layout: FREECODE_NSIS_SMOKE_TIMEOUT_MS must be a positive number');
 }
-if (!existsSync(RELEASE_DIR)) {
+if (!process.env.FREECODE_NSIS_SETUP_PATH && !existsSync(RELEASE_DIR)) {
   console.error(`verify-nsis-install-layout: release dir missing: ${RELEASE_DIR}`);
   process.exit(2);
 }
 
-const setups = readdirSync(RELEASE_DIR).filter(
-  (name) => /^FreeCode-DeepSeek-Harness-.+-win-x64-setup\.exe$/.test(name),
-);
-if (setups.length === 0) {
-  console.error('verify-nsis-install-layout: no setup.exe in release/. Build first with `pnpm --filter @freecode/shell package`.');
+const packageVersion = JSON.parse(readFileSync(join(REPO_ROOT, 'apps/shell/package.json'), 'utf8')).version;
+let setup;
+try {
+  setup = resolveNsisSetup({
+    releaseDir: RELEASE_DIR,
+    version: packageVersion,
+    setupPath: process.env.FREECODE_NSIS_SETUP_PATH,
+  });
+} catch (error) {
+  console.error(`verify-nsis-install-layout: ${error.message}`);
   process.exit(2);
 }
-// Pick the newest by name (versions sort correctly for our scheme).
-const setup = join(RELEASE_DIR, setups.sort().reverse()[0]);
 console.log(`verify-nsis-install-layout: testing ${setup}`);
 
 const installDir = mkdtempSync(join(tmpdir(), 'freecode-nsis-smoke-'));

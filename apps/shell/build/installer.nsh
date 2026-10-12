@@ -1,14 +1,11 @@
-; Override the default process-running check that false-positives on
-; Windows 11 24H2/25H2 (electron-builder #8536).
-; electron-builder includes this file BEFORE the template, so the macro
-; is already defined when allowOnlyOneInstallerInstance.nsh checks
-; !ifmacrondef customCheckAppRunning.
+; Work around the false-positive process check on Windows 11 24H2/25H2
+; without terminating another installation of the same product. Only stop
+; the process whose executable path is exactly this installer's $INSTDIR.
 
 !macro customCheckAppRunning
-  ; Kill any running instance silently instead of checking (avoids false positives)
-  nsExec::ExecToStack 'taskkill /F /IM "${APP_EXECUTABLE_FILENAME}" /T'
-  Pop $0
-  ; Ignore errors (exit code 128 = process not found, 0 = killed, 1 = killed with children)
+  System::Call 'Kernel32::SetEnvironmentVariableW(w "FREECODE_NSIS_TARGET_EXE", w "$INSTDIR\${APP_EXECUTABLE_FILENAME}")'
+  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -Command "$$target = [Environment]::GetEnvironmentVariable(''FREECODE_NSIS_TARGET_EXE''); $$target = [IO.Path]::GetFullPath($$target); $$appName = ''${APP_EXECUTABLE_FILENAME}''; $$matches = Get-CimInstance Win32_Process | Where-Object { $$_.Name -ieq $$appName -and $$_.ExecutablePath -and [IO.Path]::GetFullPath($$_.ExecutablePath) -ieq $$target }; foreach ($$instance in $$matches) { & taskkill.exe /PID $$instance.ProcessId /T /F | Out-Null }"'
+  System::Call 'Kernel32::SetEnvironmentVariableW(w "FREECODE_NSIS_TARGET_EXE", w "")'
   Sleep 1000
 !macroend
 

@@ -4,8 +4,8 @@
  * 1. multiUser.nsh — removes SHGetKnownFolderPath crash on Win11 24H2/25H2
  *    See: https://github.com/electron-userland/electron-builder/issues/8536
  *
- * 2. allowOnlyOneInstallerInstance.nsh — replaces false-positive process check
- *    with silent taskkill (Win11 25H2 FIND_PROCESS gives false positives)
+ * 2. allowOnlyOneInstallerInstance.nsh — routes fallback process cleanup to
+ *    FreeCode's path-scoped hook (Win11 25H2 FIND_PROCESS false positives)
  */
 
 const fs = require('fs');
@@ -88,29 +88,28 @@ function patchAppRunningCheck() {
 
   let content = fs.readFileSync(nshPath, 'utf8');
 
-  if (content.includes('PATCHED: taskkill instead of process check')) {
-    console.log('[patch-nsis] allowOnlyOneInstallerInstance.nsh already patched');
+  if (content.includes('PATCHED: FreeCode path-scoped process cleanup')) {
+    console.log('[patch-nsis] allowOnlyOneInstallerInstance.nsh already uses path-scoped cleanup');
     return;
   }
 
   if (!content.includes('!macro _CHECK_APP_RUNNING')) {
-    console.warn('[patch-nsis] _CHECK_APP_RUNNING macro not found — template may have changed');
-    return;
+    throw new Error('[patch-nsis] _CHECK_APP_RUNNING macro not found — refusing an installer with unknown process cleanup');
   }
 
-  // Replace _CHECK_APP_RUNNING macro with simple taskkill
+  // Keep the fallback on the same path-scoped FreeCode hook. Never kill by
+  // image name: a side-by-side copy must not stop the user's other install.
   const macroRegex = /!macro _CHECK_APP_RUNNING[\s\S]*?!macroend/;
   if (macroRegex.test(content)) {
     content = content.replace(macroRegex,
 `!macro _CHECK_APP_RUNNING
-  ; PATCHED: taskkill instead of process check (Win11 25H2 false positives)
-  nsExec::ExecToLog 'taskkill /F /IM "\${APP_EXECUTABLE_FILENAME}"'
-  Sleep 1000
+  ; PATCHED: FreeCode path-scoped process cleanup under $INSTDIR only.
+  !insertmacro customCheckAppRunning
 !macroend`);
     fs.writeFileSync(nshPath, content, 'utf8');
-    console.log('[patch-nsis] allowOnlyOneInstallerInstance.nsh patched — taskkill replaces process check');
+    console.log('[patch-nsis] allowOnlyOneInstallerInstance.nsh patched — process cleanup is scoped to $INSTDIR');
   } else {
-    console.warn('[patch-nsis] _CHECK_APP_RUNNING regex did not match');
+    throw new Error('[patch-nsis] _CHECK_APP_RUNNING regex did not match — refusing an installer with unknown process cleanup');
   }
 }
 
