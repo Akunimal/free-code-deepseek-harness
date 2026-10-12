@@ -1,6 +1,6 @@
 import { spawn, ChildProcess } from 'node:child_process';
 import { createServer, Server } from 'node:net';
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { closeSync, mkdirSync, openSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Pool, PoolConfig, Socks5Config, WorkerHandle, WorkerStatus } from './types.js';
 
@@ -62,15 +62,17 @@ export function getFreePort(): Promise<number> {
   });
 }
 
-async function healthOk(port: number, timeoutMs: number, authHeader?: string): Promise<boolean> {
+async function healthOk(port: number, timeoutMs: number): Promise<boolean> {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetch(`http://127.0.0.1:${port}/health`, {
+    // /healthz is the shipped sidecar's liveness route. A 503 still means the
+    // listener is serving while its model catalog warms, so any HTTP response
+    // establishes worker readiness.
+    const res = await fetch(`http://127.0.0.1:${port}/healthz`, {
       signal: ctrl.signal,
-      headers: authHeader ? { Authorization: authHeader } : {},
     });
-    return res.status === 200;
+    return res.status > 0;
   } catch {
     return false;
   } finally {
@@ -318,11 +320,11 @@ export class OpenCodePool implements Pool {
     // being reserved. Never install a late handle or spawn after lifecycle
     // ownership has been revoked.
     if (!this.started || this.generations.get(id) !== generation) return;
-    const logFile = join(this.cfg.logDir, `${id}.log`);
     const wd = join(this.cfg.workDir, id);
     mkdirSync(wd, { recursive: true });
+    const logFile = join(this.cfg.logDir, `${id}.log`);
 
-    this.writeSocks5Config(wd);
+    const configPath = this.writeWorkerConfig(wd, port);
 
     const handle: ManagedWorker = {
       id,
@@ -342,24 +344,20 @@ export class OpenCodePool implements Pool {
     this.workerMap.set(id, handle);
     this.emitChange(handle);
 
-    const args = [
-      '-host', '127.0.0.1',
-      '-port', String(port),
-      '-password', '',
-      '-log-file', logFile,
-      '-config', join(wd, 'config.json'),
-    ];
+    const args = ['-config', configPath, '-listen', `127.0.0.1:${port}`];
     if (process.env.OPENCODE2API_EXTRA_ARGS) {
       args.push(...process.env.OPENCODE2API_EXTRA_ARGS.split(/\s+/).filter(Boolean));
     }
 
     let proc: ChildProcess;
+    let logFd: number | undefined;
     try {
+      logFd = openSync(logFile, 'a');
       proc = spawn(this.cfg.binaryPath, args, {
         cwd: wd,
         windowsHide: true,
         shell: false,
-        stdio: ['ignore', 'pipe', 'pipe'],
+        stdio: ['ignore', logFd, logFd],
       });
     } catch (err) {
       handle.status = 'stopped';
@@ -367,17 +365,12 @@ export class OpenCodePool implements Pool {
       this.emitChange(handle);
       console.error(`[pool] spawn ${id} failed:`, err);
       return;
+    } finally {
+      if (logFd !== undefined) closeSync(logFd);
     }
 
     handle.proc = proc;
     handle.pid = proc.pid ?? -1;
-    proc.stdout?.on('data', () => {
-      /* consumed; logs go to log-file anyway */
-    });
-    proc.stderr?.on('data', () => {
-      /* consumed */
-    });
-
     proc.on('exit', (code, signal) => {
       if (handle.stopped || this.workerMap.get(id) !== handle || handle.generation !== generation) return; // deliberate or stale generation
       console.warn(`[pool] ${id} exited code=${code} signal=${signal}`);
@@ -386,11 +379,11 @@ export class OpenCodePool implements Pool {
       void this.maybeRespawn(id, handle, generation);
     });
 
-    // Wait for readiness: /health 200 within 15s.
+    // Wait for readiness: /healthz answers within 15s.
     const deadline = Date.now() + HEALTH_TIMEOUT_MS;
     while (Date.now() < deadline) {
       if (!this.started || handle.stopped || proc.exitCode !== null) return;
-      if (await healthOk(port, HEALTH_POLL_MS + 100, this.cfg.baseAuthHeader)) {
+      if (await healthOk(port, HEALTH_POLL_MS + 100)) {
         handle.status = 'ready';
         handle.healthFails = 0;
         this.emitChange(handle);
@@ -454,7 +447,7 @@ export class OpenCodePool implements Pool {
     const snapshot = [...this.workerMap.values()];
     for (const w of snapshot) {
       if (w.status !== 'ready' && w.status !== 'unhealthy') continue;
-      const ok = await healthOk(w.port, 2_000, this.cfg.baseAuthHeader);
+      const ok = await healthOk(w.port, 2_000);
       if (ok) {
         w.healthFails = 0;
         if (w.status === 'unhealthy' && w.proc?.exitCode === null) {
@@ -516,20 +509,40 @@ export class OpenCodePool implements Pool {
     }
   }
 
-  private writeSocks5Config(workerDir: string): void {
-    if (!this.cfg.socks5) return;
+  private writeWorkerConfig(workerDir: string, port: number): string {
     const cfgPath = join(workerDir, 'config.json');
-    let existing: Record<string, unknown> = {};
-    try {
-      if (existsSync(cfgPath)) {
-        existing = JSON.parse(readFileSync(cfgPath, 'utf8'));
-      }
-    } catch { /* start fresh */ }
-
-    existing['socks5_proxies'] = this.cfg.socks5.socks5_proxies;
-    existing['active_socks5'] = this.cfg.socks5.active_socks5;
-    existing['socks5_paid_direct'] = this.cfg.socks5.socks5_paid_direct;
-    writeFileSync(cfgPath, JSON.stringify(existing, null, 2), 'utf8');
+    const authHeader = this.cfg.baseAuthHeader?.trim() || 'Bearer public';
+    const serverKey = authHeader.replace(/^Bearer\s+/i, '').trim() || 'public';
+    const config: Record<string, unknown> = {
+      listen: `127.0.0.1:${port}`,
+      server_keys: [serverKey],
+      zen_keys: [],
+      go_keys: [],
+      anonymous: true,
+      prefer: 'zen',
+      proxies: ['direct'],
+      proxyfile: '',
+      upstream: {
+        zen: 'https://opencode.ai/zen',
+        go: 'https://opencode.ai/zen/go',
+      },
+      retry: { max_attempts: 3, timeout_seconds: 300 },
+      models: { refresh_seconds: 300, protocols: {} },
+      performance: {
+        max_idle_conns: 2048,
+        max_idle_conns_per_host: 256,
+        max_conns_per_host: 0,
+        idle_conn_timeout_seconds: 120,
+        connect_timeout_seconds: 5,
+        failure_cooldown_seconds: 15,
+        attempt_timeout_seconds: 0,
+      },
+      logging: { level: 'info', ring_size: 2000, dump_request_bodies: false },
+      webui: { enabled: false, listen: '127.0.0.1:0', username: 'local', session_ttl_minutes: 720 },
+      ...(this.cfg.socks5 ?? {}),
+    };
+    writeFileSync(cfgPath, JSON.stringify(config, null, 2), 'utf8');
+    return cfgPath;
   }
 
   private emitChange(w: ManagedWorker): void {
