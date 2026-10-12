@@ -6,10 +6,12 @@ El **harness web** (la UI interna de DeepSeek) conserva catálogos chino (zh), i
 (en) y español (es). En 0.8.0 el selector visible muestra correctamente español,
 inglés y chino gracias al parche `141-*`.
 
-## Estado actual (0.9.0)
+## Estado actual (baseline publicada v0.9.2)
 
-✅ **Resuelto en 0.8.0, verificado en 0.9.0** — El locale español está
-completamente funcional en la UI web. El parche
+✅ **Resuelto en 0.8.0, última verificación explícita en 0.9.0** — El locale
+español está completamente funcional en la UI web y sigue incluido en la
+baseline publicada v0.9.2; no hubo cambios a este parche de traducciones en
+0.9.2. El parche
 `141-freecode-spanish-translations.patch` agrega diccionarios `es` reales a 30
 archivos `locales.ts` (~1000 claves), y los bundles de vendor se reconstruyeron
 con `pnpm build:vendor` para que los cambios queden activos. El selector de

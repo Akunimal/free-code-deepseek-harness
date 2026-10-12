@@ -8,24 +8,25 @@ servidores MCP y llamadas al modelo.
 
 ## Español
 
-## Estado actual: 0.9.0 publicado (Windows x64)
+## Estado actual: 0.9.2 publicado (Windows x64)
 
-0.9.0 está publicado para Windows x64 con:
+v0.9.2 está publicado para Windows x64 con:
 
-- un instalador NSIS (~304 MB);
-- un ejecutable portable de Windows (~304 MB).
+- un instalador NSIS (~178,5 MB);
+- un ejecutable portable de Windows (~178,2 MB);
+- el runtime DSH fijado en `0.2.1-alpha.2` como asset separado de ~421,6 MB,
+  descargado en el primer inicio si no existe una caché válida por usuario.
 
-**Soporte de plataformas: probado solo en Windows 10/11 x64**
-(instalación limpia, arranque, `harness ready`, Tor escuchando, lane único de
-modelos, apagado limpio). **NO probado y NO soportado**: Windows ARM64, Linux
-(cualquier distribución/arquitectura), macOS (cualquier arquitectura). No se
-publican artefactos para estas plataformas; los builds de contribuidores
-existen pero no fueron probados por el mantenedor y no deben tratarse como
-releases utilizables. Las compilaciones son locales y no usan workflows de
-GitHub Actions.
+**Soporte de plataformas: solo Windows x64** (v0.9.2 se empaquetó y se confirmó
+que funciona después de instalarlo en Windows x64). Windows ARM64, Linux
+(cualquier distribución/arquitectura) y macOS (ninguna arquitectura) no están
+probados ni soportados. No se publican artefactos para estas plataformas. Los
+builds de contribuidores existen pero no fueron probados por el mantenedor y no deben
+tratarse como releases utilizables. Las compilaciones son locales y no usan
+workflows de GitHub Actions.
 
-`0.4.3` es la última referencia operativa conocida porque abre bien. No es la
-fuente de verdad y puede no contener los fixes de este worktree.
+`0.4.3` es una referencia histórica de recuperación, no la release actual ni
+la fuente de verdad. v0.9.2 es la baseline publicada actual para Windows x64.
 
 ## Qué incluye
 
@@ -54,8 +55,8 @@ fuente de verdad y puede no contener los fixes de este worktree.
 - Una sola shell Electron y una sola generación del proceso `dsh` como objetivo
   de runtime.
 - Los popups del renderer se deniegan y un backstop destruye cualquier ventana
-  nativa fuera de splash/main/overlay: ninguna tool ni página puede flashear
-  ventanas transitorias sobre tu trabajo.
+  nativa fuera de splash/main/overlay. Los procesos `pwsh` hijos creados por
+  Win32 en DSH también arrancan ocultos: no flashean consolas ni roban el foco.
 - Engram y free-search como entradas MCP administradas. Engram está activado por
   defecto como la tercera fila administrada; free-search arranca deshabilitado
   hasta empaquetar su binario. Las entradas cuyo comando no puede ejecutarse
@@ -64,8 +65,8 @@ fuente de verdad y puede no contener los fixes de este worktree.
   cantidad de herramientas registradas, errores y ruta de configuración.
 - Configuración de Caveman en la tarjeta Shell, activada por defecto en el
   schema del shell; si falta el ejecutable queda como no-op explícito.
-- Toggles separados para RTK y Caveman. Ambos siguen como helpers opcionales
-  por PATH en 0.9.0, no son binarios empaquetados.
+- Toggles separados para RTK y Caveman. Ambos son helpers opcionales por PATH,
+  no binarios empaquetados.
 - Tesseract incluido en Windows para los flujos de imágenes de modelos
   text-only.
 - Navegador embebido solamente cuando el usuario lo abre explícitamente.
@@ -83,34 +84,28 @@ superficie de memoria semántica.
 ## Instalación y primer uso
 
 1. Descargá el setup o portable de Windows de la
-   [release 0.9.0 en GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.0).
+   [release v0.9.2 en GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.2).
 2. Instalalo o descomprimilo y abrí el acceso directo/ejecutable real.
 3. Elegí la carpeta de tu proyecto en el picker.
 4. Pedile al modelo que inspeccione o modifique el proyecto.
 
-El instalador de 0.9.0 incluye Electron, el runtime upstream del Harness, el
-binario del gateway opencode2api, los binarios de Tor incluidos, dependencias
-nativas y Tesseract (~304 MB de descarga, ~69.000 archivos, unos 10 minutos
-para desempaquetar — es normal, no es un cuelgue). Los MCP administrados
-todavía resuelven `uvx` (incluido, con fallbacks a PATH del usuario y
-descarga fijada). Si detecta una instalación incompleta, muestra el log y
-recomienda reinstalar desde la release oficial 0.9.0.
+El instalador v0.9.2 incluye Electron, el gateway opencode2api, Tor, las
+dependencias nativas y Tesseract (~178 MB). El runtime DSH grande se distribuye
+como asset separado: en el primer inicio, FreeCode descarga el archivo Windows
+x64 fijado en `0.2.1-alpha.2` (~421,6 MB), verifica su SHA-256 y ABI de
+Electron, y lo guarda en `<userData>/harness-runtime`. Los arranques siguientes
+reutilizan la caché validada sin conexión. Cualquier primer inicio sin caché
+válida requiere Internet; si falla la descarga o validación, ofrece
+Reintentar/Cerrar y no inicia el Harness. Los MCP administrados todavía
+resuelven `uvx` (incluido, con fallbacks al PATH del usuario y descarga
+fijada). Si detecta una instalación incompleta, muestra el log y recomienda
+reinstalar desde la release oficial v0.9.2.
 
 El bootstrap de Windows reutiliza silenciosamente un `uvx.exe` ya instalado o
 descarga el ZIP oficial fijado de uv en una carpeta de herramientas por usuario,
 verificando HTTPS y SHA-256. No modifica `PATH`, no requiere administrador y no
 abre una consola. Un bootstrap fallido deja la app principal recuperable y
 expone el problema MCP en la tab/log.
-
-### Candidato 0.9.2: runtime del Harness en el primer inicio
-
-El candidato pendiente 0.9.2 deja el runtime grande de DSH fuera del setup y
-del portable, y descarga el asset Windows publicado más reciente la primera
-vez que se inicia la app. Verifica el digest de release y la compatibilidad del
-runtime con Electron; luego lo guarda en `<userData>/harness-runtime`. Los
-arranques posteriores reutilizan esa copia validada sin conexión. El primer
-inicio sí necesita Internet. Si no hay un runtime compatible disponible, la
-app ofrece Reintentar o Cerrar antes de iniciar el Harness.
 
 ## MCP: Engram y free-search
 
@@ -196,7 +191,7 @@ reemplaza silenciosamente por `[image omitted...]`.
 Configuración → Plugins → configuración de plugins → Shell muestra toggles
 independientes para RTK y Caveman. Los defaults del schema están activados. Si
 falta el binario, la feature correspondiente no opera y no se presenta como
-activa. RTK y Caveman son helpers opcionales por PATH en 0.9.0, no binarios
+activa. RTK y Caveman son helpers opcionales por PATH, no binarios
 empaquetados. Sólo se envuelven comandos simples y seguros;
 pipes, redirecciones, sustituciones y sintaxis compuesta se conservan.
 
@@ -206,13 +201,13 @@ distingue un fallo de permisos de uno de herramienta/MCP.
 
 ## Updater y versión
 
-About usa `app.getVersion()`, por lo que el binario empaquetado dice 0.9.0.
+About usa `app.getVersion()`, por lo que el binario empaquetado v0.9.2 dice 0.9.2.
 La app chequea updates al iniciar y cada seis horas. El control de actualizar
 es exactamente el botón circular primario de Enviar, con la flecha apuntando
 hacia abajo. Al descargar, tooltip/menú de tray y notificación nativa lo
-informan; la instalación/reinicio también es visible. El gate no exige
-actualización desde 0.4.3: sólo debe conservar el arranque limpio y no ocultar
-un fallo.
+informan; la instalación/reinicio también es visible. v0.9.2 evita que el
+updater ofrezca como actualización un runtime DSH más viejo; la release desktop
+y el bootstrap de su runtime fijado son pasos separados.
 
 ## Causa de las regresiones anteriores y cierre de 0.7.0
 
@@ -262,7 +257,7 @@ limitado a vendor y fail-closed. No dejes una feature permanente como edición
 directa de `vendor/deepseek-harness`. Ver
 [docs/UPSTREAM-PATCHING.md](docs/UPSTREAM-PATCHING.md).
 
-## Gate local de Windows: 0.9.0 publicado
+## Gate local de Windows: v0.9.2
 
 Ejecutá desde PowerShell en la workstation mantenedora:
 
@@ -278,23 +273,21 @@ pnpm --filter @freecode/shell package
 pnpm --filter @freecode/shell smoke:nsis
 ```
 
-Este gate pasó para 0.9.0 con typecheck limpio, suite del shell en verde
-(165/165), todos los tests de contrato en verde (107/107), todos los
-verificadores prepackage en verde (hooks NSIS, frescura de vendor, manifiesto
-de runtime, ABI nativa), instalación limpia, `harness ready`, Tor escuchando
-en 9050/9051, el lane único `deepseek-free` poblado sin duplicados, preset
-gentle-ai visible, locale español renderizando correctamente y apagado
-limpio. Sigue sin exigir upgrade desde 0.4.3: sólo instalación limpia y
-apertura correcta.
+Para v0.9.2 se verificaron la suite Vitest del shell, el typecheck del shell y
+el empaquetado desktop; después se confirmó que la release instalada funciona
+en Windows x64. Setup y portable pesan unos 178 MB cada uno; el runtime DSH es el
+asset separado fijado que se describe arriba. Los conteos del gate de 0.9.0
+son históricos y siguen en sus [notas de release](release-notes-v0.9.0.md).
 
-El tag `v0.9.0` y la release de GitHub (setup, portable, blockmap,
-`latest.yml`, tarball del runtime) se publicaron desde estos artefactos.
+La [release publicada v0.9.2](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.2)
+contiene setup, portable, blockmap, `latest.yml`, el tarball fijado del runtime
+del Harness y su checksum `.sha256`.
 
 Los artefactos quedan en `apps/shell/release/`.
 
 ## Builds manuales de otros sistemas
 
-Linux y macOS no son targets de release de 0.9.0, y Windows ARM64 tampoco
+Linux y macOS no son targets de release de v0.9.2, y Windows ARM64 tampoco
 está probado. Un contribuidor puede trabajar en un host nativo con Node,
 pnpm, Git, herramientas de build de Electron y dependencias nativas del
 sistema:
@@ -336,6 +329,8 @@ local en ambos idiomas.
 ## Índice de documentación
 
 - [Inventario de features upstream](docs/UPSTREAM-FEATURES.md)
+- [Notas de la release v0.9.2](release-notes-v0.9.2.md)
+- [Notas de la release 0.9.1](release-notes-v0.9.1.md)
 - [Notas de la release 0.9.0](release-notes-v0.9.0.md)
 - [Notas de la release 0.8.0](release-notes-v0.8.0.md)
 - [Notas de la release 0.7.0](release-notes-v0.7.0.md)

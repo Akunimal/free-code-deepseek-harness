@@ -1,11 +1,11 @@
 # Known issues / Problemas conocidos
 
-Última revisión / Last reviewed: 2026-10-01
-Baseline revisada / Reviewed baseline: `0.9.0`
+Última sincronización documental / Last documentation sync: 2026-10-12
+Baseline documentada / Documented baseline: `v0.9.2`
 
 ## Estado actual / Current status
 
-El checkout publicado de `0.9.0` agrega resiliencia Tor (una instancia única
+La release publicada `v0.9.2` mantiene la resiliencia Tor (una instancia única
 `tor.exe` empaquetada, con rotación `NEWNYM` y failover para opencode2api),
 consolida el lane de modelos a un único `deepseek-free` sin duplicados, hace
 que el seeder respete el modelo elegido por el usuario, incorpora el modo
@@ -13,18 +13,22 @@ Gentle AI integrado de 0.8.0, elimina freellmpool y WARP, y mantiene Engram
 como tercera fila MCP administrada con el locale español corregido. Las
 limitaciones honestas restantes: la cuota del upstream gobierna el lane
 anónimo, los binarios RTK/Caveman/free-search no están empaquetados, y las
-demás plataformas no están probadas. Windows ARM64, Linux y macOS no están
-soportados en 0.9.0.
+demás plataformas no están probadas. En v0.9.2 sólo se soporta Windows x64;
+Windows ARM64, Linux y macOS no están soportados. El runtime DSH `0.2.1-alpha.2`
+se descarga de forma separada en el primer inicio sin caché válida, por lo que
+esa primera ejecución requiere Internet.
 
-The published `0.9.0` checkout adds Tor resilience (a single bundled
+The published `v0.9.2` release retains Tor resilience (a single bundled
 `tor.exe` instance with `NEWNYM` rotation and opencode2api failover),
 consolidates the model lane into a single duplicate-free `deepseek-free`, makes
 the seeder preserve the user-chosen model, carries the 0.8.0 Gentle AI mode,
 removes freellmpool and WARP, and keeps Engram as the third managed MCP row
 with the fixed Spanish locale. Honest limitations remain: upstream quota
 governs the anonymous lane, the RTK/Caveman/free-search binaries are not
-vendored, and other platforms are untested. Windows ARM64, Linux and macOS
-are unsupported in 0.9.0.
+vendored, and other platforms are untested. v0.9.2 supports Windows x64 only;
+Windows ARM64, Linux and macOS are unsupported. The DSH `0.2.1-alpha.2` runtime
+is fetched separately on first launch when no valid cache exists, so that
+launch needs Internet access.
 
 ## Limitaciones operativas / Operational limitations
 
@@ -34,28 +38,30 @@ The OpenCode Free route depends on the local bridge, available workers, provider
 
 La ruta OpenCode Free depende del puente local, los workers disponibles, los límites de proveedor/sesión y la red. El pool puede informar temporalmente cero workers, reintentar o perder un stream aunque la API key sea válida. FreeCode reintenta fallos acotados e informa el estado del pool, pero no puede eliminar límites upstream, de IP, cuota o red.
 
-### KI-002 — Windows artifacts are large / Los artefactos Windows son grandes
+### KI-002 — Separate first-launch runtime download / Descarga del runtime en el primer inicio
 
-The portable and setup artifacts (~304 MB download, ~69,000 files, ~10
-minutes to unpack) include a local runtime plus the bundled Tor binaries.
-This is an operational cost of the current packaging, not evidence that the
-application is hung. Slimmed from 559 MB in 0.7.0; further slimming is
-deferred work.
+The v0.9.2 setup is ~178.5 MB and portable is ~178.2 MB; the DSH runtime is not
+inside either desktop installer. A first launch without a valid cache downloads
+the separate pinned `0.2.1-alpha.2` Windows x64 runtime archive (~421.6 MB),
+then caches the validated runtime per user for offline later starts. This
+network/download step is part of the current packaging, not by itself evidence
+that the application is hung.
 
-Los artefactos portable y setup (~304 MB de descarga, ~69.000 archivos,
-~10 minutos para desempaquetar) incluyen un runtime local más los binarios de
-Tor incluidos. Es un costo operativo del empaquetado actual, no una evidencia
-de que la aplicación se haya colgado. Adelgazado desde 559 MB en 0.7.0; más
-recorte queda diferido.
+El setup v0.9.2 pesa ~178,5 MB y el portable ~178,2 MB; ninguno incluye el
+runtime DSH. En un primer inicio sin caché válida se descarga por separado el
+runtime Windows x64 fijado en `0.2.1-alpha.2` (~421,6 MB), y después de
+validarlo se guarda por usuario para los arranques sin conexión. Este paso de
+red/descarga forma parte del empaquetado actual y, por sí solo, no indica que
+la aplicación esté colgada.
 
 ### KI-003 — RTK/Caveman are PATH helpers, not bundled / RTK/Caveman son helpers por PATH, no empaquetados
 
-RTK and Caveman are not bundled in the published `0.9.0` artifact. The code
+RTK and Caveman are not bundled in the published `v0.9.2` artifact. The code
 probes the user PATH and treats a missing binary as an explicit no-op, so
 the release works but is not self-contained for these helpers. Vendoring
 them with version/hash/license metadata remains deferred work.
 
-RTK y Caveman no están incluidos en el artefacto publicado de `0.9.0`: el
+RTK y Caveman no están incluidos en el artefacto publicado de `v0.9.2`: el
 código consulta el PATH del usuario y la ausencia es un no-op explícito. La
 release funciona pero no es autocontenida para estos helpers. Empaquetarlos
 con metadata de versión/hash/licencia queda diferido.

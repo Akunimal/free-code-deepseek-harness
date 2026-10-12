@@ -1,9 +1,15 @@
 # Roadmap / Hoja de ruta
 
-Última revisión / Last reviewed: 2026-10-01
-Baseline: `v0.9.0`
+Última sincronización documental / Last documentation sync: 2026-10-12
+Baseline: `v0.9.2`
 Estado / Status: objetivos sujetos a validación; no son fechas ni promesas de release.
 
+> **0.9.2** — Runtime DSH fijado descargado en el primer inicio sin caché válida y cacheado por
+> usuario; ventanas de `pwsh` Win32 headless; no se ofrecen downgrades del
+> runtime y el indicador de update vuelve a ser circular. Setup/portable bajan
+> a ~178 MB al separar el runtime de ~421,6 MB. Ver [CHANGELOG.md](../CHANGELOG.md)
+> y [release-notes-v0.9.2.md](../release-notes-v0.9.2.md).
+>
 > **0.9.0** — Resiliencia Tor (instancia única `tor.exe` empaquetada, `NEWNYM`,
 > failover para opencode2api), lane único de modelos sin duplicados, seeder que
 > respeta el modelo del usuario, integración con `jasonxu114514/opencode2api`,
@@ -28,6 +34,21 @@ RTK y Caveman no están habilitados juntos por defecto: pueden ser complementari
 RTK and Caveman are not enabled together by default: they may complement each other, but double compression can remove useful information or make debugging harder.
 
 ## Completado / Completed
+
+### `v0.9.2` — Runtime bootstrap and headless process windows / Bootstrap de runtime y ventanas headless
+
+**Estado / Status:** completado y publicado / completed and released.
+
+1. **Runtime separado** — el setup/portable no incluyen el runtime DSH; la
+   primera ejecución sin caché válida valida el asset Windows x64 fijado en
+   `0.2.1-alpha.2` y lo conserva por usuario para arranques offline.
+2. **Sin ventanas de comandos** — la creación Win32 de procesos `pwsh` hijos
+   usa el modo oculto; tests de regresión cubren la ruta ordinaria y la de
+   token restringido.
+3. **Updater y UI** — no se ofrecen runtimes DSH más viejos como actualización
+   y el indicador de actualización mantiene forma circular.
+4. **Tamaño** — setup ~178,5 MB y portable ~178,2 MB; el runtime descargable
+   separado es ~421,6 MB.
 
 ### `v0.9.0` — Tor resilience + single model lane / Resiliencia Tor + lane único
 

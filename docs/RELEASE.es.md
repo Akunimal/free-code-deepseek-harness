@@ -7,25 +7,23 @@ reproducen mediante el stack ordenado de patches.
 
 ## Baseline actual
 
-La release publicada 0.9.0 es la baseline actual para Windows x64:
+La release publicada v0.9.2 es la baseline actual para Windows x64:
 
-- instalador NSIS de Windows 0.9.0 (~304 MB);
-- ejecutable portable de Windows 0.9.0 (~304 MB);
+- instalador NSIS de Windows v0.9.2 (~178,5 MB);
+- ejecutable portable de Windows v0.9.2 (~178,2 MB);
 - `latest.yml` más blockmap para el updater;
-- tarball del runtime del Harness (+`.sha256`) para updates in-app.
+- tarball del runtime DSH Windows x64 `0.2.1-alpha.2` (~421,6 MB) y su
+  archivo `.sha256`, distribuidos separados de los instaladores desktop.
 
-El gate de 0.9.0 pasó: typecheck limpio, suite del shell en verde (165/165),
-todos los tests de contrato en verde (107/107), todos los verificadores
-prepackage en verde, instalación limpia, `harness ready`, Tor escuchando en
-9050/9051, lane único `deepseek-free` poblado sin duplicados, preset
-gentle-ai visible, locale español renderizando correctamente, apagado limpio.
-Probado en Windows 10/11 x64 ÚNICAMENTE. Windows ARM64, Linux y macOS NO
-están probados ni soportados; no se publican artefactos para esas plataformas.
+Para v0.9.2 se verificaron la suite Vitest del shell, el typecheck del shell y
+el empaquetado desktop; después se confirmó que la release instalada funciona
+en Windows x64. Windows x64 es el único target probado y soportado.
+Windows ARM64, Linux y macOS NO están probados ni soportados; no se publican
+artefactos para esas plataformas.
 
-0.4.3 es la última referencia operativa porque abre bien. No es una garantía
-de compatibilidad ni la fuente de verdad del código actual. El gate de 0.9.0
-no exige actualizar desde 0.4.3; exige instalar limpio, abrir, seleccionar un
-proyecto y relanzar.
+0.4.3 es una referencia histórica de recuperación, no una garantía de
+compatibilidad ni la fuente de verdad del código actual. La validación de
+release usa la instalación v0.9.2 y su bootstrap del runtime fijado.
 
 El roadmap de 0.7.0 está cerrado; su ledger está en el
 [ledger de 0.7.0](STATE-0.7.0.md). Los hallazgos completos de sólo lectura
@@ -51,14 +49,15 @@ Estos comandos son locales y no usan GitHub Actions. Los recursos
 obligatorios hacen fallar el gate cuando faltan; nunca se saltean
 silenciosamente porque la máquina del desarrollador no tenga un fixture.
 
-Los artefactos Windows esperados de 0.9.0 son:
+Los artefactos Windows esperados de v0.9.2 son:
 
 ~~~
-apps/shell/release/FreeCode-DeepSeek-Harness-0.9.0-win-x64-setup.exe
-apps/shell/release/FreeCode-DeepSeek-Harness-0.9.0-win-x64-portable.exe
-apps/shell/release/FreeCode-DeepSeek-Harness-0.9.0-win-x64-setup.exe.blockmap
+apps/shell/release/FreeCode-DeepSeek-Harness-0.9.2-win-x64-setup.exe
+apps/shell/release/FreeCode-DeepSeek-Harness-0.9.2-win-x64-portable.exe
+apps/shell/release/FreeCode-DeepSeek-Harness-0.9.2-win-x64-setup.exe.blockmap
 apps/shell/release/latest.yml
-apps/shell/release/deepseek-harness-runtime-0.1.3-alpha.1-win32-x64.tar.gz
+apps/shell/release/deepseek-harness-runtime-0.2.1-alpha.2-win32-x64.tar.gz
+apps/shell/release/deepseek-harness-runtime-0.2.1-alpha.2-win32-x64.tar.gz.sha256
 apps/shell/release/win-unpacked/FreeCode DeepSeek Harness.exe
 ~~~
 
@@ -71,14 +70,22 @@ de forzar el borrado del árbol lockeado.
 
 ## Política de dependencias runtime
 
-El instalador 0.9.0 contiene Electron, el runtime del Harness, el gateway
-opencode2api (único gateway de modelos — freellmpool eliminado en 0.8.0), los
-binarios de Tor incluidos (`tor.exe`, `geoip`, `geoip6`), archivos nativos del
-picker/runtime y Tesseract. RTK, Caveman y free-search no están empaquetados:
+Los instaladores desktop v0.9.2 contienen Electron, el gateway opencode2api
+(único gateway de modelos — freellmpool eliminado en 0.8.0), los binarios de
+Tor incluidos (`tor.exe`, `geoip`, `geoip6`), archivos nativos del picker y
+Tesseract. El runtime DSH se excluye intencionalmente de setup/portable y se
+distribuye como asset separado. RTK, Caveman y free-search no están empaquetados:
 siguen como helpers opcionales por PATH, y las entradas MCP irresolubles
 arrancan deshabilitadas. El cierre instalado enumera versión, arquitectura,
 origen, licencia, hash y ruta relativa en `runtime-deps.json`, verificado por
 `verify-runtime-dependencies.mjs`.
+
+En cualquier inicio sin caché válida por usuario, la app descarga el runtime
+DSH Windows x64 exacto fijado en `0.2.1-alpha.2` desde la release v0.9.2,
+verifica el SHA-256 publicado y la ABI de Electron, y lo guarda en
+`<userData>/harness-runtime`. Los inicios siguientes pueden usar esa caché
+validada sin conexión. Esa descarga requiere Internet; si falla la descarga o compatibilidad, el supervisor no
+debe iniciarse y se ofrecen Reintentar/Cerrar.
 
 ## Publicación sólo Windows
 
@@ -99,8 +106,8 @@ ledger.
 El updater de la aplicación no reemplaza al gate de release. Debe conservar el
 control con forma de Enviar y flecha hacia abajo, chequear al iniciar y en su
 intervalo programado, mostrar progreso en tray/notificación durante descarga e
-instalación y respetar los datos del usuario. 0.9.0 no exige actualizar desde
-0.4.3.
+instalación y respetar los datos del usuario. v0.9.2 también evita que runtimes
+DSH más viejos aparezcan como actualizaciones disponibles.
 
 El camino de actualización de upstream, sólo para el checkout fuente, es:
 
@@ -120,14 +127,18 @@ Ver [docs/UPSTREAM-PATCHING.md](UPSTREAM-PATCHING.md) y
 Los documentos viejos bajo docs/RELEASE-NOTES-v*.md describen releases
 históricas y deliberadamente no se reescriben como instrucciones actuales. La
 baseline publicada se sigue en
-[GitHub release v0.9.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.0);
+[GitHub release v0.9.2](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.2);
 las notas bilingües completas están en
-[release-notes-v0.9.0.md](../release-notes-v0.9.0.md).
+[release-notes-v0.9.2.md](../release-notes-v0.9.2.md).
 
 Releases anteriores:
+[GitHub release v0.9.1](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.1) —
+[release-notes-v0.9.1.md](../release-notes-v0.9.1.md);
+[GitHub release v0.9.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.0) —
+[release-notes-v0.9.0.md](../release-notes-v0.9.0.md);
 [GitHub release v0.8.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.8.0) —
 [release-notes-v0.8.0.md](../release-notes-v0.8.0.md);
 [GitHub release v0.7.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.7.0) —
 [release-notes-v0.7.0.md](../release-notes-v0.7.0.md).
 
-For the English guide, see [RELEASE.md](RELEASE.md).
+Para la guía en inglés, consultá [RELEASE.md](RELEASE.md).

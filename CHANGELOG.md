@@ -2,15 +2,17 @@
 
 ## 0.9.2 — 2026-10-12
 
+See the [bilingual v0.9.2 release notes](release-notes-v0.9.2.md).
+
 ### Added / Agregado
 
-- First launch downloads the pinned DSH `0.2.1-alpha.2` runtime to per-user
-  storage, validates its SHA-256 and Electron ABI, and reuses the verified
-  runtime offline on later starts. The runtime is a separate release asset
-  rather than part of the desktop installer. / En el primer inicio se descarga
-  el runtime DSH `0.2.1-alpha.2` a datos del usuario y se validan su SHA-256 y
-  ABI de Electron; luego se reutiliza sin conexión. El runtime se distribuye
-  separado del instalador.
+- A first launch without a valid per-user cache downloads the pinned DSH
+  `0.2.1-alpha.2` runtime, validates its SHA-256 and Electron ABI, and reuses
+  the runtime offline on later starts. The runtime is a separate release asset
+  rather than part of the desktop installer. / En un primer inicio sin caché
+  válida por usuario se descarga el runtime DSH `0.2.1-alpha.2` a datos del
+  usuario, se validan su SHA-256 y la ABI de Electron y luego se reutiliza sin
+  conexión. El runtime se distribuye por separado del instalador.
 
 ### Improved / Mejorado
 
@@ -40,7 +42,7 @@
   / Rango: `v0.9.1..v0.9.2`. Verificado con Vitest del shell, el chequeo de
   tipos y el empaquetado de `apps/shell`.
 
-## 0.9.1 — unreleased
+## 0.9.1 — 2026-10-08
 
 ### Changed / Cambiado
 

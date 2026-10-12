@@ -8,23 +8,24 @@ calls.
 
 ## English
 
-## Current status: 0.9.0 released (Windows x64)
+## Current status: 0.9.2 released (Windows x64)
 
-0.9.0 is published for Windows x64 with:
+v0.9.2 is published for Windows x64 with:
 
-- an NSIS installer (~304 MB);
-- a portable Windows executable (~304 MB).
+- an NSIS installer (~178.5 MB);
+- a portable Windows executable (~178.2 MB);
+- the pinned DSH `0.2.1-alpha.2` runtime as a separate ~421.6 MB release
+  asset, downloaded on first launch when no valid per-user cache exists.
 
-**Platform support: tested on Windows 10/11 x64 ONLY** (clean install,
-launch, `harness ready`, Tor listening, single model lane, graceful
-shutdown). **NOT tested and NOT supported**: Windows ARM64, Linux (any
-distribution/architecture), macOS (any architecture). No artifacts are
-published for these platforms; contributor builds exist but were not tested
-by the maintainer and must not be treated as usable releases. Builds are
-local and do not use GitHub Actions workflows.
+**Platform support: Windows x64 only** (v0.9.2 was packaged and confirmed
+working after installation on Windows x64). **NOT tested and NOT supported**:
+Windows ARM64, Linux (any distribution/architecture), or macOS (any
+architecture). No artifacts are published for these platforms; contributor
+builds exist but were not tested by the maintainer and must not be treated as
+usable releases. Builds are local and do not use GitHub Actions workflows.
 
-`0.4.3` is the last known-good operational reference because it opens. It is
-not the source of truth and may not contain the fixes in this worktree.
+`0.4.3` is a historical recovery reference, not the current release or source
+of truth. v0.9.2 is the current published Windows x64 baseline.
 
 ## What is included
 
@@ -52,8 +53,8 @@ not the source of truth and may not contain the fixes in this worktree.
   file tools.
 - A single Electron shell and a single `dsh` child generation.
 - Renderer popups are denied and a window-registry backstop destroys any
-  native window outside splash/main/overlay, so no tool or page can flash
-  transient windows over the user's work.
+  native window outside splash/main/overlay. DSH's Win32-created `pwsh`
+  command children also start hidden, preventing console flashes and focus theft.
 - Engram and free-search as managed MCP entries. Engram is on by default as
   the third managed row; free-search starts disabled until its binary is
   vendored. Entries whose command cannot spawn start disabled instead of
@@ -64,7 +65,7 @@ not the source of truth and may not contain the fixes in this worktree.
   shell schema; it is a no-op when its optional executable is absent.
 - RTK and Caveman settings are exposed separately and are never claimed to be
   active when their executable is missing. Both remain optional PATH-resolved
-  helpers in 0.9.0; they are not bundled binaries.
+  helpers, not bundled binaries.
 - Bundled Windows Tesseract OCR for text-only image workflows.
 - A persistent embedded browser only when the user explicitly opens it.
 - About/version from the packaged app version, an update button shaped like
@@ -80,34 +81,28 @@ semantic memory surface.
 ## Install and first run
 
 1. Download the Windows setup or portable artifact from the
-   [0.9.0 GitHub release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.0).
+   [v0.9.2 GitHub release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.2).
 2. Install or unpack it and launch the real shortcut/executable.
 3. Select a project directory in the picker.
 4. Ask the model to inspect or change the project.
 
-The 0.9.0 installer includes the Electron runtime, upstream Harness runtime,
-opencode2api gateway binary, the bundled Tor binaries, native dependencies
-and Tesseract (~304 MB download, ~69,000 files, about 10 minutes to unpack —
-this is normal, not a hang). Managed MCP servers still resolve `uvx`
-(vendored, with user-PATH and pinned-download fallbacks). If an incomplete
-install is detected, the diagnostic points to the app log and recommends
-reinstalling from the official 0.9.0 release.
+The v0.9.2 installer includes Electron, the opencode2api gateway, bundled Tor,
+native dependencies and Tesseract (~178 MB). The large DSH runtime is a
+separate release asset: on first launch, FreeCode downloads the pinned
+`0.2.1-alpha.2` Windows x64 archive (~421.6 MB), verifies its SHA-256 and
+Electron ABI, then caches it under `<userData>/harness-runtime`. Later starts
+reuse the verified cache offline. Any first launch without a valid cache needs
+network access; a failed download or validation offers Retry/Close and does not
+start the Harness. Managed MCP servers still resolve `uvx` (vendored, with
+user-PATH and pinned-download fallbacks). If an incomplete installation is
+detected, the diagnostic points to the app log and recommends reinstalling
+from the official v0.9.2 release.
 
 The Windows bootstrap silently reuses a user-installed `uvx.exe`, or downloads
 the pinned official uv ZIP into a per-user tools directory after HTTPS and
 SHA-256 verification. It does not modify `PATH`, require administrator rights
 or open a console. A failed bootstrap leaves the main app recoverable and
 surfaces the MCP problem in the tab/log.
-
-### 0.9.2 candidate: Harness runtime on first launch
-
-The pending 0.9.2 candidate keeps the large DSH runtime out of setup/portable
-and downloads the latest published Windows runtime asset the first time the
-app starts. It verifies the release digest and the runtime's compatibility
-with Electron, then caches it under `<userData>/harness-runtime`; later starts
-reuse that verified copy offline. The first launch therefore needs network
-access. If no compatible release asset is reachable, the app offers Retry or
-Close before starting the Harness.
 
 ## MCP: Engram and free-search
 
@@ -193,7 +188,7 @@ errors; FreeCode never substitutes `[image omitted...]` silently.
 Settings → Plugins → plugin configuration → Shell exposes independent RTK and
 Caveman toggles. Their schema defaults are on. The executable probes are
 cached; if a binary is not installed, the corresponding feature is an explicit
-no-op. RTK and Caveman are optional PATH-resolved helpers in 0.9.0, not
+no-op. RTK and Caveman are optional PATH-resolved helpers, not
 bundled binaries. Only safe, plain commands are eligible for wrapping;
 pipes, redirects, substitutions and other compound syntax are preserved.
 
@@ -203,12 +198,13 @@ distinguishes permission failures from tool/MCP failures.
 
 ## Updater and versioning
 
-About reads `app.getVersion()`, so the packaged 0.9.0 binary says 0.9.0.
+About reads `app.getVersion()`, so the packaged v0.9.2 binary says 0.9.2.
 The app checks for updates at startup and every six hours. The update control
 is the same circular primary button as Send, with the arrow pointing down.
 When downloading, the tray tooltip/menu and a native notification say so; the
-install/restart phase is also visible. The 0.9.0 gate keeps the startup path
-green and does not require an upgrade from 0.4.3.
+install/restart phase is also visible. v0.9.2 prevents the updater from
+offering an older DSH runtime as an upgrade; installing the desktop release and
+bootstrapping its pinned runtime are separate steps.
 
 ## Root cause of the previous regressions and 0.7.0 closure
 
@@ -253,7 +249,7 @@ update/fetch vendor/deepseek-harness upstream
 Product changes must become small sorted patches in `patches/upstream/`, with a
 focused contract test. The patch applier is idempotent, vendor-scoped and
 fail-closed. Do not leave an unrepresented feature as a permanent direct edit
-inside `vendor/deepseek-harness`. For 0.9.0 the required order is:
+inside `vendor/deepseek-harness`. The required order is:
 
 ```text
 freeze evidence → fetch/update upstream → replay ordered patches
@@ -265,7 +261,7 @@ Every product feature must have an owner file, a modular patch or shell-layer
 implementation, a contract test and a replay/idempotence check. See
 [docs/UPSTREAM-PATCHING.md](docs/UPSTREAM-PATCHING.md).
 
-## Windows local release gate: 0.9.0 as released
+## Windows local release gate: v0.9.2
 
 Run from PowerShell on the maintainer Windows machine:
 
@@ -281,23 +277,21 @@ pnpm --filter @freecode/shell package
 pnpm --filter @freecode/shell smoke:nsis
 ```
 
-This gate passed for 0.9.0 with typecheck clean, the shell suite passing
-(165/165), all contract tests green (107/107), all prepackage verifiers
-green (NSIS hooks, vendor freshness, runtime manifest, native ABI), a clean
-install, `harness ready`, Tor listening on 9050/9051, the single
-`deepseek-free` lane populated without duplicates, gentle-ai preset visible,
-Spanish locale rendering correctly, and a graceful shutdown. It still does
-not require an upgrade from 0.4.3; only clean installation and launch are
-release gates.
+For v0.9.2, the shell Vitest suite, shell typecheck and desktop packaging were
+verified; the installed release was then confirmed working on Windows x64. Its
+setup and portable artifacts are about 178 MB each; the DSH runtime is the
+separate pinned asset described above. v0.9.0's earlier gate counts are
+historical and remain in [its release notes](release-notes-v0.9.0.md).
 
-Tag `v0.9.0` and the GitHub release (setup, portable, blockmap, `latest.yml`,
-harness runtime tarball) were published from these artifacts.
+The published [v0.9.2 release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.2)
+contains setup, portable, blockmap, `latest.yml`, the pinned Harness runtime
+tarball and its `.sha256` checksum.
 
 Expected artifacts are under `apps/shell/release/`.
 
 ## Manual contributor builds for other operating systems
 
-Linux and macOS are not release targets for 0.9.0, and Windows ARM64 is not
+Linux and macOS are not release targets for v0.9.2, and Windows ARM64 is not
 tested either. A contributor may work on a native host with its own Node,
 pnpm, Git, Electron build tools and native dependencies:
 
@@ -337,6 +331,8 @@ hardening y release local en ambos idiomas.
 ## Documentation index
 
 - [Upstream feature inventory](docs/UPSTREAM-FEATURES.md)
+- [v0.9.2 release notes](release-notes-v0.9.2.md)
+- [0.9.1 release notes](release-notes-v0.9.1.md)
 - [0.9.0 release notes](release-notes-v0.9.0.md)
 - [0.8.0 release notes](release-notes-v0.8.0.md)
 - [0.7.0 release notes](release-notes-v0.7.0.md)

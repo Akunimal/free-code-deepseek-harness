@@ -25,8 +25,9 @@ flowchart LR
 ## Runtime sequence
 
 Before the process sequence below, a packaged app validates the DSH runtime in
-`<userData>/harness-runtime`. A clean install downloads the latest published
-platform asset, verifies its SHA-256 digest and Node engine range, then activates
+`<userData>/harness-runtime`. A launch without a valid cache downloads
+the exact pinned Windows x64 DSH `0.2.1-alpha.2` asset from the v0.9.2 release,
+verifies its SHA-256 digest, Electron ABI and Node engine range, then activates
 it before preflight or supervisor startup. Existing valid runtimes need no
 network access on later launches; download/compatibility failures are visible
 and retryable rather than consuming the supervisor restart budget.
@@ -83,10 +84,14 @@ and retryable rather than consuming the supervisor restart budget.
 - `vendor/deepseek-harness/packages/llm/llm/src/ocr.ts`: bounded direct OCR
   helper used by text-only image paths.
 
-All implementation children use `windowsHide:true` and `shell:false`. The shell
-does not use `cmd.exe`, `start`, a terminal window or a browser to implement
-background work. The supervisor and worker pool track process generations,
-coalesce pending spawns and wait for the old tree to exit before replacement.
+Node-launched background children use `windowsHide:true` and `shell:false`;
+DSH's native Win32 command launcher sets `STARTF_USESHOWWINDOW` with `SW_HIDE`
+for both ordinary and restricted-token process creation while preserving
+redirected stdio. This prevents child consoles from flashing or taking focus.
+The shell does not use `cmd.exe`, `start`, a terminal window or a browser to
+implement background work. The supervisor and worker pool track process
+generations, coalesce pending spawns and wait for the old tree to exit before
+replacement.
 
 ## MCP configuration and observability
 
@@ -179,7 +184,7 @@ edits are temporary working changes until represented by a patch. See
 
 ## Windows release scope
 
-0.9.0 publishes only Windows x64 NSIS and portable artifacts. Linux/macOS are
+v0.9.2 publishes only Windows x64 NSIS and portable artifacts. Linux/macOS are
 contributor-only manual builds and have no release gate, no binary upload and
 no claim of parity. The final local gate is documented in
 [`docs/RELEASE.md`](RELEASE.md).
