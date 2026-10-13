@@ -4,8 +4,8 @@
 
 **Status: candidate; not yet published.** The latest published release remains
 v0.9.3 for Windows x64. These notes describe the current local source candidate;
-they are not a release announcement or a claim that final assets have passed
-installation validation.
+they are not a release announcement. The setup ran successfully, but application
+startup and feature behavior have not been validated separately.
 
 ### What's new
 
@@ -25,16 +25,22 @@ installation validation.
 ### Candidate verification
 
 Focused opencode2api, Tor, Gentle AI contract/locale and selector tests have
-passed. The full vendor build still has unrelated existing TypeScript/test
-runtime failures; candidate packaging and local installation validation are
-still in progress. No v0.9.4 public tag or release exists.
+passed. The local setup and portable packages were generated and passed static
+asset verification. After the user confirmed FreeCode was closed, the authorized
+one-click setup exited with code 0. This confirms installer completion only;
+application startup and feature behavior have not been smoke-tested separately.
+The earlier complete release gate passed, but its latest rerun after the Electron
+probe-timeout fix hit load-sensitive test timeouts; both affected suites passed
+when rerun individually. The full vendor build also retains unrelated existing
+TypeScript/test-runtime failures. v0.9.4 remains an unpublished candidate with no
+public tag or release.
 
 ## Español
 
 **Estado: candidata; todavía no publicada.** La última release publicada sigue
 siendo v0.9.3 para Windows x64. Estas notas describen la candidata del código
-local; no anuncian una release ni afirman que los artefactos finales hayan
-superado la validación de instalación.
+local; no anuncian una release. El setup terminó correctamente, pero el inicio de
+la aplicación y el comportamiento de sus funciones no se validaron por separado.
 
 ### Novedades
 
@@ -54,7 +60,13 @@ superado la validación de instalación.
 ### Verificación de la candidata
 
 Pasaron las pruebas focalizadas de opencode2api, Tor, contratos/locales de Gentle
-AI y selector. El build completo del vendor todavía presenta errores de
-TypeScript/runtime de tests preexistentes y ajenos; el empaquetado de la
-candidata y la validación de instalación local siguen en curso. No existe tag ni
-release pública v0.9.4.
+AI y selector. Los paquetes setup y portable se generaron en local y pasaron la
+verificación estática de artefactos. Tras confirmar el usuario que FreeCode estaba
+cerrado, el setup one-click autorizado terminó con código 0. Esto confirma solo
+que terminó el instalador: el inicio de la aplicación y el comportamiento de sus
+funciones no se probaron por separado. El gate completo anterior pasó, pero su
+última repetición después del arreglo del timeout de Electron tuvo timeouts de
+tests sensibles a la carga; ambas suites afectadas pasaron al ejecutarse por
+separado. El build completo del vendor también conserva errores preexistentes y
+ajenos de TypeScript/runtime de tests. v0.9.4 sigue siendo una candidata sin tag
+ni release pública.

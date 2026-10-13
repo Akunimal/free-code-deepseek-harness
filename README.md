@@ -14,8 +14,11 @@ Source version: 0.9.4 (candidate, not published); latest published release: v0.9
 
 The [v0.9.4 candidate notes](release-notes-v0.9.4.md) cover the opencode2api
 v1.3.8 refresh, Tor startup/control hardening, and restored opt-in Gentle AI
-selector mode. v0.9.4 has not been released; use the v0.9.3 assets below until
-candidate validation and publication are complete.
+selector mode. The setup and portable candidate were built and statically
+verified locally; the user-authorized setup completed with exit code 0. App
+startup and feature behavior have not been separately smoke-tested. v0.9.4 has
+not been released; use the v0.9.3 assets below until candidate validation and
+publication are complete.
 
 v0.9.3 is published for Windows x64. The NSIS setup was installed and confirmed
 working by the user; the portable executable was built but not separately
@@ -298,6 +301,12 @@ files, setup blockmap, updater metadata and hashes without launching either
 executable. Desktop packaging does not rebuild or replace the separately versioned DSH runtime. Only when the DSH
 runtime itself changes should maintainers bump its manifest version and run
 `pnpm package:runtime:release`; existing runtime versions are immutable.
+
+The v0.9.4 setup and portable were generated locally and passed static asset
+verification. The user-authorized one-click setup then exited with code 0 after
+the user confirmed FreeCode was closed. This does not verify app startup or
+feature behavior; no separate app launch was performed. The candidate remains
+unpublished.
 
 The user confirmed the installed v0.9.3 application works on Windows x64. The
 portable executable is not separately installation-tested. The interactive
