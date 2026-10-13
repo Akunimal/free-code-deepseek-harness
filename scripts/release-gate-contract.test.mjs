@@ -67,7 +67,8 @@ test('release plan statically validates an isolated NSIS build without install o
   assert.doesNotMatch(commandText, /build:desktop|package:runtime|package-harness-update|smoke:nsis\b/);
   assert.match(commandText, /verify-pinned-runtime-asset\.mjs/);
   assert.match(commandText, /verify-nsis-package-output\.mjs/);
-  assert.match(commandText, /test:mcp:real/);
+  assert.match(commandText, /mcp-offline-smoke\.mjs/);
+  assert.doesNotMatch(commandText, /mcp-real-smoke|test:mcp:real|uvx|serena|free-search-mcp/);
 
   const packageStep = plan.find((step) => step.label === 'desktop-package');
   assert.ok(packageStep);
@@ -78,6 +79,10 @@ test('release plan statically validates an isolated NSIS build without install o
   const staticStep = plan.find((step) => step.label === 'nsis-static-output');
   assert.ok(staticStep);
   assert.equal(staticStep.args.at(-1), join(outputDir, 'FreeCode-DeepSeek-Harness-0.9.3-win-x64-setup.exe'));
+
+  const gateEntry = readFileSync(new URL('scripts/release-gate.mjs', repositoryRoot), 'utf8');
+  assert.match(gateEntry, /test-owned hidden DSH CLI[\s\S]*fixture child processes/i);
+  assert.match(gateEntry, /does not install or launch the[\s*]+FreeCode GUI/i);
 });
 
 test('pinned runtime archive is verified by its recorded digest and filename', async () => {

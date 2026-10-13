@@ -33,12 +33,19 @@ Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 `release:gate` ejecuta los tests/contratos/typechecks del workspace, build y
-preflight, el smoke real de integración MCP, verifica el asset runtime fijado y
-compila un setup NSIS en una carpeta temporal del sistema operativo. Verifica
-el PE, `latest.yml`, SHA-512, blockmap y manifest runtime de ese paquete exacto.
-El gate **no instala ni inicia la GUI de FreeCode**, no regenera el runtime DSH,
-ni toca la app activa, sus accesos directos o el registro del usuario. Sólo
-limpia su propia carpeta temporal única.
+preflight, un smoke de integración MCP offline basado únicamente en fixtures
+stdio del repositorio y un proveedor mock de loopback, verifica el asset runtime
+fijado y compila un setup NSIS en una carpeta temporal del sistema operativo.
+El gate no es literalmente libre de procesos: sí inicia hijos headless propios
+de prueba, el CLI DSH/Electron en modo Node y los fixtures MCP. El smoke usa sólo
+fixtures del repo, un endpoint loopback y HOME/perfil/caché/temporales dentro de
+scratch; no descarga ni ejecuta paquetes MCP de terceros ni hereda credenciales
+de la persona mantenedora. La limpieza apunta únicamente al árbol PID DSH
+registrado por el smoke y a sus rutas scratch únicas; no enumera ni termina
+procesos ajenos. El gate valida estáticamente el PE, `latest.yml`, SHA-512,
+blockmap y manifest runtime de ese paquete exacto. **No reconstruye el runtime
+DSH. Aun con esos hijos de prueba, no instala ni inicia la GUI de FreeCode** ni
+toca la app activa, sus accesos directos o el registro del usuario.
 
 `verify:desktop-release-assets` es un check estático: valida los PE exactos del
 setup y portable, el blockmap y los metadatos del updater, y reporta hashes
@@ -81,5 +88,11 @@ español. Linux, macOS y Windows ARM64 no son targets de release probados.
 
 La integración opcional RTK sigue siendo instalada por el usuario y no es una
 dependencia incluida; la app debe funcionar aunque `rtk` no esté instalado.
+
+La interoperabilidad con servidores MCP externos no forma parte del gate de la
+workstation: los paquetes de terceros pueden ejecutar código arbitrario y
+requieren red. Probá esos servidores sólo en un entorno expresamente desechable,
+con credenciales de prueba y datos temporales; no les pases el perfil, las cachés,
+los tokens ni el entorno de la persona mantenedora.
 
 Ver [la política en inglés](RELEASE-POLICY.md) para el procedimiento equivalente.

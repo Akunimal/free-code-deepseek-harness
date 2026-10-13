@@ -32,12 +32,20 @@ Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 `release:gate` runs the workspace tests/contracts/typechecks, build and
-prepackage checks, real MCP integration smoke, checks the pinned runtime asset,
-and builds one NSIS package under an OS-temporary directory. It verifies that
-exact package's PE header, versioned `latest.yml`, SHA-512, blockmap and runtime
-manifest. The gate does **not** rebuild the DSH runtime, does not install or
-launch the FreeCode GUI, and does not touch the active user's app, shortcuts or registry.
-Its temporary output is cleaned only from the unique OS-temp path it created.
+prepackage checks, an offline MCP integration smoke backed only by
+repository-owned stdio fixtures and a loopback mock provider, checks the pinned
+runtime asset, and builds one NSIS package under an OS-temporary directory. The
+gate is non-interactive at the desktop UI boundary, not literally process-free:
+it starts test-owned hidden DSH CLI/Electron-as-Node and fixture child
+processes. The MCP smoke uses only repository fixtures, a loopback endpoint and
+scratch HOME/profile/cache/temp paths; it does not download or execute
+third-party MCP packages or inherit maintainer credentials. Cleanup targets
+only its recorded DSH child PID tree and unique scratch paths; it does not
+enumerate or kill unrelated processes. The gate statically verifies that exact
+package's PE header, versioned `latest.yml`, SHA-512, blockmap and runtime
+manifest. It does not rebuild the DSH runtime. Despite the test-owned children,
+it does not install or launch the FreeCode GUI, or touch the active user's app,
+shortcuts or registry.
 
 `verify:desktop-release-assets` is a static check: it validates the exact setup
 and portable PE files, setup blockmap and updater metadata, and reports SHA-256
@@ -79,5 +87,11 @@ ARM64 are not tested release targets.
 
 The optional RTK integration remains user-installed and is not a bundled
 dependency; the application must continue to work when `rtk` is absent.
+
+External MCP-server interoperability is not part of the workstation gate:
+third-party server packages may execute arbitrary code and require network
+access. Validate such servers only in an explicitly disposable environment,
+with test-only credentials and scratch data; do not forward a maintainer's
+profile, caches, tokens, or environment to them.
 
 See [the Spanish policy](RELEASE-POLICY.es.md) for the equivalent procedure.

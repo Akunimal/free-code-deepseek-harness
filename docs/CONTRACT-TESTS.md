@@ -39,11 +39,16 @@ The required preflight is `pnpm test`, `pnpm test:contract`, `pnpm typecheck`,
 and the relevant build/package check for the changed surface. The optional
 `pnpm verify:linux-appimage` command remains available from Linux/WSL for a
 contributor-built Linux artifact, but it is outside the Windows release gate.
-The Windows release gate installs the candidate into a clean isolated directory
-and validates the Windows runtime and installer behavior. It does not upgrade
-from `v0.4.3`; that version is only the last operational reference. A failing
-local preflight blocks publication; it is not a reason to use a remote workflow
-as a diagnostic run.
+The Windows release gate builds an NSIS candidate in a unique OS-temporary
+directory and statically verifies the NSIS package metadata; it does not install the
+candidate or launch the FreeCode GUI. It does start hidden, test-owned DSH
+CLI/Electron-as-Node and local MCP fixture child processes under scratch paths,
+and cleans only their recorded process tree. It never enumerates or kills
+unrelated processes. The separate `smoke:nsis` install/launch/uninstall check is
+opt-in for a disposable Windows VM only. The gate does not upgrade from `v0.4.3`;
+that version is only the last operational reference. A failing local preflight
+blocks publication; it is not a reason to use a remote workflow as a diagnostic
+run.
 
 The Windows NSIS smokes also inspect the actual Start Menu and Desktop `.lnk`
 files. Each link must target the installed executable and use the install

@@ -3,8 +3,10 @@
  * Required non-interactive Windows release gate.
  *
  * It builds an NSIS artifact under a unique temporary output path, verifies
- * that exact package statically, and never installs or launches the GUI. The
- * pinned DSH runtime is validated in place and is never regenerated here.
+ * that exact package statically. It may start only test-owned hidden DSH CLI
+ * and fixture child processes in scratch; it does not install or launch the
+ * FreeCode GUI. The pinned DSH runtime is validated in place and is never
+ * regenerated here.
  * Interactive installer/runtime smoke is a separate, opt-in disposable-VM
  * check because NSIS uses user-profile shortcuts and registration state.
  */
@@ -57,7 +59,7 @@ try {
     if (step.tool === 'git') runGit(step.label, step.args);
     else run(step.label, step.args, step.env);
   }
-  console.log(`\nrelease-gate: ${version} non-interactive desktop release checks passed; no installer/app was launched.`);
+  console.log(`\nrelease-gate: ${version} non-interactive desktop release checks passed; only hidden test-owned CLI/fixture children ran; no installer or FreeCode GUI was launched.`);
 } finally {
   const relative = resolve(outputDir);
   const tempPrefix = temporaryRoot.endsWith(sep) ? temporaryRoot : `${temporaryRoot}${sep}`;

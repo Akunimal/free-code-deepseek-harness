@@ -24,7 +24,7 @@
     "verify:linux-appimage": "node scripts/verify-linux-appimage.mjs",
     "setup:mcp": "node scripts/setup-mcp-servers.mjs --all",
     "test:mcp": "node --test scripts/mcp-config.test.mjs",
-    "test:mcp:real": "node scripts/mcp-real-smoke.mjs",
+    "test:mcp:offline": "node scripts/mcp-offline-smoke.mjs",
     "verify:upstream-patches": "node scripts/verify-upstream-patch-stack.mjs"
   },
   "devDependencies": {

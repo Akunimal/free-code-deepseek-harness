@@ -45,7 +45,7 @@ export function createReleaseGatePlan({ version, outputDir }) {
     step('conversation-motion-bundle', ['exec', 'node', 'scripts/verify-conversation-bundle.mjs', 'vendor/deepseek-harness']),
     step('runtime-closure-tests', ['exec', 'node', '--test', 'scripts/runtime-closure.test.mjs']),
     step('runtime-closure', ['exec', 'node', 'scripts/verify-runtime-closure.mjs', 'apps/shell/resources/freecode/dsh']),
-    step('packaged-real-mcp-smoke', ['test:mcp:real']),
+    step('packaged-offline-mcp-smoke', ['exec', 'node', 'scripts/mcp-offline-smoke.mjs']),
     step('nsis-static-output', ['exec', 'node', 'scripts/verify-nsis-package-output.mjs', setupPath]),
   ];
 }
