@@ -1,303 +1,697 @@
+diff --git a/vendor/deepseek-harness/apps/web/tests/agent-preset-selection.e2e.ts b/vendor/deepseek-harness/apps/web/tests/agent-preset-selection.e2e.ts
+index 714407c69e..b1769583b1 100644
+--- a/vendor/deepseek-harness/apps/web/tests/agent-preset-selection.e2e.ts
++++ b/vendor/deepseek-harness/apps/web/tests/agent-preset-selection.e2e.ts
+@@ -281,17 +281,28 @@ describe('web e2e: agent-preset selection', () => {
+ 
+   it('names every preset and what it is for', async () => {
+     onTestFailed(() => saveFailureShot(page, 'web-e2e-agent-preset-menu'))
++    const roster = await scaffold.ctx.agentPresets.remoteExportList()
++    expect(roster.presets.find(preset => preset.id === 'gentle-ai')).toEqual({
++      id: 'gentle-ai', order: 2, isDefault: false,
++    })
+     await page.getByRole('button', { name: 'Standard mode' }).click()
+     const menu = page.getByRole('menu')
+     await menu.waitFor({ timeout: 10_000 })
+ 
+     const snapshot = await captureStableAria(page, '[role="menu"]', scaffold.workspaceCwd)
+ 
++    expect(snapshot).toContain('Gentle AI mode')
++    expect(snapshot).toContain('A careful orchestrator')
+     await compareOrRefreshGolden(MENU_EXPECTED, snapshot, MODE)
+     // Every shipped preset, each with the sentence saying what it composes —
+     // the id alone never said what a preset does.
+     expect(snapshot).toContain('Minimal mode')
+     expect(snapshot).toContain('Creator mode')
++
++    // Gentle AI is shipped as an explicit opt-in mode; changing the mode for
++    // the active session is intentionally covered by a separate blank-session
++    // test; an already-running session cannot change compositions.
++    expect(scaffold.ctx.agentPresets.defaultId).toBe('standard')
+     await page.keyboard.press('Escape')
+   })
+ 
+@@ -431,6 +442,28 @@ describe('web e2e: agent-preset selection', () => {
+   })
+ })
+ 
++it('stages Gentle AI for a new task without replacing Standard as the default', async () => {
++  const stagedScaffold = await launchWebScaffold({ agentPresets: { default: 'standard' } })
++  let stagedBrowser: Browser | undefined
++  try {
++    stagedBrowser = await chromium.launch()
++    const stagedPage = await newEnglishPage(stagedBrowser)
++    await stagedPage.goto(stagedScaffold.authenticatedUrl, { waitUntil: 'load' })
++    await stagedPage.waitForSelector('[class*="frame"]', { timeout: 30_000 })
++    expect(await livePreset(stagedScaffold)).toBeUndefined()
++
++    await stagedPage.getByRole('button', { name: 'Standard mode', exact: true }).click()
++    await stagedPage.getByRole('menuitem', { name: /^Gentle AI mode/ }).click()
++    await stagedPage.getByRole('button', { name: 'Gentle AI mode', exact: true }).waitFor()
++
++    expect(stagedScaffold.ctx.agentPresets.defaultId).toBe('standard')
++    expect(await livePreset(stagedScaffold)).toBeUndefined()
++  } finally {
++    await stagedBrowser?.close()
++    await stagedScaffold.close()
++  }
++})
++
+ it.each([false, true])('starts Creator from Plugins with Coding Tools=%s without changing drafts or defaults', async (developerTools) => {
+   const scaffold = await launchWebScaffold({ developerTools, agentPresets: { default: 'standard' } })
+   let browser: Browser | undefined
+diff --git a/vendor/deepseek-harness/apps/web/tests/expected/agent-preset-selection/menu.expected.md b/vendor/deepseek-harness/apps/web/tests/expected/agent-preset-selection/menu.expected.md
+index 2f715b99b1..5e182b20c9 100644
+--- a/vendor/deepseek-harness/apps/web/tests/expected/agent-preset-selection/menu.expected.md
++++ b/vendor/deepseek-harness/apps/web/tests/expected/agent-preset-selection/menu.expected.md
+@@ -1,5 +1,6 @@
+ - menu:
+   - menuitem "Standard mode Work with code, files, and information. Suitable for most tasks, with search, editing, terminal commands, and other tools available as needed."
++  - menuitem "Gentle AI mode A careful orchestrator using Standard’s tools, permissions, sandbox, and plan mode."
+   - menuitem "PTC mode Includes all Standard mode capabilities. Better suited to tasks that call tools in batches and then filter, organize, deduplicate, count, or summarize the results."
+   - menuitem "Minimal mode The agent works using only a terminal tool. Useful for testing and comparing its basic performance."
+   - menuitem "Creator mode Customize DSH through conversation. Let the agent write plugins that add features or UI, or combine tools and prompts to create your own mode."
+diff --git a/vendor/deepseek-harness/packages/bundle/web-app/package.json b/vendor/deepseek-harness/packages/bundle/web-app/package.json
+index d71c50f66d..8dce2e0c24 100644
+--- a/vendor/deepseek-harness/packages/bundle/web-app/package.json
++++ b/vendor/deepseek-harness/packages/bundle/web-app/package.json
+@@ -32,6 +32,7 @@
+     "lib/startup.js",
+     "cordis.patch.yml",
+     "presets/standard.patch.yml",
++    "presets/gentle-ai.patch.yml",
+     "presets/ptc.patch.yml",
+     "presets/minimal.patch.yml",
+     "presets/cordis.patch.yml",
+@@ -44,6 +45,7 @@
+       "patch": [
+         "./cordis.patch.yml",
+         "./presets/standard.patch.yml",
++        "./presets/gentle-ai.patch.yml",
+         "./presets/ptc.patch.yml",
+         "./presets/minimal.patch.yml",
+         "./presets/cordis.patch.yml"
+diff --git a/vendor/deepseek-harness/packages/bundle/web-app/presets/gentle-ai.patch.yml b/vendor/deepseek-harness/packages/bundle/web-app/presets/gentle-ai.patch.yml
+new file mode 100644
+index 0000000000..17add45401
+--- /dev/null
++++ b/vendor/deepseek-harness/packages/bundle/web-app/presets/gentle-ai.patch.yml
+@@ -0,0 +1,201 @@
++# Agent preset gentle-ai: one `@deepseek-ai/dsh-agent-preset` declaration inserted
++# after the web patch. Edits saved from the Web editor override this row's
++# `config.plugins` by id from the profile patch.
++- insert:
++    - id: preset-gentle-ai
++      name: '@deepseek-ai/dsh-agent-preset'
++      config:
++        id: gentle-ai
++        order: 2
++        plugins:
++          - id: persona
++            name: '@deepseek-ai/dsh-persona'
++            config:
++              prefix: >-
++                You are Gentle AI, a careful orchestrator reusing the Standard
++                composition, permissions, sandbox, and plan mode. You are powered
++                by the {{model}} model.
++              suffix: >-
++                Your working directory is {{cwd}}. FreeCode automatically
++                activates this workspace before every managed MCP call; treat it
++                as the active project and do not ask the user to activate it.
++          - id: agent-instructions
++            name: '@deepseek-ai/dsh-agent-instructions'
++            config:
++              maxBytes: 65536
++          - id: time-context
++            name: '@deepseek-ai/dsh-time-context'
++          - id: tool-bash
++            name: '@deepseek-ai/dsh-tool-bash'
++            disabled: !!js process.platform === 'win32'
++          - id: tool-pwsh
++            name: '@deepseek-ai/dsh-tool-pwsh'
++            disabled: !!js process.platform !== 'win32'
++          - id: tool-fs
++            name: '@deepseek-ai/dsh-tool-fs'
++          - id: tool-fs-search
++            name: '@deepseek-ai/dsh-tool-fs-search'
++            config:
++              sampleOverCapGlobResults: false
++          - id: tool-jobs
++            name: '@deepseek-ai/dsh-tool-jobs'
++          - id: tool-schedule
++            name: '@deepseek-ai/dsh-tool-schedule'
++          - id: skill-filesystem
++            name: '@deepseek-ai/dsh-skill-filesystem'
++          - id: tool-skill
++            name: '@deepseek-ai/dsh-tool-skill'
++          - id: command-goal
++            name: '@deepseek-ai/dsh-command-goal'
++          - id: tool-goal
++            name: '@deepseek-ai/dsh-tool-goal'
++          - id: planning
++            name: cordis:group
++            group: true
++            isolate:
++              planMode: true
++            config:
++              - id: plan-mode
++                name: '@deepseek-ai/dsh-plan-mode'
++                config:
++                  section: |
++                    You are in plan mode. Stay in plan mode until exit_plan_mode succeeds or the user switches the session mode. Imperative language to implement changes means plan the implementation, not execute it. A user's conversational agreement — including an answer confirming something you asked — approves nothing and does not end plan mode; fold the confirmed decision into the plan and submit it through exit_plan_mode.
++
++                    Explore first. Use non-mutating reads, searches, static analysis, and checks to ground the plan in the actual repository. Do not edit or write files, change configuration, run formatters or code generation that rewrites tracked files, commit, or otherwise carry out the plan. Prefer existing functions and patterns over new machinery.
++
++                    The tool catalog stays the same across modes for request-cache stability. These plan-mode rules override any later tool description or guidance that suggests using mutation tools; those tools remain listed to keep the tool catalog unchanged. Do not use todo_write to track this planning phase: it tracks implementation after an approved plan, while the plan itself belongs in exit_plan_mode.
++
++                    Resolve discoverable facts by inspection. Use ask_user_question only for user-owned choices or material ambiguity that inspection cannot answer. Do not ask the user where code lives or how current behavior works when you can find out.
++
++                    Make the plan decision-complete: state the goal and success criteria; group implementation changes by subsystem; identify public API, schema, and data-flow changes; cover edge cases, failure modes, tests, acceptance criteria, and explicit assumptions. Keep it concise enough to review but detailed enough that another engineer can implement it without making design decisions.
++
++                    When ready, call exit_plan_mode with the complete plan markdown, starting with a # title. Make exit_plan_mode the only and final tool call in that assistant response: it presents the plan for approval, and implementation begins only in a later step after approval. Do not paste the final plan as a plain reply or ask "should I proceed?" through prose or ask_user_question. If review rejects it, incorporate the feedback and present again. If the review channel is unavailable or aborted, stay in plan mode and ask the user to switch modes manually; do not proceed with implementation.
++          - id: compaction
++            name: cordis:group
++            group: true
++            isolate:
++              compaction: true
++              toolResultPruner: true
++            config:
++              - id: compaction-basic
++                name: '@deepseek-ai/dsh-compaction-basic'
++              - id: command-compact
++                name: '@deepseek-ai/dsh-command-compact'
++              - id: tool-result-pruner
++                name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
++                config:
++                  thresholdChars: 8192
++                  headChars: 4096
++                  tailChars: 1024
++          - id: delegation
++            name: cordis:group
++            group: true
++            isolate:
++              workflowEngine: true
++            config:
++              - id: tool-subagent-control
++                name: '@deepseek-ai/dsh-tool-subagent-control'
++              - id: tool-subagent-list-agents
++                name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
++              - id: tool-subagent
++                name: '@deepseek-ai/dsh-tool-subagent'
++                config:
++                  provider: spawn
++                  toolName: subagent
++                  modelSelectionSettings: true
++                  backgroundMode: continuable
++                  toolFilter:
++                    deny:
++                      - schedule_create
++                      - schedule_delete
++                      - schedule_list
++                      - schedule_update
++              - id: tool-subagent-fork
++                name: '@deepseek-ai/dsh-tool-subagent'
++                config:
++                  provider: fork
++                  toolName: subagent_fork
++                  backgroundMode: continuable
++                  toolFilter:
++                    deny:
++                      - schedule_create
++                      - schedule_delete
++                      - schedule_list
++                      - schedule_update
++              - id: tool-subagent-codex
++                name: '@deepseek-ai/dsh-tool-subagent'
++                disabled: true
++                config:
++                  provider: codex
++                  toolName: subagent_codex
++                  backgroundMode: one-shot
++                  maxDepth: provider-managed
++              - id: tool-subagent-claude-code
++                name: '@deepseek-ai/dsh-tool-subagent'
++                disabled: true
++                config:
++                  provider: claude-code
++                  toolName: subagent_claude_code
++                  backgroundMode: one-shot
++                  maxDepth: provider-managed
++              - id: workflow-ptc
++                name: '@deepseek-ai/dsh-workflow-ptc'
++                config:
++                  provider: spawn
++              - id: tool-workflow
++                name: '@deepseek-ai/dsh-tool-workflow'
++              - id: tool-ralph
++                name: '@deepseek-ai/dsh-tool-ralph'
++                disabled: true
++                config:
++                  subagentProvider: spawn
++                  maxRounds: 64
++          - id: tool-ask-user
++            name: '@deepseek-ai/dsh-tool-ask-user'
++          - id: tool-todo
++            name: '@deepseek-ai/dsh-tool-todo'
++            config:
++              allowParallelInProgress: true
++          - id: tool-web
++            name: '@deepseek-ai/dsh-tool-web'
++            config:
++              fetch: true
++              searchTimeoutMs: 60000
++          # FreeCode's MCP servers are agent-plane capabilities. These rows
++          # use the persisted desktop toggles; the host overlay is disabled
++          # while the Electron web profile is active to avoid duplicate clients.
++          - id: freecode-mcp-engram
++            name: '@deepseek-ai/dsh-mcp-client'
++            disabled: !!js process.env.FREECODE_MCP_ENGRAM_ENABLED !== 'true'
++            config:
++              transport: stdio
++              serverName: engram
++              command: !!js process.env.FREECODE_ENGRAM_COMMAND ?? 'engram'
++              args: ['mcp']
++              cwd: !!js process.cwd()
++              failOnStartupError: false
++              reconnect:
++                enabled: true
++                initialDelayMs: 500
++                maxDelayMs: 30000
++                maxAttempts: 10
++          - id: freecode-mcp-free-search
++            name: '@deepseek-ai/dsh-mcp-client'
++            disabled: !!js process.env.FREECODE_MCP_FREE_SEARCH_ENABLED !== 'true'
++            config:
++              transport: stdio
++              serverName: free-search
++              command: !!js process.env.FREECODE_UVX_COMMAND ?? 'uvx'
++              args: ['free-search-mcp']
++              cwd: !!js process.cwd()
++              failOnStartupError: false
++              reconnect:
++                enabled: true
++                initialDelayMs: 500
++                maxDelayMs: 30000
++                maxAttempts: 10
++          - id: present
++            name: '@deepseek-ai/dsh-tool-present'
++          - id: tool-plugin-manager
++            name: '@deepseek-ai/dsh-plugin-manager/tools'
++            disabled: true
+diff --git a/vendor/deepseek-harness/packages/client/ui-agent-preset/src/client/locales.ts b/vendor/deepseek-harness/packages/client/ui-agent-preset/src/client/locales.ts
+index 34eebff86f..91f148b7a2 100644
+--- a/vendor/deepseek-harness/packages/client/ui-agent-preset/src/client/locales.ts
++++ b/vendor/deepseek-harness/packages/client/ui-agent-preset/src/client/locales.ts
+@@ -21,6 +21,8 @@ export type AgentPresetSettingsKey =
+   | 'presetMinimalDescription'
+   | 'presetCordisName'
+   | 'presetCordisDescription'
++  | 'presetGentleAiName'
++  | 'presetGentleAiDescription'
+   | 'inUse'
+   | 'noDescription'
+   | 'brokenBadge'
+@@ -59,6 +61,9 @@ export const en: Record<AgentPresetSettingsKey, string> = {
+   presetCordisName: 'Creator mode',
+   presetCordisDescription:
+     'Customize DSH through conversation. Let the agent write plugins that add features or UI, or combine tools and prompts to create your own mode.',
++  presetGentleAiName: 'Gentle AI mode',
++  presetGentleAiDescription:
++    'A careful orchestrator using Standard’s tools, permissions, sandbox, and plan mode.',
+ 
+   inUse: 'New task default',
+ 
+@@ -99,6 +104,8 @@ export const es = {
+   "presetMinimalDescription": "Agente de programación de dos herramientas con bash persistente y str_replace_editor.",
+   "presetCordisName": "Modo creador",
+   "presetCordisDescription": "Diseñado para crear presets de agente personalizados, con todas las capacidades del modo estándar más inspección en tiempo de ejecución, experimentos con complementos y guía de autoría de presets.",
++  "presetGentleAiName": "Modo Gentle AI",
++  "presetGentleAiDescription": "Un orquestador cuidadoso que usa las herramientas, permisos, sandbox y modo de planificación de Standard.",
+   "duplicate": "Duplicar",
+   "duplicateUnavailable": "Esta instalación no tiene un directorio de presets con escritura",
+   "delete": "Eliminar",
+@@ -157,6 +164,8 @@ export const zh: Record<AgentPresetSettingsKey, string> = {
+   presetMinimalDescription: 'Agent 仅使用终端工具完成任务，适合测试和对比其基础表现。',
+   presetCordisName: '创造模式',
+   presetCordisDescription: '用对话定制 DSH：让 Agent 编写插件，添加新功能或界面；也能组合工具和提示词，创建自己的模式。',
++  presetGentleAiName: 'Gentle AI 模式',
++  presetGentleAiDescription: '谨慎的 Agent 协调器，沿用标准模式的工具、权限、沙箱和计划模式。',
+ 
+   inUse: '新任务默认',
+ 
+diff --git a/vendor/deepseek-harness/packages/client/ui-agent-preset/tests/locales.client.spec.ts b/vendor/deepseek-harness/packages/client/ui-agent-preset/tests/locales.client.spec.ts
+index 8c643accfc..96803012ca 100644
+--- a/vendor/deepseek-harness/packages/client/ui-agent-preset/tests/locales.client.spec.ts
++++ b/vendor/deepseek-harness/packages/client/ui-agent-preset/tests/locales.client.spec.ts
+@@ -1,7 +1,7 @@
+-/** Web-localized copy for the four shipped presets and declared copy for every other row. */
++/** Web-localized copy for the shipped presets and declared copy for every other row. */
+ 
+ import { describe, expect, it } from 'vitest'
+-import { en, presetDisplayText, zh } from '../src/client/locales.ts'
++import { en, es, presetDisplayText, zh } from '../src/client/locales.ts'
+ 
+ const translate = (bundle: typeof en) => (key: keyof typeof en): string => bundle[key]
+ 
+@@ -11,6 +11,7 @@ describe('preset display copy', () => {
+     ['ptc', 'presetPtcName', 'presetPtcDescription'],
+     ['minimal', 'presetMinimalName', 'presetMinimalDescription'],
+     ['cordis', 'presetCordisName', 'presetCordisDescription'],
++    ['gentle-ai', 'presetGentleAiName', 'presetGentleAiDescription'],
+   ] as const)('localizes the shipped %s preset in English and Chinese', (id, nameKey, descriptionKey) => {
+     const preset = { id }
+ 
+@@ -18,6 +19,10 @@ describe('preset display copy', () => {
+       .toEqual({ name: en[nameKey], description: en[descriptionKey] })
+     expect(presetDisplayText(preset, translate(zh)))
+       .toEqual({ name: zh[nameKey], description: zh[descriptionKey] })
++    if (id === 'gentle-ai') {
++      expect(presetDisplayText(preset, translate(es)))
++        .toEqual({ name: es.presetGentleAiName, description: es.presetGentleAiDescription })
++    }
+   })
+ 
+   it('keeps declared metadata untranslated for named and unknown presets', () => {
+diff --git a/vendor/deepseek-harness/packages/preset/agent-preset-registry/src/display.ts b/vendor/deepseek-harness/packages/preset/agent-preset-registry/src/display.ts
+index 15585dde76..5a7d86b6b6 100644
+--- a/vendor/deepseek-harness/packages/preset/agent-preset-registry/src/display.ts
++++ b/vendor/deepseek-harness/packages/preset/agent-preset-registry/src/display.ts
+@@ -13,6 +13,7 @@ export type BuiltInPresetCopyKey =
+   | 'presetPtcName' | 'presetPtcDescription'
+   | 'presetMinimalName' | 'presetMinimalDescription'
+   | 'presetCordisName' | 'presetCordisDescription'
++  | 'presetGentleAiName' | 'presetGentleAiDescription'
+ 
+ /** Preset roster fields needed to resolve display copy. */
+ export interface PresetDisplaySource {
+@@ -42,6 +43,7 @@ const BUILT_IN_PRESET_KEYS: Readonly<Partial<Record<string, PresetLocaleKeys>>>
+   ptc: { name: 'presetPtcName', description: 'presetPtcDescription' },
+   minimal: { name: 'presetMinimalName', description: 'presetMinimalDescription' },
+   cordis: { name: 'presetCordisName', description: 'presetCordisDescription' },
++  'gentle-ai': { name: 'presetGentleAiName', description: 'presetGentleAiDescription' },
+ }
+ 
+ /**
 diff --git a/vendor/deepseek-harness/packages/preset/agent-presets/presets/gentle-ai/agent.cordis.yml b/vendor/deepseek-harness/packages/preset/agent-presets/presets/gentle-ai/agent.cordis.yml
-new file mode 100644
-index 0000000..0ed1d1a
---- /dev/null
-+++ b/vendor/deepseek-harness/packages/preset/agent-presets/presets/gentle-ai/agent.cordis.yml
-@@ -0,0 +1,288 @@
-+# The `standard` agent preset: the full coding agent, mounted once per process.
-+#
-+# This file is an AGENT-PLANE composition. The roster mounts it ONCE under a
-+# standing scope; every session naming it joins by scope parentage, so the
-+# tools and prompt sections registered here cover each joined agent while a
-+# session's own state stays keyed per Session/Agent inside the plugins. The
-+# host composition (`base.cordis.yml` + `web.cordis.yml`) keeps everything a
-+# preset must not own: the registries themselves, the sandbox and approval
-+# stack, persistence, and the model route.
-+#
-+# A service row here MUST sit inside a group carrying an `isolate` realm.
-+# Without one it publishes into the root realm, where it is process-global —
-+# another preset publishing the same name collides, and a host reader would
-+# resolve one preset's instance for every session; `dsh-agent-presets` rejects
-+# that at mount. `true` means an entry-local realm: this standing mount's own
-+# private instance, apart from every other preset's. (A shared label does NOT
-+# pool instances — `provide()` throws on the second registration under the
-+# same realm symbol; labels join REALMS, and are not what this file needs.)
-+
-+# ── identity ────────────────────────────────────────────────────────────────
-+
-+# The preset's own persona, shadowing the deployment default for this agent.
-+# `{{model}}` and `{{cwd}}` resolve from the agent's own route and workspace.
-+- id: persona
-+  name: '@deepseek-ai/dsh-persona'
-+  config:
-+    text: >-
-+      You are Gentle AI, a careful orchestrator reusing the Standard composition, permissions, sandbox and plan-mode. Your working directory is {{cwd}}.
-+      FreeCode automatically activates this workspace before every managed MCP call; treat it as the active project and do not ask the user to activate it.
-+
-+- id: agent-instructions
-+  name: '@deepseek-ai/dsh-agent-instructions'
-+  config:
-+    maxBytes: 65536
-+
-+# ── shell ───────────────────────────────────────────────────────────────────
-+
-+# `shell-env` stays in the HOST composition: `apps/cli/src/web.ts` injects it to
-+# publish `DSH_WEB_URL`/`DSH_WEB_MODE`, and a host row that injects a service is
-+# the criterion for host-plane ownership — injection resolves before any session
-+# exists, so there is no agent to key by. Behind a preset realm those variables
-+# never reached the model's shell at all. Both shell tools consume the host
-+# registry from here; their executors (`bash-sandbox`/`pwsh-sandbox`) are
-+# host-plane too.
-+- id: tool-bash
-+  name: '@deepseek-ai/dsh-tool-bash'
-+  disabled: !!js process.platform === 'win32'
-+
-+- id: tool-pwsh
-+  name: '@deepseek-ai/dsh-tool-pwsh'
-+  disabled: !!js process.platform !== 'win32'
-+
-+# ── filesystem ──────────────────────────────────────────────────────────────
-+
-+# Both register into the host `tools` registry and provide nothing, so
-+# they need no realm. The `fs` service and its policy stay in the host.
-+- id: tool-fs
-+  name: '@deepseek-ai/dsh-tool-fs'
-+
-+- id: tool-fs-search
-+  name: '@deepseek-ai/dsh-tool-fs-search'
-+  config:
-+    sampleOverCapGlobResults: false
-+
-+# ── background jobs ────────────────────────────────────────────────────────
-+
-+# Only the model-facing controls. The task REGISTRY stays on the host plane:
-+# its producers sit outside any realm this file could put it in — `tool-bash`
-+# above resolves it with `ctx.get`, and an entry-local realm here is invisible
-+# to every sibling row, so `run_in_background` would answer "background jobs
-+# unavailable" while these controls sat in the catalog. The registry is keyed by
-+# owning agent anyway, so one host instance serves every session. What a preset
-+# chooses is whether its agent can collect and stop background work at all.
-+- id: tool-jobs
-+  name: '@deepseek-ai/dsh-tool-jobs'
-+
-+# ── skills ──────────────────────────────────────────────────────────────────
-+
-+# The skill REGISTRY lives in the host composition and is layered per scope:
-+# these rows register into THIS preset's layer of it, so they need no realm.
-+# `skill-filesystem` contributes local-root discovery for agents on this preset, and
-+# `tool-skill` gives them the catalog and loader; the merged catalog also
-+# carries whatever the deployment registered globally (repository plugins).
-+- id: skill-filesystem
-+  name: '@deepseek-ai/dsh-skill-filesystem'
-+
-+- id: tool-skill
-+  name: '@deepseek-ai/dsh-tool-skill'
-+
-+# ── goals ───────────────────────────────────────────────────────────────────
-+
-+# The goal service and session driver stay on the host plane, where the Gateway
-+# can resolve them. The human command and model-facing tool register into this
-+# preset's scoped layers.
-+- id: command-goal
-+  name: '@deepseek-ai/dsh-command-goal'
-+
-+- id: tool-goal
-+  name: '@deepseek-ai/dsh-tool-goal'
-+
-+# ── plan mode ───────────────────────────────────────────────────────────────
-+
-+# Plan state is per-agent by nature, so an entry-local realm is not a
-+# workaround here — it is the correct lifetime.
-+- id: planning
-+  name: cordis:group
-+  group: true
-+  isolate:
-+    planMode: true
-+  config:
-+    - id: plan-mode
-+      name: '@deepseek-ai/dsh-plan-mode'
-+      config:
-+        section: |
-+              You are in plan mode. Stay in plan mode until exit_plan_mode succeeds or the user switches the session mode. Imperative language to implement changes means plan the implementation, not execute it. A user's conversational agreement — including an answer confirming something you asked — approves nothing and does not end plan mode; fold the confirmed decision into the plan and submit it through exit_plan_mode.
-+
-+              Explore first. Use non-mutating reads, searches, static analysis, and checks to ground the plan in the actual repository. Do not edit or write files, change configuration, run formatters or code generation that rewrites tracked files, commit, or otherwise carry out the plan. Prefer existing functions and patterns over new machinery.
-+
-+              The tool catalog stays the same across modes for request-cache stability. These plan-mode rules override any later tool description or guidance that suggests using mutation tools; those tools remain listed to keep the tool catalog unchanged. Do not use todo_write to track this planning phase: it tracks implementation after an approved plan, while the plan itself belongs in exit_plan_mode.
-+
-+              Resolve discoverable facts by inspection. Use ask_user_question only for user-owned choices or material ambiguity that inspection cannot answer. Do not ask the user where code lives or how current behavior works when you can find out.
-+
-+              Make the plan decision-complete: state the goal and success criteria; group implementation changes by subsystem; identify public API, schema, and data-flow changes; cover edge cases, failure modes, tests, acceptance criteria, and explicit assumptions. Keep it concise enough to review but detailed enough that another engineer can implement it without making design decisions.
-+
-+              When ready, call exit_plan_mode with the complete plan markdown, starting with a # title. Make exit_plan_mode the only and final tool call in that assistant response: it presents the plan for approval, and implementation begins only in a later step after approval. Do not paste the final plan as a plain reply or ask "should I proceed?" through prose or ask_user_question. If review rejects it, incorporate the feedback and present again. If the review channel is unavailable or aborted, stay in plan mode and ask the user to switch modes manually; do not proceed with implementation.
-+
-+# ── compaction ──────────────────────────────────────────────────────────────
-+
-+# `compaction-basic` reads `toolResultPrune` through `ctx.get`, so the pruner must
-+# share this realm rather than sit outside it.
-+#
-+# `tokenMeter` is deliberately NOT in this realm: the meter stays on the HOST
-+# plane, and the rows here resolve that one instance. It takes no configuration,
-+# keys every fold by Session, and owns the context-meter projection units the
-+# browser reads for every session — behind a realm those units would come and go
-+# with whichever presets happen to be mounted. What a preset chooses is whether
-+# its agent compacts at all, which is `compaction-basic` below.
-+- id: compaction
-+  name: cordis:group
-+  group: true
-+  isolate:
-+    compaction: true
-+    toolResultPruner: true
-+  config:
-+    - id: compaction-basic
-+      name: '@deepseek-ai/dsh-compaction-basic'
-+
-+    - id: command-compact
-+      name: '@deepseek-ai/dsh-command-compact'
-+
-+    - id: tool-result-pruner
-+      name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
-+      config:
-+        thresholdChars: 8192
-+        headChars: 4096
-+        tailChars: 1024
-+
-+# ── delegation and workflows ────────────────────────────────────────────────
-+
-+# The `subagents` registry and its spawn/fork backends live in the HOST
-+# composition: the registry is a process singleton whose cross-session queries
-+# the api-proxy serves to the browser, and a provider name may only be
-+# registered once. This preset contributes the delegation TOOLS, which resolve
-+# that host registry.
-+#
-+# `workflows` is different — nothing outside an agent reads it — so every row
-+# that reaches it shares one entry-local realm here, and a consumer left
-+# outside would resolve a host registry this preset does not populate.
-+- id: delegation
-+  name: cordis:group
-+  group: true
-+  isolate:
-+    workflowEngine: true
-+  config:
-+    - id: tool-subagent-control
-+      name: '@deepseek-ai/dsh-tool-subagent-control'
-+
-+    - id: tool-subagent-list-agents
-+      name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
-+
-+    - id: tool-subagent
-+      name: '@deepseek-ai/dsh-tool-subagent'
-+      config:
-+        provider: spawn
-+        toolName: subagent
-+        modelSelectionSettings: true
-+        backgroundMode: continuable
-+
-+    # Fork omits model selection so provider/model stay equal to the parent and
-+    # the inherited history remains eligible for KV Cache reuse. This preset
-+    # keeps fork continuable; parent and child inherit the same messaging tool,
-+    # while the parent id and return guidance follow the inherited history.
-+    - id: tool-subagent-fork
-+      name: '@deepseek-ai/dsh-tool-subagent'
-+      config:
-+        provider: fork
-+        toolName: subagent_fork
-+        backgroundMode: continuable
-+
-+    # Production dsh does not install these optional providers. Install the
-+    # matching Bundle in this Profile and restart the Host, then copy this
-+    # preset and remove `disabled` from the matching tool row. Host availability
-+    # alone grants no tool.
-+    - id: tool-subagent-codex
-+      name: '@deepseek-ai/dsh-tool-subagent'
-+      disabled: true
-+      config:
-+        provider: codex
-+        toolName: subagent_codex
-+        backgroundMode: one-shot
-+        maxDepth: provider-managed
-+
-+    - id: tool-subagent-claude-code
-+      name: '@deepseek-ai/dsh-tool-subagent'
-+      disabled: true
-+      config:
-+        provider: claude-code
-+        toolName: subagent_claude_code
-+        backgroundMode: one-shot
-+        maxDepth: provider-managed
-+
-+    - id: workflow-worker-thread
-+      name: '@deepseek-ai/dsh-workflow-worker-thread'
-+      config:
-+        provider: spawn
-+
-+    - id: tool-workflow
-+      name: '@deepseek-ai/dsh-tool-workflow'
-+
-+    - id: tool-ralph
-+      name: '@deepseek-ai/dsh-tool-ralph'
-+      config:
-+        subagentProvider: spawn
-+        maxRounds: 64
-+
-+# ── remaining model-facing rows ─────────────────────────────────────────────
-+
-+# FreeCode's managed MCP servers are agent-plane capabilities. They belong in
-+# Standard (where the model-facing tools are composed), not only in the host
-+# patch. Environment flags are generated from mcp/servers.json by the shell;
-+# disabled entries stay inert without making the whole harness optional.
-+- id: freecode-mcp-engram
-+  name: '@deepseek-ai/dsh-mcp-client'
-+  disabled: !!js process.env.FREECODE_MCP_ENGRAM_ENABLED !== 'true'
-+  config:
-+    transport: stdio
-+    serverName: engram
-+    command: !!js process.env.FREECODE_ENGRAM_COMMAND ?? 'engram'
-+    args: ['mcp']
-+    cwd: !!js process.cwd()
-+    failOnStartupError: false
-+    reconnect:
-+      enabled: true
-+      initialDelayMs: 500
-+      maxDelayMs: 30000
-+      maxAttempts: 10
-+
-+- id: freecode-mcp-free-search
-+  name: '@deepseek-ai/dsh-mcp-client'
-+  disabled: !!js process.env.FREECODE_MCP_FREE_SEARCH_ENABLED !== 'true'
-+  config:
-+    transport: stdio
-+    serverName: free-search
-+    command: !!js process.env.FREECODE_UVX_COMMAND ?? 'uvx'
-+    args: ['free-search-mcp']
-+    cwd: !!js process.cwd()
-+    failOnStartupError: false
-+    reconnect:
-+      enabled: true
-+      initialDelayMs: 500
-+      maxDelayMs: 30000
-+      maxAttempts: 10
-+
-+- id: tool-ask-user
-+  name: '@deepseek-ai/dsh-tool-ask-user'
-+
-+- id: tool-todo
-+  name: '@deepseek-ai/dsh-tool-todo'
-+  config:
-+    allowParallelInProgress: true
-+
-+# The `web` service and its search provider stay in the host composition; only
-+# the model-facing tool is per-session.
-+- id: tool-web
-+  name: '@deepseek-ai/dsh-tool-web'
-+  config:
-+    fetch: true
-+    searchTimeoutMs: 60000
+deleted file mode 100644
+index 0ed1d1a8d2..0000000000
+--- a/vendor/deepseek-harness/packages/preset/agent-presets/presets/gentle-ai/agent.cordis.yml
++++ /dev/null
+@@ -1,288 +0,0 @@
+-# The `standard` agent preset: the full coding agent, mounted once per process.
+-#
+-# This file is an AGENT-PLANE composition. The roster mounts it ONCE under a
+-# standing scope; every session naming it joins by scope parentage, so the
+-# tools and prompt sections registered here cover each joined agent while a
+-# session's own state stays keyed per Session/Agent inside the plugins. The
+-# host composition (`base.cordis.yml` + `web.cordis.yml`) keeps everything a
+-# preset must not own: the registries themselves, the sandbox and approval
+-# stack, persistence, and the model route.
+-#
+-# A service row here MUST sit inside a group carrying an `isolate` realm.
+-# Without one it publishes into the root realm, where it is process-global —
+-# another preset publishing the same name collides, and a host reader would
+-# resolve one preset's instance for every session; `dsh-agent-presets` rejects
+-# that at mount. `true` means an entry-local realm: this standing mount's own
+-# private instance, apart from every other preset's. (A shared label does NOT
+-# pool instances — `provide()` throws on the second registration under the
+-# same realm symbol; labels join REALMS, and are not what this file needs.)
+-
+-# ── identity ────────────────────────────────────────────────────────────────
+-
+-# The preset's own persona, shadowing the deployment default for this agent.
+-# `{{model}}` and `{{cwd}}` resolve from the agent's own route and workspace.
+-- id: persona
+-  name: '@deepseek-ai/dsh-persona'
+-  config:
+-    text: >-
+-      You are Gentle AI, a careful orchestrator reusing the Standard composition, permissions, sandbox and plan-mode. Your working directory is {{cwd}}.
+-      FreeCode automatically activates this workspace before every managed MCP call; treat it as the active project and do not ask the user to activate it.
+-
+-- id: agent-instructions
+-  name: '@deepseek-ai/dsh-agent-instructions'
+-  config:
+-    maxBytes: 65536
+-
+-# ── shell ───────────────────────────────────────────────────────────────────
+-
+-# `shell-env` stays in the HOST composition: `apps/cli/src/web.ts` injects it to
+-# publish `DSH_WEB_URL`/`DSH_WEB_MODE`, and a host row that injects a service is
+-# the criterion for host-plane ownership — injection resolves before any session
+-# exists, so there is no agent to key by. Behind a preset realm those variables
+-# never reached the model's shell at all. Both shell tools consume the host
+-# registry from here; their executors (`bash-sandbox`/`pwsh-sandbox`) are
+-# host-plane too.
+-- id: tool-bash
+-  name: '@deepseek-ai/dsh-tool-bash'
+-  disabled: !!js process.platform === 'win32'
+-
+-- id: tool-pwsh
+-  name: '@deepseek-ai/dsh-tool-pwsh'
+-  disabled: !!js process.platform !== 'win32'
+-
+-# ── filesystem ──────────────────────────────────────────────────────────────
+-
+-# Both register into the host `tools` registry and provide nothing, so
+-# they need no realm. The `fs` service and its policy stay in the host.
+-- id: tool-fs
+-  name: '@deepseek-ai/dsh-tool-fs'
+-
+-- id: tool-fs-search
+-  name: '@deepseek-ai/dsh-tool-fs-search'
+-  config:
+-    sampleOverCapGlobResults: false
+-
+-# ── background jobs ────────────────────────────────────────────────────────
+-
+-# Only the model-facing controls. The task REGISTRY stays on the host plane:
+-# its producers sit outside any realm this file could put it in — `tool-bash`
+-# above resolves it with `ctx.get`, and an entry-local realm here is invisible
+-# to every sibling row, so `run_in_background` would answer "background jobs
+-# unavailable" while these controls sat in the catalog. The registry is keyed by
+-# owning agent anyway, so one host instance serves every session. What a preset
+-# chooses is whether its agent can collect and stop background work at all.
+-- id: tool-jobs
+-  name: '@deepseek-ai/dsh-tool-jobs'
+-
+-# ── skills ──────────────────────────────────────────────────────────────────
+-
+-# The skill REGISTRY lives in the host composition and is layered per scope:
+-# these rows register into THIS preset's layer of it, so they need no realm.
+-# `skill-filesystem` contributes local-root discovery for agents on this preset, and
+-# `tool-skill` gives them the catalog and loader; the merged catalog also
+-# carries whatever the deployment registered globally (repository plugins).
+-- id: skill-filesystem
+-  name: '@deepseek-ai/dsh-skill-filesystem'
+-
+-- id: tool-skill
+-  name: '@deepseek-ai/dsh-tool-skill'
+-
+-# ── goals ───────────────────────────────────────────────────────────────────
+-
+-# The goal service and session driver stay on the host plane, where the Gateway
+-# can resolve them. The human command and model-facing tool register into this
+-# preset's scoped layers.
+-- id: command-goal
+-  name: '@deepseek-ai/dsh-command-goal'
+-
+-- id: tool-goal
+-  name: '@deepseek-ai/dsh-tool-goal'
+-
+-# ── plan mode ───────────────────────────────────────────────────────────────
+-
+-# Plan state is per-agent by nature, so an entry-local realm is not a
+-# workaround here — it is the correct lifetime.
+-- id: planning
+-  name: cordis:group
+-  group: true
+-  isolate:
+-    planMode: true
+-  config:
+-    - id: plan-mode
+-      name: '@deepseek-ai/dsh-plan-mode'
+-      config:
+-        section: |
+-              You are in plan mode. Stay in plan mode until exit_plan_mode succeeds or the user switches the session mode. Imperative language to implement changes means plan the implementation, not execute it. A user's conversational agreement — including an answer confirming something you asked — approves nothing and does not end plan mode; fold the confirmed decision into the plan and submit it through exit_plan_mode.
+-
+-              Explore first. Use non-mutating reads, searches, static analysis, and checks to ground the plan in the actual repository. Do not edit or write files, change configuration, run formatters or code generation that rewrites tracked files, commit, or otherwise carry out the plan. Prefer existing functions and patterns over new machinery.
+-
+-              The tool catalog stays the same across modes for request-cache stability. These plan-mode rules override any later tool description or guidance that suggests using mutation tools; those tools remain listed to keep the tool catalog unchanged. Do not use todo_write to track this planning phase: it tracks implementation after an approved plan, while the plan itself belongs in exit_plan_mode.
+-
+-              Resolve discoverable facts by inspection. Use ask_user_question only for user-owned choices or material ambiguity that inspection cannot answer. Do not ask the user where code lives or how current behavior works when you can find out.
+-
+-              Make the plan decision-complete: state the goal and success criteria; group implementation changes by subsystem; identify public API, schema, and data-flow changes; cover edge cases, failure modes, tests, acceptance criteria, and explicit assumptions. Keep it concise enough to review but detailed enough that another engineer can implement it without making design decisions.
+-
+-              When ready, call exit_plan_mode with the complete plan markdown, starting with a # title. Make exit_plan_mode the only and final tool call in that assistant response: it presents the plan for approval, and implementation begins only in a later step after approval. Do not paste the final plan as a plain reply or ask "should I proceed?" through prose or ask_user_question. If review rejects it, incorporate the feedback and present again. If the review channel is unavailable or aborted, stay in plan mode and ask the user to switch modes manually; do not proceed with implementation.
+-
+-# ── compaction ──────────────────────────────────────────────────────────────
+-
+-# `compaction-basic` reads `toolResultPrune` through `ctx.get`, so the pruner must
+-# share this realm rather than sit outside it.
+-#
+-# `tokenMeter` is deliberately NOT in this realm: the meter stays on the HOST
+-# plane, and the rows here resolve that one instance. It takes no configuration,
+-# keys every fold by Session, and owns the context-meter projection units the
+-# browser reads for every session — behind a realm those units would come and go
+-# with whichever presets happen to be mounted. What a preset chooses is whether
+-# its agent compacts at all, which is `compaction-basic` below.
+-- id: compaction
+-  name: cordis:group
+-  group: true
+-  isolate:
+-    compaction: true
+-    toolResultPruner: true
+-  config:
+-    - id: compaction-basic
+-      name: '@deepseek-ai/dsh-compaction-basic'
+-
+-    - id: command-compact
+-      name: '@deepseek-ai/dsh-command-compact'
+-
+-    - id: tool-result-pruner
+-      name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+-      config:
+-        thresholdChars: 8192
+-        headChars: 4096
+-        tailChars: 1024
+-
+-# ── delegation and workflows ────────────────────────────────────────────────
+-
+-# The `subagents` registry and its spawn/fork backends live in the HOST
+-# composition: the registry is a process singleton whose cross-session queries
+-# the api-proxy serves to the browser, and a provider name may only be
+-# registered once. This preset contributes the delegation TOOLS, which resolve
+-# that host registry.
+-#
+-# `workflows` is different — nothing outside an agent reads it — so every row
+-# that reaches it shares one entry-local realm here, and a consumer left
+-# outside would resolve a host registry this preset does not populate.
+-- id: delegation
+-  name: cordis:group
+-  group: true
+-  isolate:
+-    workflowEngine: true
+-  config:
+-    - id: tool-subagent-control
+-      name: '@deepseek-ai/dsh-tool-subagent-control'
+-
+-    - id: tool-subagent-list-agents
+-      name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
+-
+-    - id: tool-subagent
+-      name: '@deepseek-ai/dsh-tool-subagent'
+-      config:
+-        provider: spawn
+-        toolName: subagent
+-        modelSelectionSettings: true
+-        backgroundMode: continuable
+-
+-    # Fork omits model selection so provider/model stay equal to the parent and
+-    # the inherited history remains eligible for KV Cache reuse. This preset
+-    # keeps fork continuable; parent and child inherit the same messaging tool,
+-    # while the parent id and return guidance follow the inherited history.
+-    - id: tool-subagent-fork
+-      name: '@deepseek-ai/dsh-tool-subagent'
+-      config:
+-        provider: fork
+-        toolName: subagent_fork
+-        backgroundMode: continuable
+-
+-    # Production dsh does not install these optional providers. Install the
+-    # matching Bundle in this Profile and restart the Host, then copy this
+-    # preset and remove `disabled` from the matching tool row. Host availability
+-    # alone grants no tool.
+-    - id: tool-subagent-codex
+-      name: '@deepseek-ai/dsh-tool-subagent'
+-      disabled: true
+-      config:
+-        provider: codex
+-        toolName: subagent_codex
+-        backgroundMode: one-shot
+-        maxDepth: provider-managed
+-
+-    - id: tool-subagent-claude-code
+-      name: '@deepseek-ai/dsh-tool-subagent'
+-      disabled: true
+-      config:
+-        provider: claude-code
+-        toolName: subagent_claude_code
+-        backgroundMode: one-shot
+-        maxDepth: provider-managed
+-
+-    - id: workflow-worker-thread
+-      name: '@deepseek-ai/dsh-workflow-worker-thread'
+-      config:
+-        provider: spawn
+-
+-    - id: tool-workflow
+-      name: '@deepseek-ai/dsh-tool-workflow'
+-
+-    - id: tool-ralph
+-      name: '@deepseek-ai/dsh-tool-ralph'
+-      config:
+-        subagentProvider: spawn
+-        maxRounds: 64
+-
+-# ── remaining model-facing rows ─────────────────────────────────────────────
+-
+-# FreeCode's managed MCP servers are agent-plane capabilities. They belong in
+-# Standard (where the model-facing tools are composed), not only in the host
+-# patch. Environment flags are generated from mcp/servers.json by the shell;
+-# disabled entries stay inert without making the whole harness optional.
+-- id: freecode-mcp-engram
+-  name: '@deepseek-ai/dsh-mcp-client'
+-  disabled: !!js process.env.FREECODE_MCP_ENGRAM_ENABLED !== 'true'
+-  config:
+-    transport: stdio
+-    serverName: engram
+-    command: !!js process.env.FREECODE_ENGRAM_COMMAND ?? 'engram'
+-    args: ['mcp']
+-    cwd: !!js process.cwd()
+-    failOnStartupError: false
+-    reconnect:
+-      enabled: true
+-      initialDelayMs: 500
+-      maxDelayMs: 30000
+-      maxAttempts: 10
+-
+-- id: freecode-mcp-free-search
+-  name: '@deepseek-ai/dsh-mcp-client'
+-  disabled: !!js process.env.FREECODE_MCP_FREE_SEARCH_ENABLED !== 'true'
+-  config:
+-    transport: stdio
+-    serverName: free-search
+-    command: !!js process.env.FREECODE_UVX_COMMAND ?? 'uvx'
+-    args: ['free-search-mcp']
+-    cwd: !!js process.cwd()
+-    failOnStartupError: false
+-    reconnect:
+-      enabled: true
+-      initialDelayMs: 500
+-      maxDelayMs: 30000
+-      maxAttempts: 10
+-
+-- id: tool-ask-user
+-  name: '@deepseek-ai/dsh-tool-ask-user'
+-
+-- id: tool-todo
+-  name: '@deepseek-ai/dsh-tool-todo'
+-  config:
+-    allowParallelInProgress: true
+-
+-# The `web` service and its search provider stay in the host composition; only
+-# the model-facing tool is per-session.
+-- id: tool-web
+-  name: '@deepseek-ai/dsh-tool-web'
+-  config:
+-    fetch: true
+-    searchTimeoutMs: 60000
 diff --git a/vendor/deepseek-harness/packages/preset/agent-presets/presets/gentle-ai/preset.yml b/vendor/deepseek-harness/packages/preset/agent-presets/presets/gentle-ai/preset.yml
-new file mode 100644
-index 0000000..d9385a7
---- /dev/null
-+++ b/vendor/deepseek-harness/packages/preset/agent-presets/presets/gentle-ai/preset.yml
-@@ -0,0 +1,3 @@
-+name: Gentle AI
-+description: Gentle orchestrator preset reusing Standard composition, permissions, sandbox and plan-mode.
-+order: 2
+deleted file mode 100644
+index d9385a7b72..0000000000
+--- a/vendor/deepseek-harness/packages/preset/agent-presets/presets/gentle-ai/preset.yml
++++ /dev/null
+@@ -1,3 +0,0 @@
+-name: Gentle AI
+-description: Gentle orchestrator preset reusing Standard composition, permissions, sandbox and plan-mode.
+-order: 2

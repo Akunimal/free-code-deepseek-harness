@@ -21,6 +21,8 @@ export type AgentPresetSettingsKey =
   | 'presetMinimalDescription'
   | 'presetCordisName'
   | 'presetCordisDescription'
+  | 'presetGentleAiName'
+  | 'presetGentleAiDescription'
   | 'inUse'
   | 'noDescription'
   | 'brokenBadge'
@@ -59,6 +61,9 @@ export const en: Record<AgentPresetSettingsKey, string> = {
   presetCordisName: 'Creator mode',
   presetCordisDescription:
     'Customize DSH through conversation. Let the agent write plugins that add features or UI, or combine tools and prompts to create your own mode.',
+  presetGentleAiName: 'Gentle AI mode',
+  presetGentleAiDescription:
+    'A careful orchestrator using Standard’s tools, permissions, sandbox, and plan mode.',
 
   inUse: 'New task default',
 
@@ -99,6 +104,8 @@ export const es = {
   "presetMinimalDescription": "Agente de programación de dos herramientas con bash persistente y str_replace_editor.",
   "presetCordisName": "Modo creador",
   "presetCordisDescription": "Diseñado para crear presets de agente personalizados, con todas las capacidades del modo estándar más inspección en tiempo de ejecución, experimentos con complementos y guía de autoría de presets.",
+  "presetGentleAiName": "Modo Gentle AI",
+  "presetGentleAiDescription": "Un orquestador cuidadoso que usa las herramientas, permisos, sandbox y modo de planificación de Standard.",
   "duplicate": "Duplicar",
   "duplicateUnavailable": "Esta instalación no tiene un directorio de presets con escritura",
   "delete": "Eliminar",
@@ -157,6 +164,8 @@ export const zh: Record<AgentPresetSettingsKey, string> = {
   presetMinimalDescription: 'Agent 仅使用终端工具完成任务，适合测试和对比其基础表现。',
   presetCordisName: '创造模式',
   presetCordisDescription: '用对话定制 DSH：让 Agent 编写插件，添加新功能或界面；也能组合工具和提示词，创建自己的模式。',
+  presetGentleAiName: 'Gentle AI 模式',
+  presetGentleAiDescription: '谨慎的 Agent 协调器，沿用标准模式的工具、权限、沙箱和计划模式。',
 
   inUse: '新任务默认',
 

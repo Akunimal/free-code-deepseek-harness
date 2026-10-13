@@ -15,6 +15,9 @@ const PATCH_DIR = join(ROOT, 'patches/upstream');
 const MANIFEST = join(PATCH_DIR, 'upstream-patches.json');
 const MCP_HOME = join(ROOT, 'apps/shell/src/main/mcp-home.ts');
 const RUNTIME_DEPS = join(ROOT, 'apps/shell/resources/runtime-deps.json');
+const WEB_APP_BUNDLE_PACKAGE = join(ROOT, 'vendor/deepseek-harness/packages/bundle/web-app/package.json');
+const WEB_APP_BUNDLE_PRESET_DIR = join(ROOT, 'vendor/deepseek-harness/packages/bundle/web-app/presets');
+const WEB_APP_PROFILE_PATCH = join(ROOT, 'vendor/deepseek-harness/packages/bundle/web-app/cordis.patch.yml');
 const VENDOR_STANDARD = join(
   ROOT,
   'vendor/deepseek-harness/packages/preset/agent-presets/presets/standard/agent.cordis.yml',
@@ -36,12 +39,24 @@ describe('gentle-ai preset — 150 patch composition (RED)', () => {
     expect(entry.vendorOnly).toBe(true);
   });
 
-  it('150 patch creates gentle-ai preset copied from standard', () => {
+  it('150 patch creates gentle-ai preset in the current Web bundle', () => {
     const file = patch150File();
     expect(file).not.toBeNull();
     const text = readFileSync(file!, 'utf8');
-    expect(text).toContain('presets/gentle-ai/');
+    expect(text).toContain('packages/bundle/web-app/presets/gentle-ai.patch.yml');
     expect(text).toContain('gentle-ai');
+  });
+
+  it('ships the localized Gentle AI mode in the Web bundle without changing the Standard default', () => {
+    const bundle = JSON.parse(readFileSync(WEB_APP_BUNDLE_PACKAGE, 'utf8'));
+    expect(bundle.files).toContain('presets/gentle-ai.patch.yml');
+    expect(bundle.dsh.bundle.patch).toContain('./presets/gentle-ai.patch.yml');
+
+    const preset = readFileSync(join(WEB_APP_BUNDLE_PRESET_DIR, 'gentle-ai.patch.yml'), 'utf8');
+    expect(preset).toContain('id: preset-gentle-ai');
+    expect(preset).toMatch(/config:\s+id: gentle-ai/u);
+    expect(preset).not.toMatch(/id: gentle-ai\s+name:/u);
+    expect(readFileSync(WEB_APP_PROFILE_PATCH, 'utf8')).toContain('default: standard');
   });
 
   it('150 patch keeps plan/permission/sandbox rows (copy-only, persona/prompt only)', () => {
