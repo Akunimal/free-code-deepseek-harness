@@ -1,257 +1,173 @@
-/**
- * Stream contract tests — Phase 7.
- *
- * Verifies provider stream behavior:
- *   1. Successful stream with [DONE] sentinel
- *   2. Truncated stream (no [DONE]) → STREAM_CLOSED error
- *   3. Empty response (stop + no content) → EMPTY_RESPONSE error
- *   4. finish_reason=tool_calls → tool-call blocks
- *   5. Malformed JSON payload → MALFORMED_RESPONSE error
- *   6. Partial chunks before truncation
- *   7. Usage tracking across chunks
- *   8. Multiple tool calls in one response
- *   9. Reasoning + text interleaving
- *  10. HTTP error status codes
- *
- * Uses the upstream DeepSeek SSE parser and translate functions directly.
- */
+/** Contract tests for the vendored DeepSeek Messages SSE wire protocol. */
 
-import { describe, expect, it, beforeAll } from 'vitest';
-import { Readable } from 'node:stream';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { join } from 'node:path';
 
 const VENDOR = join(import.meta.dirname, '../../..', 'vendor/deepseek-harness');
-
-// Dynamic imports for ESM vendor modules
-let parseSse, DONE, translate, LlmError, EMPTY_RESPONSE_CODE;
+let parseSse: (body: ReadableStream<BufferSource>, activity: () => void) => AsyncIterable<Record<string, unknown>>;
+let translate: (events: AsyncIterable<Record<string, unknown>>, model: string) => AsyncIterable<any>;
+let EMPTY_RESPONSE_CODE: string;
 
 beforeAll(async () => {
-  const sseMod = await import(join(VENDOR, 'packages/llm/llm-deepseek/src/sse.ts'));
-  parseSse = sseMod.parseSse;
-  DONE = sseMod.DONE;
-
-  const translateMod = await import(join(VENDOR, 'packages/llm/llm-deepseek/src/translate.ts'));
-  translate = translateMod.translate;
-
-  const errorMod = await import(join(VENDOR, 'packages/llm/llm/src/index.ts'));
-  LlmError = errorMod.LlmError;
-  EMPTY_RESPONSE_CODE = errorMod.EMPTY_RESPONSE_CODE;
+  const sseModule = await import(join(VENDOR, 'packages/llm/llm-deepseek/src/sse.ts'));
+  parseSse = sseModule.parseSse;
+  const translateModule = await import(join(VENDOR, 'packages/llm/llm-deepseek/src/translate.ts'));
+  translate = translateModule.translate;
+  const llmModule = await import(join(VENDOR, 'packages/llm/llm/src/index.ts'));
+  EMPTY_RESPONSE_CODE = llmModule.EMPTY_RESPONSE_CODE;
 });
 
-/** Helper: create a ReadableStream from string chunks */
-function makeStream(chunks) {
-  let i = 0;
+const MODEL = 'deepseek-test-model';
+
+function wireEvent(type: string, body: Record<string, unknown>): string {
+  return `event: ${type}\ndata: ${JSON.stringify({ type, ...body })}\n\n`;
+}
+
+function byteStream(parts: Uint8Array[]): ReadableStream<Uint8Array> {
+  let index = 0;
   return new ReadableStream({
     pull(controller) {
-      if (i < chunks.length) {
-        controller.enqueue(new TextEncoder().encode(chunks[i]));
-        i++;
-      } else {
-        controller.close();
-      }
+      const next = parts[index++];
+      if (next) controller.enqueue(next);
+      else controller.close();
     },
   });
 }
 
-/** Helper: collect all chunks from an async generator */
-async function collect(gen) {
-  const results = [];
-  for await (const chunk of gen) {
-    results.push(chunk);
-  }
-  return results;
+function textStream(text: string): ReadableStream<Uint8Array> {
+  return byteStream([new TextEncoder().encode(text)]);
 }
 
-describe('Stream contract — SSE parser', () => {
-  it('yields data payloads and [DONE] sentinel', async () => {
-    const stream = makeStream([
-      'data: {"choices":[{"delta":{"content":"hello"}}]}\n\n',
-      'data: {"choices":[{"delta":{"content":" world"}}]}\n\n',
-      'data: [DONE]\n\n',
-    ]);
-    const payloads = await collect(parseSse(stream));
-    expect(payloads).toEqual([
-      '{"choices":[{"delta":{"content":"hello"}}]}',
-      '{"choices":[{"delta":{"content":" world"}}]}',
-      '[DONE]',
-    ]);
+async function* of(...events: Record<string, unknown>[]): AsyncGenerator<Record<string, unknown>> {
+  yield* events;
+}
+
+async function collect<T>(iterable: AsyncIterable<T>): Promise<T[]> {
+  const values: T[] = [];
+  for await (const value of iterable) values.push(value);
+  return values;
+}
+
+const started = (usage: Record<string, unknown> = {}) => ({ type: 'message_start', message: { usage } });
+const blockStart = (index: number, content_block: Record<string, unknown>) => ({ type: 'content_block_start', index, content_block });
+const delta = (index: number, value: Record<string, unknown>) => ({ type: 'content_block_delta', index, delta: value });
+const blockStop = (index: number) => ({ type: 'content_block_stop', index });
+const messageDelta = (stop_reason: string, usage: Record<string, unknown> = {}) => ({ type: 'message_delta', delta: { stop_reason }, usage });
+const stopped = { type: 'message_stop' };
+
+describe('DeepSeek Messages stream contract — SSE framing', () => {
+  it('decodes UTF-8 split across byte boundaries and pulses activity for frames and heartbeat comments', async () => {
+    const body = `: keepalive\n${wireEvent('message_start', { message: { usage: { input_tokens: 2 } } })}${wireEvent('extension-消息', {})}`;
+    const unicodeBytes = new TextEncoder().encode(body);
+    const unicodeSplit = unicodeBytes.findIndex((byte) => byte === 0xe6);
+    const chunks = unicodeSplit > 0
+      ? [unicodeBytes.subarray(0, unicodeSplit + 1), unicodeBytes.subarray(unicodeSplit + 1)]
+      : [unicodeBytes];
+    let activity = 0;
+    const events = await collect(parseSse(byteStream(chunks), () => activity++));
+    expect(events.map((event) => event.type)).toEqual(['message_start', 'extension-消息']);
+    expect(activity).toBeGreaterThanOrEqual(3);
   });
 
-  it('throws STREAM_CLOSED when stream ends without [DONE]', async () => {
-    const stream = makeStream([
-      'data: {"choices":[{"delta":{"content":"truncated"}}]}\n\n',
-    ]);
-    await expect(collect(parseSse(stream))).rejects.toThrow(/SSE stream ended without \[DONE\]/);
+  it('rejects malformed JSON and frame/data event type mismatches as provider failures', async () => {
+    await expect(collect(parseSse(textStream('event: message_start\ndata: {bad json}\n\n'), () => {})))
+      .rejects.toMatchObject({ code: 'MALFORMED_RESPONSE' });
+    await expect(collect(parseSse(textStream('event: message_stop\ndata: {"type":"message_start"}\n\n'), () => {})))
+      .rejects.toMatchObject({ code: 'MALFORMED_RESPONSE' });
   });
 
-  it('throws STREAM_CLOSED on empty stream', async () => {
-    const stream = makeStream([]);
-    await expect(collect(parseSse(stream))).rejects.toThrow(/SSE stream ended without \[DONE\]/);
+  it('treats an in-band provider error frame as a server failure', async () => {
+    const body = wireEvent('error', { error: { type: 'api_error', message: 'fixture unavailable' } });
+    await expect(collect(parseSse(textStream(body), () => {}))).rejects.toMatchObject({ code: 'SERVER' });
   });
 
-  it('handles multi-line data fields', async () => {
-    const stream = makeStream([
-      'data: {"choices":[{"delta":{"content":"line1"}}]}\n\n',
-      'data: {"choices":[{"delta":{"content":"line2"}}]}\n\n',
-      'data: [DONE]\n\n',
-    ]);
-    const payloads = await collect(parseSse(stream));
-    expect(payloads).toHaveLength(3);
-    expect(payloads[2]).toBe('[DONE]');
+  it('ignores an incomplete trailing SSE frame instead of inventing a completed event', async () => {
+    const body = 'event: message_start\ndata: {"type":"message_start","message":{"usage":{}}}';
+    const frames = await collect(parseSse(textStream(body), () => {}));
+    expect(frames).toEqual([]);
   });
 });
 
-describe('Stream contract — translate', () => {
-  it('translates normal stream with text content', async () => {
-    const payloads = (async function* () {
-      yield '{"choices":[{"delta":{"role":"assistant"}}]}';
-      yield '{"choices":[{"delta":{"content":"hello"}}]}';
-      yield '{"choices":[{"delta":{"content":" world"}}]}';
-      yield '[DONE]';
-    })();
+describe('DeepSeek Messages stream contract — translation', () => {
+  it('preserves initial text, UTF-8 deltas, usage, stop reason, and replay model', async () => {
+    const chunks = await collect(translate(of(
+      started({ input_tokens: 10 }),
+      blockStart(0, { type: 'text', text: 'Hola ' }),
+      delta(0, { type: 'text_delta', text: 'mundo 世界' }),
+      blockStop(0),
+      messageDelta('end_turn', { output_tokens: 5 }),
+      stopped,
+    ), MODEL));
 
-    const chunks = await collect(translate(payloads));
-    const types = chunks.map(c => c.type);
-
-    expect(types).toContain('block-start');
-    expect(types).toContain('text-delta');
-    expect(types).toContain('block-end');
-    expect(types).toContain('finish');
-
-    const finish = chunks.find(c => c.type === 'finish');
-    expect(finish.reason.kind).toBe('stop');
+    expect(chunks.filter((chunk) => chunk.type === 'text-delta').map((chunk) => chunk.text)).toEqual(['Hola ', 'mundo 世界']);
+    expect(chunks.find((chunk) => chunk.type === 'block-end')?.block).toEqual({ type: 'text', text: 'Hola mundo 世界' });
+    expect(chunks.find((chunk) => chunk.type === 'usage')?.usage).toMatchObject({ inputTokens: 10, outputTokens: 5, totalTokens: 15 });
+    expect(chunks.find((chunk) => chunk.type === 'finish')).toMatchObject({ reason: { kind: 'stop' }, replayState: { response: { model: MODEL } } });
+    expect(chunks.at(-1)?.type).toBe('finish');
   });
 
-  it('maps finish_reason=tool_calls to tool-calls kind', async () => {
-    const payloads = (async function* () {
-      yield JSON.stringify({
-        choices: [{
-          delta: {
-            tool_calls: [{
-              index: 0,
-              id: 'call_123',
-              function: { name: 'read_file', arguments: '{"path":"/tmp"}' },
-            }],
-          },
-          finish_reason: null,
-        }],
-      });
-      yield JSON.stringify({
-        choices: [{
-          delta: {
-            tool_calls: [{
-              index: 0,
-              function: { arguments: '/test.txt' },
-            }],
-          },
-          finish_reason: 'tool_calls',
-        }],
-      });
-      yield '[DONE]';
-    })();
+  it('translates thinking and text blocks in arrival order', async () => {
+    const chunks = await collect(translate(of(
+      started(),
+      blockStart(0, { type: 'thinking', thinking: 'razono', signature: 'sig-a' }),
+      delta(0, { type: 'thinking_delta', thinking: ' en privado' }),
+      delta(0, { type: 'signature_delta', signature: '-b' }),
+      blockStop(0),
+      blockStart(1, { type: 'text', text: 'respuesta' }),
+      blockStop(1),
+      messageDelta('stop_sequence'),
+      stopped,
+    ), MODEL));
 
-    const chunks = await collect(translate(payloads));
-    const finish = chunks.find(c => c.type === 'finish');
-    expect(finish.reason.kind).toBe('tool-calls');
+    expect(chunks.filter((chunk) => chunk.type === 'block-start').map((chunk) => chunk.blockType)).toEqual(['reasoning', 'text']);
+    expect(chunks.find((chunk) => chunk.type === 'block-end' && chunk.block.type === 'reasoning')?.block)
+      .toMatchObject({ type: 'reasoning', text: 'razono en privado' });
+    expect(chunks.find((chunk) => chunk.type === 'finish')?.reason.kind).toBe('stop');
   });
 
-  it('maps stop + no content to EMPTY_RESPONSE error', async () => {
-    const payloads = (async function* () {
-      yield '{"choices":[{"delta":{},"finish_reason":"stop"}]}';
-      yield '[DONE]';
-    })();
+  it('emits the tool identity and completed JSON arguments, then maps tool_use to tool-calls', async () => {
+    const chunks = await collect(translate(of(
+      started(),
+      blockStart(3, { type: 'tool_use', id: 'call_7', name: 'search', input: {} }),
+      delta(3, { type: 'input_json_delta', partial_json: '{"q":"hello"}' }),
+      blockStop(3),
+      messageDelta('tool_use'),
+      stopped,
+    ), MODEL));
 
-    const chunks = await collect(translate(payloads));
-    const finish = chunks.find(c => c.type === 'finish');
-    expect(finish.reason.kind).toBe('error');
-    expect(finish.reason.failure.code).toBe(EMPTY_RESPONSE_CODE);
+    expect(chunks.find((chunk) => chunk.type === 'tool-call-delta')).toMatchObject({ id: 'call_7', name: 'search', argumentsDelta: '' });
+    expect(chunks.find((chunk) => chunk.type === 'block-end')?.block).toMatchObject({
+      type: 'tool-call', id: 'call_7', name: 'search', arguments: '{"q":"hello"}',
+    });
+    expect(chunks.find((chunk) => chunk.type === 'finish')?.reason.kind).toBe('tool-calls');
   });
 
-  it('throws on malformed JSON payload', async () => {
-    const payloads = (async function* () {
-      yield 'not valid json {{';
-      yield '[DONE]';
-    })();
+  it('maps max_tokens and reports an empty stop as EMPTY_RESPONSE', async () => {
+    const truncated = await collect(translate(of(
+      started(), blockStart(0, { type: 'text', text: 'partial' }), blockStop(0), messageDelta('max_tokens'), stopped,
+    ), MODEL));
+    expect(truncated.find((chunk) => chunk.type === 'finish')?.reason.kind).toBe('max-tokens');
 
-    await expect(collect(translate(payloads))).rejects.toThrow(/malformed SSE payload/);
+    await expect(collect(translate(of(started(), messageDelta('end_turn'), stopped), MODEL)))
+      .rejects.toMatchObject({ code: EMPTY_RESPONSE_CODE });
   });
 
-  it('handles reasoning + text interleaving', async () => {
-    const payloads = (async function* () {
-      yield '{"choices":[{"delta":{"reasoning_content":"thinking..."}}]}';
-      yield '{"choices":[{"delta":{"content":"answer"}}]}';
-      yield '[DONE]';
-    })();
-
-    const chunks = await collect(translate(payloads));
-    const blockStarts = chunks.filter(c => c.type === 'block-start');
-    expect(blockStarts).toHaveLength(2);
-    expect(blockStarts[0].blockType).toBe('reasoning');
-    expect(blockStarts[1].blockType).toBe('text');
+  it('fails closed on invalid lifecycle ordering, unsupported blocks, stop reasons, usage, and tool JSON', async () => {
+    await expect(collect(translate(of(blockStart(0, { type: 'text', text: '' })), MODEL)))
+      .rejects.toMatchObject({ code: 'MALFORMED_RESPONSE' });
+    await expect(collect(translate(of(started(), blockStart(0, { type: 'image', source: {} })), MODEL)))
+      .rejects.toMatchObject({ code: 'UNSUPPORTED_CONTENT' });
+    await expect(collect(translate(of(started(), messageDelta('content_filter'), stopped), MODEL)))
+      .rejects.toMatchObject({ code: 'MALFORMED_RESPONSE' });
+    await expect(collect(translate(of(started(), messageDelta('end_turn', { output_tokens: -1 })), MODEL)))
+      .rejects.toMatchObject({ code: 'MALFORMED_RESPONSE' });
+    await expect(collect(translate(of(
+      started(), blockStart(0, { type: 'tool_use', id: 'call_8', name: 'search', input: {} }),
+      delta(0, { type: 'input_json_delta', partial_json: '{oops' }), blockStop(0), messageDelta('tool_use'), stopped,
+    ), MODEL))).rejects.toMatchObject({ code: 'MALFORMED_RESPONSE' });
   });
 
-  it('tracks usage from finish chunk', async () => {
-    const payloads = (async function* () {
-      yield '{"choices":[{"delta":{"content":"ok"}}]}';
-      yield JSON.stringify({
-        choices: [{ delta: {}, finish_reason: 'stop' }],
-        usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
-      });
-      yield '[DONE]';
-    })();
-
-    const chunks = await collect(translate(payloads));
-    const usage = chunks.find(c => c.type === 'usage');
-    expect(usage).toBeDefined();
-    expect(usage.usage.inputTokens).toBe(10);
-    expect(usage.usage.outputTokens).toBe(5);
-  });
-
-  it('maps finish_reason=length to max-tokens', async () => {
-    const payloads = (async function* () {
-      yield '{"choices":[{"delta":{"content":"truncated"}}]}';
-      yield '{"choices":[{"delta":{},"finish_reason":"length"}]}';
-      yield '[DONE]';
-    })();
-
-    const chunks = await collect(translate(payloads));
-    const finish = chunks.find(c => c.type === 'finish');
-    expect(finish.reason.kind).toBe('max-tokens');
-  });
-
-  it('maps unknown finish_reason to error', async () => {
-    const payloads = (async function* () {
-      yield '{"choices":[{"delta":{"content":"ok"}}]}';
-      yield '{"choices":[{"delta":{},"finish_reason":"content_filter"}]}';
-      yield '[DONE]';
-    })();
-
-    const chunks = await collect(translate(payloads));
-    const finish = chunks.find(c => c.type === 'finish');
-    expect(finish.reason.kind).toBe('error');
-    expect(finish.reason.failure.code).toBe('CONTENT_FILTER');
-  });
-
-  it('handles multiple tool calls in one response', async () => {
-    const payloads = (async function* () {
-      yield JSON.stringify({
-        choices: [{
-          delta: {
-            tool_calls: [
-              { index: 0, id: 'call_a', function: { name: 'read_file', arguments: '{}' } },
-              { index: 1, id: 'call_b', function: { name: 'write_file', arguments: '{}' } },
-            ],
-          },
-          finish_reason: 'tool_calls',
-        }],
-      });
-      yield '[DONE]';
-    })();
-
-    const chunks = await collect(translate(payloads));
-    const blockStarts = chunks.filter(c => c.type === 'block-start' && c.blockType === 'tool-call');
-    expect(blockStarts).toHaveLength(2);
-    const finish = chunks.find(c => c.type === 'finish');
-    expect(finish.reason.kind).toBe('tool-calls');
+  it('reports STREAM_CLOSED when a provider ends before message_stop', async () => {
+    await expect(collect(translate(of(started()), MODEL))).rejects.toMatchObject({ code: 'STREAM_CLOSED' });
   });
 });

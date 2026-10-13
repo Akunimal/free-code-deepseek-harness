@@ -12,6 +12,7 @@ const shellRequire = createRequire(new URL('../package.json', import.meta.url));
 const builderRequire = createRequire(shellRequire.resolve('electron-builder/package.json'));
 const asar = builderRequire('@electron/asar') as {
   createPackage(sourceDir: string, archivePath: string): Promise<unknown>;
+  extractFile(archivePath: string, filePath: string): Buffer;
 };
 
 function fixture() {
@@ -36,6 +37,21 @@ async function loadVerifier() {
       extractFile?: (archivePath: string, filePath: string) => Buffer | string;
     }): { ok: boolean; error?: string };
   };
+}
+
+async function waitForAsarEntry(archivePath: string, entryPath: string, expected: string): Promise<void> {
+  const deadline = Date.now() + 5_000;
+  let lastError: unknown;
+  while (Date.now() < deadline) {
+    try {
+      if (asar.extractFile(archivePath, entryPath).toString('utf8') === expected) return;
+    } catch (error) {
+      lastError = error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  const detail = lastError instanceof Error ? `: ${lastError.message}` : '';
+  throw new Error(`ASAR fixture entry ${entryPath} did not finish writing${detail}`);
 }
 
 describe('packaged shell bootstrap gate', () => {
@@ -148,6 +164,9 @@ describe('packaged shell bootstrap gate', () => {
     writeFileSync(indicatorPath, circularIndicatorSource);
     rmSync(paths.archivePath);
     await asar.createPackage(sourceRoot, paths.archivePath);
+    // @electron/asar can resolve createPackage before its destination stream is
+    // fully flushed; wait for the exact fixture bytes before testing extraction.
+    await waitForAsarEntry(paths.archivePath, packagedIndicatorPath, circularIndicatorSource);
     const { verifyPackagedShellBootstrap } = await loadVerifier();
 
     const result = verifyPackagedShellBootstrap({ appOutDir: paths.appOutDir });
@@ -190,12 +209,19 @@ describe('packaged shell bootstrap gate', () => {
 
   it('builds the shell before electron-builder in the package workflow', () => {
     const shellPackage = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
-    const packagingCommand = shellPackage.scripts.package as string;
-    const buildIndex = packagingCommand.indexOf('pnpm build');
-    const electronBuilderIndex = packagingCommand.indexOf('electron-builder');
+    const scripts = shellPackage.scripts as Record<string, string>;
+    const desktopWorkflow = scripts['package:desktop'] ?? '';
+    const preflightIndex = desktopWorkflow.indexOf('pnpm prepackage:verify');
+    const buildIndex = desktopWorkflow.indexOf('pnpm build');
+    const packagerIndex = desktopWorkflow.indexOf('node ../../scripts/package-desktop.mjs');
+    const packageDesktop = readFileSync(new URL('../../../scripts/package-desktop.mjs', import.meta.url), 'utf8');
 
-    expect(buildIndex).toBeGreaterThanOrEqual(0);
-    expect(electronBuilderIndex).toBeGreaterThan(buildIndex);
+    expect(scripts.package).toBe('pnpm package:desktop');
+    expect(preflightIndex).toBeGreaterThanOrEqual(0);
+    expect(buildIndex).toBeGreaterThan(preflightIndex);
+    expect(packagerIndex).toBeGreaterThan(buildIndex);
+    expect(packageDesktop).toContain("requireFromShell.resolve('electron-builder/cli.js')");
+    expect(packageDesktop).toContain('spawnSync(process.execPath, args');
   });
 
   it('wires the actual archive verifier into the Windows afterPack hook', () => {

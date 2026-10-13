@@ -100,3 +100,24 @@ export const accessEn = {
   'auto.confirm.acknowledge': 'I understand these risks and want to continue',
   'auto.confirm.enable': 'Enable Auto review',
 } satisfies Record<PermissionAccessKey, string>
+
+/** Spanish dictionary for the current-session permission popup and risk gate. */
+export const accessEs = {
+  'mode': 'Modo de acceso, actual: {name}',
+  'close': 'Cerrar',
+  'preset.readOnly': 'Solo lectura',
+  'preset.workspaceWrite': 'Escritura en el espacio de trabajo',
+  'preset.fullAccess': 'Acceso total',
+  'confirm.title': '¿Activar acceso total?',
+  'confirm.description': 'El acceso total reduce los pasos de confirmación y permite que el agente realice más acciones directamente, incluidas operaciones sensibles, cambios de archivos o comandos externos. Úselo solo cuando confíe en la tarea actual.',
+  'confirm.acknowledge': 'Entiendo los riesgos y deseo continuar',
+  'confirm.cancel': 'Cancelar',
+  'confirm.enable': 'Activar acceso total',
+  'auto.label': 'Revisión automática',
+  'auto.badge': 'EXP',
+  'auto.description': 'Ejecuta sin sandbox; el mismo modelo revisa experimentalmente cada llamada nativa y cada llamada interna de PTC.',
+  'auto.confirm.title': '¿Activar la revisión automática (experimental)?',
+  'auto.confirm.description': 'La revisión automática se ejecuta sin sandbox. Antes de cada llamada a una herramienta nativa y a cada llamada interna de PTC, el mismo modelo que usa el agente actual decide si se permite; usted aprueba o rechaza las llamadas que deniega. Esta función es experimental, puede permitir o rechazar acciones por error y consume tokens adicionales.',
+  'auto.confirm.acknowledge': 'Entiendo estos riesgos y deseo continuar',
+  'auto.confirm.enable': 'Activar revisión automática',
+} satisfies Record<PermissionAccessKey, string>

@@ -3,9 +3,9 @@
  * verify-stream-contract.mjs — Phase 7: Verify provider stream and OCR contracts.
  *
  * Checks that the source code enforces:
- *   1. SSE stream must end with [DONE] sentinel (STREAM_CLOSED on truncation)
+ *   1. DeepSeek Messages stream must end with message_stop (STREAM_CLOSED on truncation)
  *   2. Empty response (stop with no content) maps to EMPTY_RESPONSE error
- *   3. finish_reason=tool_calls triggers tool-call continuation
+ *   3. DeepSeek Messages stop_reason=tool_use maps to tool-calls
  *   4. OCR boundaries: path validation, size limits, timeout, language/PSM allow-list
  *   5. Bounded retry with error class exposure
  *   6. No silent success on incomplete protocol
@@ -36,38 +36,50 @@ function readFileSafe(path) {
   try { return readFileSync(path, 'utf8'); } catch { return null; }
 }
 
-// ── CHECK 1: SSE parser throws on truncated stream ──────────────────
+// ── CHECK 1: Messages translator rejects a truncated stream ─────────
 
 const ssePath = join(VENDOR, 'packages/llm/llm-deepseek/src/sse.ts');
 const sseSrc = readFileSafe(ssePath);
+const translatePath = join(VENDOR, 'packages/llm/llm-deepseek/src/translate.ts');
+const translateSrc = readFileSafe(translatePath);
+const streamTestPathForBehavior = join(REPO_ROOT, 'packages/contract-tests/tests/stream.contract.test.ts');
+const streamTestSrc = readFileSafe(streamTestPathForBehavior);
 
 logCheck(
-  'sse-parser-throws-on-truncation',
-  sseSrc !== null && sseSrc.includes("SSE stream ended without [DONE]") && sseSrc.includes("STREAM_CLOSED"),
-  'parseSse must throw LlmError STREAM_CLOSED on missing [DONE]',
+  'messages-translator-throws-on-truncation',
+  sseSrc !== null
+    && sseSrc.includes('message_stop')
+    && translateSrc !== null
+    && translateSrc.includes('message_stop')
+    && translateSrc.includes('STREAM_CLOSED')
+    && streamTestSrc !== null
+    && streamTestSrc.includes('reports STREAM_CLOSED when a provider ends before message_stop'),
+  'Messages translation must throw STREAM_CLOSED if the provider ends before message_stop, with a behavioral regression test',
 );
 
 // ── CHECK 2: Translate maps empty response to EMPTY_RESPONSE ────────
-
-const translatePath = join(VENDOR, 'packages/llm/llm-deepseek/src/translate.ts');
-const translateSrc = readFileSafe(translatePath);
 
 logCheck(
   'translate-empty-response-maps-to-error',
   translateSrc !== null
     && translateSrc.includes('EMPTY_RESPONSE')
-    && translateSrc.includes('order.length === 0'),
-  'translate must map stop + no blocks to EMPTY_RESPONSE error',
+    && translateSrc.includes('blocks.size === 0')
+    && translateSrc.includes("reason.kind === 'stop'")
+    && streamTestSrc !== null
+    && streamTestSrc.includes('maps max_tokens and reports an empty stop as EMPTY_RESPONSE'),
+  'translate must map a stop with no content blocks to EMPTY_RESPONSE and cover it behaviorally',
 );
 
-// ── CHECK 3: finish_reason=tool_calls maps to tool-calls ────────────
+// ── CHECK 3: Messages stop_reason=tool_use maps to tool-calls ───────
 
 logCheck(
   'translate-tool-calls-mapping',
   translateSrc !== null
-    && translateSrc.includes("case 'tool_calls'")
-    && translateSrc.includes("kind: 'tool-calls'"),
-  'mapFinishReason must map tool_calls to {kind: "tool-calls"}',
+    && translateSrc.includes("case 'tool_use'")
+    && translateSrc.includes("kind: 'tool-calls'")
+    && streamTestSrc !== null
+    && streamTestSrc.includes('then maps tool_use to tool-calls'),
+  'Messages stop_reason tool_use must map to {kind: "tool-calls"} and be covered behaviorally',
 );
 
 // ── CHECK 4: pi-ai stream handles done/error/ exhaustion ────────────

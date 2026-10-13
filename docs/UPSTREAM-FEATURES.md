@@ -241,7 +241,7 @@ The following list is taken from each package's own `package.json` description a
 - **@deepseek-ai/dsh-tool-lsp** (packages/lsp/tool-lsp) — Model-facing lsp tool over the DeepSeek Harness LSP capability seam (ctx.lsp) — one read-only tool with goToDefinition/findReferences/goToImplementation/hover operations, one-based UTF-16 cursor coordinates, bounded location rendering, and hover normalization
 - **@deepseek-ai/dsh-mcp-client** (packages/mcp/mcp-client) — MCP client bridge: connects to MCP servers and registers their tools on ctx.tools
 - **@deepseek-ai/dsh-plan-mode** (packages/plan/plan-mode) — Logged per-agent plan mode with deployment guidance, a direct slash command, and a user-reviewed exit
-- **@deepseek-ai/dsh-agent-presets** (packages/preset/agent-presets) — Per-session agent composition from preset cordis.yml files for the DeepSeek Harness
+- **@deepseek-ai/dsh-agent-preset** (packages/preset/agent-preset) — Declares reusable Agent capability compositions in Cordis YAML and provides preset-authoring skills
 - **@deepseek-ai/dsh-persona** (packages/preset/persona) — Composition-authored deployment persona section for the DeepSeek Harness
 - **@deepseek-ai/dsh-invariants** (packages/runtime-diagnostics/invariants) — Registry service for package-owned DeepSeek Harness runtime invariants
 - **@deepseek-ai/dsh-sandbox** (packages/sandbox/sandbox) — Abstract process-sandbox seam (ctx.sandbox) for the DeepSeek Harness: same-world confinement vocabulary and the SandboxProvider contract
@@ -337,6 +337,85 @@ The following list is taken from each package's own `package.json` description a
 - **@deepseek-ai/dsh-workflow** (packages/workflow/workflow) — Workflow capability seam: ctx.workflowEngine service, run vocabulary, and workflow/* events
 - **@deepseek-ai/dsh-workflow-worker-thread** (packages/workflow/workflow-worker-thread) — worker-thread workflow engine: executes model-written orchestration scripts off the host event loop, bridging agent() calls back to ctx.subagents
 - **@deepseek-ai/dsh-workspace** (packages/workspace/workspace) — Workspace entity registry (ctx.workspaceRegistry): durable workspace records with validated session attachment over the domain data form for the DeepSeek Harness
+
+### Additional declared package modules
+
+The UI tables above summarize user-facing surfaces. This manifest-level index completes the inventory for declared API, runtime, provider, support, and experimental packages without a dedicated UI row; package names and paths match the vendored manifests.
+
+- **@deepseek-ai/dsh-agent-preset-registry** (packages/preset/agent-preset-registry) — Declarative Agent preset registry and profile-backed editing
+- **@deepseek-ai/dsh-api-account-controller** (packages/api/account-controller) — Expose safe account operations over authenticated Remote
+- **@deepseek-ai/dsh-api-job-controller** (packages/api/job-controller) — Job Remote observation stream and the reference-counted client job-output service
+- **@deepseek-ai/dsh-api-terminal-controller** (packages/api/terminal-controller) — Session-owned interactive terminals with shell discovery, screen recovery and typed Remote control
+- **@deepseek-ai/dsh-api-workspace-files** (packages/api/workspace-files) — Workspace file service and Client resource provider: bounded reads, directory listing, and live metadata over the workspaceFiles Remote namespace
+- **@deepseek-ai/dsh-browser-use** (packages/browser-use/browser-use) — Exclusive named browser-use provider registration
+- **@deepseek-ai/dsh-chunked-list** (packages/util/chunked-list) — Persistent append-only chunked lists with bounded copying and JSON checkpoint validation
+- **@deepseek-ai/dsh-client-product-analytics** (packages/client/product-analytics) — Desktop product event collection and authenticated Host reporting
+- **@deepseek-ai/dsh-client-resources** (packages/client/resources) — Unified client resource model: protocol-registered providers turn URL addresses into live values, consumed through the useResource global standard hook
+- **@deepseek-ai/dsh-client-shortcuts** (packages/client/shortcuts) — Application keyboard command registry and physical-key routing
+- **@deepseek-ai/dsh-client-ui-dockkit** (packages/client/ui-dockkit) — Docking layout kit: split-tree engine with invertible operations, and the React components that render and drive it (zero cordis)
+- **@deepseek-ai/dsh-client-ui-open-in-app** (packages/client/ui-open-in-app) — Web "Open In..." controls: the Session-header split button opening the workspace directory in an installed application, and the document preview's default-application controls for one file
+- **@deepseek-ai/dsh-client-ui-plugin-manager** (packages/client/ui-plugin-manager) — Plugin management for the dsh web client: the sidebar Plugins panel installs, enables, disables, retries, and composes installed plugin packages
+- **@deepseek-ai/dsh-client-ui-settings-account** (packages/client/ui-settings-account) — Manage DeepSeek login and open Platform billing pages
+- **@deepseek-ai/dsh-client-ui-settings-agent-loop** (packages/client/ui-settings-agent-loop) — Settings page of the agent loop on the dsh web client's Plugins page: the parallel tool-call cap of the agent-loop namespace
+- **@deepseek-ai/dsh-client-ui-settings-session-log** (packages/client/ui-settings-session-log) — General settings control for Session-log upload with DeepSeek API requests
+- **@deepseek-ai/dsh-client-ui-settings-shell** (packages/client/ui-settings-shell) — Settings page of the shell executor on the dsh web client's Plugins page: command timeout, per-stream output cap, and optional RTK/Caveman output compression
+- **@deepseek-ai/dsh-client-ui-settings-subagent** (packages/client/ui-settings-subagent) — Settings page of Subagent delegation on the dsh web client's Plugins page: recursion depth, parallel capacity, and the models agents may choose for subagents
+- **@deepseek-ai/dsh-client-ui-settings-web-search** (packages/client/ui-settings-web-search) — Settings page of the DeepSeek web-search provider on the dsh web client's Plugins page: its API key, endpoint, and per-request search budget
+- **@deepseek-ai/dsh-client-ui-shortcuts** (packages/client/ui-shortcuts) — Keyboard shortcut reference, recording, and local preference editing
+- **@deepseek-ai/dsh-client-ui-sidebar-browser** (packages/client/ui-sidebar-browser) — Sandboxed Web browser tabs for the right Sidebar
+- **@deepseek-ai/dsh-client-ui-sidebar-documentpreview** (packages/client/ui-sidebar-documentpreview) — Extensible Sidebar previews for Office documents, spreadsheets, Markdown, code, images, PDF, HTML, and plain text
+- **@deepseek-ai/dsh-client-ui-sidebar-files** (packages/client/ui-sidebar-files) — Workspace file tree tab type for the right Sidebar: lazy directory listing over the workspaceFiles Remote namespace, opening files into the Sidebar
+- **@deepseek-ai/dsh-client-ui-sidebar-right** (packages/client/ui-sidebar-right) — Right Sidebar: the docking surface's session-bound state, its panel and header expand control, and the navigation service over it
+- **@deepseek-ai/dsh-client-ui-sidebar-terminal** (packages/client/ui-sidebar-terminal) — Interactive shell tabs for the right Sidebar
+- **@deepseek-ai/dsh-compaction-image-offload** (packages/compaction/compaction-image-offload) — Durable image offload for image-capable routes: replace over-budget request images with placeholders and retry
+- **@deepseek-ai/dsh-computer-use** (packages/computer-use/computer-use) — Exclusive named computer-use provider registration
+- **@deepseek-ai/dsh-config-editor** (packages/boot/config-editor) — Persist plugin configuration through profile patches and Loader reconciliation
+- **@deepseek-ai/dsh-deepseek-account** (packages/credentials/deepseek-account) — Read account state and resolve official API credentials
+- **@deepseek-ai/dsh-deepseek-account-platform** (packages/credentials/deepseek-account-platform) — Authorize DeepSeek accounts through browser PKCE
+- **@deepseek-ai/dsh-experimental-api-speech-to-text** (packages/experimental/api-speech-to-text) — Authenticated experimental speech transcription for browser clients
+- **@deepseek-ai/dsh-experimental-auto-review** (packages/experimental/auto-review) — Per-tool LLM authorization review for the DeepSeek Harness Auto permission preset
+- **@deepseek-ai/dsh-experimental-browser-use-chrome-devtools-mcp** (packages/experimental/browser-use-chrome-devtools-mcp) — Experimental per-Session Chromium browser tools through chrome-devtools-mcp
+- **@deepseek-ai/dsh-experimental-browser-use-playwright-mcp** (packages/experimental/browser-use-playwright-mcp) — Experimental per-Session Chromium browser tools through @playwright/mcp
+- **@deepseek-ai/dsh-experimental-browser-use-runtime** (packages/experimental/browser-use-runtime) — Session-owned browser resource lifecycles and MCP integration for experimental providers
+- **@deepseek-ai/dsh-experimental-browser-use-stagehand-native** (packages/experimental/browser-use-stagehand-native) — Experimental Stagehand browser tools with separately configured native models
+- **@deepseek-ai/dsh-experimental-claude-code-mods** (packages/experimental/claude-code-mods) — Experimental bridge: load Claude Code mods (hooks modules) and run their hook chains on DeepSeek Harness extension points
+- **@deepseek-ai/dsh-experimental-client-ui-claude-code-mods** (packages/experimental/client-ui-claude-code-mods) — Web band above the prompt for Claude Code mods: draws each session's mod tree and sends button presses back to the bridge
+- **@deepseek-ai/dsh-experimental-client-ui-voice-input** (packages/experimental/client-ui-voice-input) — Record speech and insert editable text into the conversation draft
+- **@deepseek-ai/dsh-experimental-computer-use-cua-driver-mcp** (packages/experimental/computer-use-cua-driver-mcp) — Experimental computer use through an installed Cua Driver MCP executable
+- **@deepseek-ai/dsh-experimental-computer-use-cua-driver-native** (packages/experimental/computer-use-cua-driver-native) — Experimental computer-use provider embedding the Cua Driver native npm SDK
+- **@deepseek-ai/dsh-experimental-inspector-profile** (packages/experimental/inspector-profile) — Optional Web bundle for raw Session logs and Chat node inspection
+- **@deepseek-ai/dsh-experimental-ptc-runtime-python** (packages/experimental/ptc-runtime-python) — CPython subprocess implementation of the DeepSeek Harness PTC execution seam
+- **@deepseek-ai/dsh-experimental-session-inspector** (packages/experimental/session-inspector) — Experimental virtualized Session log and live Chat group/node inspectors
+- **@deepseek-ai/dsh-experimental-speech-to-text** (packages/experimental/speech-to-text) — Experimental speech recognition with independently selectable providers
+- **@deepseek-ai/dsh-experimental-speech-to-text-sensevoice** (packages/experimental/speech-to-text-sensevoice) — Local SenseVoice ONNX transcription with a managed sherpa-onnx process
+- **@deepseek-ai/dsh-experimental-voice-input-bundle** (packages/experimental/voice-input-bundle) — Experimental voice input with local SenseVoice; downloads its runtime on first use
+- **@deepseek-ai/dsh-fs-ssh** (packages/ssh/fs-ssh) — Filesystem provider over the shared POSIX SSH helper
+- **@deepseek-ai/dsh-hmr** (packages/boot/hmr) — Coordinated module and profile configuration hot reload
+- **@deepseek-ai/dsh-host-open-in-app** (packages/host/open-in-app) — Host half of open-in-app: resolved application catalog, icons, and the launch endpoint as three webServer routes
+- **@deepseek-ai/dsh-host-product-telemetry-otel** (packages/host/product-telemetry-otel) — Explicit product usage events exported through OpenTelemetry HTTP logs
+- **@deepseek-ai/dsh-lazy-require** (packages/util/lazy-require) — Caller-relative, success-cached lazy loading for CommonJS-compatible Host dependencies
+- **@deepseek-ai/dsh-llm-deepseek-account** (packages/llm/llm-deepseek-account) — DeepSeek account provider authentication and discovery
+- **@deepseek-ai/dsh-llm-deepseek-api-key** (packages/llm/llm-deepseek-api-key) — DeepSeek api-key provider authentication and discovery
+- **@deepseek-ai/dsh-mcp-resources** (packages/mcp/mcp-resources) — Scoped MCP resource discovery and reading through shared model tools
+- **@deepseek-ai/dsh-office-to-pdf** (packages/document/office-to-pdf) — Shared Office-to-PDF conversion with bounded queues and caching
+- **@deepseek-ai/dsh-otel** (packages/telemetry/otel) — Cordis service for independent ordinary-event and byte-bounded Session-log OTLP channels
+- **@deepseek-ai/dsh-package-manifest** (packages/util/package-manifest) — Shared type declarations for package.json.dsh configuration fields
+- **@deepseek-ai/dsh-plugin-manager** (packages/boot/plugin-manager) — Current-profile plugin and bundle management shared by dsh CLI, Web and agent tools
+- **@deepseek-ai/dsh-ptc-runtime** (packages/ptc-runtime/ptc-runtime) — Abstract PTC execution seam (ctx.ptcRuntime) for the DeepSeek Harness
+- **@deepseek-ai/dsh-ptc-runtime-node** (packages/ptc-runtime/ptc-runtime-node) — Sandboxed Node process implementation of the DeepSeek Harness PTC execution capability
+- **@deepseek-ai/dsh-remote-mock** (packages/test-support/remote-mock) — Endpoint-named mock for Typert Remote traffic: unary answers and stream scripts per <namespace>/<method>, live stream control, a log, and the Connection carrier face whole-client specs install
+- **@deepseek-ai/dsh-sandbox-ssh** (packages/ssh/sandbox-ssh) — Remote POSIX sandbox argv provider over the shared SSH helper
+- **@deepseek-ai/dsh-session-format-v2-to-v3** (packages/session/session-format-v2-to-v3) — Streaming system-prompt, canonical-envelope and PTC migration into V3
+- **@deepseek-ai/dsh-session-format-v3-to-v4** (packages/session/session-format-v3-to-v4) — Streaming tool-role migration and delivery validation from Session V3 to V4
+- **@deepseek-ai/dsh-skill-office** (packages/skill/skill-office) — Bundled Word, PowerPoint, and Excel workflows and structural checks
+- **@deepseek-ai/dsh-ssh** (packages/ssh/ssh) — Shared OpenSSH connection and versioned POSIX remote helper
+- **@deepseek-ai/dsh-subprocess-ssh** (packages/ssh/subprocess-ssh) — Subprocess and terminal provider over the shared POSIX SSH helper
+- **@deepseek-ai/dsh-tool-present** (packages/deliverables/tool-present) — Explicit workspace file delivery declarations for the DeepSeek Harness
+- **@deepseek-ai/dsh-tool-schedule** (packages/schedule/tool-schedule) — Model-facing reminder management tools (schedule_create, schedule_list, schedule_update, schedule_delete) over the Host ctx.schedule service
+- **@deepseek-ai/dsh-tool-workspace-dependencies** (packages/skill/tool-workspace-dependencies) — The load_workspace_dependencies tool: absolute paths into a bundled Python, Node.js, and pnpm payload
+- **@deepseek-ai/dsh-util-code-language** (packages/util/code-language) — Single file-extension to syntax-highlighting language table shared by Client code surfaces and the Host read card
+- **@deepseek-ai/dsh-workflow-ptc** (packages/workflow/workflow-ptc) — Workflow orchestration in the shared sandboxed Node PTC runtime
+- **@deepseek-ai/dsh-workspace-changes** (packages/deliverables/workspace-changes) — Per-turn workspace file changes recorded from git working-tree snapshots and whole-file captures, with per-file comparisons, for the DeepSeek Harness
 
 ## Core harness subsystems available through `dsh web`
 

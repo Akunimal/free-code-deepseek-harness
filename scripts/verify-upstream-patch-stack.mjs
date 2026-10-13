@@ -15,6 +15,7 @@ import { createHash } from 'node:crypto';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { verifyOverlappingAppliedPatches } from './patch-stack-replay.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const patchDir = join(root, 'patches', 'upstream');
@@ -208,20 +209,15 @@ if (ws.status !== 0) {
 }
 
 // ---------------------------------------------------------------------------
-// 7b. Replay check — every patch forward-checks or reverse-checks cleanly
+// 7b. Replay check — individual patches plus ordered replay for overlaps
 // ---------------------------------------------------------------------------
 
-let replayOk = true;
-for (const entry of manifestPatches) {
-  const patchPath = join(patchDir, entry.file);
-  if (!existsSync(patchPath)) { replayOk = false; continue; }
-  const fwd = runGit(['apply', '--check', '--whitespace=nowarn', patchPath]);
-  if (fwd.status !== 0) {
-    const rev = runGit(['apply', '--check', '--reverse', '--whitespace=nowarn', patchPath]);
-    if (rev.status !== 0) {
-      replayOk = false;
-      console.error(`Replay check failed for ${entry.file}: neither forward nor reverse applies`);
-    }
+let replayOk = false;
+if (!manifestPatches.some((entry) => !existsSync(join(patchDir, entry.file)))) {
+  const replay = verifyOverlappingAppliedPatches({ root, patchDir, patches: manifestPatches, vendorPrefix });
+  replayOk = replay.ok;
+  if (!replay.ok) {
+    console.error(`Replay check failed for ${replay.patch ?? 'overlapping patch group'}: ${replay.detail ?? 'neither forward nor reverse stack replay applies'}`);
   }
 }
 report.checks.replayClean = replayOk;

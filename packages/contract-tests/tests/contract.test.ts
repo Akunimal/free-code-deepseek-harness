@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { spawnSync, spawn, ChildProcess } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
@@ -29,6 +29,7 @@ describe('contract: dsh CLI flags', () => {
     const r = spawnSync(NODE, [CLI_ENTRY, 'web', '--help'], {
       encoding: 'utf8',
       timeout: 60_000,
+      windowsHide: true,
     });
     expect(r.status).toBe(0);
     expect(r.stdout).toContain('--port');
@@ -47,6 +48,7 @@ describe('contract: boot readiness', () => {
     const proc = spawn(NODE, [CLI_ENTRY, 'web', '--host', '127.0.0.1', '--port', '0'], {
       env: { ...process.env, DSH_HOME: home },
       stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
     });
     try {
       const line = await waitForLine(proc, /(?:dsh web: )?(?:ready on )?http:\/\/127\.0\.0\.1:\d+/, TIMEOUT_MS);
@@ -90,31 +92,16 @@ describe('contract: settings.yaml schema', () => {
 //         adapt workspace-bridge rpc-client + seeder
 //       workspace-bridge rpc-client + seeder
 // ---------------------------------------------------------------------------
-describe('contract: host RPC + provider registration', () => {
+describe('contract: host RPC + provider directory', () => {
   beforeAll(() => expect(HARNESS_BUILT, `missing built dsh CLI: ${CLI_ENTRY}`).toBe(true));
-  it('POST /api/llm/listConfigurableProviders answers the client-request envelope', async () => {
+  it('POST /api/llm/listConfigurableProviders returns the client-request envelope and catalog metadata', async () => {
     const home = mkdtempSync(join(tmpdir(), 'dsh-contract-provider-'));
-    // Seed $DSH_HOME/settings.yaml the way provider-seeder does: the
-    // llm-pi-ai namespace, hand-declared route, NON-EMPTY models list
-    // (upstream refuses empty lists: settings-rejected).
-    writeFileSync(
-      join(home, 'settings.yaml'),
-      [
-        'llm-pi-ai:',
-        '  providers:',
-        '    deepseek-free:',
-        '      displayName: OpenCode Free Pool',
-        '      apiKeyEnv: FREECODE_PUBLIC_KEY',
-        '      api: openai-completions',
-        '      baseURL: http://127.0.0.1:9999/v1',
-        '      models:',
-        '        - id: deepseek-v4-flash',
-      ].join('\n'),
-      'utf8',
-    );
+    // Keep the home isolated and empty: this API returns the installed
+    // configurable-provider directory, not an echo of arbitrary settings.
     const proc = spawn(NODE, [CLI_ENTRY, 'web', '--host', '127.0.0.1', '--port', '0'], {
       env: { ...process.env, DSH_HOME: home },
       stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
     });
     try {
       const line = await waitForLine(proc, /dsh web: http:\/\/127\.0\.0\.1:\d+\/\?[^\s]+/, TIMEOUT_MS);
@@ -140,25 +127,21 @@ describe('contract: host RPC + provider registration', () => {
       expect(body.rpcId).toBe('contract-test-1');
       expect(body.result.ok, JSON.stringify(body)).toBe(true);
       const providers = Array.isArray(body.result.value) ? body.result.value : [];
-      // Our seeded route must be visible (declared) in the configurable dir.
-      const found = providers.find(
-        (p) => (p as { provider?: string }).provider === 'deepseek-free',
-      ) as { provider?: string; active?: boolean; declared?: boolean } | undefined;
-      expect(found).toBeDefined();
-      // The current upstream directory reports declaration metadata here;
-      // active adapter routes are exposed separately by listProviders().
-      expect(found).toMatchObject({
-        provider: 'deepseek-free',
-        displayName: 'OpenCode Free Pool',
+      const openai = providers.find(
+        (provider) => (provider as { provider?: string }).provider === 'openai',
+      ) as { provider?: string; settingsNs?: string; settingsPath?: string[]; declared?: boolean } | undefined;
+      expect(openai, `configurable provider IDs: ${providers.map((provider) => (provider as { provider?: string }).provider).join(', ')}`).toBeDefined();
+      expect(openai).toMatchObject({
+        provider: 'openai',
         settingsNs: 'llm-pi-ai',
-        settingsPath: ['providers', 'deepseek-free'],
-        declared: true,
+        settingsPath: ['providers', 'openai'],
+        declared: false,
       });
     } finally {
       killTree(proc.pid ?? -1);
       rmSync(home, { recursive: true, force: true });
     }
-  }, 15_000);
+  }, 45_000);
 });
 
 // ---------------------------------------------------------------------------
@@ -170,16 +153,26 @@ describe('contract: browser boot manifest', () => {
   beforeAll(() => expect(HARNESS_BUILT, `missing built dsh CLI: ${CLI_ENTRY}`).toBe(true));
   const BootEntrySchema = z.object({
     id: z.string().min(1),
-    url: z.string().startsWith('/plugins/'),
+    // HMR combo URLs are revisioned, document-relative resources; their
+    // mount path is determined by the host and is not fixed to /plugins/.
+    url: z.string().min(1),
     rev: z.string().min(1),
-    inject: z.array(z.unknown()).optional().default([]),
+    inject: z.array(z.string().min(1)).optional().default([]),
+    external: z.array(z.string().min(1)).optional().default([]),
     // Upstream omits this field for lazy entries; absence is equivalent to
     // false in the browser loader.
     immediately: z.boolean().optional().default(false),
   });
+  const BootBatchSchema = z.object({
+    phase: z.enum(['bootstrap', 'application']),
+    url: z.string().min(1),
+    rev: z.string().min(1),
+    entries: z.array(z.string().min(1)).min(1),
+  });
   const BootSchema = z.object({
     rev: z.string().min(1),
     entries: z.array(BootEntrySchema).min(1),
+    batches: z.array(BootBatchSchema).min(1),
   });
 
   it('serves a parseable window.__DSH_BOOT__ manifest from the web root', async () => {
@@ -187,6 +180,7 @@ describe('contract: browser boot manifest', () => {
     const proc = spawn(NODE, [CLI_ENTRY, 'web', '--host', '127.0.0.1', '--port', '0'], {
       env: { ...process.env, DSH_HOME: home },
       stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
     });
     try {
       const line = await waitForLine(proc, /dsh web: http:\/\/127\.0\.0\.1:\d+\/\?[^\s]+/, TIMEOUT_MS);
@@ -203,12 +197,14 @@ describe('contract: browser boot manifest', () => {
       const raw = html.slice(jsonStart, scriptEnd).trim().replace(/;\s*$/, '');
       const parsed = BootSchema.parse(JSON.parse(raw));
       expect(parsed.entries.some((entry) => entry.immediately)).toBe(true);
-      expect(parsed.entries.every((entry) => entry.inject.length >= 0)).toBe(true);
+      const entryIds = parsed.entries.map((entry) => entry.id).sort();
+      const batchEntryIds = parsed.batches.flatMap((batch) => batch.entries).sort();
+      expect(batchEntryIds).toEqual(entryIds);
     } finally {
       killTree(proc.pid ?? -1);
       rmSync(home, { recursive: true, force: true });
     }
-  }, 15_000);
+  }, 45_000);
 });
 
 // ---------------------------------------------------------------------------

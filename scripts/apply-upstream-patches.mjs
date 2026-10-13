@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { verifyOverlappingAppliedPatches } from './patch-stack-replay.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const patchDir = join(root, 'patches', 'upstream');
@@ -135,6 +136,17 @@ const patchedPaths = new Set();
 let applied = 0;
 let alreadyApplied = 0;
 
+const overlapping = verifyOverlappingAppliedPatches({
+  root,
+  patchDir,
+  patches: manifestPatches,
+  vendorPrefix,
+});
+if (!overlapping.ok) {
+  die(`overlapping patch stack cannot be replayed: ${overlapping.patch ?? 'unknown patch'}\n${overlapping.detail ?? 'unknown replay failure'}`);
+}
+const stackedAlreadyApplied = new Set(overlapping.alreadyApplied);
+
 for (const entry of manifestPatches) {
   const patchPath = join(patchDir, entry.file);
   if (!existsSync(patchPath)) die(`patch file missing: ${entry.file}`);
@@ -147,6 +159,11 @@ for (const entry of manifestPatches) {
   }
 
   const display = relative(root, patchPath);
+  if (stackedAlreadyApplied.has(entry.file)) {
+    console.log(`apply-upstream-patches: already applied ${display} [order ${entry.order}, stacked replay]`);
+    alreadyApplied++;
+    continue;
+  }
 
   // Try forward apply
   const check = runGit(['apply', '--check', '--whitespace=nowarn', patchPath]);

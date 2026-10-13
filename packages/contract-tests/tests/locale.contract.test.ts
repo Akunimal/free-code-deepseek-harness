@@ -134,9 +134,12 @@ describe('Locale contract — Reasoning policy', () => {
 describe('Locale contract — UI elements', () => {
   it('update button exists with rotated arrow', () => {
     const src = readFile(join(APPS, 'src/main/index.ts'));
+    const indicator = readFile(join(APPS, 'src/main/update-indicator-html.ts'));
     expect(src).not.toBeNull();
+    expect(indicator).not.toBeNull();
     expect(src).toContain('renderUpdateIndicatorHtml');
-    expect(src).toContain('rotate(180');
+    expect(indicator).toContain('rotate(180 8 8)');
+    expect(indicator).toContain('border-radius:50%');
   });
 
   it('dialog bridge exists for directory picker', () => {
@@ -149,30 +152,31 @@ describe('Locale contract — UI elements', () => {
   });
 
   it('Caveman settings card exists', () => {
-    const path = join(VENDOR, 'packages/client/ui-settings-plugins/src/client/BashCard.tsx');
+    const path = join(VENDOR, 'packages/client/ui-settings-shell/src/client/ShellCard.tsx');
     expect(existsSync(path)).toBe(true);
+    expect(readFile(path)).toMatch(/caveman/i);
   });
 });
 
-describe('Locale contract — Spanish component dictionaries (patch 141)', () => {
+describe('Locale contract — Spanish component dictionaries (patches 141 and 166)', () => {
   const COMPONENT_LOCALES: Array<{ file: string; esMarker: string; enStub: string }> = [
-    { file: 'packages/client/ui-sidebar/src/client/locales.ts', esMarker: "'session.new': 'Nueva sesión'", enStub: "'session.new': 'New Session'" },
+    { file: 'packages/client/ui-sidebar/src/client/locales.ts', esMarker: 'Nueva sesión', enStub: 'New Session' },
     { file: 'packages/client/ui-approval/src/client/locales.ts', esMarker: 'En espera de aprobación', enStub: 'Waiting for approval' },
-    { file: 'packages/client/ui-commands/src/client/locales.ts', esMarker: "'search.placeholder': 'Buscar", enStub: "'search.placeholder': 'Search" },
+    { file: 'packages/client/ui-commands/src/client/locales.ts', esMarker: 'Buscar', enStub: 'Search' },
     { file: 'packages/client/ui-goal/src/client/locales.ts', esMarker: 'Objetivo en curso', enStub: 'Ongoing Goal' },
-    { file: 'packages/client/ui-input-trigger/src/client/locales.ts', esMarker: "'command': 'Comandos'", enStub: "'command': 'Commands'" },
+    { file: 'packages/client/ui-input-trigger/src/client/locales.ts', esMarker: 'Comandos', enStub: 'Commands' },
     { file: 'packages/client/ui-jobs/src/client/locales.ts', esMarker: 'Trabajos en segundo plano', enStub: 'Background jobs' },
     { file: 'packages/client/ui-message-feedback/src/client/locales.ts', esMarker: 'Buena respuesta', enStub: 'Good response' },
     { file: 'packages/client/ui-plan/src/client/locales.ts', esMarker: 'Modo plan activado', enStub: 'Plan mode on' },
     { file: 'packages/client/ui-reference/src/client/locales.ts', esMarker: 'Archivos y carpetas', enStub: 'Files & folders' },
     { file: 'packages/client/ui-skill/src/client/locales.ts', esMarker: 'Cargando habilidad', enStub: 'Loading skill' },
-    { file: 'packages/client/ui-theme/src/client/locales.ts', esMarker: "'appearance.title': 'Apariencia'", enStub: "'appearance.title': 'Appearance'" },
+    { file: 'packages/client/ui-theme/src/client/locales.ts', esMarker: 'Apariencia', enStub: 'Appearance' },
     { file: 'packages/client/ui-user-questions/src/client/locales.ts', esMarker: 'Pregunta anterior', enStub: 'Previous question' },
-    { file: 'packages/client/ui-settings-general/src/client/locales.ts', esMarker: "'trigger': 'Configuración'", enStub: "'trigger': 'Settings'" },
-    { file: 'packages/client/ui-deliverables/src/client/locales.ts', esMarker: "'produced.label': 'Producido'", enStub: "'produced.label': 'Produced'" },
+    { file: 'packages/client/ui-settings-general/src/client/locales.ts', esMarker: 'Configuración', enStub: 'Settings' },
+    { file: 'packages/client/ui-deliverables/src/client/locales.ts', esMarker: 'Producido', enStub: 'Produced' },
     { file: 'packages/client/ui-workflow-run/src/client/locales.ts', esMarker: 'Sin miembros iniciados', enStub: 'No members started' },
     { file: 'packages/client/ui-model-selection/src/client/locales.ts', esMarker: 'Seleccionar modelo', enStub: 'Select model' },
-    { file: 'packages/client/ui-permission-presets/src/client/locales.ts', esMarker: "'title': 'Permisos'", enStub: "'title': 'Permission'" },
+    { file: 'packages/client/ui-permission-presets/src/client/locales.ts', esMarker: 'Permisos', enStub: 'Permission' },
     { file: 'packages/session-query/session-log-export/src/client/locales.ts', esMarker: 'Registro de sesión', enStub: 'Session log' },
     { file: 'packages/client/ui-schedule/src/client/locales.ts', esMarker: 'recordatorio', enStub: '{count} reminder' },
     { file: 'packages/client/ui-subagent/src/client/locales.ts', esMarker: 'Cargando subagentes', enStub: 'Loading subagents' },
@@ -181,11 +185,11 @@ describe('Locale contract — Spanish component dictionaries (patch 141)', () =>
     { file: 'packages/extensions/ui-cordis/src/client/locales.ts', esMarker: 'Registrar complemento Cordis', enStub: 'Register Cordis Plugin' },
     { file: 'packages/client/ui-workspace/src/client/locales.ts', esMarker: 'Espacios de trabajo', enStub: 'Workspaces' },
     { file: 'packages/experimental/client-ui-agent-team/src/client/locales.ts', esMarker: 'Equipo de agentes', enStub: 'Agent Team' },
-    { file: 'packages/client/ui-settings-models/src/client/locales.ts', esMarker: "nav: 'Modelos'", enStub: "nav: 'Models'" },
-    { file: 'packages/client/ui-settings-plugins/src/client/locales.ts', esMarker: "nav: 'Complementos'", enStub: "nav: 'Plugins'" },
-    { file: 'packages/client/ui-chat/src/client/locale.ts', esMarker: "'details.title': 'Detalles'", enStub: "'details.title': 'Details'" },
-    { file: 'packages/client/ui-conversation/src/client/locales.ts', esMarker: "'input.send': 'Enviar mensaje'", enStub: "'input.send': 'Send message'" },
-    { file: 'packages/client/ui-trajectory/src/client/locales.ts', esMarker: "'view.trajectory': 'Trayectoria'", enStub: "'view.trajectory': 'Trajectory'" },
+    { file: 'packages/client/ui-settings-models/src/client/locales.ts', esMarker: 'Modelos', enStub: 'Models' },
+    { file: 'packages/client/ui-settings-plugins/src/client/locales.ts', esMarker: 'Complementos', enStub: 'Plugins' },
+    { file: 'packages/client/ui-chat/src/client/locale.ts', esMarker: 'Detalles', enStub: 'Details' },
+    { file: 'packages/client/ui-conversation/src/client/locales.ts', esMarker: 'Enviar mensaje', enStub: 'Send message' },
+    { file: 'packages/client/ui-trajectory/src/client/locales.ts', esMarker: 'Trayectoria', enStub: 'Trajectory' },
   ];
 
   function esBlockOf(src: string, exportName = 'export const es'): string | null {
@@ -196,6 +200,11 @@ describe('Locale contract — Spanish component dictionaries (patch 141)', () =>
     const end = src.indexOf('\n}', brace);
     if (end === -1) return null;
     return src.slice(brace, end);
+  }
+
+  function hasLiteralValue(block: string, value: string): boolean {
+    const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`:\\s*(['\"\x60])${escaped}\\1`).test(block);
   }
 
   it('all 30 component locale files declare es', () => {
@@ -212,16 +221,21 @@ describe('Locale contract — Spanish component dictionaries (patch 141)', () =>
       expect(src, entry.file).not.toBeNull();
       const block = esBlockOf(src!)!;
       expect(block, `${entry.file} es should contain ${entry.esMarker}`).toContain(entry.esMarker);
-      expect(block, `${entry.file} es should not still be English stub`).not.toContain(entry.enStub);
+      expect(hasLiteralValue(block, entry.enStub), `${entry.file} es should not still use the English stub value`).toBe(false);
     }
   });
 
-  it('permission popup gate accessEs is also translated', () => {
+  it('current-session permission popup registers a translated Spanish dictionary', () => {
     const src = readFile(join(VENDOR, 'packages/client/ui-permission-presets/src/client/locales.ts'));
+    const plugin = readFile(join(VENDOR, 'packages/client/ui-permission-presets/src/client/index.ts'));
     expect(src).not.toBeNull();
-    const block = esBlockOf(src!, 'export const accessEs')!;
+    expect(plugin).not.toBeNull();
+    const block = esBlockOf(src!, 'export const accessEs') ?? '';
+    expect(block).not.toBe('');
     expect(block).toContain('Acceso total');
+    expect(block).toContain('Revisión automática');
     expect(block).not.toContain("'confirm.title': 'Enable Full access?'");
+    expect(plugin).toContain('{ zh: accessZh, en: accessEn, es: accessEs }');
   });
 
   it('spot-checks: settings.locale, sidebar, conversation', () => {

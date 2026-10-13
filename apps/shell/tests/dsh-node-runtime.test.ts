@@ -7,7 +7,8 @@ import { describe, expect, it } from 'vitest';
 // Electron's first cold start can contend with the rest of the full Vitest
 // suite; keep the assertion bounded without mistaking worker contention for
 // the silent-exit regression this test is meant to catch.
-const ELECTRON_TEST_TIMEOUT_MS = 60_000;
+const ELECTRON_TEST_TIMEOUT_MS = 90_000;
+const VITEST_TEST_TIMEOUT_MS = ELECTRON_TEST_TIMEOUT_MS + 10_000;
 
 const require = createRequire(import.meta.url);
 const electronPath = require('electron') as string;
@@ -34,7 +35,7 @@ describe('packaged Electron Node runtime', () => {
     expect(result.error, `Electron failed to run the CLI: ${result.error?.message ?? ''}`).toBeUndefined();
     expect(result.status, `CLI exited with stderr: ${result.stderr}`).toBe(0);
     expect(result.stdout.trim()).toBe(cliVersion);
-  });
+  }, VITEST_TEST_TIMEOUT_MS);
 
   it('loads the native DSH internal-module addon in the packaged Electron runtime', () => {
     const probe = [
@@ -58,5 +59,5 @@ describe('packaged Electron Node runtime', () => {
       nodeVersion: 'v24.18.1',
       nodeModuleVersion: '149',
     });
-  });
+  }, VITEST_TEST_TIMEOUT_MS);
 });

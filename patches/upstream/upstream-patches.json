@@ -258,6 +258,17 @@
       "seam": "apps/desktop + packages/subprocess/subprocess-local",
       "contractTests": [],
       "vendorOnly": true
+    },
+    {
+      "file": "166-freecode-permission-access-spanish.patch",
+      "order": 166,
+      "owner": "freecode",
+      "description": "Translate the current-session permission picker and risk gate into Spanish",
+      "seam": "packages/client/ui-permission-presets/src/client/locales.ts + index.ts",
+      "contractTests": [
+        "packages/contract-tests/tests/locale.contract.test.ts"
+      ],
+      "vendorOnly": true
     }
   ]
 }
