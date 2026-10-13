@@ -11,11 +11,16 @@ La release publicada v0.9.3 es la baseline actual para Windows x64:
 
 - instalador NSIS v0.9.3 (~178,5 MB), instalado y confirmado funcionando por
   el usuario;
-- ejecutable portable v0.9.3 (~651 MB / 620,8 MiB), compilado pero no probado
+- ejecutable portable v0.9.3 (~178,2 MB / 169,9 MiB), compilado pero no probado
   con una instalación por separado;
 - `latest.yml` y blockmap del setup para el updater;
 - el tarball del runtime DSH Windows x64 `0.2.1-alpha.2` (~421,6 MB) y su
   `.sha256` siguen en la release v0.9.2, separados de los instaladores desktop.
+
+Artefactos finales Windows x64 exactos, verificados estáticamente y sin ejecutarlos:
+
+- Setup: 178.543.845 bytes; SHA-256 `53dfde329731d19081204a82bbbafc4678f4c81b4588a22884ef49064f400cd5`.
+- Portable: 178.169.861 bytes; SHA-256 `830eba7ca48d2ee56d2272dfa1d2d23684f5cc7507db55d7617dbc6ed8cd12d3`.
 
 Para v0.9.3 se verificaron el preflight del shell, los gates de regresión, el
 build del shell y el empaquetado setup/portable; el usuario confirmó que el setup
@@ -35,9 +40,11 @@ están en [AUDIT-0.6.0-TEST-PLAN.md](AUDIT-0.6.0-TEST-PLAN.md).
 
 ## Build local de Windows
 
-Ejecutá desde PowerShell en Windows x64. El gate habitual no es interactivo y
-no instala ni inicia la GUI. Valida el runtime DSH fijado que ya existe; no
-reconstruye ese tarball.
+Ejecutá desde PowerShell en Windows x64. El gate habitual no es interactivo en
+la interfaz desktop: no instala ni inicia la GUI de FreeCode. Sí inicia hijos
+headless propios de prueba, el CLI DSH/Electron en modo Node y fixtures, dentro
+de scratch. Valida el runtime DSH fijado que ya existe; no reconstruye ese
+tarball.
 
 ```powershell
 pnpm install --frozen-lockfile
@@ -48,12 +55,16 @@ pnpm verify:desktop-release-assets apps/shell/release-0.9.3-final
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
-El gate ejecuta tests, contratos, typechecks, build/preflight, checks de
-integración MCP reales, verifica in situ el SHA-256 del runtime `0.2.1-alpha.2`
-y compila un setup NSIS exacto en una carpeta temporal del sistema para su
-validación estática. Nunca ejecuta `package:runtime:release`, inicia el
-instalador, lanza la GUI de FreeCode ni modifica accesos directos/registro del
-usuario activo. El build final crea ambos targets Windows en una carpeta
+El gate ejecuta tests, contratos, typechecks, build/preflight y un smoke MCP
+offline con fixtures stdio del repositorio y un proveedor mock de loopback;
+verifica in situ el SHA-256 del runtime `0.2.1-alpha.2` y compila un setup NSIS
+exacto en una carpeta temporal para su validación estática. Los procesos usan
+rutas scratch para perfil/caché/temporales; el smoke MCP no hereda credenciales
+de la persona mantenedora ni ejecuta servidores de terceros. La limpieza apunta
+sólo al árbol PID DSH propio del test y al scratch; nunca enumera ni termina
+procesos ajenos. El gate nunca ejecuta `package:runtime:release`, el setup ni la
+GUI de FreeCode, y no modifica accesos directos/registro del usuario activo. El
+build final crea ambos targets Windows en una carpeta
 versionada nueva. `verify:desktop-release-assets` valida los PE exactos de setup
 y portable, el blockmap, versión/ruta/tamaño/SHA-512 de `latest.yml`, y reporta
 los hashes SHA-256 de los artefactos. Este check no inicia ninguno de los

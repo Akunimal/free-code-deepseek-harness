@@ -24,9 +24,14 @@
 ### Distribution
 
 v0.9.3 is published for Windows x64 with NSIS setup (~178.5 MB) and a portable
-package (~651 MB / 620.8 MiB).
+package (~178.2 MB / 169.9 MiB).
 The pinned DSH `0.2.1-alpha.2` runtime remains a separate download from the
 v0.9.2 release and is fetched only when required.
+
+Final asset verification: setup 178,543,845 bytes, SHA-256
+`53dfde329731d19081204a82bbbafc4678f4c81b4588a22884ef49064f400cd5`; portable
+178,169,861 bytes, SHA-256
+`830eba7ca48d2ee56d2272dfa1d2d23684f5cc7507db55d7617dbc6ed8cd12d3`.
 
 ### Verification status
 
@@ -62,9 +67,14 @@ installation-tested. Windows x64 is the only supported release target.
 ### Distribución
 
 v0.9.3 está publicada para Windows x64 con setup NSIS (~178,5 MB) y portable
-(~651 MB / 620,8 MiB). El runtime
+(~178,2 MB / 169,9 MiB). El runtime
 DSH fijado en `0.2.1-alpha.2` sigue siendo una descarga separada desde la
 release v0.9.2 y se baja solo cuando hace falta.
+
+Verificación de artefactos finales: setup 178.543.845 bytes, SHA-256
+`53dfde329731d19081204a82bbbafc4678f4c81b4588a22884ef49064f400cd5`; portable
+178.169.861 bytes, SHA-256
+`830eba7ca48d2ee56d2272dfa1d2d23684f5cc7507db55d7617dbc6ed8cd12d3`.
 
 ### Estado de verificación
 

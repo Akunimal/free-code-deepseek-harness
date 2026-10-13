@@ -19,7 +19,7 @@ installation-tested.
 The v0.9.3 release includes:
 
 - an NSIS installer (~178.5 MB);
-- a portable Windows executable (~651 MB / 620.8 MiB);
+- a portable Windows executable (~178.2 MB / 169.9 MiB);
 - `latest.yml` plus the setup blockmap for updates;
 - the pinned DSH `0.2.1-alpha.2` runtime remains a separate ~421.6 MB asset
   in the v0.9.2 release, downloaded on first launch when no valid cache exists.
@@ -270,9 +270,12 @@ implementation, a contract test and a replay/idempotence check. See
 
 ## Windows local release gate: v0.9.3
 
-Run from PowerShell on Windows x64. The gate is non-interactive: it builds an
-NSIS package in a unique temporary directory, verifies that exact package and
-the pinned runtime checksum, and never installs or launches the GUI.
+Run from PowerShell on Windows x64. The gate is non-interactive at the desktop
+UI boundary: it builds an NSIS package in a unique temporary directory,
+verifies that exact package and the pinned runtime checksum, and does not
+install or launch the FreeCode GUI. It does start test-owned hidden DSH CLI and
+fixture child processes, isolated under scratch paths; cleanup targets only
+the recorded child PID tree and never enumerates or kills unrelated processes.
 
 ```powershell
 pnpm install --frozen-lockfile

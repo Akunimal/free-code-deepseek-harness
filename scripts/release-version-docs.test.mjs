@@ -20,9 +20,12 @@ test('bilingual release notes identify the published v0.9.3 Windows assets', () 
   assert.match(notes, /^# FreeCode DeepSeek Harness v0\.9\.3/m);
   assert.match(notes, /^## English$/m);
   assert.match(notes, /^## Español$/m);
-  assert.match(notes, /v0\.9\.3 is published for Windows x64 with NSIS setup \(~178\.5 MB\) and a portable\s+package \(~651 MB/i);
-  assert.match(notes, /portable\s+\(~651 MB/i);
+  assert.match(notes, /v0\.9\.3 is published for Windows x64 with NSIS setup \(~178\.5 MB\) and a portable\s+package \(~178\.2 MB \/ 169\.9 MiB\)/i);
+  assert.match(notes, /package\s+\(~178\.2 MB \/ 169\.9 MiB\)/i);
+  assert.match(notes, /178,543,845 bytes[\s\S]{0,100}53dfde329731d19081204a82bbbafc4678f4c81b4588a22884ef49064f400cd5/i);
+  assert.match(notes, /178,169,861 bytes[\s\S]{0,100}830eba7ca48d2ee56d2272dfa1d2d23684f5cc7507db55d7617dbc6ed8cd12d3/i);
   assert.match(notes, /v0\.9\.3.{0,15}publicada para Windows x64 con setup NSIS/i);
+  assert.match(notes, /portable\s+\(~178,2 MB \/ 169,9 MiB\)/i);
   assert.doesNotMatch(notes, /no v0\.9\.3 tag or release has been created/i);
   assert.match(notes, /opens\s+read-only/i);
   assert.match(notes, /modo de solo lectura/i);
@@ -49,8 +52,8 @@ test('English and Spanish READMEs identify v0.9.3 as the latest published releas
   assert.match(spanish, /release v0\.9\.3 en GitHub/i);
   assert.match(english, /final v0\.9\.3 release assets are staged under\s+`apps\/shell\/release-0\.9\.3-final\/`/i);
   assert.match(spanish, /artefactos finales de v0\.9\.3 quedan en `apps\/shell\/release-0\.9\.3-final\/`/i);
-  assert.match(english, /portable Windows executable \(~651 MB/i);
-  assert.match(spanish, /ejecutable portable de Windows \(~651 MB/i);
+  assert.match(english, /portable Windows executable \(~178\.2 MB \/ 169\.9 MiB/i);
+  assert.match(spanish, /ejecutable portable de Windows \(~178,2 MB \/ 169,9 MiB/i);
 });
 
 test('release guides and known-issues ledger identify v0.9.3 as the supported baseline', () => {
@@ -61,8 +64,12 @@ test('release guides and known-issues ledger identify v0.9.3 as the supported ba
   const translations = read('TODO-spanish-translations.md');
 
   assert.match(englishRelease, /published v0\.9\.3 release is the current Windows x64 baseline/i);
-  assert.match(englishRelease, /portable executable \(~651 MB/i);
-  assert.match(spanishRelease, /portable v0\.9\.3 \(~651 MB/i);
+  assert.match(englishRelease, /portable executable \(~178\.2 MB \/ 169\.9 MiB/i);
+  assert.match(spanishRelease, /portable v0\.9\.3 \(~178,2 MB \/ 169,9 MiB/i);
+  assert.match(englishRelease, /53dfde329731d19081204a82bbbafc4678f4c81b4588a22884ef49064f400cd5/i);
+  assert.match(englishRelease, /830eba7ca48d2ee56d2272dfa1d2d23684f5cc7507db55d7617dbc6ed8cd12d3/i);
+  assert.match(spanishRelease, /53dfde329731d19081204a82bbbafc4678f4c81b4588a22884ef49064f400cd5/i);
+  assert.match(spanishRelease, /830eba7ca48d2ee56d2272dfa1d2d23684f5cc7507db55d7617dbc6ed8cd12d3/i);
   assert.match(spanishRelease, /release publicada v0\.9\.3 es la baseline actual para Windows x64/i);
   assert.match(englishRelease, /v0\.9\.3 also prevents older DSH runtimes/i);
   assert.match(spanishRelease, /v0\.9\.3 también evita que runtimes\s+DSH/i);
@@ -74,8 +81,8 @@ test('release guides and known-issues ledger identify v0.9.3 as the supported ba
   assert.match(knownIssues, /KI-009.*semantic.*tail/is);
   assert.match(knownIssues, /sufijo semántico puede ocultar historial válido/i);
   assert.match(knownIssues, /preserva los bytes originales raw\/Zstandard/i);
-  assert.match(knownIssues, /portable is ~651 MB/i);
-  assert.match(knownIssues, /portable ~651 MB/i);
+  assert.match(knownIssues, /portable is ~178\.2 MB/i);
+  assert.match(knownIssues, /portable ~178,2 MB/i);
   assert.match(roadmap, /^Baseline: `v0\.9\.3`$/m);
   assert.match(roadmap, /^### `v0\.9\.3`/m);
   assert.match(translations, /baseline publicada v0\.9\.3/i);
@@ -121,4 +128,29 @@ test('current release policy and EN/ES build guidance match the separate-runtime
   const staleEsBuild = releaseEs.match(/## Build local de Windows([\s\S]*?)## Pol.tica de dependencias runtime/)?.[1] ?? '';
   assert.doesNotMatch(staleEnBuild, /pnpm --filter @freecode\/shell package:runtime/);
   assert.doesNotMatch(staleEsBuild, /pnpm --filter @freecode\/shell package:runtime/);
+});
+
+test('current release docs define the hidden test-child boundary consistently', () => {
+  const policyEn = read('docs/RELEASE-POLICY.md');
+  const policyEs = read('docs/RELEASE-POLICY.es.md');
+  const releaseEn = read('docs/RELEASE.md');
+  const releaseEs = read('docs/RELEASE.es.md');
+  const readmeEn = read('README.md');
+  const readmeEs = read('README.es.md');
+  const contracts = read('docs/CONTRACT-TESTS.md');
+
+  for (const document of [policyEn, releaseEn, readmeEn]) {
+    assert.match(document, /test-owned hidden.*(?:DSH CLI|Electron.*Node)|hidden.*test-owned.*(?:DSH CLI|Electron.*Node)/is);
+    assert.match(document, /scratch/i);
+    assert.match(document, /does not\s+install or launch the FreeCode GUI/i);
+  }
+  for (const document of [policyEs, releaseEs, readmeEs]) {
+    assert.match(document, /hijos.*(?:headless|ocultos).*propios.*(?:test|prueba)|(?:test|prueba).*propios.*hijos.*(?:headless|ocultos)/is);
+    assert.match(document, /scratch|temporal/i);
+    assert.match(document, /no instala ni inicia la\s+GUI de FreeCode/i);
+  }
+  assert.match(policyEn, /does not\s+enumerate or kill unrelated processes/i);
+  assert.match(policyEs, /no enumera ni termina\s+procesos ajenos/i);
+  assert.match(contracts, /statically verifies the NSIS package/i);
+  assert.doesNotMatch(contracts, /release gate installs the candidate into a clean isolated directory/i);
 });

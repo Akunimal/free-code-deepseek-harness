@@ -11,11 +11,16 @@ The published v0.9.3 release is the current Windows x64 baseline:
 
 - v0.9.3 Windows NSIS installer (~178.5 MB), installed and confirmed working by
   the user;
-- v0.9.3 Windows portable executable (~651 MB / 620.8 MiB), built but not
+- v0.9.3 Windows portable executable (~178.2 MB / 169.9 MiB), built but not
   separately installation-tested;
 - `latest.yml` plus the setup blockmap for the updater;
 - pinned DSH `0.2.1-alpha.2` Windows x64 runtime tarball (~421.6 MB) and its
   `.sha256` file remain in the v0.9.2 release, separately from desktop installers.
+
+Exact final Windows x64 assets, statically verified without execution:
+
+- Setup: 178,543,845 bytes; SHA-256 `53dfde329731d19081204a82bbbafc4678f4c81b4588a22884ef49064f400cd5`.
+- Portable: 178,169,861 bytes; SHA-256 `830eba7ca48d2ee56d2272dfa1d2d23684f5cc7507db55d7617dbc6ed8cd12d3`.
 
 For v0.9.3, shell preflight, regression gates, shell build and Windows setup/
 portable packaging were verified; the user confirmed the installed setup works.
@@ -35,9 +40,11 @@ The 0.7.0 roadmap is closed; its ledger is
 
 ## Local Windows build
 
-Run from PowerShell on Windows x64. The ordinary gate is non-interactive and
-does not install or launch the GUI. It validates the existing pinned DSH
-runtime; it does not rebuild that runtime archive.
+Run from PowerShell on Windows x64. The ordinary gate is non-interactive at the
+desktop UI boundary: it does not install or launch the FreeCode GUI. It does
+start test-owned hidden DSH CLI/Electron-as-Node and fixture child processes in
+scratch. It validates the existing pinned DSH runtime; it does not rebuild that
+runtime archive.
 
 ```powershell
 pnpm install --frozen-lockfile
@@ -48,11 +55,16 @@ pnpm verify:desktop-release-assets apps/shell/release-0.9.3-final
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
-The gate runs tests, contracts, typechecks, build/prepackage validation, real
-MCP integration checks, verifies the v0.2.1-alpha.2 runtime SHA-256 in place,
+The gate runs tests, contracts, typechecks, build/prepackage validation, an
+offline MCP integration smoke using repository-owned stdio fixtures and a
+loopback mock provider, verifies the v0.2.1-alpha.2 runtime SHA-256 in place,
 and builds one exact NSIS package into an OS-temporary directory for static
-validation. It never calls `package:runtime:release`, starts the installer,
-launches the FreeCode GUI, or modifies the active user's shortcuts/registry.
+validation. Smoke processes use scratch-only profile/cache/temp paths and the
+MCP smoke does not inherit maintainer credentials or execute third-party
+servers. Cleanup targets only the test-owned DSH PID tree and scratch directory;
+it never enumerates or terminates unrelated processes. The gate never calls
+`package:runtime:release`, runs the setup, launches the FreeCode GUI, or modifies
+the active user's shortcuts/registry.
 The final build command creates both Windows targets in a fresh, versioned
 directory. `verify:desktop-release-assets` checks the exact setup and portable
 PE headers, blockmap, `latest.yml` version/path/size/SHA-512, and reports the

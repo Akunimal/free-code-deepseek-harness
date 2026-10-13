@@ -5,8 +5,8 @@
 See the [bilingual v0.9.3 release notes](release-notes-v0.9.3.md).
 Published for Windows x64 with NSIS setup and portable packages. The user
 confirmed the installed setup works; the portable executable was not separately
-installation-tested. The setup is ~178.5 MB; the portable executable is ~651 MB
-(~620.8 MiB). The DSH runtime remains a separately pinned asset in the v0.9.2
+installation-tested. The setup is ~178.5 MB; the portable executable is ~178.2 MB
+(~169.9 MiB). The DSH runtime remains a separately pinned asset in the v0.9.2
 release.
 
 ### Reliability / Confiabilidad

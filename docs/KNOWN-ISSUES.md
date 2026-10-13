@@ -40,14 +40,14 @@ La ruta OpenCode Free depende del puente local, los workers disponibles, los lí
 
 ### KI-002 — Separate first-launch runtime download / Descarga del runtime en el primer inicio
 
-The v0.9.3 setup is ~178.5 MB and portable is ~651 MB (~620.8 MiB); the DSH
+The v0.9.3 setup is ~178.5 MB and portable is ~178.2 MB (~169.9 MiB); the DSH
 runtime is not inside either desktop installer. A first launch without a valid cache downloads
 the separate pinned `0.2.1-alpha.2` Windows x64 runtime archive (~421.6 MB),
 then caches the validated runtime per user for offline later starts. This
 network/download step is part of the current packaging, not by itself evidence
 that the application is hung.
 
-El setup v0.9.3 pesa ~178,5 MB y el portable ~651 MB (~620,8 MiB); ninguno
+El setup v0.9.3 pesa ~178,5 MB y el portable ~178,2 MB (~169,9 MiB); ninguno
 incluye el runtime DSH. En un primer inicio sin caché válida se descarga por separado el
 runtime Windows x64 fijado en `0.2.1-alpha.2` (~421,6 MB), y después de
 validarlo se guarda por usuario para los arranques sin conexión. Este paso de

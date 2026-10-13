@@ -19,7 +19,7 @@ una instalación por separado.
 La release v0.9.3 incluye:
 
 - un instalador NSIS (~178,5 MB);
-- un ejecutable portable de Windows (~651 MB / 620,8 MiB);
+- un ejecutable portable de Windows (~178,2 MB / 169,9 MiB);
 - `latest.yml` y el blockmap del setup para las actualizaciones;
 - el runtime DSH fijado en `0.2.1-alpha.2` sigue como asset separado de ~421,6 MB
   en la release v0.9.2 y se descarga si no existe caché válida.
@@ -266,9 +266,12 @@ directa de `vendor/deepseek-harness`. Ver
 
 ## Gate local de Windows: v0.9.3
 
-Ejecutá desde PowerShell en Windows x64. El gate no es interactivo: compila un
-paquete NSIS en un directorio temporal único, verifica ese paquete y el checksum
-del runtime fijado, y nunca instala ni inicia la GUI.
+Ejecutá desde PowerShell en Windows x64. El gate no es interactivo en la
+interfaz desktop: compila un paquete NSIS en un directorio temporal único,
+verifica ese paquete y el checksum del runtime fijado, y no instala ni inicia la
+GUI de FreeCode. Sí inicia hijos headless propios de prueba (CLI DSH y fixtures)
+aislados bajo rutas scratch; la limpieza apunta al árbol PID registrado y nunca
+enumera ni termina procesos ajenos.
 
 ```powershell
 pnpm install --frozen-lockfile
