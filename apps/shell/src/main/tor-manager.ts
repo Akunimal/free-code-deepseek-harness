@@ -1,8 +1,10 @@
 import { launchHidden, killProcessTree } from './freecode-launcher.js';
+import { buildTorrcContent } from './tor-config.js';
+import { getTorBootstrapProgress, signalTorNewnym } from './tor-control.js';
 import type { ChildProcess } from 'node:child_process';
 import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
-import { createServer, Socket } from 'node:net';
+import { createServer } from 'node:net';
+import { join } from 'node:path';
 
 export interface TorManagerConfig {
   torBinaryPath: string;
@@ -29,8 +31,31 @@ const DEFAULT_CONTROL_PORT = 9051;
 const BOOTSTRAP_TIMEOUT_MS = 45_000;
 const BOOTSTRAP_POLL_MS = 500;
 
+export interface TorBootstrapWaitOptions {
+  isProcessAlive: () => boolean;
+  isSocksReady: () => Promise<boolean>;
+  readBootstrapProgress: () => Promise<number | null>;
+  timeoutMs: number;
+  pollMs: number;
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+export async function waitForTorBootstrap(options: TorBootstrapWaitOptions): Promise<boolean> {
+  const deadline = Date.now() + options.timeoutMs;
+  while (Date.now() < deadline) {
+    if (!options.isProcessAlive()) return false;
+    try {
+      if (await options.isSocksReady() && await options.readBootstrapProgress() === 100) return true;
+    } catch {
+      // Tor may not have created its cookie/control endpoint yet; retry until
+      // bootstrap completes, the process exits, or the bounded deadline expires.
+    }
+    await sleep(Math.min(options.pollMs, Math.max(0, deadline - Date.now())));
+  }
+  return false;
 }
 
 function isPortFree(port: number): Promise<boolean> {
@@ -66,6 +91,9 @@ export class TorManager {
   private pid = -1;
   private socksPort = DEFAULT_SOCKS_PORT;
   private controlPort = DEFAULT_CONTROL_PORT;
+  private controlCookiePath = '';
+  private lifecycleGeneration = 0;
+  private stopPromise: Promise<void> | null = null;
   private state: TorManagerStatus['status'] = 'stopped';
   private lastRotatedAt: number | null = null;
   private lastError: string | null = null;
@@ -84,9 +112,12 @@ export class TorManager {
   }
 
   async start(): Promise<TorManagerStatus> {
+    while (this.stopPromise) await this.stopPromise;
     if (this.state === 'ready' || this.state === 'starting') {
       return this.getStatus();
     }
+
+    const generation = ++this.lifecycleGeneration;
 
     if (!existsSync(this.cfg.torBinaryPath)) {
       this.state = 'failed';
@@ -103,9 +134,11 @@ export class TorManager {
       const used = new Set<number>();
       this.socksPort = await findFreePort(this.cfg.socksPort ?? DEFAULT_SOCKS_PORT, used);
       this.controlPort = await findFreePort(this.cfg.controlPort ?? DEFAULT_CONTROL_PORT, used);
+      if (generation !== this.lifecycleGeneration) return this.getStatus();
 
       const torDataDir = join(this.cfg.dataDir, 'tor-single');
       mkdirSync(torDataDir, { recursive: true });
+      this.controlCookiePath = join(torDataDir, 'control_auth_cookie');
 
       const geoipFile = join(this.cfg.geoipDir, 'geoip').replace(/\\/g, '/');
       const geoip6File = join(this.cfg.geoipDir, 'geoip6').replace(/\\/g, '/');
@@ -113,28 +146,15 @@ export class TorManager {
       const torrcPath = join(torDataDir, 'torrc');
 
       // Optimización de nodos y velocidad para API Proxying (Habr / Linux.do guidelines)
-      const torrc = [
-        `SocksPort 127.0.0.1:${this.socksPort} IsolateSOCKSAuth`,
-        `ControlPort 127.0.0.1:${this.controlPort}`,
-        `DataDirectory ${torDataDir.replace(/\\/g, '/')}`,
-        ...(existsSync(join(this.cfg.geoipDir, 'geoip')) ? [`GeoIPFile ${geoipFile}`] : []),
-        ...(existsSync(join(this.cfg.geoipDir, 'geoip6')) ? [`GeoIPv6File ${geoip6File}`] : []),
-        `Log notice file ${logPath}`,
-        'CookieAuthentication 0',
-        'HashedControlPassword ""',
-        'ClientOnly 1',
-        'FastFirstHopPK 1',
-        'CircuitBuildTimeout 5',
-        'LearnCircuitBuildTimeout 0',
-        'NumEntryGuards 3',
-        // Stable circuits for long model streams (Tor default is 600s).
-        // A 30s rotation used to change exits mid-stream; on-demand
-        // rotation stays available via SIGNAL NEWNYM (overlay/tray).
-        'MaxCircuitDirtiness 600',
-        'ExitNodes {ch},{de},{nl},{se},{fr},{at},{is}',
-        'StrictNodes 0',
-        'ExcludeExitNodes {cn},{ru},{ir},{sy},{kp}',
-      ].join('\n');
+      const torrc = buildTorrcContent({
+        socksPort: this.socksPort,
+        controlPort: this.controlPort,
+        dataDirectory: torDataDir,
+        controlCookiePath: this.controlCookiePath,
+        logPath,
+        ...(existsSync(join(this.cfg.geoipDir, 'geoip')) ? { geoipFile } : {}),
+        ...(existsSync(join(this.cfg.geoipDir, 'geoip6')) ? { geoip6File } : {}),
+      });
 
       writeFileSync(torrcPath, torrc, 'utf8');
 
@@ -153,6 +173,7 @@ export class TorManager {
       launched.stdout?.on('data', () => { /* consumed */ });
       launched.stderr?.on('data', () => { /* consumed */ });
       launched.once('exit', (code, signal) => {
+        if (generation !== this.lifecycleGeneration) return;
         this.cfg.log?.('warn', `tor daemon exited code=${code} signal=${signal}`);
         this.proc = null;
         this.pid = -1;
@@ -163,20 +184,25 @@ export class TorManager {
         }
       });
 
-      const ready = await this.waitForBootstrap(BOOTSTRAP_TIMEOUT_MS);
+      const ready = await this.waitForBootstrap(BOOTSTRAP_TIMEOUT_MS, launched);
+      if (generation !== this.lifecycleGeneration) return this.getStatus();
       if (ready) {
         this.state = 'ready';
         this.cfg.log?.('info', 'Tor Single-Instance ready', { socksPort: this.socksPort, controlPort: this.controlPort, pid: this.pid });
       } else {
-        this.state = 'failed';
-        this.lastError = 'Tor bootstrap timed out';
-        this.cfg.log?.('warn', this.lastError);
+        const failure = 'Tor bootstrap timed out';
         await this.stop();
+        this.state = 'failed';
+        this.lastError = failure;
+        this.cfg.log?.('warn', failure);
       }
     } catch (err) {
+      if (generation !== this.lifecycleGeneration) return this.getStatus();
+      const failure = (err as Error).message;
+      if (this.proc && this.proc.exitCode === null) await this.stop();
       this.state = 'failed';
-      this.lastError = (err as Error).message;
-      this.cfg.log?.('error', 'Tor startup failed', { error: this.lastError });
+      this.lastError = failure;
+      this.cfg.log?.('error', 'Tor startup failed', { error: failure });
     }
 
     this.emitChange();
@@ -184,7 +210,19 @@ export class TorManager {
   }
 
   async stop(): Promise<void> {
+    if (this.stopPromise) return this.stopPromise;
+    this.lifecycleGeneration += 1;
     this.state = 'stopped';
+    const stopping = this.stopOwnedProcess();
+    this.stopPromise = stopping;
+    try {
+      await stopping;
+    } finally {
+      if (this.stopPromise === stopping) this.stopPromise = null;
+    }
+  }
+
+  private async stopOwnedProcess(): Promise<void> {
     if (this.proc && this.proc.exitCode === null) {
       try {
         if (process.platform === 'win32' && this.pid > 0) {
@@ -213,29 +251,7 @@ export class TorManager {
     this.emitChange();
 
     try {
-      const ok = await new Promise<boolean>((res) => {
-        const client = new Socket();
-        let authed = false;
-        client.setTimeout(5_000);
-        client.connect(this.controlPort, '127.0.0.1', () => {
-          client.write('AUTHENTICATE ""\r\n');
-        });
-        client.on('data', (data) => {
-          const str = data.toString();
-          if (str.startsWith('250 OK') && !authed) {
-            authed = true;
-            client.write('SIGNAL NEWNYM\r\n');
-          } else if (str.startsWith('250 OK') && authed) {
-            client.destroy();
-            res(true);
-          } else if (str.startsWith('510') || str.startsWith('515') || str.startsWith('552')) {
-            client.destroy();
-            res(false);
-          }
-        });
-        client.on('error', () => { client.destroy(); res(false); });
-        client.on('timeout', () => { client.destroy(); res(false); });
-      });
+      const ok = await signalTorNewnym(this.controlPort, this.controlCookiePath);
 
       if (ok) {
         this.lastRotatedAt = Date.now();
@@ -276,14 +292,13 @@ export class TorManager {
     }
   }
 
-  private async waitForBootstrap(timeoutMs: number): Promise<boolean> {
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      if (!this.proc || this.proc.exitCode !== null) return false;
-      const free = await isPortFree(this.socksPort);
-      if (!free) return true; // Port bound means Tor SOCKS is up
-      await sleep(BOOTSTRAP_POLL_MS);
-    }
-    return false;
+  private async waitForBootstrap(timeoutMs: number, proc: ChildProcess): Promise<boolean> {
+    return waitForTorBootstrap({
+      isProcessAlive: () => this.proc === proc && proc.exitCode === null,
+      isSocksReady: async () => !(await isPortFree(this.socksPort)),
+      readBootstrapProgress: () => getTorBootstrapProgress(this.controlPort, this.controlCookiePath),
+      timeoutMs,
+      pollMs: BOOTSTRAP_POLL_MS,
+    });
   }
 }
