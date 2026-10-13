@@ -5,8 +5,10 @@ import (
 	"time"
 
 	"opencode2api/internal/buildinfo"
+	"opencode2api/internal/config"
 	"opencode2api/internal/httpx"
 	modelcatalog "opencode2api/internal/models"
+	wire "opencode2api/internal/protocol"
 )
 
 type healthResponse struct {
@@ -127,7 +129,13 @@ func (g *Gateway) handleModels(w http.ResponseWriter, _ *http.Request) {
 		md := g.catalog.MetadataForTier(model, route.Tier)
 		entry := map[string]any{
 			"id": model, "object": "model", "created": now, "owned_by": "opencode",
-			"metadata": md,
+			"metadata":        md,
+			"native_protocol": route.Protocol,
+		}
+		if route.Protocol == wire.SystemOne {
+			entry["supported_endpoints"] = []string{"/v1/systemone"}
+		} else {
+			entry["supported_endpoints"] = []string{"/v1/chat/completions", "/v1/responses", "/v1/messages"}
 		}
 		// Top-level OpenAI-standard fields: discovery clients (jcode, Pi, …)
 		// read context/reasoning at the top level of each model entry.
@@ -152,6 +160,22 @@ func (g *Gateway) handleModels(w http.ResponseWriter, _ *http.Request) {
 			entry["structured_output"] = true
 		}
 		data = append(data, entry)
+	}
+	for _, group := range g.rotation.Snapshot().Groups {
+		if g.goNodes.Len() == 0 {
+			continue
+		}
+		available := false
+		for _, model := range group.Order {
+			if route, err := g.catalog.RouteForTier(model, config.TierGo, false, true); err == nil && route.Protocol != wire.SystemOne {
+				available = true
+				break
+			}
+		}
+		if !available {
+			continue
+		}
+		data = append(data, map[string]any{"id": group.Alias, "object": "model", "created": now, "owned_by": "opencode-go-rotation"})
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"object": "list", "data": data})
 }

@@ -10,3 +10,4 @@
 !config.example.json
 !docker-entrypoint.sh
 !Dockerfile
+!LICENSE

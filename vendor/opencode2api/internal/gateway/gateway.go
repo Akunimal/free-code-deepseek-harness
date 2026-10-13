@@ -19,6 +19,7 @@ import (
 	"opencode2api/internal/jsonutil"
 	"opencode2api/internal/models"
 	wire "opencode2api/internal/protocol"
+	"opencode2api/internal/rotation"
 	"opencode2api/internal/telemetry"
 )
 
@@ -27,17 +28,24 @@ const maxRequestBody = 32 << 20
 const anonymousZenKey = "public"
 
 type Gateway struct {
-	cfg        config.Config
-	logger     *slog.Logger
-	transports *transportPool
-	zenNodes   *nodePool
-	goNodes    *nodePool
-	anonymous  *anonymousPool
-	catalog    *models.Catalog
-	monitor    *telemetry.Monitor
+	rotation     *rotation.Manager
+	cfg          config.Config
+	logger       *slog.Logger
+	transports   *transportPool
+	zenNodes     *nodePool
+	goNodes      *nodePool
+	anonymous    *anonymousPool
+	catalog      *models.Catalog
+	monitor      *telemetry.Monitor
+	availability *models.AvailabilityStore
 }
 
 func New(cfg config.Config, logger *slog.Logger, monitor *telemetry.Monitor) (*Gateway, error) {
+	cfg.Rotation.Defaults()
+	rotationManager, err := rotation.New("", cfg.Rotation)
+	if err != nil {
+		return nil, err
+	}
 	transports, err := newTransportPool(cfg.RuntimeProxies(), cfg.Performance, cfg.Performance.AttemptTimeout(time.Duration(cfg.Retry.TimeoutSeconds)*time.Second))
 	if err != nil {
 		return nil, err
@@ -55,6 +63,7 @@ func New(cfg config.Config, logger *slog.Logger, monitor *telemetry.Monitor) (*G
 	catalog.SetRefreshInterval(time.Duration(cfg.Models.RefreshSeconds) * time.Second)
 	return &Gateway{
 		cfg:        cfg,
+		rotation:   rotationManager,
 		logger:     logger,
 		transports: transports,
 		zenNodes:   zenNodes,
@@ -84,6 +93,9 @@ func (g *Gateway) authenticate(next http.HandlerFunc) http.HandlerFunc {
 		}
 		valid := false
 		for _, key := range g.cfg.ServerKeys {
+			if !g.cfg.ServerKeyEnabled(key) {
+				continue
+			}
 			for _, candidate := range candidates {
 				if len(candidate) == len(key) && subtle.ConstantTimeCompare([]byte(candidate), []byte(key)) == 1 {
 					valid = true
@@ -123,6 +135,10 @@ func (g *Gateway) handleInference(external wire.Protocol) http.HandlerFunc {
 			wire.WriteError(w, external, http.StatusBadRequest, "model is required", "invalid_request_error", "model")
 			return
 		}
+		if id := g.rotation.GroupID(model); id != "" {
+			g.handleRotation(w, r, external, payload, id, model)
+			return
+		}
 		if !g.catalog.Supported(model) {
 			wire.WriteError(w, external, http.StatusBadRequest, "the model uses an upstream protocol that opencode2api does not expose", "invalid_request_error", "model")
 			return
@@ -147,6 +163,10 @@ func (g *Gateway) handleInference(external wire.Protocol) http.HandlerFunc {
 		// only address /v1/chat/completions or /v1/responses — for example a
 		// gateway whose OpenAI platform pins every request to Responses.
 		if route.Protocol == wire.SystemOne {
+			if len(jsonutil.MapAt(payload, "questions")) == 0 || payload["state"] == nil {
+				wire.WriteError(w, external, http.StatusBadRequest, "this model uses System One decisions, not chat; send state and typed questions to /v1/systemone", "invalid_request_error", "model")
+				return
+			}
 			g.forwardSystemOne(w, r, body, payload, model, route)
 			return
 		}
@@ -230,7 +250,7 @@ func (g *Gateway) handleInference(external wire.Protocol) http.HandlerFunc {
 		if upstreamRoute.Anonymous || (meta != nil && meta.Shaped) {
 			// Key-tier shaped requests were force-streamed like the
 			// anonymous lane; collapse the same way.
-			// The anonymous lane is served streaming (see forceStreamBody);
+			// The anonymous lane is served streaming (see prepareAnonymousBody);
 			// collapse the events back into the single document this
 			// non-streaming client asked for.
 			collapsed, err := wire.CollapseStream(bytes.NewReader(responseBody), upstreamRoute.Protocol, model)
@@ -401,11 +421,12 @@ func (g *Gateway) prepareRouteBodies(from wire.Protocol, route models.Route, inp
 				// preferred tier. Do not reject a request before the preferred
 				// upstream has even been tried; that tier is attempted only if
 				// the request actually falls back.
+				g.logger.Debug("skipping fallback tier with incompatible request shape", "component", "conversion", "event", "fallback_tier_skipped", "model", jsonutil.StringAt(input, "model"), "tier", tier, "protocol", protocol, "error", err)
 				continue
 			}
 			return nil, fmt.Errorf("prepare %s upstream request: %w", tier, err)
 		}
-		if effort := g.cfg.ForcedEffort(jsonutil.StringAt(upstreamPayload, "model")); effort != "" {
+		if effort := g.resolvedEffort(jsonutil.StringAt(upstreamPayload, "model"), tier, protocol); effort != "" {
 			wire.ForcedEffort(protocol, upstreamPayload, effort)
 		}
 		encoded, err := json.Marshal(upstreamPayload)

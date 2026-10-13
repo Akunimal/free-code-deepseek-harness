@@ -30,6 +30,8 @@ RUN apk add --no-cache ca-certificates su-exec tzdata \
 COPY --from=builder /out/opencode2api /usr/local/bin/opencode2api
 COPY --chmod=0755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint
 COPY --chown=opencode2api:opencode2api config.example.json /app/config.example.json
+COPY LICENSE /usr/share/licenses/opencode2api/LICENSE
+LABEL org.opencontainers.image.licenses="GPL-3.0-or-later"
 
 # LISTEN_ADDRESS / WEBUI_LISTEN_ADDRESS are intentionally unset: config.json is
 # authoritative. Export them to override the configured listen addresses.

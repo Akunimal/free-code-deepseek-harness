@@ -9,3 +9,7 @@ config.json.bak
 *.models.catalog.json
 coverage.out
 package-lock.json
+
+.local/
+*.rotation.json
+*.availability.json

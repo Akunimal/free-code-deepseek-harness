@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -73,6 +74,18 @@ func (g *Gateway) doUpstream(ctx context.Context, route models.Route, bodies map
 	// Restore the body so downstream error handling still sees the original
 	// payload when no retry happens below.
 	resp.Body = io.NopCloser(bytes.NewReader(errBody))
+	// Log a capped snippet of the upstream error body so the 400 class is
+	// visible without dumping full payloads. Bodies stay out of attempt
+	// records; the hub redactor scrubs configured secrets from log output.
+	if len(errBody) > 0 {
+		redactor := config.NewSecretRedactor()
+		redactor.Replace(g.cfg)
+		snippet := redactor.String(string(errBody))
+		if len(snippet) > 240 {
+			snippet = snippet[:240]
+		}
+		g.logger.Info("upstream error returned or retried", "component", "upstream", "event", "upstream_error_body", "request_id", ids.Request, "model", route.ID, "status", resp.StatusCode, "snippet", snippet)
+	}
 	if !isStaleReasoningReference(errBody) {
 		return resp, effectiveRoute, nil
 	}
@@ -289,7 +302,7 @@ func (g *Gateway) doAnonymousUpstream(ctx context.Context, route models.Route, b
 		}
 		setRequestCredential(ctx, config.TierZen, "anonymous", "anonymous", true, node.proxy)
 		started := time.Now()
-		resp, err := node.proxy.client.Do(req)
+		resp, err := doInferenceAttempt(node.proxy.client, req, time.Duration(g.cfg.Performance.FirstEventTimeoutSeconds)*time.Second)
 		duration := time.Since(started)
 		if ctx.Err() != nil {
 			// The parent budget expired while this attempt was in flight. Its
@@ -469,24 +482,6 @@ func anonymousTool(protocol wire.Protocol, name string) map[string]any {
 	}
 }
 
-// forceStreamBody returns a copy of body with streaming enabled. Bodies
-// that already stream (or are not JSON objects) are returned unchanged.
-func forceStreamBody(body []byte) []byte {
-	var payload map[string]any
-	if err := json.Unmarshal(body, &payload); err != nil {
-		return body
-	}
-	if streaming, ok := payload["stream"].(bool); ok && streaming {
-		return body
-	}
-	payload["stream"] = true
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		return body
-	}
-	return encoded
-}
-
 // requestBodyDumpLimit caps how much of an outbound body is written to the log.
 const requestBodyDumpLimit = 64 << 10
 
@@ -583,7 +578,7 @@ func (g *Gateway) doSelectedKeyUpstream(ctx context.Context, route models.Route,
 		return nil, err, 0
 	}
 	started := time.Now()
-	resp, err := proxy.client.Do(req)
+	resp, err := doInferenceAttempt(proxy.client, req, time.Duration(g.cfg.Performance.FirstEventTimeoutSeconds)*time.Second)
 	duration := time.Since(started)
 	g.recordUpstreamAttempt(ctx, route, ids, attemptOffset+1, keyID, "key", false, proxy, resp, err, duration)
 	if err != nil {
@@ -652,7 +647,7 @@ func (g *Gateway) doKeyUpstream(ctx context.Context, route models.Route, bodies 
 		keyID := config.KeyDisplayID(node.key)
 		setRequestCredential(ctx, route.Tier, keyID, "key", false, proxy)
 		attemptStarted := time.Now()
-		resp, err := proxy.client.Do(req)
+		resp, err := doInferenceAttempt(proxy.client, req, time.Duration(g.cfg.Performance.FirstEventTimeoutSeconds)*time.Second)
 		attemptDuration := time.Since(attemptStarted)
 		if ctx.Err() != nil {
 			// The request budget expired while this attempt was in flight. A
@@ -767,6 +762,25 @@ func (g *Gateway) recordUpstreamAttempt(ctx context.Context, route models.Route,
 	if meta := telemetry.MetaFromContext(ctx); meta != nil {
 		meta.AttemptOutcome = outcome
 		meta.Protocol = route.Protocol
+		// Append a per-attempt leg (key:status:ms, anonymized for the
+		// public lane) so the request log shows the whole attempt chain
+		// at a glance. Only the redacted key suffix is retained.
+		label := keyID
+		if anonymous {
+			label = "anon"
+		}
+		leg := label + ":"
+		if err != nil {
+			if errors.Is(err, context.DeadlineExceeded) {
+				leg += "timeout"
+			} else {
+				leg += "transport"
+			}
+		} else {
+			leg += strconv.Itoa(status)
+		}
+		leg += ":" + strconv.FormatInt(max(duration.Milliseconds(), 0), 10) + "ms"
+		meta.Legs = append(meta.Legs, leg)
 	}
 	if g.monitor == nil {
 		return

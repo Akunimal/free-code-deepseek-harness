@@ -41,15 +41,6 @@ type bridgeStreamEvent struct {
 	Usage      *Usage
 }
 
-func transcodeStream(w http.ResponseWriter, reader io.Reader, from, to Protocol, model string) error {
-	_, _, err := transcodeStreamWithUsage(w, reader, from, to, model)
-	return err
-}
-
-func transcodeStreamWithUsage(w http.ResponseWriter, reader io.Reader, from, to Protocol, model string) (Usage, bool, error) {
-	return TranscodeStream(context.Background(), w, reader, from, to, model)
-}
-
 // TranscodeStream is the request-aware form used by the
 // gateway. A cancelled client must not receive a synthetic upstream error
 // after its connection has gone away.
@@ -156,10 +147,6 @@ func (writer *sseFlushWriter) Write(data []byte) (int, error) {
 		writer.flusher.Flush()
 	}
 	return n, err
-}
-
-func forwardSSEWithUsage(w http.ResponseWriter, reader io.Reader, protocol Protocol, model string) (Usage, bool, error) {
-	return ForwardStream(context.Background(), w, reader, protocol, model)
 }
 
 func ForwardStream(ctx context.Context, w http.ResponseWriter, reader io.Reader, protocol Protocol, model string) (Usage, bool, error) {

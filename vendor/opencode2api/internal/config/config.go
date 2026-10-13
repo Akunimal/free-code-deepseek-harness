@@ -16,24 +16,23 @@ import (
 )
 
 type Config struct {
-	Listen      string            `json:"listen"`
-	ServerKeys  []string          `json:"server_keys"`
-	ZenKeys     []string          `json:"zen_keys"`
-	GoKeys      []string          `json:"go_keys"`
-	Anonymous   bool              `json:"anonymous"`
-	Proxies     []string          `json:"proxies"`
-	ProxyFile   string            `json:"proxyfile"`
-	Upstream    UpstreamConfig    `json:"upstream"`
-	Retry       RetryConfig       `json:"retry"`
-	Models      ModelsConfig      `json:"models"`
-	Performance PerformanceConfig `json:"performance"`
-	Logging     LoggingConfig     `json:"logging"`
-	WebUI       WebUIConfig       `json:"webui"`
-	Prefer      Tier              `json:"prefer"`
-	// Reasoning configures a forced thinking level. Both fields are optional
-	// and empty by default, so an existing configuration keeps the client's own
-	// level untouched.
-	Reasoning ReasoningConfig `json:"reasoning"`
+	Rotation          RotationConfig               `json:"rotation"`
+	Listen            string                       `json:"listen"`
+	ServerKeys        []string                     `json:"server_keys"`
+	ServerKeyMetadata map[string]ServerKeyMetadata `json:"server_key_metadata,omitempty"`
+	ZenKeys           []string                     `json:"zen_keys"`
+	GoKeys            []string                     `json:"go_keys"`
+	Anonymous         bool                         `json:"anonymous"`
+	Proxies           []string                     `json:"proxies"`
+	ProxyFile         string                       `json:"proxyfile"`
+	Upstream          UpstreamConfig               `json:"upstream"`
+	Retry             RetryConfig                  `json:"retry"`
+	Models            ModelsConfig                 `json:"models"`
+	Performance       PerformanceConfig            `json:"performance"`
+	Logging           LoggingConfig                `json:"logging"`
+	WebUI             WebUIConfig                  `json:"webui"`
+	Prefer            Tier                         `json:"prefer"`
+	Reasoning         ReasoningConfig              `json:"reasoning"`
 
 	effectiveProxies []string
 }
@@ -86,13 +85,14 @@ type WebUIConfig struct {
 }
 
 type PerformanceConfig struct {
-	MaxIdleConns           int `json:"max_idle_conns"`
-	MaxIdleConnsPerHost    int `json:"max_idle_conns_per_host"`
-	MaxConnsPerHost        int `json:"max_conns_per_host"`
-	IdleConnTimeoutSeconds int `json:"idle_conn_timeout_seconds"`
-	ConnectTimeoutSeconds  int `json:"connect_timeout_seconds"`
-	FailureCooldownSeconds int `json:"failure_cooldown_seconds"`
-	AttemptTimeoutSeconds  int `json:"attempt_timeout_seconds"`
+	MaxIdleConns             int `json:"max_idle_conns"`
+	MaxIdleConnsPerHost      int `json:"max_idle_conns_per_host"`
+	MaxConnsPerHost          int `json:"max_conns_per_host"`
+	IdleConnTimeoutSeconds   int `json:"idle_conn_timeout_seconds"`
+	ConnectTimeoutSeconds    int `json:"connect_timeout_seconds"`
+	FailureCooldownSeconds   int `json:"failure_cooldown_seconds"`
+	AttemptTimeoutSeconds    int `json:"attempt_timeout_seconds"`
+	FirstEventTimeoutSeconds int `json:"first_event_timeout_seconds"`
 }
 
 // AttemptTimeout bounds how long a single upstream attempt may wait for
@@ -150,6 +150,10 @@ func Load(path string) (Config, error) {
 // Normalize resolves external inputs and validates a Config supplied by
 // either the JSON file or the authenticated management API.
 func Normalize(path string, cfg Config) (Config, error) {
+	cfg.Rotation.Defaults()
+	if err := cfg.Rotation.Validate(nil); err != nil {
+		return Config{}, err
+	}
 	trimList(&cfg.ServerKeys)
 	trimList(&cfg.ZenKeys)
 	trimList(&cfg.GoKeys)
@@ -174,6 +178,9 @@ func Normalize(path string, cfg Config) (Config, error) {
 	if len(cfg.ServerKeys) == 0 {
 		return Config{}, errors.New("server_keys must contain at least one local key")
 	}
+	if cfg.FirstEnabledServerKey() == "" {
+		return Config{}, errors.New("至少保留一个启用的 API Key")
+	}
 	if !cfg.Anonymous && len(cfg.ZenKeys) == 0 && len(cfg.GoKeys) == 0 {
 		return Config{}, errors.New("zen_keys or go_keys must contain at least one upstream key unless anonymous is enabled")
 	}
@@ -191,6 +198,9 @@ func Normalize(path string, cfg Config) (Config, error) {
 	}
 	if cfg.Performance.AttemptTimeoutSeconds < 0 {
 		return Config{}, errors.New("performance.attempt_timeout_seconds must not be negative (0 keeps the retry timeout)")
+	}
+	if cfg.Performance.FirstEventTimeoutSeconds < 0 || cfg.Performance.FirstEventTimeoutSeconds > 86400 {
+		return Config{}, errors.New("performance.first_event_timeout_seconds must be between 0 and 86400 (0 disables the first-event timeout)")
 	}
 	if cfg.Logging.Level != "debug" && cfg.Logging.Level != "info" && cfg.Logging.Level != "warn" && cfg.Logging.Level != "error" {
 		return Config{}, errors.New("logging.level must be debug, info, warn, or error")
@@ -281,10 +291,10 @@ func normalizeReasoning(cfg *Config) error {
 // plus an empty string, which means "not forced".
 func validateEffort(name, value string) error {
 	switch value {
-	case "", "minimal", "low", "medium", "high", "xhigh", "max", "none":
+	case "", "auto", "minimal", "low", "medium", "high", "xhigh", "max", "none":
 		return nil
 	default:
-		return fmt.Errorf("%s must be one of minimal, low, medium, high, xhigh, max, none, or empty to disable the override", name)
+		return fmt.Errorf("%s must be one of auto, minimal, low, medium, high, xhigh, max, none, or empty to disable the override", name)
 	}
 }
 
@@ -317,7 +327,14 @@ func (cfg *Config) PasswordForSave() {
 }
 
 func Clone(cfg Config) Config {
+	cfg.Rotation.SOTA.Order = append([]string(nil), cfg.Rotation.SOTA.Order...)
+	cfg.Rotation.Sweet.Order = append([]string(nil), cfg.Rotation.Sweet.Order...)
 	cfg.ServerKeys = append([]string(nil), cfg.ServerKeys...)
+	metadata := make(map[string]ServerKeyMetadata, len(cfg.ServerKeyMetadata))
+	for id, item := range cfg.ServerKeyMetadata {
+		metadata[id] = item
+	}
+	cfg.ServerKeyMetadata = metadata
 	cfg.ZenKeys = append([]string(nil), cfg.ZenKeys...)
 	cfg.GoKeys = append([]string(nil), cfg.GoKeys...)
 	cfg.Proxies = append([]string(nil), cfg.Proxies...)

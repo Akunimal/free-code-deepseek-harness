@@ -16,6 +16,11 @@ WebUI 内嵌在可执行文件中，运行服务无需 Node.js 或数据库。
 - 动态模型发现、原生协议与能力信息、磁盘缓存。
 - 独立管理端口，支持配置编辑、Playground、路由诊断、Token 统计和实时日志。
 - 配置热重载：先验证新配置，再切换新请求使用的 Gateway。
+- Go 共享套餐额度看板，显示剩余百分比、重置时间和可用模型。
+- API Key 生成、自定义、命名、启停和删除，变更立即生效。
+- `sota` / `sweet` 分组别名，支持模型排序、故障切换、流式输出保护和状态恢复。
+
+新增页面及调用示例见[管理控制台说明](docs/management.zh-CN.md)。
 
 ## 快速开始
 
@@ -111,6 +116,7 @@ docker run -d --name opencode2api \
 | POST | `/v1/chat/completions` | Chat Completions。         |
 | POST | `/v1/responses`        | Responses。                |
 | POST | `/v1/messages`         | Anthropic Messages。       |
+| POST | `/v1/systemone`        | System One 结构化决策。    |
 | GET  | `/healthz`             | 就绪状态与资源汇总。       |
 
 先获取可用模型：
@@ -152,6 +158,17 @@ curl http://localhost:8080/v1/messages \
 
 需要流式响应时，在请求体中加入 `"stream": true`，并使用 `curl -N`。响应通过 `x-request-id` 提供请求关联标识。API 请求体上限为 32 MiB。
 
+**System One**
+
+```bash
+curl http://localhost:8080/v1/systemone \
+  -H "Authorization: Bearer YOUR_LOCAL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"MODEL_ID","state":"1 + 1 = 2","questions":{"arithmetic":{"type":"noul","instructions":"Is 1 + 1 equal to 2?"}}}'
+```
+
+System One 将自由文本状态与类型化问题配对，并返回类型化答案，因此其负载与 chat/responses 桥接结构完全不同，只做原样转发，不做任何转换。只有原生协议为 System One 的模型才能在本接口提供服务；在消息接口（`/v1/chat/completions`、`/v1/responses`）上提交的决策负载同样原样转发，而不经过转换。上游的流式回复按原样透传，不做中断恢复。
+
 ### 协议兼容边界
 
 客户端协议与上游原生协议相同时，会保留供应商特有字段。跨协议请求经过统一中间结构转换，部分参数没有等价表达。例如，Chat 的 JSON 输出约束与 `seed` 不会被转发到 Anthropic Messages。不支持的内容块或工具类型可能被拒绝。
@@ -179,14 +196,14 @@ curl http://localhost:8080/v1/messages \
 
 协议值仅允许 `chat`、`responses`、`anthropic`。使用不支持的原生协议的模型会从模型列表中隐藏，除非配置了覆盖值。
 
-成本和弃用信息来自 [models.dev](https://models.dev/api.json)，每 24 小时刷新一次；每个 HTTP 客户端的拉取超时为 30 秒。刷新失败时保留已有数据。
+成本、弃用信息及模型限制来自官方 [OpenCode 元数据地址](https://models.opencode.ai/api.json)，每 24 小时刷新一次。能力目录中的限制优先；元数据中的 `limit.context`、`limit.input` 和 `limit.output` 仅补充缺失字段，通过 `/v1/models` 的 `context_window` / `context_length`、`max_input`、`max_output` 暴露。每个 HTTP 客户端的拉取超时为 30 秒，刷新失败时保留已有数据。升级后继续兼容原有 `.models.dev.json` 缓存文件名，无需删除缓存。
 
 ### 匿名通道与回退
 
 启用 `anonymous: true` 后，满足以下任一条件的模型可以进入 Zen 匿名通道：
 
 - 模型 ID 包含 `free`，不区分大小写。
-- models.dev 中的输入、输出成本均为零，且模型未弃用。
+- OpenCode 元数据中的输入、输出成本均为零，且模型未弃用。
 
 这只是网关的路由判断，上游仍可能拒绝或限制请求。匿名请求在上游认证头中使用 `public` 凭证。
 
@@ -198,9 +215,23 @@ curl http://localhost:8080/v1/messages \
 
 匿名阶段不受 `retry.max_attempts` 截断，但所有阶段共享请求总超时。网络错误、认证失败、限流和服务端错误可以触发 Key 轮换；其他 4xx 会结束当前 Tier，仍可继续尝试另一个可用 Tier。
 
-每个 Tier 使用自己的原生协议编码请求。流开始后不再切换节点重新生成。识别到过期的 Responses reasoning 引用时，可执行一次修复重试；指定 Key 的诊断不会执行该重试。
+每个 Tier 使用自己的原生协议编码请求。启用 `performance.first_event_timeout_seconds` 后，会先等待完整的 SSE data 事件再向客户端交付响应；注释心跳不算首事件。首事件前超时或断开会沿用现有 Key / 代理重试预算，交付后不再重放。默认 `0` 关闭，可对接受请求后无事件的上游尝试设置为 `15` 秒。它限制首事件而非首个文本 token，不适用于 System One；轮转别名使用独立的 `rotation.first_output_seconds`。识别到过期的 Responses reasoning 引用时，可执行一次修复重试；指定 Key 的诊断不会执行该重试。
 
 只有匿名通道可用时，`/v1/models` 仅展示符合匿名条件的模型。
+
+### 免费模型可用性
+
+只探测 ID 含 `free`（不区分大小写），或元数据输入、输出价格均为零且未弃用的模型，按模型原生协议发送简短探测请求。先尝试已启用的匿名通道，再尝试一个配置的 Zen Key；任一通道返回完整有效响应即视为可用，只有所有实际尝试的通道都明确返回模型不存在或已下架时才自动禁用，从模型列表与路由中移除。认证失败、429、超时、网络错误、5xx 和响应格式异常均视为结果不确定，不新增禁用，1 小时后复测。探测不修改生产 Key / 代理的冷却状态，也不计入请求统计，但仍会访问上游并可能消耗免费额度。
+
+System One 使用原生 `noul` 类型询问“1+1 是否等于 2”，不注入聊天或工具字段。模型列表标明 `native_protocol` 和 `supported_endpoints`；仅在配置 Go Key 且有可用模型时展示轮转别名。升级时解除 v1.3.6 旧探测生成的禁用并立即安排复测，避免非法会话 ID 造成的误判继续保留。
+
+周期硬编码：正常模型每 **1 小时**探测，明确失效模型每 **24 小时**复测。已禁用模型到期复测遇到临时错误时，保留原禁用原因并在 24 小时后重试；复测成功自动恢复。也可在 WebUI「免费模型可用性」页立即恢复启用，进入手动控制：保持启用且不再自动探测，也不会被在途或后续探测结果覆盖；如需回到自动探测，在同一页面按「切回自动」，下一轮调度即安排探测。旧版本留下的 `manually_enabled` 记录在启动时自动迁移为手动控制。没有可用 Zen / 匿名通道，或推理协议不支持探测时跳过，不自动禁用。
+
+手动控制也会暂停 `reasoning.effort=auto` 的档位探测；已验证档位超过 2 小时后不再强制下发。切回自动后可重新探测档位。
+
+状态保存在 `config.json.<上游地址指纹>.availability.json`，重启后保留，按 Zen 上游 URL 隔离。后台每分钟检查到期项，跳过手动控制的模型，串行探测其余模型，每条通道最多等待 60 秒。
+
+管理接口：`GET /api/models/availability` 查看状态；`POST /api/models/restore` 携带 `{"model":"MODEL_ID"}` 恢复并进入手动控制；`POST /api/models/manual` 携带 `{"model":"MODEL_ID","manual":true|false}` 在手动与自动之间切换。均需管理登录，写入接口还需 CSRF 校验。
 
 ### 会话与代理
 
@@ -218,21 +249,21 @@ Key 初始化时均衡分配到代理。真实流量可以触发代理检查、K
 
 ### Key、监听地址与路由
 
-| 字段                        | 默认值或要求                                                                  |
-| --------------------------- | ----------------------------------------------------------------------------- |
-| `listen`                    | `127.0.0.1:8080`。                                                            |
-| `server_keys`               | 至少一个本地 Key。                                                            |
-| `zen_keys`、`go_keys`       | 未启用匿名模式时，至少需要一个上游 Key。                                      |
-| `anonymous`                 | `false`。                                                                     |
-| `prefer`                    | `go`；可选 `go`、`zen`。                                                      |
-| `upstream.zen`              | `https://opencode.ai/zen`。                                                   |
-| `upstream.go`               | `https://opencode.ai/zen/go`。                                                |
-| `proxies`                   | 两个代理来源都为空时，使用 `["direct"]`。                                     |
-| `proxyfile`                 | 可选；相对路径基于配置文件所在目录解析。                                      |
-| `models.refresh_seconds`    | `300`；最小为 1。                                                             |
-| `models.protocols`          | `{}`；按模型 ID 覆盖原生协议。                                                |
-| `reasoning.effort`          | 空（关闭）；可选 `minimal`、`low`、`medium`、`high`、`xhigh`、`max`、`none`。 |
-| `reasoning.effort_by_model` | `{}`；按模型 ID 覆盖 `reasoning.effort`。                                     |
+| 字段                        | 默认值或要求                                                                          |
+| --------------------------- | ------------------------------------------------------------------------------------- |
+| `listen`                    | `127.0.0.1:8080`。                                                                    |
+| `server_keys`               | 至少一个本地 Key。                                                                    |
+| `zen_keys`、`go_keys`       | 未启用匿名模式时，至少需要一个上游 Key。                                              |
+| `anonymous`                 | `false`。                                                                             |
+| `prefer`                    | `go`；可选 `go`、`zen`。                                                              |
+| `upstream.zen`              | `https://opencode.ai/zen`。                                                           |
+| `upstream.go`               | `https://opencode.ai/zen/go`。                                                        |
+| `proxies`                   | 两个代理来源都为空时，使用 `["direct"]`。                                             |
+| `proxyfile`                 | 可选；相对路径基于配置文件所在目录解析。                                              |
+| `models.refresh_seconds`    | `300`；最小为 1。                                                                     |
+| `models.protocols`          | `{}`；按模型 ID 覆盖原生协议。                                                        |
+| `reasoning.effort`          | 空（关闭）；可选 `auto`、`minimal`、`low`、`medium`、`high`、`xhigh`、`max`、`none`。 |
+| `reasoning.effort_by_model` | `{}`；按模型 ID 覆盖 `reasoning.effort`。                                             |
 
 ### 强制思考强度
 
@@ -449,3 +480,17 @@ npm run check:web
 ## 致谢
 
 感谢 [LINUX DO](https://linux.do) 社区的支持。
+
+### 自适应思考强度
+
+将 `reasoning.effort` 或按模型覆盖值设置为 `auto`，即可使用免费模型探测实际验证过的最高可用档。已有具体档位语义不变，客户端显式指定的强度始终优先，不维护模型名称白名单。
+
+基础请求成功后，对能力目录标记支持 reasoning 的模型依次验证 `max`、`xhigh`、`high`、`medium`、`low`、`minimal`。只有明确的思考参数不支持错误才尝试下一档；429、超时等临时失败会停止搜索，不能据此判断模型档位上限。全部档位均被拒绝时，不注入思考覆盖。
+
+结果按上游 URL、模型与原生协议持久化，在可用性页展示，最多使用两小时内的验证结果。主动探测仍只覆盖免费 Zen/匿名模型；Go/付费模型、能力未知或尚未验证的模型不猜测档位。开启 `auto` 不扩大探测范围，也不能证明上游一定执行了所有接受的字段；每个模型可能增加数次简短请求并消耗上游额度。
+
+## 许可证
+
+SPDX-License-Identifier: GPL-3.0-or-later
+
+本项目是自由软件，采用自由软件基金会发布的 GNU 通用公共许可证第 3 版或（由你选择的）任何后续版本。你可以按该许可证重新分发和修改本项目；本项目不提供任何担保。完整条款见 [LICENSE](LICENSE)。

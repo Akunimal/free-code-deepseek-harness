@@ -61,6 +61,7 @@ type Catalog struct {
 	updatedAt       time.Time
 	prefer          config.Tier
 	pricing         *PricingStore
+	availability    *AvailabilityStore
 	cachePath       string
 	cacheSource     string
 	stale           bool
@@ -94,6 +95,12 @@ func NewCatalog(prefer config.Tier, overrides map[string]string) *Catalog {
 func (c *Catalog) SetPricingStore(store *PricingStore) {
 	c.mu.Lock()
 	c.pricing = store
+	c.mu.Unlock()
+}
+
+func (c *Catalog) SetAvailabilityStore(store *AvailabilityStore) {
+	c.mu.Lock()
+	c.availability = store
 	c.mu.Unlock()
 }
 
@@ -197,6 +204,9 @@ func (c *Catalog) Route(model string, hasZenKeys, hasGoKeys, hasAnonymous bool) 
 }
 
 func (c *Catalog) routeLocked(model string, hasZenKeys, hasGoKeys, hasAnonymous bool) (Route, error) {
+	if c.availability != nil && c.availability.Disabled(model) {
+		return Route{}, fmt.Errorf("model %q is disabled after a failed availability check; restore it in the WebUI or wait for the next probe", model)
+	}
 	keyTiers := c.keyTierOrderLocked(model, hasZenKeys, hasGoKeys)
 	// OpenCode's public credential is a Zen-only lane. Every free model starts
 	// there, even if the current catalog only advertises it on Go: an upstream
@@ -291,6 +301,9 @@ func (c *Catalog) RouteForTier(model string, tier config.Tier, hasZenKeys, hasGo
 	}
 	c.mu.RLock()
 	defer c.mu.RUnlock()
+	if c.availability != nil && c.availability.Disabled(model) {
+		return Route{}, fmt.Errorf("model %q is disabled after a failed availability check", model)
+	}
 	catalogPending := len(c.zen) == 0 && len(c.goModels) == 0
 	advertised := c.zen[model]
 	if tier == config.TierGo {
@@ -451,12 +464,34 @@ func (c *Catalog) Supported(model string) bool {
 // the tier that will actually serve the request. Same-named models can carry
 // different limits per tier, so callers must pass route.Tier — never a
 // tier-blind lookup. Anonymous routes always resolve to TierZen, which keeps
-// the keyless path on Zen metadata. The zero value is returned for models
-// the catalog does not describe (or before the first capability refresh).
+// the keyless path on Zen metadata. Limits the catalog omitted are filled from
+// models.dev; capability flags always come from the catalog. The zero value is
+// returned for models neither source describes (or before the first refresh).
 func (c *Catalog) MetadataForTier(model string, tier config.Tier) Metadata {
 	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.modelMeta[tier][model]
+	md := c.modelMeta[tier][model]
+	pricing := c.pricing
+	c.mu.RUnlock()
+	if pricing == nil {
+		return md
+	}
+	price, ok := pricing.Price(model)
+	if !ok {
+		return md
+	}
+	// OpenCode's capability catalog is authoritative. Use models.dev limits
+	// only to fill fields it omitted so discovery clients still get per-model
+	// context and output limits.
+	if md.ContextWindow == 0 {
+		md.ContextWindow = price.ContextWindow
+	}
+	if md.MaxInput == 0 {
+		md.MaxInput = price.MaxInput
+	}
+	if md.MaxOutput == 0 {
+		md.MaxOutput = price.MaxOutput
+	}
+	return md
 }
 
 func (c *Catalog) supportedLocked(model string) bool {

@@ -128,7 +128,8 @@ jobs:
         run: |
           mkdir -p "dist/$PACKAGE_NAME"
           go build -trimpath -ldflags="-s -w -X main.version=$RELEASE_TAG" -o "dist/$PACKAGE_NAME/opencode2api$EXTENSION" ./cmd/opencode2api
-          cp README.md README.zh-CN.md config.example.json "dist/$PACKAGE_NAME/"
+          cp README.md README.zh-CN.md LICENSE config.example.json "dist/$PACKAGE_NAME/"
+          cp -r docs "dist/$PACKAGE_NAME/"
           if [[ "$ARCHIVE_FORMAT" == "zip" ]]; then
             (cd dist && zip -q -r "$PACKAGE_NAME.zip" "$PACKAGE_NAME")
             archive="$PACKAGE_NAME.zip"
@@ -184,6 +185,7 @@ jobs:
           labels: |
             org.opencontainers.image.title=opencode2api
             org.opencontainers.image.description=OpenAI-compatible API gateway for OpenCode Zen and Go
+            org.opencontainers.image.licenses=GPL-3.0-or-later
 
       - name: Build and push image
         uses: docker/build-push-action@v6

@@ -10,6 +10,9 @@ import (
 	"math/big"
 	"net/http"
 	"regexp"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	"opencode2api/internal/jsonutil"
 )
@@ -85,25 +88,59 @@ func StableID(prefix, value string) string {
 
 // canonicalSessionPattern matches OpenCode's canonical session format:
 // "ses_" + 12 lowercase hex timestamp characters + 14 Base62 characters.
-// Since 2026-09-16 the Zen free tier (Authorization: Bearer public) rejects
-// any other session shape with 403 FreeTierError.
+// The Zen free tier decodes the leading 12 hex characters as an inverted
+// millisecond timestamp and rejects any session whose prefix is not one with
+// 403 FreeTierError, so the timestamp half must be minted, not hashed.
 var canonicalSessionPattern = regexp.MustCompile(`^ses_[0-9a-f]{12}[0-9A-Za-z]{14}$`)
 
 const base62Alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
+// sessionCacheLimit bounds the signal-to-session cache. Conversation seeds can
+// be large, so entries are keyed by digest and the whole map is dropped when it
+// fills, which costs affinity for the oldest conversations only.
+const sessionCacheLimit = 8192
+
+var (
+	sessionCacheMu sync.Mutex
+	sessionCache   = make(map[string]string)
+	sessionCounter atomic.Uint64
+)
+
 // CanonicalSessionID returns signal unchanged when it already carries an
 // official OpenCode session (preserving upstream prompt-cache affinity).
 // Any other downstream identity (UUIDs, foreign client sessions, legacy
-// gateway sessions, conversation seeds) is deterministically hashed into the
-// canonical shape so the same conversation keeps a stable session.
+// gateway sessions, conversation seeds) gets a stable minted session so the
+// same conversation keeps its key/proxy affinity across turns.
 func CanonicalSessionID(signal string) string {
 	if canonicalSessionPattern.MatchString(signal) {
 		return signal
 	}
 	sum := sha256.Sum256([]byte("ses\x00" + signal))
-	timePart := hex.EncodeToString(sum[:6])
+	key := string(sum[:])
+	sessionCacheMu.Lock()
+	if id, ok := sessionCache[key]; ok {
+		sessionCacheMu.Unlock()
+		return id
+	}
+	sessionCacheMu.Unlock()
 	randomPart := base62Fixed(new(big.Int).SetBytes(sum[6:16]), 14)
-	return "ses_" + timePart + randomPart
+	id := "ses_" + mintedTimePrefix() + randomPart
+	sessionCacheMu.Lock()
+	if len(sessionCache) >= sessionCacheLimit {
+		sessionCache = make(map[string]string)
+	}
+	sessionCache[key] = id
+	sessionCacheMu.Unlock()
+	return id
+}
+
+// mintedTimePrefix renders the 12 hex characters OpenCode derives from
+// ~(unix_ms*0x1000+counter) truncated to its low 48 bits, mirroring the
+// descending ID scheme in the OpenCode client.
+func mintedTimePrefix() string {
+	counter := sessionCounter.Add(1) & 0xfff
+	current := uint64(time.Now().UnixMilli())*0x1000 + counter
+	return fmt.Sprintf("%012x", ^current&0xFFFFFFFFFFFF)
 }
 
 func base62Fixed(n *big.Int, width int) string {

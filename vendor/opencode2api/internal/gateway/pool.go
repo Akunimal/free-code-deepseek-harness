@@ -38,7 +38,6 @@ type transportPool struct {
 // changing proxy is the failover mechanism because Zen rate-limits them by IP.
 type anonymousPool struct {
 	nodes    []*anonymousNode
-	next     atomic.Uint64
 	cooldown time.Duration
 }
 
@@ -77,13 +76,10 @@ func (p *anonymousPool) CursorFor(affinity string) anonymousCursor {
 	if p == nil || len(p.nodes) == 0 {
 		return anonymousCursor{pool: p}
 	}
-	// FreeCode direct-first policy (0.9.1): the shell always configures
-	// 'direct' as proxies[0] with Tor as failover. Every anonymous request
-	// starts on direct; any non-2xx advances to the next proxy (Tor) inside
-	// doAnonymousUpstream, and MarkFailure cools a sick proxy so later
-	// requests skip it until recovery. Session-hash/round-robin starts are
-	// intentionally disabled: ~half the sessions would otherwise start on
-	// Tor and pay exit latency on healthy direct egress.
+	// FreeCode direct-first policy: the shell configures direct before Tor.
+	// Every anonymous request starts on direct; a non-2xx response advances
+	// to Tor inside the same gateway request. Avoid affinity hashing and
+	// round-robin starts, which send healthy sessions through Tor unnecessarily.
 	_ = affinity
 	return anonymousCursor{pool: p, start: 0}
 }
@@ -245,6 +241,9 @@ func (p *transportPool) checkClaimedProxy(ctx context.Context, proxy *proxyTrans
 // route is unavailable. HTTP responses and unrelated transport/protocol errors
 // must not evict a proxy.
 func isProxyFailure(err error) bool {
+	if errors.Is(err, errFirstEventTimeout) {
+		return false // The upstream accepted HTTP; slow generation is not a broken proxy.
+	}
 	if err == nil {
 		return false
 	}

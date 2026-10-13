@@ -16,6 +16,11 @@ The executable includes the WebUI. Running the service requires no Node.js runti
 - Dynamic model discovery, native protocol metadata, and disk caches.
 - A separate management port with configuration editing, a Playground, diagnostics, token statistics, and live logs.
 - Configuration hot reload with validation before switching new requests to a replacement gateway.
+- Go subscription quota dashboard with remaining percentages, reset times, and available models.
+- Local API key creation, naming, enabling, disabling, and deletion with immediate updates.
+- Sticky `sota` / `sweet` model groups with ordering, failure fallback, streaming protection, and persisted state.
+
+See the [management console guide (Chinese)](docs/management.zh-CN.md) for the new pages and configuration.
 
 ## Quick start
 
@@ -111,6 +116,7 @@ Send `Authorization: Bearer YOUR_LOCAL_API_KEY` or `x-api-key: YOUR_LOCAL_API_KE
 | POST   | `/v1/chat/completions` | Chat Completions.                                         |
 | POST   | `/v1/responses`        | Responses.                                                |
 | POST   | `/v1/messages`         | Anthropic Messages.                                       |
+| POST   | `/v1/systemone`        | System One structured decisions.                          |
 | GET    | `/healthz`             | Readiness and resource summary.                           |
 
 Discover an available model first:
@@ -152,6 +158,17 @@ curl http://localhost:8080/v1/messages \
 
 For streaming, add `"stream": true` to the body and use `curl -N`. Responses include an `x-request-id` for correlation. API request bodies are limited to 32 MiB.
 
+**System One**
+
+```bash
+curl http://localhost:8080/v1/systemone \
+  -H "Authorization: Bearer YOUR_LOCAL_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"MODEL_ID","state":"1 + 1 = 2","questions":{"arithmetic":{"type":"noul","instructions":"Is 1 + 1 equal to 2?"}}}'
+```
+
+System One pairs a free-form state with typed questions and returns typed answers, so the payload shares no shape with the chat/responses bridge and is relayed verbatim, never translated. Only models whose native protocol is System One are served here; a decision payload submitted on a message endpoint (`/v1/chat/completions`, `/v1/responses`) is likewise relayed verbatim instead of converted. Streaming upstream replies are relayed as-is without reset recovery.
+
 ### Compatibility boundaries
 
 Requests using the upstream's native protocol retain provider-specific fields. Requests crossing protocols pass through a common representation; not every option has an equivalent. For example, Chat JSON output constraints and `seed` are not forwarded to Anthropic Messages. Unsupported content or tool types may be rejected.
@@ -179,14 +196,14 @@ The gateway refreshes Zen/Go `/v1/models` and OpenCode's [capability catalog](ht
 
 Allowed protocol values are `chat`, `responses`, and `anthropic`. Models using unsupported native protocols are filtered from discovery unless overridden.
 
-Cost and deprecation metadata come from [models.dev](https://models.dev/api.json), refreshed every 24 hours. Metadata requests use a 30-second timeout per HTTP client. Refresh failures retain existing data.
+Cost, deprecation, and model limits come from the official [OpenCode metadata endpoint](https://models.opencode.ai/api.json), refreshed every 24 hours. OpenCode's capability catalog remains authoritative for context and token limits; metadata `limit.context`, `limit.input`, and `limit.output` fill fields missing from that catalog. These limits are exposed by `/v1/models` as `context_window`/`context_length`, `max_input`, and `max_output` for discovery clients such as CLIProxyAPI and Pi. Metadata requests use a 30-second timeout per HTTP client. Refresh failures retain existing data.
 
 ### Anonymous access and fallback
 
 With `anonymous: true`, either condition makes a model eligible for the anonymous Zen lane:
 
 - Its ID contains `free`, case-insensitively.
-- models.dev reports zero input and output cost and the model is not deprecated.
+- OpenCode metadata reports zero input and output cost and the model is not deprecated.
 
 Eligibility is a routing decision; the upstream can still reject or rate-limit the request. Anonymous requests use `public` in the upstream authentication header.
 
@@ -198,9 +215,23 @@ The routing sequence is:
 
 Anonymous attempts are not cut short by `retry.max_attempts`, but all attempts share the request timeout. Network errors, authentication failures, rate limits, and server errors can rotate keys. Other 4xx responses end the current tier; another available tier may still be tried.
 
-Requests are encoded for each tier's own protocol. Once a stream has started, the gateway does not retry generation on another node. A recognized stale Responses reasoning reference can trigger one repair pass; selected-key diagnostics never use that replay.
+Requests are encoded for each tier's own protocol. With `performance.first_event_timeout_seconds` enabled, a successful SSE response is held until the first complete data event. A timeout or disconnect before that event uses the existing key/proxy retry budget; comments do not satisfy the timeout. Once released downstream, the stream is never replayed. The default is `0` (disabled); try `15` seconds for upstreams that accept requests but send no events. This bounds the first event, not the first text token, and does not apply to System One. Rotation aliases use their separate `rotation.first_output_seconds` timeout. A recognized stale Responses reasoning reference can trigger one repair pass; selected-key diagnostics never use that replay.
 
 When only anonymous access is configured, `/v1/models` exposes only models eligible for that lane.
+
+### Free model availability
+
+The gateway probes models whose IDs contain `free` (case-insensitive), or whose metadata reports zero input/output cost without deprecation, with a short request using its native protocol. It tries the enabled anonymous lane first and then one configured Zen Key. A valid completed response on either lane keeps the model enabled; the model is disabled in discovery and routing only when every attempted lane explicitly reports that the model does not exist or has been retired. Authentication errors, rate limits, timeouts, transport errors, 5xx responses, and malformed replies are inconclusive: they do not create a new disable, and are checked again in one hour. Probe traffic does not alter production key/proxy cooldowns or request statistics. It still reaches the upstream and may consume its free allowance.
+
+System One models use a native `noul` question asking whether 1 + 1 equals 2; they are never sent chat/tool payloads. Model discovery includes `native_protocol` and `supported_endpoints`; rotation aliases are listed only when Go keys and eligible models exist. Legacy v1.3.6 disables are cleared on load and scheduled for immediate recheck because those probes used invalid session IDs.
+
+The intervals are fixed: enabled models are checked every **1 hour**, models confirmed unavailable every **24 hours**. An inconclusive due recheck of a disabled model preserves its original disable reason and schedules another retry in 24 hours. A successful recheck restores the model automatically. The WebUI **Free model availability** page can restore it immediately, which puts the model under manual control: it stays enabled and is excluded from automatic probing, so later probe results cannot overwrite it. Use the per-model **manual/automatic toggle** on the same page to return it to automatic probing; the next scheduler pass then schedules a probe. Records left as `manually_enabled` by older versions migrate to manual control on load. An in-flight probe cannot undo a manual restore. Models without a usable Zen/anonymous lane, or without a supported inference protocol, are skipped.
+
+Manual control also pauses effort discovery for `reasoning.effort=auto`; learned levels stop being forced after two hours without verification. Returning to automatic control allows effort discovery to resume.
+
+State survives restarts in `config.json.<upstream-fingerprint>.availability.json`, separated by the Zen upstream URL. The background scheduler checks for due models once per minute, skips manually controlled models, and probes the rest sequentially, with a 60-second timeout per lane. No channels available means no automatic disable.
+
+Administration endpoints (login required; writes also require CSRF): `GET /api/models/availability`, `POST /api/models/restore` with `{"model":"MODEL_ID"}` (restores and takes manual control), and `POST /api/models/manual` with `{"model":"MODEL_ID","manual":true|false}` to switch between manual and automatic control.
 
 ### Sessions and proxies
 
@@ -454,3 +485,17 @@ npm run check:web
 ## Acknowledgements
 
 Thanks to the [LINUX DO](https://linux.do) community for its support.
+
+### Adaptive reasoning effort
+
+Set `reasoning.effort` (or a per-model override) to `auto` to use the highest effort successfully validated by the free-model probe. Existing concrete levels retain their meaning and client-specified effort takes precedence. No model-name allowlist is maintained.
+
+After a baseline succeeds, reasoning-capable models are probed in `max`, `xhigh`, `high`, `medium`, `low`, `minimal` order. Only an explicit reasoning-parameter rejection advances to a lower level. Transient failures stop the search and cannot be interpreted as a lower capability ceiling. If every level is rejected, no reasoning override is injected.
+
+Observations are persisted by upstream URL, model and native protocol, displayed in the availability page, and used for at most two hours. Active probes cover only free Zen/anonymous models; Go/paid models, unknown capabilities and unverified levels receive no automatic override. Setting `auto` does not expand the probe scope or guarantee that upstreams enforce every accepted field. Probing may require several small requests per model and uses upstream allowance.
+
+## License
+
+SPDX-License-Identifier: GPL-3.0-or-later
+
+This project is free software: you may redistribute and modify it under the GNU General Public License as published by the Free Software Foundation, either version 3 or (at your option) any later version. It is distributed without any warranty. See [LICENSE](LICENSE) for the full terms.

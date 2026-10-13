@@ -21,16 +21,19 @@ import (
 )
 
 const (
-	modelsDevDefaultURL = "https://models.dev/api.json"
+	modelsDevDefaultURL = CapabilitiesURL
 	modelsDevRefresh    = 24 * time.Hour
 	modelsDevTimeout    = 30 * time.Second
 )
 
 type Price struct {
-	ID         string   `json:"id"`
-	Input      *float64 `json:"input_cost,omitempty"`
-	Output     *float64 `json:"output_cost,omitempty"`
-	Deprecated bool     `json:"deprecated"`
+	ID            string   `json:"id"`
+	Input         *float64 `json:"input_cost,omitempty"`
+	Output        *float64 `json:"output_cost,omitempty"`
+	ContextWindow int      `json:"context_window,omitempty"`
+	MaxInput      int      `json:"max_input,omitempty"`
+	MaxOutput     int      `json:"max_output,omitempty"`
+	Deprecated    bool     `json:"deprecated"`
 }
 
 type AnonymousDecision struct {
@@ -296,6 +299,7 @@ func decodeModelsDev(data []byte) (map[string]Price, error) {
 		}
 		return left < right
 	})
+	result := make(map[string]Price)
 	for _, key := range keys {
 		if metadataProviderRank(key) > 1 {
 			continue
@@ -310,22 +314,25 @@ func decodeModelsDev(data []byte) (map[string]Price, error) {
 				continue
 			}
 		}
-		models := jsonutil.MapAt(provider, "models")
-		if len(models) == 0 {
-			continue
-		}
-		result := make(map[string]Price, len(models))
-		for id, raw := range models {
+		for id, raw := range jsonutil.MapAt(provider, "models") {
 			model, _ := raw.(map[string]any)
 			modelID := jsonutil.FirstString(jsonutil.StringAt(model, "id"), id)
+			// Providers are sorted with OpenCode first, so keep its metadata
+			// for duplicate model IDs and use other OpenCode tiers to fill gaps.
+			if _, exists := result[modelID]; exists {
+				continue
+			}
 			cost := jsonutil.MapAt(model, "cost")
+			limit := jsonutil.MapAt(model, "limit")
 			result[modelID] = Price{
-				ID: modelID, Input: numberPointer(cost, "input"), Output: numberPointer(cost, "output"), Deprecated: metadataDeprecated(model),
+				ID: modelID, Input: numberPointer(cost, "input"), Output: numberPointer(cost, "output"),
+				ContextWindow: jsonutil.IntAt(limit, "context"), MaxInput: jsonutil.IntAt(limit, "input"), MaxOutput: jsonutil.IntAt(limit, "output"),
+				Deprecated: metadataDeprecated(model),
 			}
 		}
-		if len(result) > 0 {
-			return result, nil
-		}
+	}
+	if len(result) > 0 {
+		return result, nil
 	}
 	return nil, errors.New("models.dev contains no OpenCode model metadata")
 }
