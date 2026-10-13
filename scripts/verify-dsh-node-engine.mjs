@@ -19,6 +19,18 @@ export function nodeVersionSatisfiesEngine(version, range) {
   return semver.satisfies(version, range);
 }
 
+export const ELECTRON_NODE_PROBE_TIMEOUT_MS = 60_000;
+
+export function probeElectronNode(electronBinary, run = spawnSync) {
+  return run(electronBinary, ['-p', 'process.version'], {
+    cwd: root,
+    encoding: 'utf8',
+    timeout: ELECTRON_NODE_PROBE_TIMEOUT_MS,
+    windowsHide: true,
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+  });
+}
+
 export function verifyDshNodeEngine(runtimeDir = join(root, 'apps', 'shell', 'resources', 'freecode', 'dsh')) {
   const manifestPath = join(runtimeDir, 'package.json');
   if (!existsSync(manifestPath)) {
@@ -45,13 +57,7 @@ export function verifyDshNodeEngine(runtimeDir = join(root, 'apps', 'shell', 're
     return 2;
   }
 
-  const probe = spawnSync(electronBinary, ['-p', 'process.version'], {
-    cwd: root,
-    encoding: 'utf8',
-    timeout: 15_000,
-    windowsHide: true,
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
-  });
+  const probe = probeElectronNode(electronBinary);
   if (probe.error || probe.status !== 0) {
     console.error(`verify-dsh-node-engine: Electron runtime probe failed (status=${String(probe.status)}): ${probe.error?.message ?? probe.stderr ?? ''}`);
     return 2;
