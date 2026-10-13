@@ -1,5 +1,8 @@
 # Dependencies
 node_modules/
+apps/shell/omniroute-runtime/build/
+apps/shell/omniroute-runtime/runtime-manifest.json
+apps/shell/resources/freecode/omniroute-runtime.json
 .pnpm-store/
 
 # Build output

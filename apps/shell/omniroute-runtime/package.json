@@ -1,0 +1,10 @@
+{
+  "name": "@freecode/omniroute-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pinned production runtime for FreeCode's free-only OmniRoute fallback",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "omniroute": "3.8.51"
+  }
+}

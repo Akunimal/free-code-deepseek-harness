@@ -26,10 +26,13 @@ extraResources:
       - '**/*'
       - '!dsh'
       - '!dsh/**'
+      - '!omniroute-runtime.json'
       - '!.uv-cache/**'
       - '!.uv-cache'
       - '!.uv-tools/**'
       - '!.uv-tools'
+  - from: resources/freecode/omniroute-runtime.json
+    to: freecode/omniroute-runtime.json
 icon: build/icon.png
 win:
   icon: build/icon.ico
