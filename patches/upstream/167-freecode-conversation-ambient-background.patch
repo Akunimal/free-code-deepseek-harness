@@ -1,0 +1,70 @@
+diff --git a/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css b/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css
+index 3aa0a9d1f9..6054b3e744 100644
+--- a/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css
++++ b/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css
+@@ -1,5 +1,6 @@
+ .root {
+   position: relative; /* positioning context for slot-owned absolute chrome */
++  isolation: isolate;
+   display: flex;
+   flex-direction: column;
+   height: 100%;
+@@ -7,6 +8,57 @@
+   background: var(--dsw-alias-bg-base);
+ }
+-
++
++/* Decorative layers stay in the conversation's isolated stacking context,
++   behind content and hit targets. Pseudo-elements add no DOM or AT noise. */
++.root::before,
++.root::after {
++  content: '';
++  position: absolute;
++  inset: 0;
++  z-index: -1;
++  pointer-events: none;
++  background-repeat: no-repeat;
++}
++
++.root::before {
++  background: radial-gradient(
++    ellipse 76% 64% at 18% 25%,
++    color-mix(in srgb, var(--dsw-alias-state-business-primary) 16%, transparent) 0%,
++    transparent 72%
++  );
++  opacity: .72;
++  animation: dsh-conversation-ambient-drift-a 42s ease-in-out infinite alternate;
++}
++
++.root::after {
++  background: radial-gradient(
++    ellipse 68% 74% at 82% 78%,
++    color-mix(in srgb, var(--dsw-alias-state-business-tertiary) 14%, transparent) 0%,
++    transparent 74%
++  );
++  opacity: .62;
++  animation: dsh-conversation-ambient-drift-b 53s ease-in-out infinite alternate;
++}
++
++@keyframes dsh-conversation-ambient-drift-a {
++  from { transform: translate3d(-2%, -1%, 0) scale(1); }
++  to { transform: translate3d(2%, 1.5%, 0) scale(1.08); }
++}
++
++@keyframes dsh-conversation-ambient-drift-b {
++  from { transform: translate3d(2%, 1.5%, 0) scale(1.06); }
++  to { transform: translate3d(-2%, -1%, 0) scale(1); }
++}
++
++@media (prefers-reduced-motion: reduce) {
++  .root::before,
++  .root::after {
++    animation: none;
++    transform: none;
++    opacity: .22;
++  }
++}
++
+ /* 76px with its rule: the height of the Sidebar's tab strip and header row
+    (ui-dockkit `.tabStrip` 38px + the pane header's 38px), so the two rules
+    meet at the column edge. The rows add up to it — 10px top inset, the 30px

@@ -25,6 +25,12 @@ unpublished candidate; v0.9.3 remains the latest published Windows x64 release.
 - Gentle AI is back in the shipped Web selector as an explicit opt-in mode;
   Standard remains the default. / Gentle AI vuelve al selector Web incluido
   como modo optativo explícito; Standard sigue siendo el predeterminado.
+- Restored the two-layer CSS conversation atmosphere, including a static
+  `prefers-reduced-motion` fallback; the release gate now checks its specific
+  animation markers instead of unrelated generic CSS. / Se restauró el fondo
+  ambiental CSS de dos capas en las conversaciones, con alternativa estática
+  para `prefers-reduced-motion`; el gate de release verifica sus marcadores
+  propios y no animaciones CSS ajenas.
 
 ## 0.9.3 — 2026-10-12
 

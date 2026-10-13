@@ -1,10 +1,8 @@
 #!/usr/bin/env node
 /**
- * Ensure the shipped dynamic client bundle contains the conversation motion CSS.
- *
- * Updated for upstream v0.1.3-alpha.1 which refactored CSS class names.
- * The verification now checks for animation and motion-related CSS patterns
- * that confirm the conversation bundle is correctly built.
+ * Ensure the shipped dynamic client bundle contains FreeCode's conversation
+ * ambient layers. Generic animation/gradient checks are insufficient: the
+ * hero fish and composer already use those unrelated CSS features.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -18,15 +16,12 @@ const bundle = candidates.find(existsSync);
 if (!bundle) throw new Error(`conversation client bundle not found under ${root}`);
 const source = readFileSync(bundle, 'utf8');
 
-// Each group requires at least ONE match — different upstream versions use
-// different CSS class naming strategies.
+// Keyframe names are effect-specific and survive CSS-module scoping in the
+// emitted bundle, unlike component-local class names.
 const requiredGroups = [
-  // Conversation animation: keyframes or reduced-motion media query
-  ['@keyframes', 'prefers-reduced-motion'],
-  // Radial or linear gradient (conversation backgrounds)
-  ['radial-gradient', 'linear-gradient'],
-  // Animation/transform CSS (motion effects in conversation)
-  ['animation:', 'animation-name:'],
+  ['dsh-conversation-ambient-drift-a'],
+  ['dsh-conversation-ambient-drift-b'],
+  ['prefers-reduced-motion'],
 ];
 
 for (const requiredGroup of requiredGroups) {

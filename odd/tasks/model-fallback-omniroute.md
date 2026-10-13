@@ -1,0 +1,66 @@
+# OmniRoute free-only model fallback
+
+Repository task document: `odd/tasks/model-fallback-omniroute.md`.
+
+## Objective
+For v0.9.4, make a pinned OmniRoute 3.8.51 free-only fallback available without inflating the installer: fetch and SHA-256-verify its versioned runtime archive in the background on the app's first launch (like DSH), install it atomically in per-user app data, and only route through it after OpenCode Free has genuinely remained unavailable through its full recovery grace period. Keep the UI available while downloads/models warm, clearly explain fallback readiness/state, and return to OpenCode Free when it recovers. Restore the missing animated conversation atmosphere and make the release gate reject a bundle that omits it.
+
+## Problem and why
+The app currently refreshes only the bundled OpenCode Free lane. When its catalog is empty or its endpoint is unavailable, the user has no healthy model to continue with and receives no actionable fallback. Models can take time to load and respond, so neither one failed refresh nor a slow first-launch OmniRoute download proves the primary is unavailable. The user authorized OmniRoute 3.8.51 and its production dependency closure from the public npm registry, then explicitly chose a small installer with a verified first-launch download like DSH and automatic fallback with notice.
+
+## Scope
+- Pin OmniRoute 3.8.51 and its complete production dependency closure. Build a versioned runtime archive and small manifest containing the exact public release URL, version, platform policy, and SHA-256; ship only that manifest with the installer, never the ~500 MB extracted runtime/dependency tree.
+- On first app launch, start downloading the pinned archive in the background into an app-owned per-user `omniroute-runtime` directory; keep the shell and DSH startup usable while it downloads. Verify the archive digest before safe extraction, validate its manifest/entry/version, and atomically install it. Reuse a valid cache offline; retry an interrupted/failed download safely. Runtime is offline-ready after a successful first download.
+- Start the OmniRoute server lazily only when fallback is eligible; keep it loopback-only, hidden on Windows, app-owned, and stoppable through the existing runtime lifecycle. Do not launch arbitrary shell commands from archive content.
+- Route exclusively through `auto/coding:free`; force OmniRoute's empty-free-pool fallback to remain disabled so the path cannot select a paid model.
+- Probe only that exact model, add it only after a successful 200 response, auto-select it only when the current default is the FreeCode-managed OpenCode Free route, restore the prior/default OpenCode model on recovery, and never overwrite an unrelated user provider choice.
+- Keep OpenCode Free in a recovery/warm-up grace period before fallback: require the existing full sequence of eight 30-second no-responder retries (nine completed no-responder refreshes, roughly four minutes minimum), and reset the failure streak immediately after any OpenCode Free model responds. Endpoint/catalog errors use their existing bounded backoff and must also remain consecutive before failover.
+- If OmniRoute has not downloaded, is still warming, or has no verified free responder, leave it unselected and show a clear deduplicated Spanish/English/Chinese native notice. Do not mistake an incomplete/slow probe for no models. Update user documentation with first-launch download and free-only behavior.
+- Restore the two-layer, CSS-only ambient motion described in `docs/UI.md` behind the conversation content: compositor-friendly transforms, no image/canvas/timer, click-through and hidden from accessibility, with a faint static tint when `prefers-reduced-motion: reduce`. Deliver it as a FreeCode-owned overlay patch (not a direct vendor edit or upstream merge), and make bundle verification require this specific effect rather than unrelated generic animation/gradient CSS.
+
+## Constraints and authorization
+- TDD is enabled by explicit user choice: RED -> GREEN -> REFACTOR. Runner: pnpm/Vitest.
+- No direct changes to upstream/vendor source or merge toward upstream. FreeCode behavior added to upstream-owned files must remain in the repository's replayable patch stack.
+- Dependency downloads are authorized only for OmniRoute 3.8.51 and its production dependency closure from `https://registry.npmjs.org`, without credentials. Do not run dependency lifecycle scripts or add optional dependencies unless a concrete runtime requirement is proven.
+- Do not kill, inspect, restart, or otherwise touch the currently running FreeCode app. Do not launch FreeCode or execute the installer. Do not push, tag, publish, or upload release assets. Installer generation is outside the current scope.
+- Keep generated dependency trees/runtime archives out of Git; pin the complete production resolution in a tracked lockfile. Do not introduce a broad/root graph or include the previously excluded sensitive file in Graphify output.
+- No model outside OmniRoute's strictly free tier may be used as fallback; if no free responder exists, leave the fallback unselected and say so.
+- Do not block shell/DSH readiness on the optional OmniRoute download. A failed/slow bootstrap must remain recoverable and must not interrupt OpenCode Free.
+
+## Delivery
+- Current feature branch: `codex/v0.9.4-opencode2api-tor-hardening`.
+- Strategy: `single-pr` if the user later authorizes remote delivery; this work remains local, with no PR or push in this task.
+- Forecast: about 700 authored changed lines excluding generated lock/runtime artifacts; keep tests and user docs with behavior and update forecast from work-unit commits.
+- Each task closes with a Conventional Commit on this branch; commit identity is recorded below.
+
+## Acceptance criteria
+1. The installer contract contains only a small, exact-version manifest; the locked production dependency closure and server entry produce a versioned runtime archive plus correct SHA-256 without lifecycle scripts, optional deps, or generated trees entering Git.
+2. First app launch starts at most one background download; SHA mismatch, wrong version/entry, unsafe archive paths, incomplete extraction, and interrupted downloads never replace a working cache. Valid cache is reused without network and the app remains usable while setup is slow/unavailable.
+3. Runtime tests prove lazy server start after its runtime is ready, loopback-only binding, private app-owned data path, hidden process launch, forced free-only routing, ownership-safe shutdown, and idempotence.
+4. Model tests prove a single slow/no-response refresh never triggers failover, full consecutive recovery grace is honored and reset by any OpenCode Free 200 responder, only `auto/coding:free` is probed, zero/non-200 OmniRoute responders are never selected, user-owned defaults are preserved, and an automatically applied fallback restores when OpenCode Free recovers unless the user changed the selection.
+5. Localized notices do not repeat every refresh; the user docs explain the one-time first-launch download, unavailable-network behavior, and strict free-only policy.
+6. No tests, package checks, docs, or commits mutate the upstream vendor checkout or interact with the live FreeCode process.
+7. The conversation source and packaged client bundle contain the named ambient-background layers/animations; their reduced-motion fallback is static and the verification test fails if only unrelated composer/hero animations or gradients remain.
+
+## Tasks and evidence
+- [ ] `T1` Replace installer-bundled staging with a locked OmniRoute 3.8.51 runtime archive and checksum manifest; verify only the lightweight manifest enters desktop resources. Evidence: focused Vitest observed RED (3 failures), then 6/6 GREEN after archive/descriptor and builder-contract changes; full dependency staging/archive smoke is running. Commit: pending.
+- [ ] `T2` Implement and test first-launch background download, digest/manifest validation, safe atomic per-user installation, cache reuse, progress, and retry without blocking DSH/UI. Evidence/commit: pending.
+- [ ] `T3` Add the managed lazy, hidden, loopback-only OmniRoute child lifecycle and free-only server configuration; add unit tests. Evidence/commit: pending.
+- [ ] `T4` Add delayed verified failover/failback (full OpenCode Free grace), safe model selection, localized deduplicated notices, docs, and contract tests. Evidence/commit: pending.
+- [x] `T5` Restore and test the dynamic conversation background through a replayable FreeCode patch; tighten the bundle gate to reject false positives and document the actual reduced-motion/static fallback. Root-cause evidence: `docs/UI.md` promised two animated radial layers, but `ConversationRoot.module.css` had no atmosphere layer/animation; `scripts/verify-conversation-bundle.mjs` passed based on unrelated generic gradients/keyframes in conversation CSS. Evidence: observed RED before the patch; focused Vitest is GREEN (3/3). Applied patch only to a temporary vendor copy, built a real client bundle with tsdown (902.98 kB, 51.3 s), and verified that emitted bundle with the strict release verifier. The existing vendor checkout and its stale bundle remain untouched; the verifier correctly rejects that old bundle. Commit: pending.
+
+## Verification
+- Focused TDD runs for each task via `pnpm --dir apps/shell exec vitest run <focused tests>`; observe RED before implementation, GREEN, then REFACTOR.
+- T5 evidence: `pnpm --dir apps/shell exec vitest run tests/conversation-background.test.ts --pool=threads --poolOptions.threads.singleThread` passed 3/3; the patch replay and isolated tsdown client-bundle build passed the strict effect-specific verifier. The old unpatched vendor bundle intentionally fails the new gate until the normal upstream-patch/build pipeline is run for release.
+- Graph evidence: `graphify update apps/shell` completed; the shell graph includes `tests/conversation-background.test.ts` and excludes the generated `omniroute-runtime` staging tree after its ignore rule was tightened.
+- `pnpm --filter @freecode/shell typecheck`.
+- Runtime archive/manifest and packaging-contract verification for the exact locked production closure; do not execute installer.
+- Apply the new overlay in an isolated scratch vendor copy, build/inspect the conversation client bundle there, and assert the effect-specific keyframes and reduced-motion fallback; never mutate the live vendor checkout for this test.
+- Existing process-launch/headless inventory, relevant shell tests, and release-doc/locale contracts.
+- `graphify update <repo-root>` after code/docs edits, respecting the sensitive-file exclusion; report freshness status.
+
+## Next step
+Finish and verify the running T1 dependency stage/archive smoke, then close T1 with its work-unit commit before beginning T2. Preserve this task file and its Engram mirror as work progresses. During T4, encode the observed 8 × 30-second OpenCode Free no-responder retry window (nine consecutive completed misses) before allowing fallback; reset on a verified primary responder. Complete T5 before the v0.9.4 release gate.
+
+## Persistence status
+The Engram task mirror is pending re-sync: the runtime did not provide its registered session identity, so no agent-attributed memory write was attempted. Baseline mirror observation: #264 (`odd/model-fallback-omniroute/tasks`).

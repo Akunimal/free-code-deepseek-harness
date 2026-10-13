@@ -269,6 +269,17 @@
         "packages/contract-tests/tests/locale.contract.test.ts"
       ],
       "vendorOnly": true
+    },
+    {
+      "file": "167-freecode-conversation-ambient-background.patch",
+      "order": 167,
+      "owner": "freecode",
+      "description": "Restore the CSS-only animated conversation atmosphere with reduced-motion fallback",
+      "seam": "packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css",
+      "contractTests": [
+        "apps/shell/tests/conversation-background.test.ts"
+      ],
+      "vendorOnly": true
     }
   ]
 }
