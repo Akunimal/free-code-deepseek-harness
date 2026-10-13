@@ -4,6 +4,10 @@ Releases are manual and target Windows x64. This policy describes the real
 desktop/runtime boundary used by v0.9.3; it does not authorize touching a
 maintainer's running FreeCode instance.
 
+The current source version is v0.9.4 candidate; it remains unpublished until
+its validation is complete. The v0.9.3 assets and hashes below remain historical
+published evidence and must not be overwritten.
+
 ## Release contents and pinned runtime
 
 The v0.9.3 desktop release contains the NSIS setup, portable executable,
@@ -25,9 +29,9 @@ artifacts into a new, isolated output directory and verify that exact directory:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.3-final'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-candidate'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.3-final
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-candidate
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 

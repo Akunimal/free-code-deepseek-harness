@@ -6,11 +6,11 @@ import test from 'node:test';
 const root = resolve(import.meta.dirname, '..');
 const read = (relativePath) => readFileSync(join(root, relativePath), 'utf8');
 
-test('root and shell package metadata agree on the 0.9.3 source version', () => {
+test('root and shell package metadata agree on the 0.9.4 candidate source version', () => {
   const rootVersion = JSON.parse(read('package.json')).version;
   const shellVersion = JSON.parse(read('apps/shell/package.json')).version;
 
-  assert.equal(rootVersion, '0.9.3');
+  assert.equal(rootVersion, '0.9.4');
   assert.equal(shellVersion, rootVersion);
 });
 
@@ -31,12 +31,31 @@ test('bilingual release notes identify the published v0.9.3 Windows assets', () 
   assert.match(notes, /modo de solo lectura/i);
 });
 
-test('the changelog leads with 0.9.3 while retaining published 0.9.2 history', () => {
+test('bilingual 0.9.4 notes describe the candidate without claiming publication', () => {
+  const notes = read('release-notes-v0.9.4.md');
+  const english = notes.split('## English')[1]?.split('## Español')[0] ?? '';
+  const spanish = notes.split('## Español')[1] ?? '';
+
+  assert.match(notes, /^# FreeCode DeepSeek Harness v0\.9\.4/m);
+  assert.match(notes, /^## English$/m);
+  assert.match(notes, /^## Español$/m);
+  assert.match(notes, /candidate; not yet published/i);
+  assert.match(notes, /candidata; todavía no publicada/i);
+  assert.match(notes, /opencode2api v1\.3\.8/i);
+  assert.match(notes, /SAFECOOKIE[\s\S]*bootstrap/i);
+  assert.match(english, /Gentle AI[\s\S]*Standard remains the default/i);
+  assert.match(spanish, /Gentle AI[\s\S]*Standard sigue siendo el modo predeterminado/i);
+});
+
+test('the changelog leads with the 0.9.4 candidate and retains published history', () => {
   const changelog = read('CHANGELOG.md');
 
+  assert.match(changelog, /^## 0\.9\.4 — Candidate — 2026-10-13$/m);
+  assert.match(changelog, /bilingual v0\.9\.4 (?:candidate )?notes.*release-notes-v0\.9\.4\.md/i);
   assert.match(changelog, /^## 0\.9\.3 — 2026-10-12$/m);
-  assert.match(changelog, /bilingual v0\.9\.3 release notes.*release-notes-v0\.9\.3\.md/i);
+  assert.ok(changelog.indexOf('## 0.9.4') < changelog.indexOf('## 0.9.3'));
   assert.ok(changelog.indexOf('## 0.9.3') < changelog.indexOf('## 0.9.2'));
+  assert.match(changelog, /bilingual v0\.9\.3 release notes.*release-notes-v0\.9\.3\.md/i);
   assert.match(changelog, /Source range: `v0\.9\.2\.\.v0\.9\.3`/);
 });
 
@@ -44,8 +63,10 @@ test('English and Spanish READMEs identify v0.9.3 as the latest published releas
   const english = read('README.md');
   const spanish = read('README.es.md');
 
-  assert.match(english, /Source version: 0\.9\.3; latest published release: v0\.9\.3 \(Windows x64\)/i);
-  assert.match(spanish, /Versión de la fuente: 0\.9\.3; última release publicada: v0\.9\.3 \(Windows x64\)/i);
+  assert.match(english, /Source version: 0\.9\.4 \(candidate, not published\); latest published release: v0\.9\.3 \(Windows x64\)/i);
+  assert.match(spanish, /Versión de la fuente: 0\.9\.4 \(candidata, todavía no publicada\); última release publicada: v0\.9\.3 \(Windows x64\)/i);
+  assert.match(english, /v0\.9\.4 candidate notes/i);
+  assert.match(spanish, /notas candidatas de v0\.9\.4/i);
   assert.match(english, /v0\.9\.3 release notes/i);
   assert.match(spanish, /notas de la release v0\.9\.3/i);
   assert.match(english, /v0\.9\.3 GitHub release/i);
@@ -64,6 +85,10 @@ test('release guides and known-issues ledger identify v0.9.3 as the supported ba
   const translations = read('TODO-spanish-translations.md');
 
   assert.match(englishRelease, /published v0\.9\.3 release is the current Windows x64 baseline/i);
+  assert.match(englishRelease, /v0\.9\.4 is an unpublished candidate/i);
+  assert.match(spanishRelease, /v0\.9\.4 es una candidata sin\s+publicar/i);
+  assert.match(englishRelease, /release-0\.9\.4-candidate/);
+  assert.match(spanishRelease, /release-0\.9\.4-candidate/);
   assert.match(englishRelease, /portable executable \(~178\.2 MB \/ 169\.9 MiB/i);
   assert.match(spanishRelease, /portable v0\.9\.3 \(~178,2 MB \/ 169,9 MiB/i);
   assert.match(englishRelease, /53dfde329731d19081204a82bbbafc4678f4c81b4588a22884ef49064f400cd5/i);
@@ -83,7 +108,9 @@ test('release guides and known-issues ledger identify v0.9.3 as the supported ba
   assert.match(knownIssues, /preserva los bytes originales raw\/Zstandard/i);
   assert.match(knownIssues, /portable is ~178\.2 MB/i);
   assert.match(knownIssues, /portable ~178,2 MB/i);
-  assert.match(roadmap, /^Baseline: `v0\.9\.3`$/m);
+  assert.match(roadmap, /^Baseline: `v0\.9\.4 candidate`$/m);
+  assert.match(roadmap, /^Published baseline: `v0\.9\.3`$/m);
+  assert.match(roadmap, /^### `v0\.9\.4`.*candidate/im);
   assert.match(roadmap, /^### `v0\.9\.3`/m);
   assert.match(translations, /baseline publicada v0\.9\.3/i);
 });
@@ -101,6 +128,8 @@ test('current release policy and EN/ES build guidance match the separate-runtime
     assert.match(policy, /v0\.9\.2/);
     assert.match(policy, /release:gate/);
   }
+  assert.match(policyEn, /v0\.9\.4 candidate/i);
+  assert.match(policyEs, /candidata v0\.9\.4/i);
   assert.match(policyEn, /disposable/i);
   assert.match(policyEs, /desechable/i);
   assert.match(policyEn, /does not install or\s+launch/i);

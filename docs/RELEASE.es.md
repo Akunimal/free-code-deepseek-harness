@@ -38,6 +38,13 @@ El roadmap de 0.7.0 está cerrado; su ledger está en el
 [ledger de 0.7.0](STATE-0.7.0.md). Los hallazgos completos de sólo lectura
 están en [AUDIT-0.6.0-TEST-PLAN.md](AUDIT-0.6.0-TEST-PLAN.md).
 
+El árbol de código actual es una candidata: **v0.9.4 es una candidata sin
+publicar**; v0.9.3
+sigue siendo la última release publicada para Windows x64. Los cambios de la
+candidata incluyen opencode2api v1.3.8, mayor confiabilidad del ControlPort y
+bootstrap de Tor, y la restauración del modo optativo Gentle AI en el selector.
+Las notas están en [release-notes-v0.9.4.md](../release-notes-v0.9.4.md).
+
 ## Build local de Windows
 
 Ejecutá desde PowerShell en Windows x64. El gate habitual no es interactivo en
@@ -49,9 +56,9 @@ tarball.
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.3-final'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-candidate'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.3-final
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-candidate
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 

@@ -4,6 +4,10 @@ Las releases son manuales y tienen como target Windows x64. Esta política
 describe el límite real entre la app desktop y el runtime para v0.9.3; no
 autoriza a tocar una instancia de FreeCode que esté en ejecución.
 
+La versión actual de la fuente es candidata v0.9.4 y sigue sin publicar hasta
+completar su validaciÃ³n. Los artefactos y hashes v0.9.3 que siguen abajo son
+evidencia histÃ³rica de la release publicada y no deben sobrescribirse.
+
 ## Contenido de la release y runtime fijado
 
 La release desktop v0.9.3 contiene el setup NSIS, el ejecutable portable, el
@@ -26,9 +30,9 @@ nueva y aislada, y verificá exactamente esa carpeta:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.3-final'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-candidate'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.3-final
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-candidate
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 

@@ -1,7 +1,8 @@
 # Roadmap / Hoja de ruta
 
-Última sincronización documental / Last documentation sync: 2026-10-12
-Baseline: `v0.9.3`
+Última sincronización documental / Last documentation sync: 2026-10-13
+Baseline: `v0.9.4 candidate`
+Published baseline: `v0.9.3`
 Estado / Status: objetivos sujetos a validación; no son fechas ni promesas de release.
 
 > **0.9.2** — Runtime DSH fijado descargado en el primer inicio sin caché válida y cacheado por
@@ -32,6 +33,23 @@ FreeCode keeps release workflows manual so they do not consume GitHub free quota
 RTK y Caveman no están habilitados juntos por defecto: pueden ser complementarios, pero una doble compresión puede quitar información útil o dificultar la depuración.
 
 RTK and Caveman are not enabled together by default: they may complement each other, but double compression can remove useful information or make debugging harder.
+
+## En curso / In progress
+
+### `v0.9.4` candidate — Reliability and Gentle AI restoration / Confiabilidad y restauración de Gentle AI
+
+**Status / Estado:** local candidate; unpublished / candidata local; sin publicar.
+
+1. **Gateway / Gateway** — vendored opencode2api v1.3.8 with manual model
+   persistence, transient probe recovery, stable identities and the fork's
+   direct-first Tor policy.
+2. **Tor / Tor** — SAFECOOKIE ControlPort, readiness gated on bootstrap 100%
+   plus usable SOCKS, adaptive circuit timeouts and stable stream circuits.
+3. **Agent selector / Selector de agentes** — Gentle AI restored as an explicit
+   opt-in Web mode; Standard remains the default.
+4. **Release state / Estado de release** — source is 0.9.4 candidate; desktop
+   packaging/installation verification remains in progress. v0.9.3 remains the
+   latest published version.
 
 ## Completado / Completed
 

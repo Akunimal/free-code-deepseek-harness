@@ -8,9 +8,14 @@ calls.
 
 ## English
 
-## Current status: latest published release: v0.9.3 (Windows x64)
+## Current status: source v0.9.4 candidate; latest published release: v0.9.3 (Windows x64)
 
-Source version: 0.9.3; latest published release: v0.9.3 (Windows x64).
+Source version: 0.9.4 (candidate, not published); latest published release: v0.9.3 (Windows x64).
+
+The [v0.9.4 candidate notes](release-notes-v0.9.4.md) cover the opencode2api
+v1.3.8 refresh, Tor startup/control hardening, and restored opt-in Gentle AI
+selector mode. v0.9.4 has not been released; use the v0.9.3 assets below until
+candidate validation and publication are complete.
 
 v0.9.3 is published for Windows x64. The NSIS setup was installed and confirmed
 working by the user; the portable executable was built but not separately
@@ -36,9 +41,9 @@ of truth. v0.9.3 is the current published Windows x64 baseline.
 
 ## What is included
 
-- **Gentle AI integrated mode** — a selectable `gentle-ai` agent preset that
-  reuses IPC, MCP, ModelCatalog, permissions, sandbox and plan-mode. Activates
-  automatically when the binary is detected; falls back to `standard` otherwise.
+- **Gentle AI integrated mode** — a selectable, opt-in `gentle-ai` agent preset
+  that reuses the Standard composition, permissions, sandbox and plan mode.
+  Standard remains the default; Gentle AI must be selected explicitly.
   A bounded `gentle-ai:*` IPC bridge (`status`, `doctor`, `run`) with Zod
   contract is exposed to the renderer via `window.freecode.gentleAi`.
 - **Single model lane** (`deepseek-free`, labeled *OpenCode Free*) served by
@@ -268,7 +273,7 @@ Every product feature must have an owner file, a modular patch or shell-layer
 implementation, a contract test and a replay/idempotence check. See
 [docs/UPSTREAM-PATCHING.md](docs/UPSTREAM-PATCHING.md).
 
-## Windows local release gate: v0.9.3
+## Windows local release gate: v0.9.4 candidate
 
 Run from PowerShell on Windows x64. The gate is non-interactive at the desktop
 UI boundary: it builds an NSIS package in a unique temporary directory,
@@ -280,14 +285,14 @@ the recorded child PID tree and never enumerates or kills unrelated processes.
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.3-final'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-candidate'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.3-final
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-candidate
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 `build:desktop` creates setup and portable artifacts in the new
-`apps/shell/release-0.9.3-final/` output directory; it refuses to replace an
+`apps/shell/release-0.9.4-candidate/` output directory; it refuses to replace an
 existing non-empty folder. `verify:desktop-release-assets` checks the exact PE
 files, setup blockmap, updater metadata and hashes without launching either
 executable. Desktop packaging does not rebuild or replace the separately versioned DSH runtime. Only when the DSH

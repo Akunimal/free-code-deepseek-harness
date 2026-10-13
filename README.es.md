@@ -8,9 +8,15 @@ servidores MCP y llamadas al modelo.
 
 ## Español
 
-## Estado actual: última release publicada: v0.9.3 (Windows x64)
+## Estado actual: fuente candidata v0.9.4; última release publicada: v0.9.3 (Windows x64)
 
-Versión de la fuente: 0.9.3; última release publicada: v0.9.3 (Windows x64).
+Versión de la fuente: 0.9.4 (candidata, todavía no publicada); última release publicada: v0.9.3 (Windows x64).
+
+Las [notas candidatas de v0.9.4](release-notes-v0.9.4.md) cubren la actualización
+de opencode2api a v1.3.8, el endurecimiento del inicio/control de Tor y la
+restauración del modo seleccionable optativo Gentle AI. v0.9.4 aún no está
+publicada; usá los artefactos v0.9.3 de abajo hasta completar la validación y
+publicación de la candidata.
 
 v0.9.3 está publicada para Windows x64. El usuario instaló el setup NSIS y
 confirmó que funciona; el ejecutable portable se compiló, pero no se probó con
@@ -37,9 +43,10 @@ la fuente de verdad. v0.9.3 es la baseline publicada actual para Windows x64.
 
 ## Qué incluye
 
-- **Modo integrado Gentle AI** — un preset de agente `gentle-ai` seleccionable
-  que reutiliza IPC, MCP, ModelCatalog, permisos, sandbox y plan-mode. Se activa
-  automáticamente cuando se detecta el binario; si no, usa `standard`. Un bridge
+- **Modo integrado Gentle AI** — un preset de agente `gentle-ai` seleccionable y
+  optativo que reutiliza la composición, permisos, sandbox y modo de planificación
+  de Standard. Standard sigue siendo el modo predeterminado; Gentle AI debe elegirse
+  explícitamente. Un bridge
   IPC acotado `gentle-ai:*` (`status`, `doctor`, `run`) con contrato Zod queda
   expuesto al renderer mediante `window.freecode.gentleAi`.
 - **Lane único de modelos** (`deepseek-free`, etiquetado *OpenCode Free*)
@@ -264,7 +271,7 @@ limitado a vendor y fail-closed. No dejes una feature permanente como edición
 directa de `vendor/deepseek-harness`. Ver
 [docs/UPSTREAM-PATCHING.md](docs/UPSTREAM-PATCHING.md).
 
-## Gate local de Windows: v0.9.3
+## Gate local de Windows: candidata v0.9.4
 
 Ejecutá desde PowerShell en Windows x64. El gate no es interactivo en la
 interfaz desktop: compila un paquete NSIS en un directorio temporal único,
@@ -276,14 +283,14 @@ enumera ni termina procesos ajenos.
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.3-final'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-candidate'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.3-final
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-candidate
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 `build:desktop` crea setup y portable en la nueva carpeta
-`apps/shell/release-0.9.3-final/`; rechaza reemplazar una carpeta no vacía.
+`apps/shell/release-0.9.4-candidate/`; rechaza reemplazar una carpeta no vacía.
 `verify:desktop-release-assets` valida los PE exactos, el blockmap, los metadatos
 del updater y sus hashes sin iniciar ninguno de los ejecutables. El packaging
 desktop no reconstruye ni reemplaza el runtime DSH, que tiene su propia versión.

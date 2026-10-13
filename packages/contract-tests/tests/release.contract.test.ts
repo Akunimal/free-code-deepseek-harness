@@ -17,7 +17,7 @@ function releaseNotesFiles(): string[] {
 }
 
 describe('release and runtime packaging contracts', () => {
-  it('keeps the current v0.9.3 release manual and Windows x64 only', () => {
+  it('keeps desktop releases manual and Windows x64 only', () => {
     const rootPackage = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as { version?: string };
     const shellPackageJson = JSON.parse(readFileSync(join(ROOT, 'apps/shell/package.json'), 'utf8')) as { version?: string; scripts?: Record<string, string> };
     const rootScripts = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as { scripts?: Record<string, string> };
@@ -41,7 +41,6 @@ describe('release and runtime packaging contracts', () => {
       expect(releasePlan, required).toContain(required);
     }
     expect(releasePlan).not.toMatch(/mcp-real-smoke|test:mcp:real|smoke:nsis|verify-installed-runtime|package:runtime/);
-    expect(rootPackage.version).toBe('0.9.3');
     expect(rootPackage.version).toMatch(/^\d+\.\d+\.\d+$/);
     expect(shellPackageJson.version).toBe(rootPackage.version);
   });
