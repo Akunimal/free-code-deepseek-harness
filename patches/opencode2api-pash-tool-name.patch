@@ -165,7 +165,7 @@
 +}
 --- /dev/null
 +++ b/vendor/opencode2api/internal/protocol/freecode_tool_name.go
-@@ -0,0 +1,311 @@
+@@ -0,0 +1,367 @@
 +package protocol
 +
 +import (
@@ -183,12 +183,15 @@
 +// adds its synthetic core tools. IDs, arguments, approvals and tool schemas
 +// remain the caller's; this layer does not execute or retry anything.
 +type ToolNameRepair struct {
-+	enabled bool
-+	names   map[string]*repairToolName
++	enabled   bool
++	names     map[string]*repairToolName
++	heldBytes int
 +}
 +type repairToolName struct {
-+	raw  string
-+	sent bool
++	raw         string
++	sent        bool
++	header      map[string]any
++	headerBytes int
 +}
 +
 +func NewToolNameRepair(p Protocol, payload map[string]any) *ToolNameRepair {
@@ -395,7 +398,9 @@
 +			if stream {
 +				message = repairObject(choice["delta"])
 +			}
-+			for _, value := range repairArray(message["tool_calls"]) {
++			calls := repairArray(message["tool_calls"])
++			held := map[int]bool{}
++			for callIndex, value := range calls {
 +				call := repairObject(value)
 +				function := repairObject(call["function"])
 +				if !stream {
@@ -435,12 +440,51 @@
 +						return false, errors.New("upstream tool name exceeds repair limit")
 +					}
 +				}
-+				if arguments == "" && strings.HasPrefix("pash", state.raw) {
-+					if fragment != "" {
-+						delete(function, "name")
-+						changed = true
++				// Hold the whole pending entry: native pi-ai starts a tool on the
++				// first entry and DSH freezes its identity at that moment.
++				if state.header == nil {
++					state.header = map[string]any{}
++				}
++				if id, ok := call["id"].(string); ok && id != "" {
++					if previous, ok := state.header["id"].(string); ok && previous != "" && previous != id {
++						return false, errors.New("upstream tool identity changed")
 +					}
++				}
++				for k, v := range call {
++					if k == "function" {
++						previous := repairObject(state.header[k])
++						if previous == nil {
++							previous = map[string]any{}
++							state.header[k] = previous
++						}
++						for field, value := range function {
++							previous[field] = value
++						}
++					} else {
++						state.header[k] = v
++					}
++				}
++				encoded, _ := json.Marshal(state.header)
++				repair.heldBytes += len(encoded) - state.headerBytes
++				state.headerBytes = len(encoded)
++				if repair.heldBytes > 16<<20 {
++					return false, errors.New("pending upstream tool metadata exceeds repair limit")
++				}
++				if arguments == "" && strings.HasPrefix("pash", state.raw) {
++					held[callIndex] = true
++					changed = true
 +					continue
++				}
++				for k, v := range state.header {
++					if k == "function" {
++						for field, value := range repairObject(v) {
++							if _, present := function[field]; !present {
++								function[field] = value
++							}
++						}
++					} else if _, present := call[k]; !present {
++						call[k] = v
++					}
 +				}
 +				name := state.raw
 +				if name == "pash" {
@@ -448,7 +492,19 @@
 +				}
 +				function["name"] = name
 +				state.sent = true
++				repair.heldBytes -= state.headerBytes
++				state.header = nil
++				state.headerBytes = 0
 +				changed = true
++			}
++			if len(held) > 0 {
++				kept := make([]any, 0, len(calls)-len(held))
++				for index, call := range calls {
++					if !held[index] {
++						kept = append(kept, call)
++					}
++				}
++				message["tool_calls"] = kept
 +			}
 +			if stream && choice["finish_reason"] != nil && choice["finish_reason"] != "" && repair.pending() {
 +				return false, errors.New("incomplete upstream tool name")
@@ -479,7 +535,7 @@
 +}
 --- /dev/null
 +++ b/vendor/opencode2api/internal/protocol/freecode_tool_name_test.go
-@@ -0,0 +1,209 @@
+@@ -0,0 +1,249 @@
 +package protocol
 +
 +import (
@@ -511,6 +567,46 @@
 +	}
 +	if source.bytes > (16<<20)+8192 {
 +		t.Fatalf("read past bounded frame before rejection: %d", source.bytes)
++	}
++}
++
++func TestPashNativeConsumerStartsWithCompleteIdentity(t *testing.T) {
++	input := "data: {\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_keep\",\"type\":\"function\",\"opaque\":9007199254740993,\"function\":{\"name\":\"pash\",\"arguments\":\"\"}}]}}]}\n\ndata: {\"choices\":[{\"index\":0,\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"{}\"}}]}}]}\n\ndata: [DONE]\n\n"
++	filtered := NewToolNameRepair(Chat, repairRequest(Chat, "bash")).FilterStream(strings.NewReader(input), Chat)
++	defer filtered.Close()
++	got, err := io.ReadAll(filtered)
++	if err != nil {
++		t.Fatal(err)
++	}
++	seen := false
++	for _, line := range strings.Split(string(got), "\n") {
++		if !strings.HasPrefix(line, "data: {") {
++			continue
++		}
++		doc, err := repairDocument([]byte(line[6:]))
++		if err != nil {
++			t.Fatal(err)
++		}
++		for _, choice := range repairArray(doc["choices"]) {
++			for _, callValue := range repairArray(repairObject(repairObject(choice)["delta"])["tool_calls"]) {
++				call := repairObject(callValue)
++				fn := repairObject(call["function"])
++				if !seen {
++					// pi-ai emits toolcall_start on the first entry, even with an empty
++					// name; DSH immediately requires complete immutable identity.
++					if fn["name"] != "bash" || call["id"] != "call_keep" || fn["arguments"] != "{}" {
++						t.Fatalf("incomplete toolcall_start: %+v", call)
++					}
++					if call["opaque"].(json.Number).String() != "9007199254740993" {
++						t.Fatal("lost buffered opaque metadata")
++					}
++					seen = true
++				}
++			}
++		}
++	}
++	if !seen {
++		t.Fatal("no executable tool call")
 +	}
 +}
 +
