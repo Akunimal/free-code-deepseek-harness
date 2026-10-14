@@ -140,3 +140,25 @@ test('runtime manifest gate rejects a literal escaped newline after the JSON obj
     rmSync(manifest, { recursive: true, force: true });
   }
 });
+
+test('runtime stage never ships local graph outputs, dotenv secrets or arbitrary root scratch directories', () => {
+  const stage = mkdtempSync(join(tmpdir(), 'freecode-runtime-private-copy-'));
+  const destination = `${stage}-output`;
+  try {
+    writeFileSync(join(stage, 'package.json'), '{}');
+    for (const relative of ['graphify-out/graph.json', 'packages/fixture/graphify-out/graph.json',
+      '.env', 'packages/fixture/.env.local', '8r2I7CVhPYV4BrPJSGusQ/session.txt', 'apps/cli/lib/bin.js']) {
+      const path = join(stage, relative);
+      mkdirSync(join(path, '..'), { recursive: true });
+      writeFileSync(path, 'fixture');
+    }
+    const result = spawnSync(process.execPath, [copyStage, stage, destination], { encoding: 'utf8', windowsHide: true });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(existsSync(join(destination, 'apps/cli/lib/bin.js')), true);
+    for (const relative of ['graphify-out', 'packages/fixture/graphify-out', '.env',
+      'packages/fixture/.env.local', '8r2I7CVhPYV4BrPJSGusQ']) assert.equal(existsSync(join(destination, relative)), false, relative);
+  } finally {
+    rmSync(stage, { recursive: true, force: true });
+    rmSync(destination, { recursive: true, force: true });
+  }
+});

@@ -26,6 +26,14 @@ fs.mkdirSync(path.dirname(destination), { recursive: true });
 // packaging. Instead, we materialize workspace packages and resolve broken
 // symlinks in a post-copy step.
 const PNM_EXCLUDE = new Set(['.pnpm', '.modules.yaml']);
+const SOURCE_ROOTS = new Set(['apps', 'packages', 'native', 'vendor', 'node_modules', 'benchmarks', 'snapshots', 'assets', 'scripts', 'patches', '.dsh-build']);
+function includeRuntimePath(relative) {
+  if (relative === '') return true;
+  const parts = relative.split(path.sep);
+  if (parts.some(part => part === 'graphify-out' || part === '.git' || part === '.env' || part.startsWith('.env.'))) return false;
+  if (parts.length > 1 && !SOURCE_ROOTS.has(parts[0])) return false;
+  return true;
+}
 // NOTE: dereference is intentionally NOT used here. pnpm junctions form
 // cycles (cordis -> cordis-plugin-include -> cordis -> ...) which cause
 // ELOOP with dereference. Junctions are resolved in a post-copy step.
@@ -35,6 +43,8 @@ fs.cpSync(source, destination, {
     const relative = path.relative(source, candidate);
     if (relative === '') return true;
     const parts = relative.split(path.sep);
+    if (!includeRuntimePath(relative)) return false;
+    if (parts.length === 1 && fs.statSync(candidate).isDirectory() && !SOURCE_ROOTS.has(parts[0])) return false;
     // Benchmarks are not part of the desktop runtime. Their nested pnpm
     // workspace links can require symlink privileges when copied on Windows,
     // so omit only that development-only dependency tree from the payload.
@@ -78,7 +88,7 @@ for (const { dir: pkgDir, name } of materialized) {
     recursive: true,
     filter(source) {
       const rel = path.relative(pkgDir, source);
-      return rel === '' || !rel.split(path.sep).includes('node_modules');
+      return includeRuntimePath(`packages${path.sep}${rel}`) && (rel === '' || !rel.split(path.sep).includes('node_modules'));
     },
   });
 }
