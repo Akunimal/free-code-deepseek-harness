@@ -34,6 +34,17 @@ describe('verified free-only automatic fallback', () => {
     for (let n = 0; n < 20; n++) expect(policy.observePrimary([])).toBe(false);
   });
 
+  it('keeps bounded recovery retries after eligibility while the optional runtime is still warming', () => {
+    const { policy, advance } = setup();
+    for (let n = 0; n < 9; n++) { policy.observePrimary([]); advance(); }
+    expect(policy.shouldRetryPrimary()).toBe(true);
+    for (let n = 0; n < 8; n++) { policy.observePrimary([]); advance(); }
+    expect(policy.shouldRetryPrimary()).toBe(false);
+    policy.observePrimary(['healthy']);
+    policy.observePrimary([]);
+    expect(policy.shouldRetryPrimary()).toBe(true);
+  });
+
   it('selects only a verified exact free model, restores after restart, and preserves user changes', () => {
     const { policy, advance, selected, write, root } = setup();
     for (let n = 0; n < 9; n++) { policy.observePrimary([]); advance(); }

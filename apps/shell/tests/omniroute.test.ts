@@ -38,6 +38,7 @@ describe('managed OmniRoute lifecycle', () => {
     expect(launched.env).toMatchObject({
       HOSTNAME: '127.0.0.1', PORT: '54321', OMNIROUTE_AUTO_FREE_FALLBACK_TO_FULL_POOL: 'false',
       DATA_DIR: join(root, 'data', 'omniroute-data'), ELECTRON_RUN_AS_NODE: '1',
+      ARENA_ELO_SYNC_ENABLED: 'false', OPENROUTER_PROVIDER_STATS_ENABLED: 'false',
     });
     expect(launched.args?.[0]).toContain('node_modules');
     expect(launched.env).not.toHaveProperty('OPENAI_API_KEY');

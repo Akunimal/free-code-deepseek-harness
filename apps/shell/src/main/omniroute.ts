@@ -45,6 +45,10 @@ export class OmniRouteManager {
       DATA_DIR: data, HOME: home, USERPROFILE: home, APPDATA: home, LOCALAPPDATA: home, TMP: temp, TEMP: temp,
       NEXT_TELEMETRY_DISABLED: '1', REQUIRE_API_KEY: 'false',
       OMNIROUTE_AUTO_FREE_FALLBACK_TO_FULL_POOL: 'false',
+      // Optional ranking/statistics sync must not hold up an offline local
+      // fallback catalog. Documented upstream opt-outs, no source patch.
+      ARENA_ELO_SYNC_ENABLED: 'false', OPENROUTER_PROVIDER_STATS_ENABLED: 'false',
+      PRICING_SYNC_ENABLED: 'false', MODELS_DEV_SYNC_ENABLED: '0',
     });
     const { proc } = (this.options.launch ?? launchHidden)({
       executable: this.options.nodePath, args: [join(this.options.runtimeDir, ...OMNIROUTE_ENTRY.split('/'))],

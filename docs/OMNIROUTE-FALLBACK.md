@@ -16,6 +16,10 @@ selection changes only an OpenCode Free default; unrelated providers stay
 untouched. The previous default is restored on primary recovery, unless the
 user changed it. Notices are localized and deduplicated per outage. Cold-model
 probes keep the full 120-second deadline; a pending probe is not a failure.
+The first recovery window is followed by up to eight bounded warm-up retries
+when the optional runtime is not usable yet, rather than immediately waiting
+30 minutes. Optional upstream ranking/statistics synchronization is disabled
+for this private fallback so a slow metadata site cannot hold up the catalog.
 
 Local preparation/policy checks pass; real-server and release validation remain
 pending. The separate runtime assets must be available before first download.
@@ -36,6 +40,10 @@ afecta al default de OpenCode Free; se respetan otros proveedores. Al recuperars
 el primario se restaura el default anterior, salvo que lo hayas cambiado. Los
 avisos están traducidos y no se repiten por cada refresco. Las pruebas conservan
 120 segundos para modelos fríos; una prueba en curso no cuenta como fallo.
+Después de la ventana inicial hay hasta ocho reintentos acotados para el
+respaldo que aún se está preparando, sin saltar inmediatamente a 30 minutos.
+Se deshabilita la sincronización opcional de rankings/estadísticas del respaldo
+privado: un sitio de metadatos lento no debe frenar su catálogo.
 
 Pruebas locales de preparación/política verificadas; servidor real y release
 pendientes. Los runtimes separados deben estar disponibles para descargarlos.

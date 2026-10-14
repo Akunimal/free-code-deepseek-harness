@@ -1282,7 +1282,6 @@ app.whenReady().then(async () => {
   let catalog: ModelCatalog | null = null;
   let refreshInFlight = false;
   let refreshRetryAttempt = 0;
-  let opencodeRetryAttempt = 0;
   const fallback = new ModelFallback({ homeDir: join(userDataDir, 'dsh-home'), userDataDir });
   const notifyFallback = (state: FallbackNotice): void => {
     if (shuttingDown || !fallback.noticeChanged(state)) return;
@@ -1321,7 +1320,6 @@ app.whenReady().then(async () => {
       notifyFallback('unavailable');
     }
   };
-  const OPENCODE_REFRESH_RETRIES = 8; // ~4 min of responder recovery after boot
   const OPENCODE_REFRESH_RETRY_MS = 30_000;
   const scheduleRefreshRetry = (): void => {
     if (refreshRetryTimer) return;
@@ -1361,12 +1359,9 @@ app.whenReady().then(async () => {
       if (opencodeUrl) {
         const freeEntries = catalog?.providers['deepseek-free']?.models ?? [];
         const responders = freeEntries.filter((model) => model.responds).length;
-        if (responders === 0 && opencodeRetryAttempt < OPENCODE_REFRESH_RETRIES && !shuttingDown) {
-          opencodeRetryAttempt++;
+        if (responders === 0 && fallback.shouldRetryPrimary() && !shuttingDown) {
           refreshRetryTimer = setTimeout(() => { refreshRetryTimer = null; void doRefresh(); }, OPENCODE_REFRESH_RETRY_MS);
           refreshRetryTimer.unref();
-        } else {
-          opencodeRetryAttempt = 0;
         }
       }
     } catch (err) {

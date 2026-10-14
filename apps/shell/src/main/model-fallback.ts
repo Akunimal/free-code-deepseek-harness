@@ -55,6 +55,13 @@ export class ModelFallback {
     return true;
   }
 
+  shouldRetryPrimary(): boolean {
+    // Eight primary recovery retries, then eight bounded warm-up retries for
+    // the optional runtime. Never leave a just-downloaded fallback waiting
+    // for the 30-minute steady-state cadence immediately after eligibility.
+    return this.misses > 0 && (this.misses <= 8 || (this.eligible && this.misses < 17));
+  }
+
   noticeChanged(state: FallbackNotice): boolean {
     if (this.noticeStates.has(state)) return false;
     this.noticeStates.add(state);
