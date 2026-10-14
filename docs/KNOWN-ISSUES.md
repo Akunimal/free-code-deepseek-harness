@@ -1,7 +1,7 @@
 # Known issues / Problemas conocidos
 
-Última sincronización documental / Last documentation sync: 2026-10-12
-Baseline documentada / Documented baseline: `v0.9.3`
+Última sincronización documental / Last documentation sync: 2026-10-14
+Última release publicada / Latest published release: `v0.9.3`; fuente candidata / candidate source: `v0.9.4`
 
 ## Estado actual / Current status
 
@@ -118,16 +118,21 @@ opencode2api is launched with `[direct, socks5://127.0.0.1:9050]`: the direct
 route is preferred, so normal latency is unchanged and Tor only carries
 traffic when direct egress fails. A `NEWNYM` rotation from the overlay is
 asynchronous — the new circuit takes effect within Tor's `MAXCLIENTSOCKSDELAY`
-window, not instantly. Ports 9050/9051 are fixed on loopback: another Tor
-instance already bound there will fail the shell's startup check.
+window, not instantly. Ports 9050/9051 are preferred; if occupied, the manager
+allocates an ascending free pair and preserves that endpoint across retries.
+Direct remains available during Tor startup, and the overlay displays its actual
+failure reason. Candidate v0.9.4 also verifies packaged Tor assets and isolates
+the user profile during its NSIS smoke.
 
 opencode2api se lanza con `[direct, socks5://127.0.0.1:9050]`: se prefiere la
 ruta directa, así que la latencia normal no cambia y Tor solo transporta
 tráfico cuando falla el egress directo. Una rotación `NEWNYM` desde el overlay
 es asíncrona — el circuito nuevo surte efecto dentro de la ventana de
-`MAXCLIENTSOCKSDELAY` de Tor, no al instante. Los puertos 9050/9051 están
-fijos en loopback: otra instancia de Tor ya ligada ahí hará fallar el chequeo
-de arranque del shell.
+`MAXCLIENTSOCKSDELAY` de Tor, no al instante. 9050/9051 son puertos preferidos;
+si están ocupados, el manager asigna un par libre ascendente y conserva ese
+endpoint en los reintentos. La ruta directa sigue disponible mientras Tor
+inicia y el overlay muestra el motivo real si falla. La candidata v0.9.4 también
+verifica los assets Tor empaquetados y aísla el perfil en su smoke NSIS.
 
 ### KI-009 — A semantic session tail can hide valid history / Un sufijo semántico puede ocultar historial válido
 

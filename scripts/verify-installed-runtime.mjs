@@ -6,8 +6,9 @@
  */
 
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { createInstalledSmokeEnvironment } from './installed-runtime-environment.mjs';
 
 const APP_EXE_NAME = 'FreeCode DeepSeek Harness.exe';
 // First run downloads the runtime after the small desktop setup is installed.
@@ -117,8 +118,12 @@ while ([DateTime]::UtcNow -lt $deadline) {
 
 async function launchAndProbe(installDir, label) {
   const executable = appExecutable(installDir);
-  const userDataDir = join(installDir, '.release-smoke-user-data');
-  const child = spawn(executable, [`--user-data-dir=${userDataDir}`], {
+  const environment = createInstalledSmokeEnvironment(installDir, process.env);
+  for (const key of ['APPDATA', 'LOCALAPPDATA', 'USERPROFILE', 'HOME', 'TEMP', 'TMP']) {
+    mkdirSync(environment.env[key], { recursive: true });
+  }
+  const child = spawn(executable, [`--user-data-dir=${environment.userDataDir}`], {
+    env: environment.env,
     windowsHide: true,
     stdio: 'ignore',
   });
@@ -127,7 +132,7 @@ async function launchAndProbe(installDir, label) {
     let started = false;
     while (Date.now() < deadline) {
       if (child.exitCode !== null) throw new Error(`installed-runtime: ${label} exited ${String(child.exitCode)} during startup`);
-      const log = readLog(userDataDir);
+      const log = readLog(environment.userDataDir);
       if (log.includes('harness runtime preflight failed')) {
         throw new Error(`installed-runtime: ${label} preflight failed:\n${log.slice(-4_000)}`);
       }
@@ -150,7 +155,7 @@ async function launchAndProbe(installDir, label) {
     }
     if (!started) throw new Error(`installed-runtime: ${label} did not reach shell startup within ${DEFAULT_TIMEOUT_MS}ms`);
     await visibleDescendantProbe(child.pid);
-    return userDataDir;
+    return environment;
   } finally {
     if (child.pid) {
       spawnSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' });
@@ -159,14 +164,14 @@ async function launchAndProbe(installDir, label) {
   }
 }
 
-function runHeadlessCli(installDir, harnessRuntimeDir, label) {
+function runHeadlessCli(installDir, harnessRuntimeDir, label, environment) {
   const entry = cliEntry(harnessRuntimeDir);
   if (!existsSync(entry)) throw new Error(`installed-runtime: ${label} first-run DSH runtime is missing ${entry}`);
   const result = spawnSync(appExecutable(installDir), [entry, 'web', '--help'], {
     cwd: join(harnessRuntimeDir, 'dsh'),
     encoding: 'utf8',
     windowsHide: true,
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+    env: { ...environment.env, ELECTRON_RUN_AS_NODE: '1' },
     // A cold installed runtime may resolve the complete workspace closure
     // from a busy temp volume. Keep the check bounded, but do not classify
     // healthy cold starts as failures after the payload has already passed
@@ -182,8 +187,8 @@ function runHeadlessCli(installDir, harnessRuntimeDir, label) {
 export async function verifyInstalledRuntime({ installDir, label }) {
   if (process.platform !== 'win32') throw new Error('installed-runtime: this gate requires Windows');
   const absoluteInstallDir = resolve(installDir);
-  const userDataDir = await launchAndProbe(absoluteInstallDir, label);
-  runHeadlessCli(absoluteInstallDir, join(userDataDir, 'harness-runtime'), label);
+  const environment = await launchAndProbe(absoluteInstallDir, label);
+  runHeadlessCli(absoluteInstallDir, join(environment.userDataDir, 'harness-runtime'), label, environment);
 }
 
 export function stopInstalledProcesses(installDir) {

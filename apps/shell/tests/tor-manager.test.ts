@@ -3,7 +3,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { findFreePort, TorManager, waitForTorBootstrap } from '../src/main/tor-manager.js';
 import { launchHidden, killProcessTree } from '../src/main/freecode-launcher.js';
 import type { ChildProcess } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:net';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -89,6 +90,30 @@ describe('TorManager', () => {
     expect(manager.isReady).toBe(false);
   });
 
+  it('returns a starting status without blocking callers on Tor network bootstrap', async () => {
+    const torPath = join(tmpDir, 'tor.exe');
+    writeFileSync(torPath, 'test stub');
+    const proc = fakeTorProcess(4249);
+    vi.mocked(launchHidden).mockReturnValue({ proc } as ReturnType<typeof launchHidden>);
+    const manager = new TorManager({
+      torBinaryPath: torPath,
+      dataDir: tmpDir,
+      geoipDir: tmpDir,
+      socksPort: 19_860,
+      controlPort: 19_861,
+      bootstrapTimeoutMs: 5_000,
+      bootstrapPollMs: 1,
+    });
+
+    const status = await manager.start();
+    expect(status.status).toBe('starting');
+    expect(manager.proxyUrl).toBe('socks5://127.0.0.1:19860');
+    expect(launchHidden).toHaveBeenCalledTimes(1);
+
+    await manager.stop();
+    expect(manager.getStatus().status).toBe('stopped');
+  });
+
   it('does not treat an open SOCKS listener as ready before Tor reports 100% bootstrap', async () => {
     const progress = [35, 99, 100];
     let reads = 0;
@@ -165,7 +190,135 @@ describe('TorManager', () => {
     await vi.waitFor(() => expect(launchHidden).toHaveBeenCalled(), { timeout: 2_000 });
     await manager.stop();
 
-    await expect(starting).resolves.toMatchObject({ status: 'stopped', active: false });
+    await starting;
+    expect(manager.getStatus()).toMatchObject({ status: 'stopped', active: false });
+  });
+
+  it('reports a bounded daemon stderr reason when Tor exits before bootstrap', async () => {
+    const torPath = join(tmpDir, 'tor.exe');
+    writeFileSync(torPath, 'test stub');
+    const proc = fakeTorProcess(4245);
+    vi.mocked(launchHidden).mockReturnValue({ proc } as ReturnType<typeof launchHidden>);
+
+    const manager = new TorManager({
+      torBinaryPath: torPath,
+      dataDir: tmpDir,
+      geoipDir: tmpDir,
+      socksPort: 19_820,
+      controlPort: 19_821,
+    });
+
+    const starting = manager.start();
+    await vi.waitFor(() => expect(launchHidden).toHaveBeenCalled(), { timeout: 2_000 });
+    proc.stderr?.emit('data', Buffer.from('Failed to open GeoIPFile: missing packaged resource\n'));
+    Object.defineProperty(proc, 'exitCode', { value: 1, writable: true, configurable: true });
+    proc.emit('exit', 1, null);
+
+    await starting;
+    await vi.waitFor(() => expect(manager.getStatus().status).toBe('failed'));
+    const status = manager.getStatus();
+    expect(status.status).toBe('failed');
+    expect(status.lastError).toContain('Failed to open GeoIPFile');
+    expect(status.lastError).not.toMatch(/bootstrap timed out/i);
+  });
+
+  it('clears stale Tor logs and reports fresh file diagnostics when stderr is empty', async () => {
+    const torPath = join(tmpDir, 'tor.exe');
+    const torDataDir = join(tmpDir, 'tor-single');
+    const torLogPath = join(torDataDir, 'tor.log');
+    writeFileSync(torPath, 'test stub');
+    mkdirSync(torDataDir, { recursive: true });
+    writeFileSync(torLogPath, 'STALE FAILURE FROM A PREVIOUS START\n');
+    const proc = fakeTorProcess(4248);
+    vi.mocked(launchHidden).mockImplementation(() => {
+      expect(readFileSync(torLogPath, 'utf8')).toBe('');
+      return { proc } as ReturnType<typeof launchHidden>;
+    });
+
+    const manager = new TorManager({
+      torBinaryPath: torPath,
+      dataDir: tmpDir,
+      geoipDir: tmpDir,
+      socksPort: 19_850,
+      controlPort: 19_851,
+    });
+
+    const starting = manager.start();
+    await vi.waitFor(() => expect(launchHidden).toHaveBeenCalled(), { timeout: 2_000 });
+    writeFileSync(torLogPath, 'Oct 14 10:00:00.000 [warn] Failed to open GeoIPFile: packaged resource missing\n');
+    Object.defineProperty(proc, 'exitCode', { value: 1, writable: true, configurable: true });
+    proc.emit('exit', 1, null);
+
+    await starting;
+    await vi.waitFor(() => expect(manager.getStatus().status).toBe('failed'));
+    const status = manager.getStatus();
+    expect(status.lastError).toContain('Failed to open GeoIPFile');
+    expect(status.lastError).not.toContain('STALE FAILURE');
+    expect(status.lastError).not.toMatch(/bootstrap timed out/i);
+  });
+
+  it('redacts secrets and bounds daemon stderr retained in the public status', async () => {
+    const torPath = join(tmpDir, 'tor.exe');
+    writeFileSync(torPath, 'test stub');
+    const proc = fakeTorProcess(4246);
+    vi.mocked(launchHidden).mockReturnValue({ proc } as ReturnType<typeof launchHidden>);
+
+    const manager = new TorManager({
+      torBinaryPath: torPath,
+      dataDir: tmpDir,
+      geoipDir: tmpDir,
+      socksPort: 19_830,
+      controlPort: 19_831,
+    });
+
+    const starting = manager.start();
+    await vi.waitFor(() => expect(launchHidden).toHaveBeenCalled(), { timeout: 2_000 });
+    proc.stderr?.emit('data', Buffer.from(`${'x'.repeat(5000)}\nCookie=${'a'.repeat(64)}`));
+    Object.defineProperty(proc, 'exitCode', { value: 1, writable: true, configurable: true });
+    proc.emit('exit', 1, null);
+
+    await starting;
+    await vi.waitFor(() => expect(manager.getStatus().status).toBe('failed'));
+    const status = manager.getStatus();
+    expect(status.lastError).not.toContain('a'.repeat(64));
+    expect(status.lastError).toContain('[redacted]');
+    expect(status.lastError?.length).toBeLessThanOrEqual(2_048);
+  });
+
+  it('does not retarget the Tor proxy port on retry if another process claimed it', async () => {
+    const torPath = join(tmpDir, 'tor.exe');
+    writeFileSync(torPath, 'test stub');
+    const proc = fakeTorProcess(4247);
+    vi.mocked(launchHidden).mockReturnValue({ proc } as ReturnType<typeof launchHidden>);
+    const manager = new TorManager({
+      torBinaryPath: torPath,
+      dataDir: tmpDir,
+      geoipDir: tmpDir,
+      socksPort: 19_840,
+      controlPort: 19_841,
+    });
+
+    const firstStart = manager.start();
+    await vi.waitFor(() => expect(launchHidden).toHaveBeenCalledTimes(1), { timeout: 2_000 });
+    Object.defineProperty(proc, 'exitCode', { value: 1, writable: true, configurable: true });
+    proc.emit('exit', 1, null);
+    await firstStart;
+    const firstProxyUrl = manager.socksUrl;
+
+    const occupied = createServer();
+    await new Promise<void>((resolve, reject) => {
+      occupied.once('error', reject);
+      occupied.listen(19_840, '127.0.0.1', resolve);
+    });
+    try {
+      const retry = await manager.start();
+      expect(retry.status).toBe('failed');
+      expect(retry.lastError).toMatch(/port.*19840.*already in use/i);
+      expect(manager.socksUrl).toBe(firstProxyUrl);
+      expect(launchHidden).toHaveBeenCalledTimes(1);
+    } finally {
+      await new Promise<void>((resolve, reject) => occupied.close((error) => error ? reject(error) : resolve()));
+    }
   });
 
   it('waits for an in-flight stop to finish before starting a new Tor process', async () => {
@@ -193,7 +346,8 @@ describe('TorManager', () => {
     await vi.waitFor(() => expect(launchHidden).toHaveBeenCalledTimes(2), { timeout: 3_000 });
     await manager.stop();
 
-    await expect(firstStart).resolves.toMatchObject({ status: 'stopped', active: false });
-    await expect(secondStart).resolves.toMatchObject({ status: 'stopped', active: false });
+    await firstStart;
+    await secondStart;
+    expect(manager.getStatus()).toMatchObject({ status: 'stopped', active: false });
   });
 });

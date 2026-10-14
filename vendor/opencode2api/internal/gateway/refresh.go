@@ -15,6 +15,7 @@ const (
 	proxyHealthCheckURL      = "https://cloudflare.com/cdn-cgi/trace"
 	proxyHealthCheckInterval = 15 * time.Minute
 	proxyHealthCheckTimeout  = 10 * time.Second
+	localSocksHealthInterval = 10 * time.Second
 )
 
 // syncProxyResult updates proxy health from real traffic. Only timeouts and
@@ -89,21 +90,24 @@ func (g *Gateway) restoreProxy(proxy *proxyTransport) (zenMoved, goMoved int) {
 }
 
 func (g *Gateway) StartProxyHealthChecks(ctx context.Context) {
-	check := func() {
-		results := g.transports.CheckHealth(ctx, proxyHealthCheckURL, proxyHealthCheckTimeout)
+	check := func(results []proxyHealthResult) {
 		for _, result := range results {
 			g.applyProxyHealthResult(result, "scheduled health check", 0)
 		}
 	}
 	go func() {
-		ticker := time.NewTicker(proxyHealthCheckInterval)
-		defer ticker.Stop()
+		remoteTicker := time.NewTicker(proxyHealthCheckInterval)
+		localSocksTicker := time.NewTicker(localSocksHealthInterval)
+		defer remoteTicker.Stop()
+		defer localSocksTicker.Stop()
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-ticker.C:
-				check()
+			case <-remoteTicker.C:
+				check(g.transports.CheckHealth(ctx, proxyHealthCheckURL, proxyHealthCheckTimeout))
+			case <-localSocksTicker.C:
+				check(g.transports.CheckLocalSocksHealth(ctx, proxyHealthCheckTimeout))
 			}
 		}
 	}()

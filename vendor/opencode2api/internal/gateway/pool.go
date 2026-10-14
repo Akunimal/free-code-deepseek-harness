@@ -22,11 +22,12 @@ import (
 )
 
 type proxyTransport struct {
-	index    int
-	name     string
-	client   *http.Client
-	healthy  atomic.Bool
-	checking atomic.Bool
+	index      int
+	name       string
+	client     *http.Client
+	localSocks bool
+	healthy    atomic.Bool
+	checking   atomic.Bool
 }
 
 type transportPool struct {
@@ -169,11 +170,60 @@ func newTransportPool(proxies []string, cfg config.PerformanceConfig, responseHe
 			}
 			transport.Proxy = http.ProxyURL(u)
 		}
-		proxy := &proxyTransport{index: len(p.items), name: raw, client: &http.Client{Transport: transport}}
+		proxy := &proxyTransport{
+			index:      len(p.items),
+			name:       raw,
+			client:     &http.Client{Transport: transport},
+			localSocks: isLocalSocksProxy(raw),
+		}
 		proxy.healthy.Store(true)
 		p.items = append(p.items, proxy)
 	}
 	return p, nil
+}
+
+func isLocalSocksProxy(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "socks5" && u.Scheme != "socks5h") {
+		return false
+	}
+	host := strings.ToLower(u.Hostname())
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+// probeLocalSocks checks only the local SOCKS5 greeting. TorManager separately
+// verifies authenticated control and 100% bootstrap before advertising Tor as
+// ready, so a local probe must not send unrelated traffic to a public health URL.
+func probeLocalSocks(ctx context.Context, proxy *proxyTransport) error {
+	u, err := url.Parse(proxy.name)
+	if err != nil {
+		return err
+	}
+	conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", u.Host)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	if deadline, ok := ctx.Deadline(); ok {
+		if err := conn.SetDeadline(deadline); err != nil {
+			return err
+		}
+	}
+	if _, err := conn.Write([]byte{0x05, 0x01, 0x00}); err != nil {
+		return err
+	}
+	var response [2]byte
+	if _, err := io.ReadFull(conn, response[:]); err != nil {
+		return err
+	}
+	if response != [2]byte{0x05, 0x00} {
+		return fmt.Errorf("unexpected SOCKS5 greeting response %x", response)
+	}
+	return nil
 }
 
 type proxyHealthResult struct {
@@ -188,9 +238,20 @@ type proxyHealthResult struct {
 // from the test URL proves that the route is reachable; only a timeout or
 // connection refusal keeps the proxy unhealthy.
 func (p *transportPool) CheckHealth(ctx context.Context, target string, timeout time.Duration) []proxyHealthResult {
+	return p.checkHealth(ctx, target, timeout, nil)
+}
+
+func (p *transportPool) CheckLocalSocksHealth(ctx context.Context, timeout time.Duration) []proxyHealthResult {
+	return p.checkHealth(ctx, "", timeout, func(proxy *proxyTransport) bool { return proxy.localSocks })
+}
+
+func (p *transportPool) checkHealth(ctx context.Context, target string, timeout time.Duration, include func(*proxyTransport) bool) []proxyHealthResult {
 	results := make(chan proxyHealthResult, len(p.items))
 	checks := 0
 	for _, proxy := range p.items {
+		if include != nil && !include(proxy) {
+			continue
+		}
 		if proxy.healthy.Load() || !proxy.checking.CompareAndSwap(false, true) {
 			continue
 		}
@@ -217,14 +278,20 @@ func (p *transportPool) checkClaimedProxy(ctx context.Context, proxy *proxyTrans
 	defer proxy.checking.Store(false)
 	checkCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	req, err := http.NewRequestWithContext(checkCtx, http.MethodGet, target, nil)
-	if err == nil {
-		req.Header.Set("User-Agent", httpx.UserAgent())
-		resp, requestErr := proxy.client.Do(req)
-		err = requestErr
-		if resp != nil {
-			_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
-			_ = resp.Body.Close()
+	var err error
+	if proxy.localSocks {
+		err = probeLocalSocks(checkCtx, proxy)
+	} else {
+		var req *http.Request
+		req, err = http.NewRequestWithContext(checkCtx, http.MethodGet, target, nil)
+		if err == nil {
+			req.Header.Set("User-Agent", httpx.UserAgent())
+			resp, requestErr := proxy.client.Do(req)
+			err = requestErr
+			if resp != nil {
+				_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 64<<10))
+				_ = resp.Body.Close()
+			}
 		}
 	}
 	result := proxyHealthResult{proxy: proxy, err: err, wasHealthy: proxy.healthy.Load()}

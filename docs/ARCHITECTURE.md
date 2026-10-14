@@ -34,10 +34,12 @@ and retryable rather than consuming the supervisor restart budget.
 
 1. Electron resolves development resources or packaged `resources/freecode`.
 2. The shell starts the single bundled Tor instance (`tor-manager.ts`) on
-   loopback (SOCKS `9050`, control `9051`) and waits for its bootstrap.
+   loopback (preferred SOCKS/control ports `9050`/`9051`, incremented together
+   if occupied). Tor bootstrap is monitored asynchronously; direct traffic stays
+   usable until authenticated ControlPort progress reaches 100% and SOCKS is ready.
 3. The shell starts the opencode2api gateway (sole model gateway — freellmpool
-   was removed in 0.8.0) with `proxies: [direct, socks5://127.0.0.1:9050]` so
-   model traffic can fail over through Tor when direct egress is blocked.
+   was removed in 0.8.0) with `proxies: [direct, socks5://127.0.0.1:<stable port>]`
+   so model traffic can fail over through Tor when direct egress is blocked.
 4. The supervisor starts `dsh web --host 127.0.0.1 --port 0 --no-open` with a
    whitelisted environment and waits for its authenticated readiness URL.
 5. The shell opens one hardened `BrowserWindow` with context isolation, no Node
@@ -154,8 +156,9 @@ per-user Windows application data path.
 - The renderer receives only `window.freecode` from the isolated preload.
 - Secrets are read from the host vault and injected into child environments;
   they are not copied into global `process.env`.
-- Local services bind to loopback. Tor binds SOCKS `9050` and control `9051`
-  to `127.0.0.1` only; the control port is never exposed off-host.
+- Local services bind to loopback. Tor prefers SOCKS `9050` and control `9051`,
+  allocates a stable alternate pair if they are occupied, and binds only to
+  `127.0.0.1`; the authenticated control port is never exposed off-host.
 - MCP server arguments are arrays, not shell strings, and their stderr is
   bounded. Tool-call logs omit arguments and image data.
 - OCR validates paths, size and output and does not log sensitive content.

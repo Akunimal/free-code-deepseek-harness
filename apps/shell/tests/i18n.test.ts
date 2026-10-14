@@ -31,6 +31,8 @@ describe('native shell locale', () => {
       'overlay.torLoading',
       'overlay.torRotated',
       'overlay.torRotateFailed',
+      'overlay.torUnavailable',
+      'overlay.torCancelStarting',
       'overlay.directOnly',
       'overlay.routeDirect',
       'overlay.routeTor',

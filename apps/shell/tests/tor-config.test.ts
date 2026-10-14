@@ -31,6 +31,7 @@ describe('Tor configuration generation', () => {
     expect(torrc).toContain('CookieAuthFile "C:/Users/Inti User/Tor Data/control_auth_cookie"');
     expect(torrc).toContain('LearnCircuitBuildTimeout 1');
     expect(torrc).toContain('MaxCircuitDirtiness 600');
+    expect(torrc).not.toContain('FastFirstHopPK');
     expect(torrc).not.toContain('HashedControlPassword');
     expect(torrc).not.toMatch(/^CircuitBuildTimeout\s+5$/m);
   });

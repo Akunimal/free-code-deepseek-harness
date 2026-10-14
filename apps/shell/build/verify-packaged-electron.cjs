@@ -1,5 +1,6 @@
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
+const fs = require('node:fs');
 
 module.exports.default = async function verifyPackagedElectron(context) {
   // The current release target is Windows. Keep other platform builds on their
@@ -25,4 +26,14 @@ module.exports.default = async function verifyPackagedElectron(context) {
     throw new Error(`Packaged shell bootstrap verification failed: ${bootstrapResult.error}`);
   }
   console.log(`verify-packaged-shell-bootstrap: PASS — ${bootstrapResult.entryPath} contains first-run runtime setup`);
+
+  const torVerifierPath = path.resolve(__dirname, '../../../scripts/tor-runtime-assets.mjs');
+  const { verifyTorRuntimeAssets } = await import(pathToFileURL(torVerifierPath).href);
+  const dependencyManifest = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../resources/runtime-deps.json'), 'utf8'));
+  const torDependency = dependencyManifest.dependencies.find((dependency) => dependency.id === 'tor' && dependency.required === true);
+  if (!torDependency || typeof torDependency.sha256 !== 'string') {
+    throw new Error('Packaged Tor runtime verification failed: required Tor asset is not SHA-256 pinned');
+  }
+  const torResult = verifyTorRuntimeAssets(path.join(context.appOutDir, 'resources', 'freecode'), torDependency.sha256);
+  console.log(`verify-packaged-tor-runtime: PASS — ${torResult.sha256} and GeoIP databases present`);
 };

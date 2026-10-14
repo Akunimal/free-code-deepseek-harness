@@ -27,7 +27,6 @@ export function buildTorrcContent(options: TorrcOptions): string {
     'CookieAuthentication 1',
     `CookieAuthFile ${quoteTorrcPath(options.controlCookiePath)}`,
     'ClientOnly 1',
-    'FastFirstHopPK 1',
     // Keep Tor's adaptive circuit-build timeout learning; the old fixed 5s
     // timeout rejected ordinary slow circuits and disabled learning.
     'LearnCircuitBuildTimeout 1',

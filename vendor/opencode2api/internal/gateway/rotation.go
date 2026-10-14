@@ -239,6 +239,7 @@ func (g *Gateway) rotationAttempt(parent context.Context, w http.ResponseWriter,
 		}
 		return result
 	}
+	repair := wire.NewToolNameRepair(external, payload)
 	stream := jsonutil.BoolAt(payload, "stream")
 	ready := func() error {
 		if !timer.Stop() || ctx.Err() != nil {
@@ -253,6 +254,8 @@ func (g *Gateway) rotationAttempt(parent context.Context, w http.ResponseWriter,
 	}
 	meta := telemetry.MetaFromContext(parent)
 	if stream {
+		filtered := repair.FilterStream(resp.Body, route.Protocol)
+		defer filtered.Close()
 		if meta != nil {
 			meta.Stream = true
 		}
@@ -260,7 +263,7 @@ func (g *Gateway) rotationAttempt(parent context.Context, w http.ResponseWriter,
 			g.monitor.BeginStream()
 			defer g.monitor.EndStream()
 		}
-		usage, reported, committed, err := wire.RotationStream(original.Context(), w, resp.Body, route.Protocol, external, alias, ready)
+		usage, reported, committed, err := wire.RotationStream(original.Context(), w, filtered, route.Protocol, external, alias, ready)
 		if meta != nil {
 			meta.Usage = usage
 			meta.UsageReported = reported
@@ -323,6 +326,9 @@ func (g *Gateway) rotationAttempt(parent context.Context, w http.ResponseWriter,
 	}
 	if err == nil && external != route.Protocol {
 		b, err = wire.ConvertResponse(route.Protocol, external, b)
+	}
+	if err == nil {
+		b, err = repair.RepairResponse(b, external)
 	}
 	if err != nil {
 		result.err = err

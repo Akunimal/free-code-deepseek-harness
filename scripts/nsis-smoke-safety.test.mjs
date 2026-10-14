@@ -5,6 +5,7 @@ import { basename, join } from 'node:path';
 import test from 'node:test';
 import { resolveNsisSetup } from './nsis-smoke-setup.mjs';
 import { interactiveNsisSmokeOptedIn } from './nsis-smoke-guard.mjs';
+import { createInstalledSmokeEnvironment } from './installed-runtime-environment.mjs';
 
 const repositoryRoot = new URL('../', import.meta.url);
 
@@ -49,4 +50,26 @@ test('NSIS hooks never kill every process by image name', () => {
   assert.match(installer, /FREECODE_NSIS_TARGET_EXE/);
   assert.match(installer, /ExecutablePath/);
   assert.match(patcher, /path-scoped/i);
+});
+
+test('installed app smoke redirects all user-scoped writes into the disposable install directory', () => {
+  const installDir = 'C:\\Temp\\freecode-nsis-smoke-test';
+  const environment = createInstalledSmokeEnvironment(installDir, {
+    APPDATA: 'C:\\Users\\real-user\\AppData\\Roaming',
+    LOCALAPPDATA: 'C:\\Users\\real-user\\AppData\\Local',
+    PATH: 'C:\\Windows\\System32',
+  });
+
+  assert.equal(environment.userDataDir, 'C:\\Temp\\freecode-nsis-smoke-test\\.release-smoke-profile\\Roaming\\@freecode\\shell');
+  for (const key of ['APPDATA', 'LOCALAPPDATA', 'USERPROFILE', 'HOME', 'TEMP', 'TMP']) {
+    assert.ok(environment.env[key].startsWith('C:\\Temp\\freecode-nsis-smoke-test\\'), `${key} must stay in test install`);
+  }
+  assert.equal(environment.env.PATH, 'C:\\Windows\\System32');
+});
+
+test('installed runtime smoke launches with its isolated environment, not the maintainer profile', () => {
+  const runtimeVerifier = readFileSync(new URL('verify-installed-runtime.mjs', import.meta.url), 'utf8');
+  assert.match(runtimeVerifier, /createInstalledSmokeEnvironment/);
+  assert.match(runtimeVerifier, /env:\s*environment\.env/);
+  assert.match(runtimeVerifier, /--user-data-dir=\$\{environment\.userDataDir\}/);
 });

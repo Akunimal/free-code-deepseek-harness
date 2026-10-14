@@ -235,7 +235,7 @@ Administration endpoints (login required; writes also require CSRF): `GET /api/m
 
 ### Sessions and proxies
 
-Keys are initially spread across proxies. Real traffic can trigger proxy checks, key rebinding, and cooldowns. Unhealthy proxies are rechecked every 15 minutes against Cloudflare trace.
+Keys are initially spread across proxies. Real traffic can trigger proxy checks, key rebinding, and cooldowns. Unhealthy remote proxies are rechecked every 15 minutes against Cloudflare trace; loopback SOCKS proxies are checked every 10 seconds with a local SOCKS5 greeting so a recovered Tor daemon can rejoin promptly without extra external probes.
 
 A stable session hash selects the preferred key or anonymous proxy. Send an explicit `x-session-id` to separate independent conversations. The gateway also accepts `x-opencode-session`, `x-session-affinity`, `conversation-id`, `conversation_id`, and `metadata.session_id`.
 

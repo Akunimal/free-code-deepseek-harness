@@ -31,6 +31,7 @@ import {
   requestElectronSingleInstance,
 } from './lifecycle-manager.js';
 import { TorManager } from './tor-manager.js';
+import { resolveTorProxyCandidates } from './tor-routing.js';
 import {
   UPDATE_INDICATOR_HEIGHT,
   UPDATE_INDICATOR_WIDTH,
@@ -141,21 +142,20 @@ async function bootstrap(harnessDir: string): Promise<ShellRuntime> {
   if (!process.env.FREECODE_PUBLIC_KEY) {
     await ensureSecret(secrets, 'FREECODE_PUBLIC_KEY', 'public');
   }
-  let torMgr: TorManager | undefined;
   const torBinaryPath = join(resources, 'tor', 'tor.exe');
-  if (existsSync(torBinaryPath)) {
-    torMgr = new TorManager({
-      torBinaryPath,
-      dataDir: userDataDir,
-      geoipDir: join(resources, 'tor'),
-      log: (level, msg, meta) => {
-        const fn = level === 'error' || level === 'warn' ? level : 'info';
-        appLogger?.logger[fn]?.(meta ?? {}, `[tor-manager] ${msg}`);
-      },
-    });
-    await torMgr.start();
-    torManager = torMgr;
-  }
+  // Always initialize the manager so a missing packaged executable becomes
+  // an actionable failed status instead of a silent `null`/"unavailable" UI.
+  const torMgr = new TorManager({
+    torBinaryPath,
+    dataDir: userDataDir,
+    geoipDir: join(resources, 'tor'),
+    log: (level, msg, meta) => {
+      const fn = level === 'error' || level === 'warn' ? level : 'info';
+      appLogger?.logger[fn]?.(meta ?? {}, `[tor-manager] ${msg}`);
+    },
+  });
+  await torMgr.start();
+  torManager = torMgr;
 
   appLogger?.logger.info({}, '[DEBUG-STARTUP] bootstrap 5/5 createShellRuntime starting');
   const runtime = await createShellRuntime({
@@ -168,7 +168,7 @@ async function bootstrap(harnessDir: string): Promise<ShellRuntime> {
     nodeEnv: nodeRuntimeEnv(app.isPackaged),
     extraEnv: buildHarnessExtraEnv(dialogBridge),
     uvxCommand,
-    proxies: torMgr?.isReady ? ['direct', torMgr.socksUrl] : ['direct'],
+    proxies: resolveTorProxyCandidates(torMgr?.proxyUrl),
     browserBridge: embeddedBrowser ? { endpoint: embeddedBrowser.endpoint, token: embeddedBrowser.token } : undefined,
     log: (level, msg, meta) => {
       const fn = level === 'error' || level === 'warn' ? level : 'info';
@@ -629,10 +629,12 @@ var torNo = ${JSON.stringify(t('common.no'))};
 var torRotating = ${JSON.stringify(t('overlay.torRotating'))};
 var torRotated = ${JSON.stringify(t('overlay.torRotated'))};
 var torRotateFailed = ${JSON.stringify(t('overlay.torRotateFailed'))};
+var torUnavailableLabel = ${JSON.stringify(t('overlay.torUnavailable'))};
 var torRotateLabel = ${JSON.stringify(t('overlay.torRotate'))};
 var torRouteDirect = ${JSON.stringify(t('overlay.routeDirect'))};
 var torRouteTor = ${JSON.stringify(t('overlay.routeTor'))};
 var torEnableLabel = ${JSON.stringify(t('overlay.torEnable'))};
+var torCancelStartingLabel = ${JSON.stringify(t('overlay.torCancelStarting'))};
 var torDisableLabel = ${JSON.stringify(t('overlay.torDisable'))};
 var torStartingLabel = ${JSON.stringify(t('overlay.torStarting'))};
 var torStoppingLabel = ${JSON.stringify(t('overlay.torStopping'))};
@@ -646,20 +648,27 @@ function renderTor(s) {
   var btn = document.getElementById('tor-rotate-btn');
   var toggle = document.getElementById('tor-toggle-btn');
   var pill = document.getElementById('tor-route');
+  var msg = document.getElementById('tor-msg');
   if (!tbody) return;
   if (!s) {
-    tbody.innerHTML = '<tr><td colspan="5" style="color:#9da4b3">' + esc(torRotateFailed) + '</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="color:#9da4b3">' + esc(torUnavailableLabel) + '</td></tr>';
     if (direct) direct.style.display = 'block';
     if (btn) btn.disabled = true;
     if (pill) pill.textContent = torRouteDirect;
     if (toggle) { toggle.disabled = false; toggle.textContent = torEnableLabel; }
+    if (msg) msg.textContent = torUnavailableLabel;
     return;
   }
-  var down = !s.active && (s.status === 'failed' || s.status === 'stopped');
+  var down = !s.active && (s.status === 'failed' || s.status === 'stopped' || s.status === 'starting');
+  var starting = s.status === 'starting';
   if (direct) direct.style.display = down ? 'block' : 'none';
   if (pill) pill.textContent = s.active ? torRouteTor : torRouteDirect;
-  if (toggle && !toggle.dataset.busy) toggle.textContent = s.active ? torDisableLabel : torEnableLabel;
+  if (toggle && !toggle.dataset.busy) {
+    toggle.textContent = starting ? torCancelStartingLabel : s.active ? torDisableLabel : torEnableLabel;
+    toggle.disabled = false;
+  }
   if (btn) btn.disabled = !s.active;
+  if (msg) msg.textContent = s.status === 'failed' && s.lastError ? s.lastError : '';
   tbody.innerHTML = '<tr><td>'+(s.active ? esc(torYes) : esc(torNo))+'</td><td>'+esc(torLabels[s.status] || s.status)+'</td><td>127.0.0.1:'+s.socksPort+'</td><td>127.0.0.1:'+s.controlPort+'</td><td>'+s.pid+'</td></tr>';
 }
 window.__torRotate = function() {
@@ -684,7 +693,7 @@ window.__torToggle = function() {
   var msg = document.getElementById('tor-msg');
   if (toggle) { toggle.disabled = true; toggle.dataset.busy = '1'; }
   window.freecode.tor.getStatus().then(function(s) {
-    var turningOff = !!(s && s.active);
+    var turningOff = !!(s && (s.active || s.status === 'starting'));
     if (msg) msg.textContent = turningOff ? torStoppingLabel : torStartingLabel;
     if (toggle) toggle.textContent = turningOff ? torStoppingLabel : torStartingLabel;
     return (turningOff ? window.freecode.tor.stop() : window.freecode.tor.start()).then(function() {

@@ -209,7 +209,10 @@ func (g *Gateway) handleInference(external wire.Protocol) http.HandlerFunc {
 			copyErrorResponse(w, external, resp, ids.Request)
 			return
 		}
+		repair := wire.NewToolNameRepair(external, payload)
 		if stream {
+			filtered := repair.FilterStream(resp.Body, upstreamRoute.Protocol)
+			defer filtered.Close()
 			if meta != nil {
 				meta.Stream = true
 			}
@@ -224,9 +227,9 @@ func (g *Gateway) handleInference(external wire.Protocol) http.HandlerFunc {
 			var usage wire.Usage
 			var usageReported bool
 			if external == upstreamRoute.Protocol {
-				usage, usageReported, err = wire.ForwardStream(r.Context(), w, resp.Body, upstreamRoute.Protocol, model)
+				usage, usageReported, err = wire.ForwardStream(r.Context(), w, filtered, upstreamRoute.Protocol, model)
 			} else {
-				usage, usageReported, err = wire.TranscodeStream(r.Context(), w, resp.Body, upstreamRoute.Protocol, external, model)
+				usage, usageReported, err = wire.TranscodeStream(r.Context(), w, filtered, upstreamRoute.Protocol, external, model)
 			}
 			if meta != nil {
 				meta.Usage, meta.UsageReported = usage, usageReported
@@ -271,6 +274,11 @@ func (g *Gateway) handleInference(external wire.Protocol) http.HandlerFunc {
 				wire.WriteError(w, external, http.StatusBadGateway, "unsupported upstream response", "upstream_error", ids.Request)
 				return
 			}
+		}
+		responseBody, err = repair.RepairResponse(responseBody, external)
+		if err != nil {
+			wire.WriteError(w, external, http.StatusBadGateway, "invalid upstream tool response", "upstream_error", ids.Request)
+			return
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(resp.StatusCode)

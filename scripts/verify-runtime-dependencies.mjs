@@ -17,6 +17,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { missingRuntimeDependencyIsFailure } from './runtime-dependency-policy.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, '..');
@@ -92,8 +93,13 @@ for (const dep of manifest.dependencies) {
   }
 
   if (!existsSync(depPath)) {
-    if (dep.required) requiredMissing.push(dep.id);
-    logCheck(`${dep.id}: exists`, false, depPath);
+    const failure = missingRuntimeDependencyIsFailure(dep);
+    if (failure) requiredMissing.push(dep.id);
+    logCheck(
+      `${dep.id}: exists`,
+      !failure,
+      failure ? depPath : 'optional — not bundled; may resolve from PATH',
+    );
     continue;
   }
 
