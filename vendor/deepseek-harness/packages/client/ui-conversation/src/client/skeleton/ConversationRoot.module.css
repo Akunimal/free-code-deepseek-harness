@@ -1,10 +1,75 @@
 .root {
   position: relative; /* positioning context for slot-owned absolute chrome */
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   height: 100%;
   min-width: 0;
   background: var(--dsw-alias-bg-base);
+}
+
+/* Decorative layers stay above the base paint but below conversation content
+   and hit targets. Pseudo-elements add no DOM or AT noise. */
+.root::before,
+.root::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-repeat: no-repeat;
+}
+
+.root > * {
+  z-index: 1;
+}
+
+.root::before {
+  background: radial-gradient(
+    ellipse 76% 64% at 18% 25%,
+    rgba(65, 118, 230, .40) 0%,
+    transparent 72%
+  );
+  background: radial-gradient(
+    ellipse 76% 64% at 18% 25%,
+    color-mix(in srgb, var(--dsw-alias-state-business-primary, rgb(65, 118, 230)) 40%, transparent) 0%,
+    transparent 72%
+  );
+  opacity: .90;
+  animation: dsh-conversation-ambient-drift-a 42s ease-in-out infinite alternate;
+}
+
+.root::after {
+  background: radial-gradient(
+    ellipse 68% 74% at 82% 78%,
+    rgba(228, 237, 253, .30) 0%,
+    transparent 74%
+  );
+  background: radial-gradient(
+    ellipse 68% 74% at 82% 78%,
+    color-mix(in srgb, var(--dsw-alias-state-business-tertiary, rgb(228, 237, 253)) 30%, transparent) 0%,
+    transparent 74%
+  );
+  opacity: .85;
+  animation: dsh-conversation-ambient-drift-b 53s ease-in-out infinite alternate;
+}
+
+@keyframes dsh-conversation-ambient-drift-a {
+  from { transform: translate3d(-2%, -1%, 0) scale(1); }
+  to { transform: translate3d(2%, 1.5%, 0) scale(1.08); }
+}
+
+@keyframes dsh-conversation-ambient-drift-b {
+  from { transform: translate3d(2%, 1.5%, 0) scale(1.06); }
+  to { transform: translate3d(-2%, -1%, 0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .root::before,
+  .root::after {
+    animation: none;
+    transform: none;
+  }
 }
 
 /* 76px with its rule: the height of the Sidebar's tab strip and header row

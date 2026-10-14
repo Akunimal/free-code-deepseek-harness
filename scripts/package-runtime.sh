@@ -168,6 +168,7 @@ fi
 
 echo "package-runtime: materializing workspace packages for cross-platform Node resolution"
 node "$ROOT/scripts/materialize-runtime.mjs" "$STAGE"
+node "$ROOT/scripts/verify-conversation-bundle.mjs" "$STAGE"
 
 echo "package-runtime: removing optional Claude/Codex providers from core closure"
 node "$ROOT/scripts/prune-runtime-optional-providers.mjs" "$STAGE"
@@ -213,6 +214,7 @@ remove_tree "$OUT/dsh" "$OUT/opencode2api" "$OUT/gemini-web2api" "$OUT/perplexit
 # its runtime closure: the pnpm virtual store is not used by Node resolution
 # after materialization and should not enter the installer payload.
 node "$ROOT/scripts/copy-runtime-stage.mjs" "$STAGE" "$OUT/dsh"
+node "$ROOT/scripts/verify-conversation-bundle.mjs" "$OUT/dsh"
 mkdir -p "$OUT/opencode2api"
 if [[ ! -f "$ROOT/apps/shell/resources/opencode2api/opencode2api-win-x64.exe" ]]; then
   echo "package-runtime: missing Windows opencode2api binary" >&2
@@ -272,6 +274,7 @@ fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 NODE
 node "$ROOT/scripts/verify-runtime-closure.mjs" "$OUT/dsh"
 node "$ROOT/scripts/verify-headless-runtime.mjs" "$OUT/dsh"
+node "$ROOT/scripts/refresh-runtime-dependency-pins.mjs" "$OUT"
 
 echo "package-runtime: ready at $OUT"
 du -sh "$OUT"
