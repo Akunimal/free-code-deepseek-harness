@@ -58,7 +58,7 @@ to an empty context line accepted by git apply, removing its whitespace warning.
 Source whitespace and strict replay checks remain enforced. R3 remains open:
 these local source fixes are verified, not a green release/package receipt.
 
-R3 commit identity: pending the local work-unit commit for this gate record and generated bundle-freshness receipt. The complete release gate passed; the separate durable release installer has not been generated, launched, or installed. Next action is only on the user's request (for example, compile a distributable setup); no push/tag/release is authorized. The installed active instance and its alpha3 cache/settings/history remain untouched.
+R3 work-unit commit: `d5dbd0a` (`build(release): record alpha4 runtime gate`) contains the gate evidence and the updated `tool-web` bundle-freshness receipt. The complete release gate passed; the separate durable release installer has not been generated, launched, or installed. Next action is only on the user's request (for example, compile a distributable setup); no push/tag/release is authorized. The installed active instance and its alpha3 cache/settings/history remain untouched.
 
 ## Persistence
 Engram mirror `odd/remove-omniroute-pash/tasks` pending: host runtime registration is unavailable and agent-attributed writes are prohibited. Local document is authoritative; no alternate session ID used.
