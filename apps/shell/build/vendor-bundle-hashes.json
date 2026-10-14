@@ -309,7 +309,7 @@
   "vendor/deepseek-harness/packages/util/timeout": "780538601dd8203b2975a6ca45f82907d26a6242e1e3d46c26b39c0ae3cf87cc",
   "vendor/deepseek-harness/packages/util/values": "7f5fb73b6fc57dda6f355a586d3f232eabfd93cdfba4af25a1ee88405a159d5c",
   "vendor/deepseek-harness/packages/util/workspace-path": "04c4b52b8b68fa0b016122cce9b825326647e8c9b38a8b89dee4d8b6d08b6147",
-  "vendor/deepseek-harness/packages/web/tool-web": "e3267409327151ba08e9be73b88c96c9f5eb758cc09d3cd3547e6256e7670122",
+  "vendor/deepseek-harness/packages/web/tool-web": "e2628c1d5fe240be00c6d6c45ae344a22dc67db7ac6f2b3bfec333552e3c3bd9",
   "vendor/deepseek-harness/packages/web/web": "c46a95d67d7957b2771aba2e992fc69774af2189cd8be8f6202de662985638f8",
   "vendor/deepseek-harness/packages/web/web-fetch-http": "02bfed3e30a6ca09a713a6e75a24669195342cddc99e83089576ef3ca13161be",
   "vendor/deepseek-harness/packages/web/web-search-deepseek": "a099da1e04d19dd0d6b82e3b78cbc84fa45c78c8a2aaaa6932d828fa595b2077",
