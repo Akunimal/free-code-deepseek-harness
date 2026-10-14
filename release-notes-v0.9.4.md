@@ -10,8 +10,15 @@ candidate build is superseded. The setup (178,620,019 bytes; SHA-256
 `c112637c95de1564a401ac9852300081983bf15d92f82330df16ff7279d1304b`) and
 portable (178,246,021 bytes; SHA-256
 `c3b1e9a65e8b5e420c48059aac14b6ded3790c5b8b7804bfef58acec454d01ea`) are ready.
-The refreshed one-click setup has not been executed: that waits for a current
-confirmation that FreeCode is closed.
+The refreshed one-click setup was executed after confirmation that FreeCode was
+closed; NSIS returned exit code 0. The normal post-install launch reported
+`No harness runtime asset for packaged version 0.2.1-alpha.4 (win32-x64)` because
+the installer excludes DSH and the matching alpha4 release asset is unpublished.
+With separate user authorization, the verified local alpha4 runtime was seeded
+into this machine's per-user cache and its previous alpha3 cache was preserved
+as a backup. This is a local-only workaround; other installations still need
+the exact-version published runtime asset. The app has not been retried, so
+startup, Tor and backgrounds await user verification.
 
 ### What's new
 
@@ -67,10 +74,15 @@ packaged runtime, and an isolated NSIS setup without installing or launching the
 FreeCode GUI. The real packaged Tor config also passed `tor.exe --verify-config`
 (exit 0); this validates syntax/assets only, not network bootstrap. The fresh
 setup and portable passed static PE, updater, blockmap and SHA-256 verification.
-The new setup awaits execution after fresh confirmation that FreeCode is closed;
-its previous setup exit code 0 did not prove application startup. Unrelated
-pre-existing failures in the full vendor composite build remain outside this
-candidate. No tag or public release exists for v0.9.4.
+The new setup was executed after confirmation that FreeCode was closed (NSIS exit
+code 0), but that did not prove application startup: the post-install launch
+reported the missing unpublished DSH alpha4 release asset. The verified local
+alpha4 runtime has since been seeded into the per-user cache, preserving the
+previous alpha3 cache as a backup. The app has not been retried; startup, Tor and
+backgrounds still await user verification. Other installations require the
+matching published runtime asset. Unrelated pre-existing failures in the full
+vendor composite build remain outside this candidate. No tag or public release
+exists for v0.9.4.
 
 ## Español
 
@@ -82,8 +94,15 @@ candidata anterior quedó obsoleta. El setup (178.620.019 bytes; SHA-256
 `c112637c95de1564a401ac9852300081983bf15d92f82330df16ff7279d1304b`) y el
 portable (178.246.021 bytes; SHA-256
 `c3b1e9a65e8b5e420c48059aac14b6ded3790c5b8b7804bfef58acec454d01ea`) están
-listos. El setup one-click actualizado todavía no se ejecutó: espero una
-confirmación actual de que FreeCode está cerrada.
+listos. El setup one-click actualizado se ejecutó tras confirmar que FreeCode
+estaba cerrada; NSIS devolvió código 0. El inicio normal posterior informó
+`No harness runtime asset for packaged version 0.2.1-alpha.4 (win32-x64)` porque
+el instalador excluye DSH y el asset alpha4 correspondiente aún no se publicó.
+Con autorización separada del usuario, se precargó el runtime alpha4 local
+verificado en la caché por usuario de esta máquina y se preservó como respaldo
+la caché alpha3 anterior. Es una solución sólo local: otras instalaciones
+necesitan el asset publicado de versión exacta. La app no se volvió a probar;
+el usuario todavía debe verificar el arranque, Tor y los fondos.
 
 ### Novedades
 
@@ -142,8 +161,13 @@ completo: verificó DSH alpha4, hashes runtime/Tor, fondos en el runtime
 empaquetado y un setup NSIS aislado sin instalar ni iniciar la GUI FreeCode. La
 configuración Tor empaquetada también pasó `tor.exe --verify-config` (código 0);
 eso valida sintaxis/assets, no el bootstrap de red. Setup y portable nuevos
-pasaron la verificación estática de PE, updater, blockmap y SHA-256. Falta
-ejecutar el setup nuevo tras confirmar otra vez que FreeCode está cerrada; el
-código 0 del setup anterior no prueba el arranque de la app. Persisten fallos
-preexistentes y ajenos en el build compuesto completo del vendor. v0.9.4 no tiene
-tag ni release pública.
+pasaron la verificación estática de PE, updater, blockmap y SHA-256. El setup
+nuevo se ejecutó tras confirmar que FreeCode estaba cerrada (NSIS devolvió código
+0), pero eso no probó el arranque: el intento normal informó que no existe el
+asset DSH alpha4 correspondiente, aún sin publicar. Con autorización separada
+del usuario, se precargó el runtime alpha4 local verificado en la caché por
+usuario de esta máquina y se preservó como respaldo la caché alpha3 anterior.
+La app no se volvió a probar; el usuario todavía debe verificar arranque, Tor y
+fondos. Otras instalaciones necesitan el asset publicado de versión exacta.
+Persisten fallos preexistentes y ajenos en el build compuesto completo del
+vendor. v0.9.4 no tiene tag ni release pública.

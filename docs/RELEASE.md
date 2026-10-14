@@ -47,9 +47,15 @@ restored opt-in Gentle AI selector mode. Candidate notes are in
 [release-notes-v0.9.4.md](../release-notes-v0.9.4.md).
 
 The fresh local setup and portable were built and SHA-256-verified in
-`apps/shell/release-0.9.4-candidate-refresh-20261014/`. The one-click setup for
-this refreshed build is not yet executed; that waits for fresh confirmation that
-FreeCode is closed. No v0.9.4 tag or release has been created.
+`apps/shell/release-0.9.4-candidate-refresh-20261014/`. The one-click setup was
+executed after confirmation that FreeCode was closed; NSIS returned exit code 0.
+Its normal post-install launch reported that no DSH alpha4 asset exists for the
+packaged version, because the installer excludes DSH and alpha4 is unpublished.
+With separate user authorization, the verified alpha4 runtime was seeded into
+this machine's per-user cache, preserving the previous alpha3 cache as a backup.
+The app has not been retried, so startup, Tor and backgrounds await user
+verification; other installations still need the exact-version release asset.
+No v0.9.4 tag or release has been created.
 
 ## Local Windows build
 

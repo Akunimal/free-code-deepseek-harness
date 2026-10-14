@@ -152,6 +152,28 @@ preserva los bytes originales raw/Zstandard y rechaza abrir para escritura. No
 repara ni reconstruye el sufijo descartado; si se requiere recuperación manual,
 conservá intacto el archivo de sesión original.
 
+### KI-010 — v0.9.4 needs a published DSH alpha4 runtime asset / v0.9.4 requiere publicar el runtime DSH alpha4
+
+The desktop setup intentionally excludes the DSH runtime. First launch reuses a
+valid per-user cache or downloads an exact-version GitHub release asset. The
+v0.9.4 candidate pins `0.2.1-alpha.4`, which has not been published; a clean
+installation without that cached version cannot start DSH even when NSIS exits
+successfully. The maintainer workstation was locally seeded from the verified
+alpha4 runtime, preserving its prior alpha3 cache, but this does not help other
+installations or prove DSH startup. Before publication, attach the matching
+runtime archive and checksum to the intended fork release and verify a clean
+first launch.
+
+El setup desktop excluye intencionalmente el runtime DSH. El primer inicio
+reutiliza una caché válida por usuario o descarga un asset de release de versión
+exacta. La candidata v0.9.4 fija `0.2.1-alpha.4`, que todavía no está publicada;
+una instalación limpia sin esa versión cacheada no puede iniciar DSH aunque NSIS
+termine correctamente. La workstation mantenedora se precargó localmente desde
+el runtime alpha4 verificado y preservó la caché alpha3 anterior, pero esto no
+ayuda a otras instalaciones ni demuestra que DSH arranque. Antes de publicar,
+adjuntá el archivo runtime y su checksum a la release correcta del fork y
+verificá un primer inicio limpio.
+
 ## Issues resueltos / Resolved historical issues
 
 These entries are kept here so an old report is easy to classify:

@@ -47,9 +47,15 @@ del fondo de conversación empaquetado y restauración del modo optativo Gentle 
 Las notas están en [release-notes-v0.9.4.md](../release-notes-v0.9.4.md).
 
 El setup y portable nuevos se compilaron y verificaron con SHA-256 en
-`apps/shell/release-0.9.4-candidate-refresh-20261014/`. El setup one-click de
-esta reconstrucción aún no se ejecutó; espero una confirmación actual de que
-FreeCode está cerrada. No se creó tag ni release v0.9.4.
+`apps/shell/release-0.9.4-candidate-refresh-20261014/`. El setup one-click se
+ejecutó tras confirmar que FreeCode estaba cerrada; NSIS devolvió código 0. El
+inicio normal posterior informó que no existe un asset DSH alpha4 para la versión
+empaquetada, porque el instalador excluye DSH y alpha4 no está publicado. Con
+autorización separada del usuario, se precargó el runtime alpha4 local verificado
+en la caché por usuario de esta máquina y se preservó como respaldo la caché
+alpha3 anterior. La app no se volvió a probar: el usuario todavía debe verificar
+arranque, Tor y fondos; otras instalaciones necesitan el asset publicado de
+versión exacta. No se creó tag ni release v0.9.4.
 
 ## Build local de Windows
 

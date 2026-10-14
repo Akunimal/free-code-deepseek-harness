@@ -18,9 +18,16 @@ conversation-background verification, and restored opt-in Gentle AI. The
 complete release gate passed, including an isolated NSIS build. Fresh v0.9.4
 setup and portable artifacts are now built and hash-verified under
 `apps/shell/release-0.9.4-candidate-refresh-20261014/`; the older candidate
-artifacts are superseded. The one-click setup for this fresh build has not been
-run yet: it will wait for a current confirmation that FreeCode is closed. v0.9.4
-remains unpublished; v0.9.3 is still the latest release.
+artifacts are superseded. The refreshed one-click setup was executed after the
+user confirmed FreeCode was closed and NSIS returned exit code 0. Its normal
+post-install launch then reported `No harness runtime asset for packaged version
+0.2.1-alpha.4 (win32-x64)`: this small installer intentionally excludes DSH, and
+the matching alpha4 release asset is not published yet. With separate user
+authorization, the verified local alpha4 runtime was seeded into this machine's
+per-user cache and the previous alpha3 cache was preserved as a backup. This
+local workaround does not provide the runtime to other installations. The user
+still needs to relaunch and verify startup, Tor and backgrounds; none is claimed
+as tested. v0.9.4 remains unpublished; v0.9.3 is still the latest release.
 
 v0.9.3 is published for Windows x64. The NSIS setup was installed and confirmed
 working by the user; the portable executable was built but not separately
@@ -306,13 +313,16 @@ executable. Desktop packaging does not rebuild or replace the separately version
 runtime itself changes should maintainers bump its manifest version and run
 `pnpm package:runtime:release`; existing runtime versions are immutable.
 
-The previous v0.9.4 setup was installed and exited with code 0, but that only
-proved installer completion; subsequent reports exposed Tor/background issues,
-so it is superseded. The current fresh setup and portable passed static asset
-and SHA-256 verification in `apps/shell/release-0.9.4-candidate-refresh-20261014/`.
-This refreshed one-click setup is pending execution after a fresh confirmation
-that FreeCode is closed; no separate app launch or feature smoke is claimed.
-The candidate remains unpublished.
+The earlier v0.9.4 setup is superseded. The current fresh setup and portable
+passed static asset and SHA-256 verification in
+`apps/shell/release-0.9.4-candidate-refresh-20261014/`. The current one-click
+setup was executed after confirming FreeCode was closed and NSIS returned 0,
+but its post-install launch could not find the unpublished DSH alpha4 release
+asset. The verified alpha4 source runtime has since been seeded into this
+machine's per-user cache, preserving the prior alpha3 cache as a backup. The app
+has not been retried, so startup, Tor and background behavior remain unverified.
+Other installations still need a matching published alpha4 runtime asset. The
+candidate remains unpublished.
 
 The user confirmed the installed v0.9.3 application works on Windows x64. The
 portable executable is not separately installation-tested. The interactive

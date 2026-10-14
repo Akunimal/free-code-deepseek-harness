@@ -48,8 +48,14 @@ test('bilingual 0.9.4 notes describe the candidate without claiming publication'
   assert.match(english, /release-0\.9\.4-candidate-refresh-20261014/);
   assert.match(english, /178,620,019 bytes; SHA-256\s+`c112637c95de1564a401ac9852300081983bf15d92f82330df16ff7279d1304b`/);
   assert.match(english, /178,246,021 bytes; SHA-256\s+`c3b1e9a65e8b5e420c48059aac14b6ded3790c5b8b7804bfef58acec454d01ea`/);
-  assert.match(english, /has not been executed[\s\S]{0,80}confirmation that FreeCode is closed/i);
-  assert.match(spanish, /todavía no se ejecutó[\s\S]{0,80}confirmación actual de que FreeCode está cerrada/i);
+  assert.match(english, /one-click setup was executed[\s\S]{0,100}NSIS returned exit code 0/i);
+  assert.match(spanish, /setup one-click[\s\S]{0,100}se ejecutó[\s\S]{0,100}código 0/i);
+  assert.match(english, /No harness runtime asset for packaged version 0\.2\.1-alpha\.4 \(win32-x64\)/i);
+  assert.match(spanish, /No harness runtime asset for packaged version 0\.2\.1-alpha\.4 \(win32-x64\)/i);
+  assert.match(english, /verified local alpha4 runtime was seeded[\s\S]{0,120}previous alpha3 cache was preserved/i);
+  assert.match(spanish, /se precargó el runtime alpha4 local verificado[\s\S]{0,200}se preservó[\s\S]{0,40}caché alpha3 anterior/i);
+  assert.match(english, /startup, Tor and backgrounds await user verification/i);
+  assert.match(spanish, /el usuario todavía debe verificar el arranque, Tor y los fondos/i);
 });
 
 test('the changelog leads with the 0.9.4 candidate and retains published history', () => {
@@ -80,6 +86,12 @@ test('English and Spanish READMEs identify v0.9.3 as the latest published releas
   assert.match(spanish, /artefactos finales de v0\.9\.3 quedan en `apps\/shell\/release-0\.9\.3-final\/`/i);
   assert.match(english, /portable Windows executable \(~178\.2 MB \/ 169\.9 MiB/i);
   assert.match(spanish, /ejecutable portable de Windows \(~178,2 MB \/ 169,9 MiB/i);
+  for (const document of [english, spanish]) {
+    assert.match(document, /No harness runtime asset for\s+packaged version\s+0\.2\.1-alpha\.4 \(win32-x64\)/i);
+    assert.match(document, /alpha4 runtime was seeded|precargó el runtime alpha4/i);
+    assert.match(document, /previous alpha3\s+cache|caché\s+alpha3 anterior/i);
+    assert.match(document, /startup, Tor and backgrounds|arranque, Tor y los fondos/i);
+  }
 });
 
 test('release guides and known-issues ledger identify v0.9.3 as the supported baseline', () => {
@@ -101,6 +113,10 @@ test('release guides and known-issues ledger identify v0.9.3 as the supported ba
   assert.match(spanishRelease, /53dfde329731d19081204a82bbbafc4678f4c81b4588a22884ef49064f400cd5/i);
   assert.match(spanishRelease, /830eba7ca48d2ee56d2272dfa1d2d23684f5cc7507db55d7617dbc6ed8cd12d3/i);
   assert.match(spanishRelease, /release publicada v0\.9\.3 es la baseline actual para Windows x64/i);
+  assert.match(englishRelease, /setup was\s+executed after confirmation[\s\S]{0,100}NSIS returned exit code 0/i);
+  assert.match(spanishRelease, /setup one-click se\s+ejecutó tras confirmar[\s\S]{0,100}NSIS devolvió código 0/i);
+  assert.match(englishRelease, /previous alpha3 cache as a backup/i);
+  assert.match(spanishRelease, /caché\s+alpha3 anterior/i);
   assert.match(englishRelease, /v0\.9\.3 also prevents older DSH runtimes/i);
   assert.match(spanishRelease, /v0\.9\.3 también evita que runtimes\s+DSH/i);
   assert.match(knownIssues, /Última release publicada.*Latest published release: `v0\.9\.3`;.*fuente candidata.*candidate source: `v0\.9\.4`/is);
@@ -108,6 +124,8 @@ test('release guides and known-issues ledger identify v0.9.3 as the supported ba
   assert.match(knownIssues, /v0\.9\.3 sólo se soporta Windows x64/i);
   assert.match(knownIssues, /KI-009.*resolved in v0\.9\.3/is);
   assert.match(knownIssues, /KI-009.*resuelto en v0\.9\.3/is);
+  assert.match(knownIssues, /KI-010.*published DSH alpha4 runtime asset/is);
+  assert.match(knownIssues, /KI-010.*requiere publicar el runtime DSH alpha4/is);
   assert.match(knownIssues, /KI-009.*semantic.*tail/is);
   assert.match(knownIssues, /sufijo semántico puede ocultar historial válido/i);
   assert.match(knownIssues, /preserva los bytes originales raw\/Zstandard/i);

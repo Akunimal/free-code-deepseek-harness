@@ -59,9 +59,13 @@ RTK and Caveman are not enabled together by default: they may complement each ot
    do not fail the required-runtime check. Alpha4 is not published remotely.
 6. **Release state / Estado de release** — source is 0.9.4 candidate; the
    complete release gate passed and fresh setup/portable are hash-verified under
-   `apps/shell/release-0.9.4-candidate-refresh-20261014/`. Execution of this
-   one-click setup awaits fresh confirmation that FreeCode is closed. v0.9.3
-   remains latest.
+   `apps/shell/release-0.9.4-candidate-refresh-20261014/`. The setup ran after
+   confirmation that FreeCode was closed (NSIS exit 0), but its post-install
+   launch could not find the unpublished alpha4 runtime asset. A user-authorized
+   local alpha4 cache seed preserved the prior alpha3 cache; the app has not
+   been retried. Startup, Tor and backgrounds await user verification; other
+   installs still need the exact-version runtime release asset. v0.9.3 remains
+   latest.
 
 ## Completado / Completed
 

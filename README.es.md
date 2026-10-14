@@ -18,9 +18,17 @@ verificación del fondo de conversación empaquetado y restauración del modo
 optativo Gentle AI. Pasó el gate completo de release, incluido un build NSIS
 aislado. Ya se recompilaron y verificaron con SHA-256 el setup y portable v0.9.4
 en `apps/shell/release-0.9.4-candidate-refresh-20261014/`; los artefactos
-candidatos anteriores quedan obsoletos. Este setup one-click nuevo todavía no se
-ejecutó: espero una confirmación actual de que FreeCode está cerrada. v0.9.4 no
-está publicada; v0.9.3 sigue siendo la última release.
+candidatos anteriores quedan obsoletos. El setup one-click actualizado se
+ejecutó tras confirmar que FreeCode estaba cerrada y NSIS terminó con código 0.
+El intento normal de inicio posterior informó `No harness runtime asset for
+packaged version 0.2.1-alpha.4 (win32-x64)`: este instalador pequeño excluye
+intencionalmente DSH y el asset de release alpha4 correspondiente todavía no se
+publicó. Con autorización separada del usuario, se precargó el runtime alpha4
+local verificado en la caché por usuario de esta máquina y se preservó la caché
+alpha3 anterior como respaldo. Esta solución local no provee el runtime a otras
+instalaciones. El usuario todavía debe volver a iniciar y verificar el arranque,
+Tor y los fondos; no se afirma que hayan sido probados. v0.9.4 no está publicada;
+v0.9.3 sigue siendo la última release.
 
 v0.9.3 está publicada para Windows x64. El usuario instaló el setup NSIS y
 confirmó que funciona; el ejecutable portable se compiló, pero no se probó con
@@ -304,13 +312,16 @@ Sólo cuando cambie el runtime DSH
 se debe subir su versión en el manifest y ejecutar `pnpm package:runtime:release`;
 las versiones existentes del runtime son inmutables.
 
-El setup v0.9.4 anterior se instaló y terminó con código 0, pero eso sólo probó
-que acabó el instalador; reportes posteriores mostraron problemas de Tor/fondos,
-así que queda obsoleto. El setup y portable nuevos pasaron la verificación
-estática y SHA-256 en `apps/shell/release-0.9.4-candidate-refresh-20261014/`.
-Este setup one-click actualizado queda pendiente de ejecución hasta confirmar
-nuevamente que FreeCode está cerrada; no se afirma un smoke de la app. La candidata
-sigue sin publicarse.
+El setup v0.9.4 anterior queda obsoleto. El setup y portable nuevos pasaron la
+verificación estática y SHA-256 en
+`apps/shell/release-0.9.4-candidate-refresh-20261014/`. El setup one-click actual
+se ejecutó tras confirmar que FreeCode estaba cerrada y NSIS terminó con código
+0, pero el inicio posterior no encontró el asset de release DSH alpha4, que aún
+no está publicado. Después se precargó el runtime alpha4 local verificado en la
+caché por usuario de esta máquina y se preservó como respaldo la caché alpha3
+anterior. No se volvió a probar la app: el arranque, Tor y los fondos siguen sin
+verificar. Otras instalaciones aún necesitan que se publique el asset alpha4
+correspondiente. La candidata sigue sin publicarse.
 
 El usuario confirmó que la aplicación v0.9.3 instalada funciona en Windows x64.
 El portable no se probó con instalación por separado. El `smoke:nsis`
