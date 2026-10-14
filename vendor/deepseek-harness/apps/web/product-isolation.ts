@@ -5,6 +5,19 @@ import { WebProductBundleIsolation } from '../../scripts/web-product-bundle-isol
 
 const DEPENDENCY_ANALYSIS_PLUGIN = 'dsh-browser-dependency-analysis'
 
+
+export interface WorkerBuildContext {
+  getWatchFiles?: () => string[]
+  getModuleIds?: () => Iterable<string>
+}
+
+/** Enumerate worker inputs on Rollup and Rolldown; never skip isolation. */
+export function workerBuildInputFiles(context: WorkerBuildContext): string[] {
+  if (typeof context.getWatchFiles === 'function') return context.getWatchFiles()
+  if (typeof context.getModuleIds === 'function') return [...context.getModuleIds()]
+  throw new Error('Web product isolation: worker input enumeration is unavailable')
+}
+
 /**
  * Identify a dependency-disclosure walk that deliberately leaves third-party imports external.
  * @returns Analysis intent that refuses builds which can write output.
@@ -58,7 +71,7 @@ export function productWebBundleIsolation(repository: string, webRoot: string): 
             name: 'dsh-worker-build-inputs',
             generateBundle: {
               order: 'post',
-              handler(_options, bundle) { inputs.workerBundle(bundle, this.getWatchFiles()) },
+              handler(_options, bundle) { inputs.workerBundle(bundle, workerBuildInputFiles(this)) },
             },
           }],
         },
