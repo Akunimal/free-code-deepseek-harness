@@ -50,7 +50,13 @@ No OmniRoute feature, dependency, download, sidecar launch or detector endpoint 
 ## Progress / next step
 R1 commit: `d73a886`. Authored running count about 2,100 additions/deletions (17,739 generated lock lines excluded). The retirement module is the only retained reference to the removed app-owned route/cache names; tests/docs historical mentions do not enable a feature. No upstream overlay materializations were included in that commit.
 R2 commit: `df674ee577` (859 authored additions/deletions). Running feature count about 2,960. The first cached whitespace check flagged Go unified-diff context (space marker before indentation tabs), not Go additions; R3 scopes that formatting attribute to this patch while keeping trailing/blank checks and strict git-apply whitespace validation. No vendor materializations or binaries were committed.
-R1/R2 verified and committed (`d73a886`, `df674ee577`, `6376e37648`, `bb81a037f1`). R4 source verified; work-unit commit pending. Running authored count around 3,300 before R4; retain cached single-pr strategy, remote review/sizing not authorized. Existing local source/staged sidecars were already v1.3.8; old installed v1.3.5 log is not proof of current local version mismatch. Sidecar staging now preserves the pash correction without regenerating DSH.
+R1/R2 verified and committed (`d73a886`, `df674ee577`, `6376e37648`, `bb81a037f1`). R4 source commit: `14e04506c1`. Running authored count around 3,345 excluding generated dependency locks, before final evidence checkpoint; retain cached single-pr strategy, remote review/sizing not authorized. Existing local source/staged sidecars were already v1.3.8; old installed v1.3.5 log is not proof of current local version mismatch. Sidecar staging now preserves the pash correction without regenerating DSH.
+
+Patch-format corrections do not suppress source checks: Go patch context uses a
+scoped indentation attribute; overlay 169's blank context marker was normalized
+to an empty context line accepted by git apply, removing its whitespace warning.
+Source whitespace and strict replay checks remain enforced. R3 remains open:
+these local source fixes are verified, not a green release/package receipt.
 
 Next: generate the changed DSH alpha4 runtime locally before any installer, investigate/close remaining 30-second source CLI readiness and 90-second packaged MCP startup gate failures, then rerun release checks. The stage version failure alpha4 vs alpha3 is intentional stale-artifact protection, not a passed packaging gate. The installed active instance and its alpha3 cache/settings/history remain untouched. No push/tag/release/installer launch or new installer build occurred.
 
