@@ -89,7 +89,11 @@ elif [[ -L "$VENDOR/apps/web/node_modules/vite" \
   remove_tree "$VENDOR/node_modules"
   remove_workspace_dependency_trees
 fi
-pnpm --dir "$VENDOR" install --frozen-lockfile --node-linker=hoisted --ignore-scripts || true
+if node "$ROOT/scripts/vendor-runtime-build.mjs" cache-check "$INSTALL_PLATFORM"; then
+  echo "package-runtime: reusing completed frozen vendor build dependencies"
+else
+  pnpm --dir "$VENDOR" install --frozen-lockfile --node-linker=hoisted --ignore-scripts
+fi
 printf '%s\n' "$INSTALL_PLATFORM" > "$PLATFORM_MARKER"
 if [[ ! -f "$VITE_ROOT_ENTRY" && ! -f "$VITE_WORKSPACE_ENTRY" ]]; then
   echo "package-runtime: Vite entry missing after install: $VITE_ROOT_ENTRY (or $VITE_WORKSPACE_ENTRY)" >&2
@@ -102,11 +106,20 @@ echo "package-runtime: building upstream libraries and web app"
 # upstream tests with a newer TypeScript/Vite type mismatch. The package build
 # still emits the same production artifacts, so suppress type diagnostics only
 # for this artifact-generation step; our harness gates remain typechecked.
-pnpm --dir "$VENDOR" exec tsc -b tsconfig.host.json --noCheck
-pnpm --dir "$VENDOR" exec tsdown --env.DSH_BUILD_FACE host
-pnpm --dir "$VENDOR" exec tsc -b tsconfig.client.json --noCheck
-pnpm --dir "$VENDOR" exec tsdown --env.DSH_BUILD_FACE client
-pnpm --dir "$VENDOR" run build:web
+(
+  cd "$VENDOR"
+  node node_modules/typescript/bin/tsc -b tsconfig.host.json --noCheck
+)
+node "$ROOT/scripts/vendor-runtime-build.mjs" host
+(
+  cd "$VENDOR"
+  node node_modules/typescript/bin/tsc -b tsconfig.client.json --noCheck
+)
+node "$ROOT/scripts/vendor-runtime-build.mjs" client
+(
+  cd "$VENDOR/apps/web"
+  node "$VENDOR/node_modules/vite/bin/vite.js" build
+)
 
 echo "package-runtime: recording vendored source/build provenance"
 node "$ROOT/scripts/verify-vendor-bundles-fresh.mjs" --write
