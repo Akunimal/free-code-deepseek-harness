@@ -3,6 +3,7 @@ import { SecretStore, resolveSecrets } from './secret-store.js';
 import { join, resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { OmniRouteBootstrap } from './omniroute-bootstrap.js';
+import { OmniRouteManager } from './omniroute.js';
 import { startOpencode2api, type Opencode2apiInstance } from './opencode2api.js';
 import { embeddedMcpEnvironment, ensureEmbeddedMcpConfig } from './mcp-home.js';
 import type { EmbeddedMcpState, McpRuntimeStatus, WorkerHandle } from '@freecode/shared-types';
@@ -46,6 +47,7 @@ export interface ShellRuntime {
   /** opencode2api anonymous-Zen instance; undefined when unavailable. */
   opencode2api?: Opencode2apiInstance;
   omnirouteBootstrap?: OmniRouteBootstrap;
+  startOmniRoute(): Promise<string>;
   supervisor: HarnessSupervisor;
   /** No per-worker handles; returns empty array. */
   workers: () => WorkerHandle[];
@@ -61,6 +63,8 @@ export interface ShellRuntime {
 }
 
 export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<ShellRuntime> {
+  let omniroute: OmniRouteManager | undefined;
+  let stopped = false;
   const descriptorPath = join(cfg.resourcesDir, 'omniroute-runtime.json');
   const omnirouteBootstrap = existsSync(descriptorPath)
     ? new OmniRouteBootstrap({ descriptorPath, userDataDir: cfg.userDataDir, appVersion: cfg.appVersion }) : undefined;
@@ -199,6 +203,15 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
   return {
     opencode2api,
     omnirouteBootstrap,
+    startOmniRoute: async () => {
+      if (stopped) throw new Error('Shell runtime stopped');
+      if (!omnirouteBootstrap || omnirouteBootstrap.state.status !== 'ready') {
+        throw new Error('Optional OmniRoute runtime is not ready');
+      }
+      omniroute ??= new OmniRouteManager({ nodePath: cfg.nodePath,
+        userDataDir: cfg.userDataDir, runtimeDir: omnirouteBootstrap.state.runtimeDir });
+      return omniroute.start();
+    },
     supervisor,
     workers: () => [],
     mcpState,
@@ -228,6 +241,8 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
       await supervisor.start();
     },
     stop: async () => {
+      stopped = true;
+      await omniroute?.stop();
       await omnirouteBootstrap?.stop();
       await supervisor.stop();
       await opencode2api?.stop();
