@@ -9,40 +9,54 @@ index 3aa0a9d1f9..6054b3e744 100644
    display: flex;
    flex-direction: column;
    height: 100%;
-@@ -7,6 +8,57 @@
+@@ -7,6 +8,70 @@
    background: var(--dsw-alias-bg-base);
  }
 -
 +
-+/* Decorative layers stay in the conversation's isolated stacking context,
-+   behind content and hit targets. Pseudo-elements add no DOM or AT noise. */
++/* Decorative layers stay above the base paint but below conversation content
++   and hit targets. Pseudo-elements add no DOM or AT noise. */
 +.root::before,
 +.root::after {
 +  content: '';
 +  position: absolute;
 +  inset: 0;
-+  z-index: -1;
++  z-index: 0;
 +  pointer-events: none;
 +  background-repeat: no-repeat;
++}
++
++.root > * {
++  z-index: 1;
 +}
 +
 +.root::before {
 +  background: radial-gradient(
 +    ellipse 76% 64% at 18% 25%,
-+    color-mix(in srgb, var(--dsw-alias-state-business-primary) 16%, transparent) 0%,
++    rgba(65, 118, 230, .40) 0%,
 +    transparent 72%
 +  );
-+  opacity: .72;
++  background: radial-gradient(
++    ellipse 76% 64% at 18% 25%,
++    color-mix(in srgb, var(--dsw-alias-state-business-primary, rgb(65, 118, 230)) 40%, transparent) 0%,
++    transparent 72%
++  );
++  opacity: .90;
 +  animation: dsh-conversation-ambient-drift-a 42s ease-in-out infinite alternate;
 +}
 +
 +.root::after {
 +  background: radial-gradient(
 +    ellipse 68% 74% at 82% 78%,
-+    color-mix(in srgb, var(--dsw-alias-state-business-tertiary) 14%, transparent) 0%,
++    rgba(228, 237, 253, .30) 0%,
 +    transparent 74%
 +  );
-+  opacity: .62;
++  background: radial-gradient(
++    ellipse 68% 74% at 82% 78%,
++    color-mix(in srgb, var(--dsw-alias-state-business-tertiary, rgb(228, 237, 253)) 30%, transparent) 0%,
++    transparent 74%
++  );
++  opacity: .85;
 +  animation: dsh-conversation-ambient-drift-b 53s ease-in-out infinite alternate;
 +}
 +
@@ -61,7 +75,6 @@ index 3aa0a9d1f9..6054b3e744 100644
 +  .root::after {
 +    animation: none;
 +    transform: none;
-+    opacity: .22;
 +  }
 +}
 +
