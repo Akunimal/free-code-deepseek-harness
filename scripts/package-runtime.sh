@@ -219,6 +219,7 @@ if [[ ! -f "$ROOT/apps/shell/resources/opencode2api/opencode2api-win-x64.exe" ]]
   exit 3
 fi
 cp "$ROOT/apps/shell/resources/opencode2api/opencode2api-win-x64.exe" "$OUT/opencode2api/"
+cp "$ROOT/apps/shell/resources/opencode2api/freecode-build-receipt.json" "$OUT/opencode2api/"
 # The Windows release owns its OCR runtime. The helper copies only the native
 # executable/DLLs and language data, and fails closed when a release build host
 # does not provide the expected Tesseract installation.

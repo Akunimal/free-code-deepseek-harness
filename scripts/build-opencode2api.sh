@@ -44,6 +44,9 @@ fi
 
 mkdir -p "$OUT_DIR"
 
+# Materialize only the current replayable FreeCode protocol overlay.
+node "$ROOT/scripts/apply-opencode2api-patches.mjs"
+
 # Windows Go launched from Git Bash/WSL needs a native Windows output path;
 # otherwise it can report success while writing outside the repository. Native
 # macOS/Linux Go must keep POSIX paths even if a path-conversion utility exists.
@@ -114,6 +117,9 @@ build_target windows amd64 opencode2api-win-x64.exe
 build_target darwin arm64 opencode2api-mac-arm64
 build_target darwin amd64 opencode2api-mac-x64
 build_target linux amd64 opencode2api-linux-x64
+
+# Refresh the desktop sidecar without regenerating the separately pinned DSH.
+node "$ROOT/scripts/opencode2api-staging.mjs" --stage-built
 
 echo "[opencode2api] done: 4 binaries in $OUT_DIR"
 ls -la "$OUT_DIR"

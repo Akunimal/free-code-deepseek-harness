@@ -13,6 +13,11 @@ startup and feature behavior have not been validated separately.
   server or detector remains. Next-start migration retires only FreeCode-owned
   legacy configuration and verified caches; user providers/history are preserved.
 
+- **Invalid `pash` calls repaired at the bridge.** Exact `pash` becomes `bash`
+  only when the original client declares unambiguous, permitted `bash`.
+  Stream fragments, tool IDs and arguments are preserved; no fuzzy correction,
+  permission bypass or request replay. Packaging rejects stale sidecar builds.
+
 - **opencode2api v1.3.8** replaces the v1.3.5 vendored source. Manual model
   selection survives refreshes, temporary probe failures recover, and
   canonical/stable request and session identities are preserved. FreeCode's
@@ -51,6 +56,11 @@ la aplicación y el comportamiento de sus funciones no se validaron por separado
 - **OmniRoute retirado.** Sin descarga opcional, fallback automático, servidor
   ni detector. La migración del próximo inicio retira solo la configuración
   antigua propia y cachés verificadas; conserva proveedores e historial del usuario.
+
+- **Llamadas inválidas `pash` corregidas en el puente.** Solo se convierte el
+  nombre exacto a `bash` si el cliente original declara `bash` permitido y sin
+  ambigüedad. Conserva fragmentos, IDs y argumentos; sin corrección aproximada,
+  salto de permisos ni repetición del request. El empaquetado rechaza binarios viejos.
 
 - **opencode2api v1.3.8** reemplaza el código vendorizado v1.3.5. La selección
   manual de modelos persiste al actualizar, los fallos temporales de sondeo se
