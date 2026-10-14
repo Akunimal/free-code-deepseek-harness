@@ -165,7 +165,7 @@
 +}
 --- /dev/null
 +++ b/vendor/opencode2api/internal/protocol/freecode_tool_name.go
-@@ -0,0 +1,305 @@
+@@ -0,0 +1,311 @@
 +package protocol
 +
 +import (
@@ -268,12 +268,17 @@
 +	}
 +	if len(r.out) == 0 && r.end == nil {
 +		var frame bytes.Buffer
++		atLineStart := true
 +		for {
-+			line, err := r.input.ReadString('\n')
-+			frame.WriteString(line)
++			chunk, err := r.input.ReadSlice('\n')
++			frame.Write(chunk)
 +			if frame.Len() > 16<<20 {
 +				r.end = errors.New("upstream SSE frame exceeds repair limit")
 +				break
++			}
++			if err == bufio.ErrBufferFull {
++				atLineStart = false
++				continue
 +			}
 +			if err != nil {
 +				r.end = err
@@ -282,10 +287,11 @@
 +				}
 +				break
 +			}
-+			if line == "\n" || line == "\r\n" {
++			if atLineStart && (bytes.Equal(chunk, []byte("\n")) || bytes.Equal(chunk, []byte("\r\n"))) {
 +				r.out, r.end = r.repair.frame(frame.Bytes(), r.protocol)
 +				break
 +			}
++			atLineStart = true
 +		}
 +		if r.end == io.EOF && len(r.out) == 0 && r.repair.pending() {
 +			r.end = errors.New("incomplete upstream tool name")
@@ -473,7 +479,7 @@
 +}
 --- /dev/null
 +++ b/vendor/opencode2api/internal/protocol/freecode_tool_name_test.go
-@@ -0,0 +1,186 @@
+@@ -0,0 +1,209 @@
 +package protocol
 +
 +import (
@@ -484,6 +490,29 @@
 +	"strings"
 +	"testing"
 +)
++
++type countedRepairReader struct {
++	reader io.Reader
++	bytes  int
++}
++
++func (r *countedRepairReader) Read(p []byte) (int, error) {
++	n, err := r.reader.Read(p)
++	r.bytes += n
++	return n, err
++}
++func TestPashStreamFrameReadBudget(t *testing.T) {
++	source := &countedRepairReader{reader: strings.NewReader(strings.Repeat("a", 32<<20))}
++	filtered := NewToolNameRepair(Chat, repairRequest(Chat, "bash")).FilterStream(source, Chat)
++	defer filtered.Close()
++	_, err := io.ReadAll(filtered)
++	if err == nil {
++		t.Fatal("oversized frame accepted")
++	}
++	if source.bytes > (16<<20)+8192 {
++		t.Fatalf("read past bounded frame before rejection: %d", source.bytes)
++	}
++}
 +
 +func repairRequest(p Protocol, names ...string) map[string]any {
 +	tools := []any{}

@@ -21,6 +21,12 @@ Los runtimes aún no publicados no pueden descargarse: una prueba local debe
 disponer explícitamente de runtimes locales verificados antes de arrancar.
 No se debe presentar un asset remoto ausente como disponible.
 
+Tras cambiar opencode2api o su overlay activo, recompilá con
+`bash scripts/build-opencode2api.sh`. También prepara el nuevo sidecar Windows
+sin regenerar DSH. El preflight rechaza receipts ausentes, fuentes cambiadas
+o bytes de un binario viejo; nunca prepara silenciosamente una build antigua
+sin verificar.
+
 La release desktop v0.9.3 contiene el setup NSIS, el ejecutable portable, el
 blockmap del setup y `latest.yml`. El runtime DSH separado tiene versión
 independiente: v0.9.3 reutiliza exactamente el runtime Windows x64

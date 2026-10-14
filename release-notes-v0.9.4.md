@@ -6,6 +6,8 @@
 v0.9.3 for Windows x64. These notes describe the current local source candidate;
 they are not a release announcement. The setup ran successfully, but application
 startup and feature behavior have not been validated separately.
+The OmniRoute removal and bridge corrections below are newer source changes;
+previously generated installers do not include them.
 
 ### What's new
 
@@ -50,6 +52,8 @@ public tag or release.
 siendo v0.9.3 para Windows x64. Estas notas describen la candidata del código
 local; no anuncian una release. El setup terminó correctamente, pero el inicio de
 la aplicación y el comportamiento de sus funciones no se validaron por separado.
+El retiro de OmniRoute y las correcciones del puente son cambios de fuente más
+recientes; los instaladores generados anteriormente no los incluyen.
 
 ### Novedades
 

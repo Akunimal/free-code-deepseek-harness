@@ -4,3 +4,6 @@
 # Vendored upstream trees: keep exactly as upstream has them
 vendor/** text=auto
 patches/*.patch whitespace=-indent-with-non-tab
+# Unified Go diff context has one space before upstream indentation tabs.
+# Keep blank/trailing-space checks; git apply validates actual added Go lines.
+patches/opencode2api-pash-tool-name.patch whitespace=-indent-with-non-tab,-space-before-tab

@@ -19,6 +19,12 @@ sessions are preserved. Unpublished runtime assets are not downloadable
 yet: local testing must explicitly arrange verified local runtimes before
 launch; never describe an unavailable remote asset as ready.
 
+After changing opencode2api source or its active fork overlay, rebuild with
+`bash scripts/build-opencode2api.sh`. It also stages the new Windows sidecar
+without regenerating DSH. Prepackage verification rejects missing receipts,
+changed source fingerprints or stale binary bytes; it never silently stages
+an unverified old build.
+
 ## Release contents and pinned runtime
 
 The v0.9.3 desktop release contains the NSIS setup, portable executable,
