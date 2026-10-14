@@ -9,6 +9,10 @@ startup and feature behavior have not been validated separately.
 
 ### What's new
 
+- **OmniRoute removed.** No optional runtime download, automatic fallback,
+  server or detector remains. Next-start migration retires only FreeCode-owned
+  legacy configuration and verified caches; user providers/history are preserved.
+
 - **opencode2api v1.3.8** replaces the v1.3.5 vendored source. Manual model
   selection survives refreshes, temporary probe failures recover, and
   canonical/stable request and session identities are preserved. FreeCode's
@@ -43,6 +47,10 @@ local; no anuncian una release. El setup terminó correctamente, pero el inicio 
 la aplicación y el comportamiento de sus funciones no se validaron por separado.
 
 ### Novedades
+
+- **OmniRoute retirado.** Sin descarga opcional, fallback automático, servidor
+  ni detector. La migración del próximo inicio retira solo la configuración
+  antigua propia y cachés verificadas; conserva proveedores e historial del usuario.
 
 - **opencode2api v1.3.8** reemplaza el código vendorizado v1.3.5. La selección
   manual de modelos persiste al actualizar, los fallos temporales de sondeo se

@@ -28,15 +28,6 @@ export const ModelCatalogSchema = z.object({
 });
 export type ModelCatalog = z.infer<typeof ModelCatalogSchema>;
 
-/** DetectedRoute — an OpenAI-compatible endpoint found by the local scan. */
-export const DetectedRouteSchema = z.object({
-  port: z.number(),
-  baseURL: z.string(),
-  models: z.array(z.string()),
-  latencyMs: z.number(),
-});
-export type DetectedRoute = z.infer<typeof DetectedRouteSchema>;
-
 /** Tor resilience status snapshot. */
 export const TorStatusSchema = z.object({
   active: z.boolean(),
@@ -57,7 +48,6 @@ export const IpcChannels = {
   poolResize: 'pool:resize',
   modelsCatalog: 'models:catalog',
   modelsRefresh: 'models:refresh',
-  omnirouteDetect: 'omniroute:detect',
   settingsOpenFolder: 'settings:openFolder',
   mcpGetState: 'mcp:getState',
   mcpSetEnabled: 'mcp:setEnabled',
@@ -86,7 +76,6 @@ export interface IpcPayloads {
   [IpcChannels.poolResize]: { size: number };
   [IpcChannels.modelsCatalog]: ModelCatalog;
   [IpcChannels.modelsRefresh]: void;
-  [IpcChannels.omnirouteDetect]: void;
   [IpcChannels.settingsOpenFolder]: void;
   [IpcChannels.mcpGetState]: void;
   [IpcChannels.mcpSetEnabled]: { id: string; enabled: boolean };
@@ -165,9 +154,6 @@ export interface FreeCodeApi {
   models: {
     refresh(): Promise<ModelCatalog>;
     onCatalog(cb: (catalog: ModelCatalog) => void): () => void;
-  };
-  omniroute: {
-    detect(): Promise<DetectedRoute[]>;
   };
   harness: {
     restart(): Promise<void>;

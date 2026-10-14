@@ -12,8 +12,10 @@ The v0.9.4 candidate intentionally changes the DSH conversation background and
 therefore pins a new runtime, `0.2.1-alpha.3`, in the tracked
 `apps/shell/harness-runtime.json`. Regenerate its runtime before packaging;
 the stage-manifest gate rejects an old alpha2 stage. Alpha2 archives remain
-immutable. OmniRoute 3.8.51 is a separate verified first-launch download, not
-an installer dependency tree. Unpublished runtime assets are not downloadable
+immutable. OmniRoute integration has been removed: no fallback, download,
+server or detection endpoint is shipped. Only obsolete app-owned configuration
+and verified caches are retired at the next startup; unrelated providers and
+sessions are preserved. Unpublished runtime assets are not downloadable
 yet: local testing must explicitly arrange verified local runtimes before
 launch; never describe an unavailable remote asset as ready.
 

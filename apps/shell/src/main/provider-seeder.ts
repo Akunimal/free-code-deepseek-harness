@@ -18,8 +18,7 @@ import type { ModelReasoningEfforts } from './reasoning-policy.js';
  *     (`settings-rejected`) and the provider never registers. `models: []`
  *     is NOT serviceable — the seeder must plant at least one known model;
  *     the model-refresher then syncs the full latency-sorted list.
- *   - Only the OpenCode Free pool is seeded; OmniRoute stays out of the seed
- *     (the user adds it via the on-demand wizard).
+ *   - Only the OpenCode Free pool is seeded; unrelated user routes remain user-owned.
  */
 
 export interface SeederConfig {
@@ -223,7 +222,7 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
       seeded = true;
     }
   } else {
-    // Unrelated user provider (e.g. omniroute, custom gateway): never touch.
+    // Unrelated user provider (e.g. a custom gateway): never touch.
   }
 
   if (seeded) {

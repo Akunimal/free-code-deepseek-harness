@@ -3,7 +3,6 @@ import type {
   FreeCodeApi,
   IpcPayloads,
   ModelCatalog,
-  DetectedRoute,
   WorkerHandle,
   OcrResult,
   EmbeddedMcpState,
@@ -20,7 +19,6 @@ const IpcChannels = {
   poolResize: 'pool:resize',
   modelsCatalog: 'models:catalog',
   modelsRefresh: 'models:refresh',
-  omnirouteDetect: 'omniroute:detect',
   settingsOpenFolder: 'settings:openFolder',
   mcpGetState: 'mcp:getState',
   mcpSetEnabled: 'mcp:setEnabled',
@@ -64,9 +62,6 @@ const api: FreeCodeApi = {
       ipcRenderer.on(IpcChannels.modelsCatalog, listener);
       return () => ipcRenderer.removeListener(IpcChannels.modelsCatalog, listener);
     },
-  },
-  omniroute: {
-    detect: (): Promise<DetectedRoute[]> => ipcRenderer.invoke(IpcChannels.omnirouteDetect),
   },
   harness: {
     restart: (): Promise<void> => ipcRenderer.invoke(IpcChannels.harnessRestart),
@@ -118,4 +113,4 @@ const api: FreeCodeApi = {
 
 contextBridge.exposeInMainWorld('freecode', api);
 
-export type { FreeCodeApi, IpcPayloads, ModelCatalog, DetectedRoute, WorkerHandle, OcrResult, EmbeddedMcpState, McpRuntimeStatus };
+export type { FreeCodeApi, IpcPayloads, ModelCatalog, WorkerHandle, OcrResult, EmbeddedMcpState, McpRuntimeStatus };

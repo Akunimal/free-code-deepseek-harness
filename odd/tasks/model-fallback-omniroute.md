@@ -3,6 +3,7 @@
 Repository task document: `odd/tasks/model-fallback-omniroute.md`.
 
 ## Objective
+**Historical objective, superseded:** the user explicitly removed OmniRoute on 2026-10-14. Current work is tracked in `odd/tasks/remove-omniroute-pash.md`. Completed evidence below remains historical; the conversation-background fix remains valid. Do not ship or re-enable this fallback design.
 For v0.9.4, make a pinned OmniRoute 3.8.51 free-only fallback available without inflating the installer: fetch and SHA-256-verify its versioned runtime archive in the background on the app's first launch (like DSH), install it atomically in per-user app data, and only route through it after OpenCode Free has genuinely remained unavailable through its full recovery grace period. Keep the UI available while downloads/models warm, clearly explain fallback readiness/state, and return to OpenCode Free when it recovers. Restore the missing animated conversation atmosphere and make the release gate reject a bundle that omits it.
 
 ## Problem and why

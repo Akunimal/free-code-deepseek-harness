@@ -10,7 +10,6 @@ import {
 } from '@freecode/shared-types';
 import { ShellRuntime } from './runtime.js';
 import type { TorManager } from './tor-manager.js';
-import { detectLocalRoutes } from './omniroute-detector.js';
 import { refreshModels } from './model-refresher.js';
 import { isOcrAvailable, extractText } from './ocr.js';
 import { getGentleAiStatus, runGentleAi, runGentleAiDoctor } from './gentle-ai.js';
@@ -93,8 +92,6 @@ export function registerIpc(deps: IpcDeps): () => void {
     }
   });
 
-  // omniroute:detect (invoke)
-  ipcMain.handle(IpcChannels.omnirouteDetect, () => detectLocalRoutes());
 
   // harness:restart (invoke)
   ipcMain.handle(IpcChannels.harnessRestart, () => runtime.supervisor.restart());
@@ -238,7 +235,6 @@ export function registerIpc(deps: IpcDeps): () => void {
   return () => {
     offTorChange?.();
     ipcMain.removeHandler(IpcChannels.modelsRefresh);
-    ipcMain.removeHandler(IpcChannels.omnirouteDetect);
     ipcMain.removeHandler(IpcChannels.harnessRestart);
     ipcMain.removeHandler(IpcChannels.poolRestartWorker);
     ipcMain.removeHandler(IpcChannels.poolResize);
