@@ -10,6 +10,15 @@ evidencia histÃ³rica de la release publicada y no deben sobrescribirse.
 
 ## Contenido de la release y runtime fijado
 
+El candidato v0.9.4 cambia intencionalmente los fondos de DSH y fija un nuevo
+runtime `0.2.1-alpha.3` en `apps/shell/harness-runtime.json`, versionado en Git.
+Hay que regenerarlo antes de empaquetar; el gate rechaza un stage alpha2 viejo.
+Los archivos alpha2 publicados son inmutables. OmniRoute 3.8.51 se descarga
+verificado al primer inicio, sin incluir sus dependencias en el instalador.
+Los runtimes aún no publicados no pueden descargarse: una prueba local debe
+disponer explícitamente de runtimes locales verificados antes de arrancar.
+No se debe presentar un asset remoto ausente como disponible.
+
 La release desktop v0.9.3 contiene el setup NSIS, el ejecutable portable, el
 blockmap del setup y `latest.yml`. El runtime DSH separado tiene versión
 independiente: v0.9.3 reutiliza exactamente el runtime Windows x64

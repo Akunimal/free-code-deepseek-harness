@@ -37,4 +37,9 @@ for (const [field, predicate] of requirements) {
   }
 }
 
+if (process.argv[3]) {
+  const pin = JSON.parse(readFileSync(resolve(process.argv[3]), 'utf8'));
+  if (manifest.version !== pin.version) throw new Error(`verify-runtime-manifest: source pin ${pin.version} disagrees with stage ${manifest.version}`);
+}
+
 console.log(`verify-runtime-manifest: valid ${manifest.version}`);

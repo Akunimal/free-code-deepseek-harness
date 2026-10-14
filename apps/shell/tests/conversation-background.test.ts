@@ -65,6 +65,18 @@ describe('conversation ambient background', () => {
       mkdirSync(dirname(cssPath), { recursive: true })
       copyFileSync(sourcePath, cssPath)
 
+      // Test replay from clean input even when the supported build pipeline
+      // has already materialized the overlay in the working vendor tree.
+      const reverse = spawnSync('git', ['-c', 'core.autocrlf=false', 'apply', '--reverse', '--check', patchPath], {
+        cwd: scratchRoot, encoding: 'utf8', windowsHide: true,
+      })
+      if (reverse.status === 0) {
+        const reverted = spawnSync('git', ['-c', 'core.autocrlf=false', 'apply', '--reverse', patchPath], {
+          cwd: scratchRoot, encoding: 'utf8', windowsHide: true,
+        })
+        expect(reverted.status, `${reverted.stdout}\n${reverted.stderr}`).toBe(0)
+      }
+
       const apply = spawnSync('git', ['-c', 'core.autocrlf=false', 'apply', '--check', patchPath], {
         cwd: scratchRoot,
         encoding: 'utf8',

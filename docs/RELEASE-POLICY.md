@@ -8,6 +8,15 @@ The current source version is v0.9.4 candidate; it remains unpublished until
 its validation is complete. The v0.9.3 assets and hashes below remain historical
 published evidence and must not be overwritten.
 
+The v0.9.4 candidate intentionally changes the DSH conversation background and
+therefore pins a new runtime, `0.2.1-alpha.3`, in the tracked
+`apps/shell/harness-runtime.json`. Regenerate its runtime before packaging;
+the stage-manifest gate rejects an old alpha2 stage. Alpha2 archives remain
+immutable. OmniRoute 3.8.51 is a separate verified first-launch download, not
+an installer dependency tree. Unpublished runtime assets are not downloadable
+yet: local testing must explicitly arrange verified local runtimes before
+launch; never describe an unavailable remote asset as ready.
+
 ## Release contents and pinned runtime
 
 The v0.9.3 desktop release contains the NSIS setup, portable executable,

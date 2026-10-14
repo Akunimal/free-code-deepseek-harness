@@ -245,7 +245,8 @@ if (!/^\d+$/.test(nodeModuleVersion)) {
   throw new Error(`Electron returned an invalid NODE_MODULE_VERSION: ${nodeModuleVersion}`);
 }
 const manifest = {
-  version: require(vendorPackagePath).version,
+  // Fork runtime assets are immutable and independent of upstream's version.
+  version: JSON.parse(fs.readFileSync(path.join(root, 'apps/shell/harness-runtime.json'), 'utf8')).version,
   source: 'deepseek-ai/deepseek-harness',
   upstreamCommit: upstreamCommit || null,
   cli: 'dsh/apps/cli/lib/bin.js',
