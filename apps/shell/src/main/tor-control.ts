@@ -130,8 +130,10 @@ class TorControlConnection {
   }
 }
 
-function safeCookieHmac(secret: Buffer, label: string, clientNonce: Buffer, serverNonce: Buffer): Buffer {
-  return createHmac('sha256', secret).update(label).update(clientNonce).update(serverNonce).digest();
+function safeCookieHmac(cookie: Buffer, label: string, clientNonce: Buffer, serverNonce: Buffer): Buffer {
+  // Tor's control-spec uses the direction label as the HMAC key, followed by
+  // CookieString | ClientNonce | ServerNonce as the authenticated message.
+  return createHmac('sha256', label).update(cookie).update(clientNonce).update(serverNonce).digest();
 }
 
 async function authenticatedCommand(port: number, cookieFile: string, command: string): Promise<TorControlReply> {

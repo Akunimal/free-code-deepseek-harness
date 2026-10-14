@@ -3,7 +3,6 @@ export interface TorrcOptions {
   controlPort: number;
   dataDirectory: string;
   controlCookiePath: string;
-  logPath: string;
   geoipFile?: string;
   geoip6File?: string;
 }
@@ -23,7 +22,10 @@ export function buildTorrcContent(options: TorrcOptions): string {
     `DataDirectory ${quoteTorrcPath(options.dataDirectory)}`,
     ...(options.geoipFile ? [`GeoIPFile ${quoteTorrcPath(options.geoipFile)}`] : []),
     ...(options.geoip6File ? [`GeoIPv6File ${quoteTorrcPath(options.geoip6File)}`] : []),
-    `Log notice file ${quoteTorrcPath(options.logPath)}`,
+    // Tor's special `Log ... file` grammar on Windows treats a quoted path
+    // as part of the filename and aborts startup. TorManager captures these
+    // notices from the child stdout pipe instead.
+    'Log notice stdout',
     'CookieAuthentication 1',
     `CookieAuthFile ${quoteTorrcPath(options.controlCookiePath)}`,
     'ClientOnly 1',

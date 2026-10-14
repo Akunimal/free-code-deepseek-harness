@@ -10,8 +10,8 @@ import { getTorBootstrapProgress, signalTorNewnym } from '../src/main/tor-contro
 const SERVER_KEY = 'Tor safe cookie authentication server-to-controller hash';
 const CLIENT_KEY = 'Tor safe cookie authentication controller-to-server hash';
 
-function cookieHmac(key: Buffer, label: string, clientNonce: Buffer, serverNonce: Buffer): Buffer {
-  return createHmac('sha256', key).update(label).update(clientNonce).update(serverNonce).digest();
+function cookieHmac(cookie: Buffer, label: string, clientNonce: Buffer, serverNonce: Buffer): Buffer {
+  return createHmac('sha256', label).update(cookie).update(clientNonce).update(serverNonce).digest();
 }
 
 async function startFakeControl(cookie: Buffer, progress = 100): Promise<{

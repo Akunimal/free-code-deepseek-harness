@@ -4,7 +4,7 @@ import { findFreePort, TorManager, waitForTorBootstrap } from '../src/main/tor-m
 import { launchHidden, killProcessTree } from '../src/main/freecode-launcher.js';
 import type { ChildProcess } from 'node:child_process';
 import { createServer } from 'node:net';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -222,18 +222,11 @@ describe('TorManager', () => {
     expect(status.lastError).not.toMatch(/bootstrap timed out/i);
   });
 
-  it('clears stale Tor logs and reports fresh file diagnostics when stderr is empty', async () => {
+  it('reports diagnostics written to the captured stdout stream when Tor exits before bootstrap', async () => {
     const torPath = join(tmpDir, 'tor.exe');
-    const torDataDir = join(tmpDir, 'tor-single');
-    const torLogPath = join(torDataDir, 'tor.log');
     writeFileSync(torPath, 'test stub');
-    mkdirSync(torDataDir, { recursive: true });
-    writeFileSync(torLogPath, 'STALE FAILURE FROM A PREVIOUS START\n');
     const proc = fakeTorProcess(4248);
-    vi.mocked(launchHidden).mockImplementation(() => {
-      expect(readFileSync(torLogPath, 'utf8')).toBe('');
-      return { proc } as ReturnType<typeof launchHidden>;
-    });
+    vi.mocked(launchHidden).mockReturnValue({ proc } as ReturnType<typeof launchHidden>);
 
     const manager = new TorManager({
       torBinaryPath: torPath,
@@ -245,7 +238,7 @@ describe('TorManager', () => {
 
     const starting = manager.start();
     await vi.waitFor(() => expect(launchHidden).toHaveBeenCalled(), { timeout: 2_000 });
-    writeFileSync(torLogPath, 'Oct 14 10:00:00.000 [warn] Failed to open GeoIPFile: packaged resource missing\n');
+    proc.stdout?.emit('data', Buffer.from('Oct 14 10:00:00.000 [warn] Failed to open GeoIPFile: packaged resource missing\n'));
     Object.defineProperty(proc, 'exitCode', { value: 1, writable: true, configurable: true });
     proc.emit('exit', 1, null);
 

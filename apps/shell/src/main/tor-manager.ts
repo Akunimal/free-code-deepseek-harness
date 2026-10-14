@@ -2,7 +2,7 @@ import { launchHidden, killProcessTree } from './freecode-launcher.js';
 import { buildTorrcContent } from './tor-config.js';
 import { getTorBootstrapProgress, signalTorNewnym } from './tor-control.js';
 import type { ChildProcess } from 'node:child_process';
-import { closeSync, existsSync, fstatSync, mkdirSync, openSync, readSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
 
@@ -50,32 +50,8 @@ function appendTorOutput(current: string, chunk: unknown): string {
   return `${current}${text}`.slice(-MAX_TOR_OUTPUT_CAPTURE_CHARS);
 }
 
-function readTorLogTail(filePath: string): string {
-  let fd: number | undefined;
-  try {
-    fd = openSync(filePath, 'r');
-    const size = fstatSync(fd).size;
-    const length = Math.min(size, MAX_TOR_OUTPUT_CAPTURE_CHARS);
-    if (length === 0) return '';
-    const buffer = Buffer.alloc(length);
-    const bytesRead = readSync(fd, buffer, 0, length, Math.max(0, size - length));
-    return buffer.subarray(0, bytesRead).toString('utf8');
-  } catch {
-    // The daemon may fail before creating its file log; stdout/stderr remain a fallback.
-    return '';
-  } finally {
-    if (fd !== undefined) {
-      try { closeSync(fd); } catch { /* best effort */ }
-    }
-  }
-}
-
-function collectTorDiagnostics(outputTail: string, logPath: string): string {
-  const torLog = readTorLogTail(logPath);
-  return [
-    outputTail ? `child output: ${outputTail}` : '',
-    torLog ? `tor.log: ${torLog}` : '',
-  ].filter(Boolean).join('\n');
+function collectTorDiagnostics(outputTail: string): string {
+  return outputTail ? `child output: ${outputTail}` : '';
 }
 
 function formatTorFailure(reason: string, output: string): string {
@@ -215,12 +191,7 @@ export class TorManager {
 
       const geoipFile = join(this.cfg.geoipDir, 'geoip').replace(/\\/g, '/');
       const geoip6File = join(this.cfg.geoipDir, 'geoip6').replace(/\\/g, '/');
-      const logPath = join(torDataDir, 'tor.log').replace(/\\/g, '/');
       const torrcPath = join(torDataDir, 'torrc');
-
-      // Tor writes startup failures to its configured file logger rather than
-      // the child pipes. Remove stale contents so a retry reports only its run.
-      writeFileSync(logPath, '', 'utf8');
 
       // Optimización de nodos y velocidad para API Proxying (Habr / Linux.do guidelines)
       const torrc = buildTorrcContent({
@@ -228,7 +199,6 @@ export class TorManager {
         controlPort: this.controlPort,
         dataDirectory: torDataDir,
         controlCookiePath: this.controlCookiePath,
-        logPath,
         ...(existsSync(join(this.cfg.geoipDir, 'geoip')) ? { geoipFile } : {}),
         ...(existsSync(join(this.cfg.geoipDir, 'geoip6')) ? { geoip6File } : {}),
       });
@@ -253,7 +223,7 @@ export class TorManager {
       launched.stdout?.on('data', (chunk: Buffer) => { outputTail = appendTorOutput(outputTail, chunk); });
       launched.stderr?.on('data', (chunk: Buffer) => { outputTail = appendTorOutput(outputTail, chunk); });
       launched.once('error', (error) => {
-        spawnFailure = formatTorFailure(`Tor daemon failed to spawn: ${error.message}`, collectTorDiagnostics(outputTail, logPath));
+        spawnFailure = formatTorFailure(`Tor daemon failed to spawn: ${error.message}`, collectTorDiagnostics(outputTail));
         if (generation !== this.lifecycleGeneration) return;
         this.cfg.log?.('error', 'Tor daemon failed to spawn', { error: spawnFailure });
         this.proc = null;
@@ -265,7 +235,7 @@ export class TorManager {
       launched.once('exit', (code, signal) => {
         exitFailure = formatTorFailure(
           `Tor daemon exited (code=${code ?? 'unknown'}${signal ? ` signal=${signal}` : ''})`,
-          collectTorDiagnostics(outputTail, logPath),
+          collectTorDiagnostics(outputTail),
         );
         if (generation !== this.lifecycleGeneration) return;
         this.cfg.log?.('warn', 'Tor daemon exited', { error: exitFailure });
@@ -281,10 +251,10 @@ export class TorManager {
       // Tor is an optional failover leg. Return to application bootstrap as
       // soon as the child is spawned; direct routing stays available while
       // readiness is monitored in the background.
-      void this.completeStartup(generation, launched, () => outputTail, () => spawnFailure, () => exitFailure, logPath)
+      void this.completeStartup(generation, launched, () => outputTail, () => spawnFailure, () => exitFailure)
         .catch(async (err: unknown) => {
           if (generation !== this.lifecycleGeneration) return;
-          const failure = formatTorFailure((err as Error).message, collectTorDiagnostics(outputTail, logPath));
+          const failure = formatTorFailure((err as Error).message, collectTorDiagnostics(outputTail));
           if (this.proc === launched && launched.exitCode === null) {
             const generationBeforeCleanup = this.lifecycleGeneration;
             await this.stop();
@@ -407,7 +377,6 @@ export class TorManager {
     getOutputTail: () => string,
     getSpawnFailure: () => string | null,
     getExitFailure: () => string | null,
-    logPath: string,
   ): Promise<void> {
     const ready = await this.waitForBootstrap(this.cfg.bootstrapTimeoutMs ?? BOOTSTRAP_TIMEOUT_MS, proc);
     if (generation !== this.lifecycleGeneration) return;
@@ -420,7 +389,7 @@ export class TorManager {
 
     const failure = getSpawnFailure() ?? getExitFailure() ?? formatTorFailure(
       'Tor bootstrap timed out',
-      collectTorDiagnostics(getOutputTail(), logPath),
+      collectTorDiagnostics(getOutputTail()),
     );
     if (this.proc === proc && proc.exitCode === null) {
       const generationBeforeCleanup = this.lifecycleGeneration;
