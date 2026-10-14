@@ -62,7 +62,7 @@ The app currently refreshes only the bundled OpenCode Free lane. When its catalo
 - `graphify update <repo-root>` after code/docs edits, respecting the sensitive-file exclusion; report freshness status.
 
 ## Next step
-Current override: T1 and T2 checks passed. Close T2, then implement T3/T4 before T6. T5's desktop/runtime boundary must be validated in T6, not assumed from a desktop rebuild. Keep the Engram mirror pending until runtime registration is restored.
+Current override: T1-T4 implemented. Complete typecheck/build and real-server smoke, then T6 fresh DSH runtime and desktop packaging. T5's desktop/runtime boundary must be validated in T6, not assumed from a desktop rebuild. Keep the Engram mirror pending until runtime registration is restored.
 
 Finish and verify the running T1 dependency stage/archive smoke, then close T1 with its work-unit commit before beginning T2. Preserve this task file and its Engram mirror as work progresses. During T4, encode the observed 8 × 30-second OpenCode Free no-responder retry window (nine consecutive completed misses) before allowing fallback; reset on a verified primary responder. Complete T5 before the v0.9.4 release gate.
 

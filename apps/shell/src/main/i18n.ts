@@ -1,6 +1,12 @@
 export type Locale = 'zh' | 'es' | 'en';
 
 const strings = {
+  'fallback.title': { es: 'Respaldo gratuito de modelos', en: 'Free model fallback' },
+  'fallback.preparing': { es: 'OpenCode Free no responde tras los reintentos. OmniRoute aún se está descargando; la aplicación sigue disponible.', en: 'OpenCode Free is still unavailable after retries. OmniRoute is still downloading; the app remains usable.' },
+  'fallback.warming': { es: 'Preparando y verificando el respaldo gratuito. Los modelos pueden tardar en responder.', en: 'Preparing and verifying the free fallback. Models may take time to respond.' },
+  'fallback.unavailable': { es: 'No hay modelos gratuitos verificados disponibles. Se reintentará sin usar modelos pagos ni cambiar tu proveedor.', en: 'No verified free models are available. Retrying without using paid models or changing your provider.' },
+  'fallback.active': { es: 'Respaldo automático: OmniRoute auto/coding:free respondió 200. Se volverá a OpenCode Free cuando se recupere.', en: 'Automatic fallback: OmniRoute auto/coding:free returned 200. OpenCode Free will be restored when it recovers.' },
+  'fallback.primary': { es: 'OpenCode Free tiene modelos verificados disponibles. Se respeta cualquier selección que hayas cambiado.', en: 'OpenCode Free has verified models available. Any selection you changed is preserved.' },
   // Menu
   'menu.file': { es: 'Archivo', en: 'File' },
   'menu.pool': { es: 'Pool', en: 'Pool' },
@@ -246,6 +252,12 @@ export type I18nKey = keyof typeof strings;
 
 /** Native-shell Chinese copy. Keep this key-complete with `strings`. */
 const zhStrings = {
+  'fallback.title': '免费模型备用线路',
+  'fallback.preparing': '重试后 OpenCode Free 仍不可用。OmniRoute 正在下载；应用仍可使用。',
+  'fallback.warming': '正在准备并验证免费备用模型。模型响应可能需要时间。',
+  'fallback.unavailable': '暂无已验证的免费模型。将继续重试，不使用付费模型或更改您的提供商。',
+  'fallback.active': '自动备用：OmniRoute auto/coding:free 已返回 200。OpenCode Free 恢复后将切回。',
+  'fallback.primary': 'OpenCode Free 已有可用的验证模型。您手动更改的选择将保持不变。',
   'menu.file': '文件',
   'menu.pool': '池',
   'menu.poolStatus': '池状态…',

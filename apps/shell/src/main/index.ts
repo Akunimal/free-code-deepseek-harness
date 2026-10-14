@@ -8,6 +8,7 @@ import { DEFAULT_POOL_SIZE } from '@freecode/opencode-adapter';
 import { createSecretStore, ensureSecret } from './secret-store.js';
 import { seedProviders } from './provider-seeder.js';
 import { refreshModels, ModelCatalog } from './model-refresher.js';
+import { ModelFallback, FALLBACK_MODEL, FALLBACK_PROVIDER, type FallbackNotice } from './model-fallback.js';
 import { registerIpc } from './ipc.js';
 import { nodeRuntimeEnv, resolveHarnessRuntimeDir, resolveNodePath, resolveResourcesDir } from './resource-paths.js';
 import { createAppLogger, type AppLogger } from './logger.js';
@@ -1282,6 +1283,44 @@ app.whenReady().then(async () => {
   let refreshInFlight = false;
   let refreshRetryAttempt = 0;
   let opencodeRetryAttempt = 0;
+  const fallback = new ModelFallback({ homeDir: join(userDataDir, 'dsh-home'), userDataDir });
+  const notifyFallback = (state: FallbackNotice): void => {
+    if (shuttingDown || !fallback.noticeChanged(state)) return;
+    appLogger?.logger.info({ state }, 'free-only model fallback state');
+    try { new Notification({ title: t('fallback.title'), body: t(`fallback.${state}`) }).show(); } catch { /* log remains */ }
+  };
+  const tryFallback = async (primaryIds: string[], primaryUnavailable = false): Promise<void> => {
+    const managedRuntime = runtime;
+    if (!managedRuntime || shuttingDown) return;
+    if (!fallback.observePrimary(primaryIds)) {
+      if (primaryIds.length) notifyFallback('primary');
+      return;
+    }
+    const bootstrap = managedRuntime.omnirouteBootstrap;
+    if (!bootstrap || bootstrap.state.status !== 'ready') {
+      notifyFallback(bootstrap?.state.status === 'preparing' ? 'preparing' : 'unavailable');
+      if (bootstrap?.state.status === 'unavailable') void bootstrap.prepare().catch(() => undefined);
+      return;
+    }
+    notifyFallback('warming');
+    try {
+      const baseUrl = await managedRuntime.startOmniRoute();
+      if (shuttingDown) return;
+      catalog = await refreshModels({ lbBaseUrl: opencodeUrl, homeDir: join(userDataDir, 'dsh-home'),
+        userDataDir, authHeader: `Bearer ${opencodeApiKey}`, primaryUnavailable,
+        providers: [{ provider: FALLBACK_PROVIDER, baseUrl, strictResponders: true,
+          exactModelIds: [FALLBACK_MODEL], refreshBaseUrl: true, defaultInput: ['text'] }],
+      });
+      if (shuttingDown) return;
+      const primary = catalog.providers['deepseek-free']?.models.filter(model => model.responds).map(model => model.id) ?? [];
+      if (primary.length) { fallback.observePrimary(primary); notifyFallback('primary'); return; }
+      const verified = catalog.providers[FALLBACK_PROVIDER]?.models.filter(model => model.responds).map(model => model.id) ?? [];
+      notifyFallback(fallback.activate(verified) ? 'active' : 'unavailable');
+    } catch (error) {
+      appLogger?.logger.warn({ error: error instanceof Error ? error.message : String(error) }, 'optional free-only fallback unavailable');
+      notifyFallback('unavailable');
+    }
+  };
   const OPENCODE_REFRESH_RETRIES = 8; // ~4 min of responder recovery after boot
   const OPENCODE_REFRESH_RETRY_MS = 30_000;
   const scheduleRefreshRetry = (): void => {
@@ -1314,6 +1353,8 @@ app.whenReady().then(async () => {
         },
       });
       refreshRetryAttempt = 0;
+      const primaryIds = catalog.providers['deepseek-free']?.models.filter(model => model.responds).map(model => model.id) ?? [];
+      await tryFallback(primaryIds);
       // Retry while nothing responds, so the selector self-heals within
       // minutes of quota recovery instead of waiting for the 30-minute
       // cadence. Bounded: 8 attempts, then cadence.
@@ -1322,7 +1363,8 @@ app.whenReady().then(async () => {
         const responders = freeEntries.filter((model) => model.responds).length;
         if (responders === 0 && opencodeRetryAttempt < OPENCODE_REFRESH_RETRIES && !shuttingDown) {
           opencodeRetryAttempt++;
-          setTimeout(() => { void doRefresh(); }, OPENCODE_REFRESH_RETRY_MS).unref?.();
+          refreshRetryTimer = setTimeout(() => { refreshRetryTimer = null; void doRefresh(); }, OPENCODE_REFRESH_RETRY_MS);
+          refreshRetryTimer.unref();
         } else {
           opencodeRetryAttempt = 0;
         }
@@ -1330,6 +1372,7 @@ app.whenReady().then(async () => {
     } catch (err) {
       reportModelRefreshFailure(err);
       console.error('[main] model refresh failed:', err);
+      await tryFallback([], true);
       scheduleRefreshRetry();
     } finally {
       refreshInFlight = false;

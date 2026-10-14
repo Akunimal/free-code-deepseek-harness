@@ -164,13 +164,13 @@ describe('model-refresher', () => {
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
-  it('keeps x-preview-f exposed when its slow probe is temporarily unavailable', async () => {
+  it('does not expose x-preview-f until its slow probe actually responds 200', async () => {
     mockFetchWithModels(['x-preview-f', 'deepseek-v3.2-free'], ['deepseek-v3.2-free']);
     const { home, data } = tmpDirs();
     await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
     const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
     expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual(
-      expect.arrayContaining([deepseekModel('deepseek-v3.2-free'), { id: 'x-preview-f', reasoningEfforts: false }]),
+      [deepseekModel('deepseek-v3.2-free')],
     );
     rmSync(dirname(home), { recursive: true, force: true });
   });

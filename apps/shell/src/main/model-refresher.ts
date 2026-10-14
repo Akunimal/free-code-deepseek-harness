@@ -36,6 +36,10 @@ export class ModelRefreshError extends Error {
 }
 
 export interface ProviderRefreshTarget {
+  /** Explicit free-only allowlist; excluded ids are never probed. */
+  exactModelIds?: readonly string[];
+  /** Managed sidecars choose a new loopback port after each start. */
+  refreshBaseUrl?: boolean;
   /** Settings route key and catalog provider key. */
   provider: string;
   /** Endpoint root; `/v1/models` and `/v1/chat/completions` are appended. */
@@ -62,6 +66,8 @@ export interface ProviderRefreshTarget {
 }
 
 export interface RefresherConfig {
+  /** A completed primary request failed; sync an empty primary while probing fallback. */
+  primaryUnavailable?: boolean;
   lbBaseUrl: string; // http://127.0.0.1:<PUERTO_LB>
   homeDir: string; // DSH_HOME (settings.yaml lives here)
   userDataDir: string; // model-catalog.json lives here
@@ -100,6 +106,7 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
   // provider may be offline, though, so its failure becomes an empty/degraded
   // entry while the main catalog remains usable.
   const results = await Promise.all(targets.map(async (target, index) => {
+    if (index === 0 && cfg.primaryUnavailable) return { target, entries: [] as CatalogModel[] };
     try {
       const ids = await listModelIds(target, timeoutMs);
       const entries = await probeModels(target, ids, timeoutMs);
@@ -148,7 +155,7 @@ async function listModelIds(target: ProviderRefreshTarget, timeoutMs: number): P
   } catch (error) {
     throw new ModelRefreshError('CATALOG_UNAVAILABLE', 'models catalog request failed', { cause: error });
   }
-  if (!response.ok) throw new ModelRefreshError('CATALOG_UNAVAILABLE', `models list failed: ${response.status}`);
+  if (response.status !== 200) throw new ModelRefreshError('CATALOG_UNAVAILABLE', `models list failed: ${response.status}`);
   const modelsBody = (await response.json()) as { data?: unknown };
   if (!Array.isArray(modelsBody.data)) {
     throw new ModelRefreshError('CATALOG_UNAVAILABLE', 'models catalog returned an invalid data list');
@@ -161,7 +168,7 @@ async function listModelIds(target: ProviderRefreshTarget, timeoutMs: number): P
   if (ids.length === 0) {
     throw new ModelRefreshError('CATALOG_UNAVAILABLE', 'models catalog returned no models');
   }
-  return ids;
+  return target.exactModelIds ? ids.filter(id => target.exactModelIds!.includes(id)) : ids;
 }
 
 async function probeModels(
@@ -169,7 +176,7 @@ async function probeModels(
   ids: readonly string[],
   timeoutMs: number,
 ): Promise<CatalogModel[]> {
-  if (target.probeModels === false) {
+  if (target.probeModels === false && !target.strictResponders) {
     return ids.map((id) => ({ id, responds: true, latencyMs: null, lastSeen: nowSeconds() }));
   }
   return Promise.all(ids.map(async (id) => {
@@ -192,7 +199,8 @@ async function probeModels(
         signal: AbortSignal.timeout(timeoutMs),
       });
       latencyMs = Date.now() - started;
-      responds = res.ok;
+      responds = res.status === 200;
+      await res.body?.cancel();
     } catch {
       responds = false;
       latencyMs = null;
@@ -249,6 +257,7 @@ function syncProviderModels(
   if (target.apiKeyEnv !== undefined && provider.apiKeyEnv !== target.apiKeyEnv) {
     provider.apiKeyEnv = target.apiKeyEnv;
   }
+  if (target.refreshBaseUrl) provider.baseURL = providerBaseUrl(target.baseUrl);
   const responders = entries
     .filter((model) => model.responds)
     .sort((a, b) => {
@@ -262,7 +271,7 @@ function syncProviderModels(
       if (Math.abs(aLatency - bLatency) <= 1) return 0;
       return aLatency - bLatency;
     });
-  const advertisedFallbacks = entries.filter((model) => target.alwaysExposedModels?.has(model.id));
+  const advertisedFallbacks = target.strictResponders ? [] : entries.filter((model) => target.alwaysExposedModels?.has(model.id));
   if (responders.length > 0) {
     const responderIds = new Set(responders.map((model) => model.id));
     provider.models = [...responders, ...advertisedFallbacks.filter((model) => !responderIds.has(model.id))]

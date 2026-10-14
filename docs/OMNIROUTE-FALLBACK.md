@@ -8,8 +8,17 @@ A valid verified cache works offline; interruption, a bad checksum or an unsafe
 archive cannot replace a working installation. Missing unpublished release
 assets are reported as optional preparation unavailable, not a DSH failure.
 
-Implementation status: download/cache lifecycle is implemented. Managed server,
-automatic verified failover and release artifacts remain pending validation.
+After nine consecutive completed primary misses and at least four minutes,
+the shell lazily starts its hidden, loopback-only OmniRoute server in private
+app-owned data. Only `auto/coding:free` is probed and only HTTP 200 responders
+enter the selector. Empty free pools never escalate to paid models. Automatic
+selection changes only an OpenCode Free default; unrelated providers stay
+untouched. The previous default is restored on primary recovery, unless the
+user changed it. Notices are localized and deduplicated per outage. Cold-model
+probes keep the full 120-second deadline; a pending probe is not a failure.
+
+Local preparation/policy checks pass; real-server and release validation remain
+pending. The separate runtime assets must be available before first download.
 
 ## Español
 El candidato 0.9.4 prepara OmniRoute 3.8.51 en segundo plano al primer inicio.
@@ -19,5 +28,14 @@ sin conexión; una interrupción, checksum incorrecto o archivo inseguro no
 reemplaza una instalación válida. Si faltan assets aún no publicados, se
 informa que el respaldo opcional no está disponible; DSH sigue funcionando.
 
-Estado: descarga y caché implementadas. Servidor administrado, failover
-automático verificado y artefactos de release pendientes de validación.
+Tras nueve fallos consecutivos completados y al menos cuatro minutos, la shell
+inicia OmniRoute oculto, solo en loopback y con datos privados de la app. Solo
+se prueba `auto/coding:free` y solo respuestas HTTP 200 entran al selector. Un
+pool gratuito vacío nunca escala a modelos pagos. El cambio automático solo
+afecta al default de OpenCode Free; se respetan otros proveedores. Al recuperarse
+el primario se restaura el default anterior, salvo que lo hayas cambiado. Los
+avisos están traducidos y no se repiten por cada refresco. Las pruebas conservan
+120 segundos para modelos fríos; una prueba en curso no cuenta como fallo.
+
+Pruebas locales de preparación/política verificadas; servidor real y release
+pendientes. Los runtimes separados deben estar disponibles para descargarlos.
