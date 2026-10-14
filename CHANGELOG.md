@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.4 — Candidate — 2026-10-13
+## 0.9.4 — Candidate — 2026-10-14
 
 See the [bilingual v0.9.4 candidate notes](release-notes-v0.9.4.md). This is an
 unpublished candidate; v0.9.3 remains the latest published Windows x64 release.
@@ -19,6 +19,21 @@ unpublished candidate; v0.9.3 remains the latest published Windows x64 release.
   El ControlPort Tor ahora se autentica con SAFECOOKIE; la disponibilidad
   requiere bootstrap al 100% y un listener SOCKS utilizable, con timeouts
   adaptativos de circuito.
+- Tor early exits now keep bounded, redacted diagnostics instead of a misleading
+  bootstrap-timeout message. Retries preserve the SOCKS endpoint, and local
+  SOCKS recovery probes run every 10 seconds without external health traffic. /
+  Las salidas tempranas de Tor conservan diagnósticos acotados y saneados en vez
+  de un mensaje engañoso de timeout; los reintentos mantienen SOCKS y las pruebas
+  locales de recuperación corren cada 10 segundos sin tráfico externo adicional.
+- Tor's unavailable-state diagnosis found that the interactive NSIS smoke passed
+  Chromium `--user-data-dir` but did not redirect Electron's `APPDATA`-based
+  `userData`; it wrote a Tor config whose GeoIP paths pointed at a deleted test
+  install. Smoke now isolates all profile/temp environment roots, and packaging
+  verifies `tor.exe`, `geoip`, and `geoip6`. / El diagnóstico de Tor no disponible
+  encontró que el smoke NSIS pasaba `--user-data-dir` de Chromium, pero no
+  redirigía el `userData` de Electron basado en `APPDATA`; escribió un torrc con
+  GeoIP bajo una instalación temporal eliminada. El smoke ahora aísla perfil y
+  temporales, y el empaquetado verifica `tor.exe`, `geoip` y `geoip6`.
 
 ### Restored / Restaurado
 
@@ -30,7 +45,10 @@ unpublished candidate; v0.9.3 remains the latest published Windows x64 release.
   animation markers instead of unrelated generic CSS. / Se restauró el fondo
   ambiental CSS de dos capas en las conversaciones, con alternativa estática
   para `prefers-reduced-motion`; el gate de release verifica sus marcadores
-  propios y no animaciones CSS ajenas.
+  propios y no animaciones CSS ajenas. Runtime staging, copied output, and the
+  desktop packaging input now all reject stale conversation bundles. / El stage,
+  el runtime copiado y la entrada de empaquetado desktop ahora rechazan bundles
+  de conversación obsoletos.
 
 ## 0.9.3 — 2026-10-12
 

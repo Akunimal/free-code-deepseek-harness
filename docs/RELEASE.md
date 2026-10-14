@@ -41,9 +41,15 @@ The 0.7.0 roadmap is closed; its ledger is
 The current source tree is a candidate: **v0.9.4 is an unpublished candidate**;
 v0.9.3 remains
 the latest published Windows x64 release. Candidate changes cover opencode2api
-v1.3.8, Tor ControlPort/bootstrap reliability, and the restored opt-in Gentle AI
-selector mode. Candidate notes are in
+v1.3.8, Tor ControlPort/bootstrap diagnostics and recovery, isolation of the
+NSIS smoke profile, packaged conversation-background verification, and the
+restored opt-in Gentle AI selector mode. Candidate notes are in
 [release-notes-v0.9.4.md](../release-notes-v0.9.4.md).
+
+The fresh local setup and portable were built and SHA-256-verified in
+`apps/shell/release-0.9.4-candidate-refresh-20261014/`. The one-click setup for
+this refreshed build is not yet executed; that waits for fresh confirmation that
+FreeCode is closed. No v0.9.4 tag or release has been created.
 
 ## Local Windows build
 
@@ -56,15 +62,15 @@ runtime archive.
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-candidate'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-candidate-refresh-20261014'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-candidate
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-candidate-refresh-20261014
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 The gate runs tests, contracts, typechecks, build/prepackage validation, an
 offline MCP integration smoke using repository-owned stdio fixtures and a
-loopback mock provider, verifies the v0.2.1-alpha.2 runtime SHA-256 in place,
+loopback mock provider, verifies the v0.2.1-alpha.4 runtime SHA-256 in place,
 and builds one exact NSIS package into an OS-temporary directory for static
 validation. Smoke processes use scratch-only profile/cache/temp paths and the
 MCP smoke does not inherit maintainer credentials or execute third-party

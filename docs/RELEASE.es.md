@@ -41,9 +41,15 @@ están en [AUDIT-0.6.0-TEST-PLAN.md](AUDIT-0.6.0-TEST-PLAN.md).
 El árbol de código actual es una candidata: **v0.9.4 es una candidata sin
 publicar**; v0.9.3
 sigue siendo la última release publicada para Windows x64. Los cambios de la
-candidata incluyen opencode2api v1.3.8, mayor confiabilidad del ControlPort y
-bootstrap de Tor, y la restauración del modo optativo Gentle AI en el selector.
+candidata incluyen opencode2api v1.3.8, diagnósticos/recuperación del
+ControlPort/bootstrap de Tor, aislamiento del perfil NSIS smoke, verificación
+del fondo de conversación empaquetado y restauración del modo optativo Gentle AI.
 Las notas están en [release-notes-v0.9.4.md](../release-notes-v0.9.4.md).
+
+El setup y portable nuevos se compilaron y verificaron con SHA-256 en
+`apps/shell/release-0.9.4-candidate-refresh-20261014/`. El setup one-click de
+esta reconstrucción aún no se ejecutó; espero una confirmación actual de que
+FreeCode está cerrada. No se creó tag ni release v0.9.4.
 
 ## Build local de Windows
 
@@ -56,15 +62,15 @@ tarball.
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-candidate'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-candidate-refresh-20261014'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-candidate
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-candidate-refresh-20261014
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 El gate ejecuta tests, contratos, typechecks, build/preflight y un smoke MCP
 offline con fixtures stdio del repositorio y un proveedor mock de loopback;
-verifica in situ el SHA-256 del runtime `0.2.1-alpha.2` y compila un setup NSIS
+verifica in situ el SHA-256 del runtime `0.2.1-alpha.4` y compila un setup NSIS
 exacto en una carpeta temporal para su validación estática. Los procesos usan
 rutas scratch para perfil/caché/temporales; el smoke MCP no hereda credenciales
 de la persona mantenedora ni ejecuta servidores de terceros. La limpieza apunta

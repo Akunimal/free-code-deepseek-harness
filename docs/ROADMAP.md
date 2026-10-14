@@ -44,12 +44,24 @@ RTK and Caveman are not enabled together by default: they may complement each ot
    persistence, transient probe recovery, stable identities and the fork's
    direct-first Tor policy.
 2. **Tor / Tor** — SAFECOOKIE ControlPort, readiness gated on bootstrap 100%
-   plus usable SOCKS, adaptive circuit timeouts and stable stream circuits.
-3. **Agent selector / Selector de agentes** — Gentle AI restored as an explicit
+   plus usable SOCKS, adaptive circuit timeouts and stable stream circuits;
+   bounded diagnostics and async startup preserve the direct route on failure.
+   The Tor-unavailable trace found a disposable-NSIS-profile leak: Chromium's
+   `--user-data-dir` did not redirect Electron's APPDATA-based `userData`.
+   Smoke now isolates all user profile/temp roots; Tor assets are hash-verified.
+3. **Conversation / Conversación** — ambient backgrounds are visible in normal
+   and reduced-motion modes, and source, materialized, copied and packaged DSH
+   bundles are guarded against stale CSS.
+4. **Agent selector / Selector de agentes** — Gentle AI restored as an explicit
    opt-in Web mode; Standard remains the default.
-4. **Release state / Estado de release** — source is 0.9.4 candidate; desktop
-   packaging/installation verification remains in progress. v0.9.3 remains the
-   latest published version.
+5. **Runtime integrity / Integridad runtime** — DSH alpha4 and opencode2api
+   version/SHA pins match the locally built artifacts; optional PATH fallbacks
+   do not fail the required-runtime check. Alpha4 is not published remotely.
+6. **Release state / Estado de release** — source is 0.9.4 candidate; the
+   complete release gate passed and fresh setup/portable are hash-verified under
+   `apps/shell/release-0.9.4-candidate-refresh-20261014/`. Execution of this
+   one-click setup awaits fresh confirmation that FreeCode is closed. v0.9.3
+   remains latest.
 
 ## Completado / Completed
 

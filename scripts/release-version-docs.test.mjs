@@ -45,12 +45,17 @@ test('bilingual 0.9.4 notes describe the candidate without claiming publication'
   assert.match(notes, /SAFECOOKIE[\s\S]*bootstrap/i);
   assert.match(english, /Gentle AI[\s\S]*Standard remains the default/i);
   assert.match(spanish, /Gentle AI[\s\S]*Standard sigue siendo el modo predeterminado/i);
+  assert.match(english, /release-0\.9\.4-candidate-refresh-20261014/);
+  assert.match(english, /178,620,019 bytes; SHA-256\s+`c112637c95de1564a401ac9852300081983bf15d92f82330df16ff7279d1304b`/);
+  assert.match(english, /178,246,021 bytes; SHA-256\s+`c3b1e9a65e8b5e420c48059aac14b6ded3790c5b8b7804bfef58acec454d01ea`/);
+  assert.match(english, /has not been executed[\s\S]{0,80}confirmation that FreeCode is closed/i);
+  assert.match(spanish, /todavía no se ejecutó[\s\S]{0,80}confirmación actual de que FreeCode está cerrada/i);
 });
 
 test('the changelog leads with the 0.9.4 candidate and retains published history', () => {
   const changelog = read('CHANGELOG.md');
 
-  assert.match(changelog, /^## 0\.9\.4 — Candidate — 2026-10-13$/m);
+  assert.match(changelog, /^## 0\.9\.4 — Candidate — 2026-10-14$/m);
   assert.match(changelog, /bilingual v0\.9\.4 (?:candidate )?notes.*release-notes-v0\.9\.4\.md/i);
   assert.match(changelog, /^## 0\.9\.3 — 2026-10-12$/m);
   assert.ok(changelog.indexOf('## 0.9.4') < changelog.indexOf('## 0.9.3'));
@@ -98,7 +103,7 @@ test('release guides and known-issues ledger identify v0.9.3 as the supported ba
   assert.match(spanishRelease, /release publicada v0\.9\.3 es la baseline actual para Windows x64/i);
   assert.match(englishRelease, /v0\.9\.3 also prevents older DSH runtimes/i);
   assert.match(spanishRelease, /v0\.9\.3 también evita que runtimes\s+DSH/i);
-  assert.match(knownIssues, /Baseline documentada.*Documented baseline: `v0\.9\.3`/i);
+  assert.match(knownIssues, /Última release publicada.*Latest published release: `v0\.9\.3`;.*fuente candidata.*candidate source: `v0\.9\.4`/is);
   assert.match(knownIssues, /v0\.9\.3 supports Windows x64 only/i);
   assert.match(knownIssues, /v0\.9\.3 sólo se soporta Windows x64/i);
   assert.match(knownIssues, /KI-009.*resolved in v0\.9\.3/is);
@@ -113,6 +118,11 @@ test('release guides and known-issues ledger identify v0.9.3 as the supported ba
   assert.match(roadmap, /^### `v0\.9\.4`.*candidate/im);
   assert.match(roadmap, /^### `v0\.9\.3`/m);
   assert.match(translations, /baseline publicada v0\.9\.3/i);
+
+  const freshOutputDir = 'release-0.9.4-candidate-refresh-20261014';
+  for (const document of [englishRelease, spanishRelease, read('README.md'), read('README.es.md'), read('docs/RELEASE-POLICY.md'), read('docs/RELEASE-POLICY.es.md')]) {
+    assert.ok(document.includes(freshOutputDir), `expected ${freshOutputDir} in the active release docs`);
+  }
 });
 
 test('current release policy and EN/ES build guidance match the separate-runtime non-interactive gate', () => {

@@ -5,27 +5,33 @@ describe el límite real entre la app desktop y el runtime para v0.9.3; no
 autoriza a tocar una instancia de FreeCode que esté en ejecución.
 
 La versión actual de la fuente es candidata v0.9.4 y sigue sin publicar hasta
-completar su validaciÃ³n. Los artefactos y hashes v0.9.3 que siguen abajo son
-evidencia histÃ³rica de la release publicada y no deben sobrescribirse.
+completar su validación. Los artefactos y hashes v0.9.3 que siguen abajo son
+evidencia histórica de la release publicada y no deben sobrescribirse.
 
 ## Contenido de la release y runtime fijado
 
 El candidato v0.9.4 cambia los fondos de DSH y prioriza el navegador en el prompt.
-Fija el runtime `0.2.1-alpha.4` en `apps/shell/harness-runtime.json`, versionado en Git.
-Hay que regenerarlo antes de empaquetar; el gate rechaza stages alpha2/alpha3 viejos.
-Los archivos anteriores son inmutables. Se retiró la integración
-OmniRoute: no se incluye fallback, descarga, servidor ni detector. Solo se
-retiran la configuración antigua propia y las cachés verificadas en el próximo
-inicio; se conservan los proveedores ajenos y las sesiones.
-Los runtimes aún no publicados no pueden descargarse: una prueba local debe
-disponer explícitamente de runtimes locales verificados antes de arrancar.
-No se debe presentar un asset remoto ausente como disponible.
+Fija el runtime `0.2.1-alpha.4` en `apps/shell/harness-runtime.json`. El stage
+alpha4 se regeneró localmente y el gate verificó SHA-256, ABI de Electron y
+versión de Node; no está publicado de forma remota, así que el primer DSH del
+instalador candidato requiere una caché local válida o un asset publicado.
+Nunca presentes el archivo local como descarga de una release. Los stages
+alpha2/alpha3 siguen inmutables. Se retiró OmniRoute: sin fallback, descarga,
+servidor ni detector. El próximo inicio elimina solo config antigua propia y
+cachés verificadas; conserva proveedores e historial ajenos.
 
 Tras cambiar opencode2api o su overlay activo, recompilá con
 `bash scripts/build-opencode2api.sh`. También prepara el nuevo sidecar Windows
 sin regenerar DSH. El preflight rechaza receipts ausentes, fuentes cambiadas
 o bytes de un binario viejo; nunca prepara silenciosamente una build antigua
-sin verificar.
+sin verificar. El empaquetado actualiza los pins de versión/hash solo para
+opencode2api y DSH compilados localmente; acepta herramientas opcionales por
+PATH ausentes, pero exige assets requeridos presentes y con hashes válidos.
+
+El smoke runtime de NSIS debe aislar APPDATA, LOCALAPPDATA, USERPROFILE, HOME y
+las rutas temporales: `--user-data-dir` de Chromium no redirige por sí solo
+`app.getPath('userData')` de Electron. Sin un perfil privado, el smoke puede
+dejar el torrc apuntando a recursos dentro de su instalación temporal eliminada.
 
 La release desktop v0.9.3 contiene el setup NSIS, el ejecutable portable, el
 blockmap del setup y `latest.yml`. El runtime DSH separado tiene versión
@@ -47,9 +53,9 @@ nueva y aislada, y verificá exactamente esa carpeta:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-candidate'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-candidate-refresh-20261014'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-candidate
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-candidate-refresh-20261014
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 

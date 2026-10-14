@@ -12,18 +12,33 @@ The v0.9.4 candidate changes the DSH conversation background and browser-first
 system policy, therefore pins a new runtime, `0.2.1-alpha.4`, in the tracked
 `apps/shell/harness-runtime.json`. Regenerate its runtime before packaging;
 the stage-manifest gate rejects old alpha2/alpha3 stages. Their archives remain
-immutable. OmniRoute integration has been removed: no fallback, download,
-server or detection endpoint is shipped. Only obsolete app-owned configuration
-and verified caches are retired at the next startup; unrelated providers and
-sessions are preserved. Unpublished runtime assets are not downloadable
-yet: local testing must explicitly arrange verified local runtimes before
-launch; never describe an unavailable remote asset as ready.
+immutable. The alpha4 archive has now been regenerated locally and the release
+gate verified its SHA-256, Electron ABI and Node engine; it is not published
+remotely, so a candidate installer still needs an available local runtime cache
+or a published runtime asset before first-run DSH can succeed. Never describe
+the local archive as a downloadable release asset. OmniRoute integration has
+been removed: no fallback, download, server or detection endpoint is shipped.
+Only obsolete app-owned configuration and verified caches are retired at the
+next startup; unrelated providers and sessions are preserved.
 
 After changing opencode2api source or its active fork overlay, rebuild with
 `bash scripts/build-opencode2api.sh`. It also stages the new Windows sidecar
 without regenerating DSH. Prepackage verification rejects missing receipts,
 changed source fingerprints or stale binary bytes; it never silently stages
-an unverified old build.
+an unverified old build. Runtime packaging refreshes version/hash pins only for
+locally built opencode2api and DSH outputs; optional PATH-fallback tools may be
+absent, while required runtime assets must exist and match their pinned hashes.
+
+The desktop package gate also checks the actual DSH conversation CSS after
+runtime materialization, after copying into `resources/freecode/dsh`, and before
+electron-builder. Tor's loopback SOCKS proxy is checked locally every 10 seconds
+when unhealthy; remote proxies retain the slower external health-check cadence.
+Tor daemon failure diagnostics exposed to the UI must remain bounded and redact
+cookie/password/token-like values. NSIS runtime smoke must isolate APPDATA,
+LOCALAPPDATA, USERPROFILE, HOME and temporary roots: Chromium's
+`--user-data-dir` alone does not redirect Electron `app.getPath('userData')`.
+Without the private profile, the smoke can leave Tor config pointing into its
+deleted temporary install tree.
 
 ## Release contents and pinned runtime
 
@@ -46,9 +61,9 @@ artifacts into a new, isolated output directory and verify that exact directory:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-candidate'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-candidate-refresh-20261014'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-candidate
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-candidate-refresh-20261014
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 

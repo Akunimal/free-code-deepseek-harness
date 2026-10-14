@@ -12,13 +12,15 @@ calls.
 
 Source version: 0.9.4 (candidate, not published); latest published release: v0.9.3 (Windows x64).
 
-The [v0.9.4 candidate notes](release-notes-v0.9.4.md) cover the opencode2api
-v1.3.8 refresh, Tor startup/control hardening, and restored opt-in Gentle AI
-selector mode. The setup and portable candidate were built and statically
-verified locally; the user-authorized setup completed with exit code 0. App
-startup and feature behavior have not been separately smoke-tested. v0.9.4 has
-not been released; use the v0.9.3 assets below until candidate validation and
-publication are complete.
+The [v0.9.4 candidate notes](release-notes-v0.9.4.md) cover opencode2api v1.3.8,
+Tor diagnostics/recovery and the NSIS-smoke profile-isolation fix, shipped
+conversation-background verification, and restored opt-in Gentle AI. The
+complete release gate passed, including an isolated NSIS build. Fresh v0.9.4
+setup and portable artifacts are now built and hash-verified under
+`apps/shell/release-0.9.4-candidate-refresh-20261014/`; the older candidate
+artifacts are superseded. The one-click setup for this fresh build has not been
+run yet: it will wait for a current confirmation that FreeCode is closed. v0.9.4
+remains unpublished; v0.9.3 is still the latest release.
 
 v0.9.3 is published for Windows x64. The NSIS setup was installed and confirmed
 working by the user; the portable executable was built but not separately
@@ -62,7 +64,9 @@ of truth. v0.9.3 is the current published Windows x64 baseline.
   with `[direct, socks5://127.0.0.1:9050]` so model traffic can fail over
   through Tor when direct egress is blocked. The status overlay exposes a
   **Resiliencia Tor** block with a `NEWNYM` button to rotate the circuit on
-  demand. It replaces the old Cloudflare WARP dependency; there is no WARP
+  demand and displays a bounded startup reason if Tor exits before bootstrap.
+  Tor keeps its SOCKS endpoint across retries; the gateway rechecks local SOCKS
+  availability every 10 seconds, while direct remains first. It replaces the old Cloudflare WARP dependency; there is no WARP
   service, no `warfleet` and no `torfleet` sidecar.
 - The upstream DeepSeek Harness web UI, sessions, workspaces, permissions and
   file tools.
@@ -288,25 +292,27 @@ the recorded child PID tree and never enumerates or kills unrelated processes.
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-candidate'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-candidate-refresh-20261014'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-candidate
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-candidate-refresh-20261014
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 `build:desktop` creates setup and portable artifacts in the new
-`apps/shell/release-0.9.4-candidate/` output directory; it refuses to replace an
+`apps/shell/release-0.9.4-candidate-refresh-20261014/` output directory; it refuses to replace an
 existing non-empty folder. `verify:desktop-release-assets` checks the exact PE
 files, setup blockmap, updater metadata and hashes without launching either
 executable. Desktop packaging does not rebuild or replace the separately versioned DSH runtime. Only when the DSH
 runtime itself changes should maintainers bump its manifest version and run
 `pnpm package:runtime:release`; existing runtime versions are immutable.
 
-The v0.9.4 setup and portable were generated locally and passed static asset
-verification. The user-authorized one-click setup then exited with code 0 after
-the user confirmed FreeCode was closed. This does not verify app startup or
-feature behavior; no separate app launch was performed. The candidate remains
-unpublished.
+The previous v0.9.4 setup was installed and exited with code 0, but that only
+proved installer completion; subsequent reports exposed Tor/background issues,
+so it is superseded. The current fresh setup and portable passed static asset
+and SHA-256 verification in `apps/shell/release-0.9.4-candidate-refresh-20261014/`.
+This refreshed one-click setup is pending execution after a fresh confirmation
+that FreeCode is closed; no separate app launch or feature smoke is claimed.
+The candidate remains unpublished.
 
 The user confirmed the installed v0.9.3 application works on Windows x64. The
 portable executable is not separately installation-tested. The interactive

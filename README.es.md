@@ -12,14 +12,15 @@ servidores MCP y llamadas al modelo.
 
 Versión de la fuente: 0.9.4 (candidata, todavía no publicada); última release publicada: v0.9.3 (Windows x64).
 
-Las [notas candidatas de v0.9.4](release-notes-v0.9.4.md) cubren la actualización
-de opencode2api a v1.3.8, el endurecimiento del inicio/control de Tor y la
-restauración del modo seleccionable optativo Gentle AI. El setup y el portable
-candidatos se compilaron y verificaron estáticamente en local; el setup autorizado
-por el usuario terminó con código 0. El inicio de la aplicación y el
-comportamiento de sus funciones no se probaron por separado. v0.9.4 todavía no
-está publicada; usá los artefactos v0.9.3 de abajo hasta completar la validación
-funcional y la publicación de la candidata.
+Las [notas candidatas de v0.9.4](release-notes-v0.9.4.md) cubren opencode2api
+v1.3.8, diagnósticos/recuperación Tor y el aislamiento del perfil NSIS smoke,
+verificación del fondo de conversación empaquetado y restauración del modo
+optativo Gentle AI. Pasó el gate completo de release, incluido un build NSIS
+aislado. Ya se recompilaron y verificaron con SHA-256 el setup y portable v0.9.4
+en `apps/shell/release-0.9.4-candidate-refresh-20261014/`; los artefactos
+candidatos anteriores quedan obsoletos. Este setup one-click nuevo todavía no se
+ejecutó: espero una confirmación actual de que FreeCode está cerrada. v0.9.4 no
+está publicada; v0.9.3 sigue siendo la última release.
 
 v0.9.3 está publicada para Windows x64. El usuario instaló el setup NSIS y
 confirmó que funciona; el ejecutable portable se compiló, pero no se probó con
@@ -65,7 +66,9 @@ la fuente de verdad. v0.9.3 es la baseline publicada actual para Windows x64.
   `[direct, socks5://127.0.0.1:9050]` para que el tráfico de modelos pueda
   fallar vía Tor cuando el egress directo está bloqueado. El overlay de
   estado expone un bloque **Resiliencia Tor** con botón `NEWNYM` para rotar
-  el circuito bajo demanda. Reemplaza la vieja dependencia de Cloudflare
+  el circuito bajo demanda y muestra una causa acotada si Tor sale antes del
+  bootstrap. Tor conserva el puerto SOCKS entre reintentos; el gateway vuelve
+  a comprobar SOCKS local cada 10 segundos y mantiene Direct primero. Reemplaza la vieja dependencia de Cloudflare
   WARP; no hay servicio WARP, ni `warfleet`, ni sidecar `torfleet`.
 - La UI upstream de DeepSeek Harness, sesiones, workspaces, permisos y
   herramientas de archivos.
@@ -286,14 +289,14 @@ enumera ni termina procesos ajenos.
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-candidate'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-candidate-refresh-20261014'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-candidate
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-candidate-refresh-20261014
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 `build:desktop` crea setup y portable en la nueva carpeta
-`apps/shell/release-0.9.4-candidate/`; rechaza reemplazar una carpeta no vacía.
+`apps/shell/release-0.9.4-candidate-refresh-20261014/`; rechaza reemplazar una carpeta no vacía.
 `verify:desktop-release-assets` valida los PE exactos, el blockmap, los metadatos
 del updater y sus hashes sin iniciar ninguno de los ejecutables. El packaging
 desktop no reconstruye ni reemplaza el runtime DSH, que tiene su propia versión.
@@ -301,11 +304,13 @@ Sólo cuando cambie el runtime DSH
 se debe subir su versión en el manifest y ejecutar `pnpm package:runtime:release`;
 las versiones existentes del runtime son inmutables.
 
-El setup y el portable v0.9.4 se generaron en local y pasaron la verificación
-estática de artefactos. El setup one-click autorizado terminó con código 0 tras
-la confirmación del usuario de que FreeCode estaba cerrado. Esto no verifica el
-inicio de la aplicación ni el comportamiento de sus funciones; no se abrió la app
-por separado. La candidata sigue sin publicarse.
+El setup v0.9.4 anterior se instaló y terminó con código 0, pero eso sólo probó
+que acabó el instalador; reportes posteriores mostraron problemas de Tor/fondos,
+así que queda obsoleto. El setup y portable nuevos pasaron la verificación
+estática y SHA-256 en `apps/shell/release-0.9.4-candidate-refresh-20261014/`.
+Este setup one-click actualizado queda pendiente de ejecución hasta confirmar
+nuevamente que FreeCode está cerrada; no se afirma un smoke de la app. La candidata
+sigue sin publicarse.
 
 El usuario confirmó que la aplicación v0.9.3 instalada funciona en Windows x64.
 El portable no se probó con instalación por separado. El `smoke:nsis`
