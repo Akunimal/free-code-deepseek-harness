@@ -45,6 +45,11 @@ pnpm verify:desktop-release-assets apps/shell/release-0.9.4-candidate
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
+Los workspaces de tests se ejecutan en serie para que los arranques en frío
+del CLI DSH no compitan por la inicialización del sistema de archivos. No se
+amplían los timeouts ni se debilitan las aserciones; la creación del archivo
+runtime y las copias grandes deben terminar antes del gate.
+
 `release:gate` ejecuta los tests/contratos/typechecks del workspace, build y
 preflight, un smoke de integración MCP offline basado únicamente en fixtures
 stdio del repositorio y un proveedor mock de loopback, verifica el asset runtime

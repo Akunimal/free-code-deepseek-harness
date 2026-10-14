@@ -11,6 +11,14 @@ import { verifyNsisPackageOutput } from './verify-nsis-package-output.mjs';
 
 const repositoryRoot = new URL('../', import.meta.url);
 
+test('workspace tests serialize cold CLI probes without weakening their budgets', () => {
+  const rootPackage = JSON.parse(readFileSync(new URL('package.json', repositoryRoot), 'utf8'));
+  assert.match(rootPackage.scripts.test, /pnpm -r --workspace-concurrency=1 /);
+  assert.match(rootPackage.scripts.test, /--filter "\.\/packages\/\*\*" --filter "\.\/apps\/\*\*" test/);
+  const contract = readFileSync(new URL('packages/contract-tests/tests/contract.test.ts', repositoryRoot), 'utf8');
+  assert.match(contract, /timeout: 60_000/);
+});
+
 function createPeFixture(label) {
   const bytes = Buffer.alloc(0x48 + Buffer.byteLength(label));
   bytes.write('MZ', 0, 'ascii');

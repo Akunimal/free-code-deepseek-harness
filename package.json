@@ -11,7 +11,7 @@
     "build": "pnpm -r --filter \"./packages/**\" --filter \"./apps/**\" build",
     "apply:upstream-patches": "node scripts/apply-upstream-patches.mjs",
     "prepare:upstream": "pnpm apply:upstream-patches && node scripts/link-upstream-workspace-packages.mjs",
-    "test": "pnpm prepare:upstream && pnpm --filter @freecode/opencode-adapter build && pnpm -r --filter \"./packages/**\" --filter \"./apps/**\" test",
+    "test": "pnpm prepare:upstream && pnpm --filter @freecode/opencode-adapter build && pnpm -r --workspace-concurrency=1 --filter \"./packages/**\" --filter \"./apps/**\" test",
     "test:contract": "pnpm prepare:upstream && pnpm --filter @freecode/opencode-adapter build && pnpm --filter @freecode/contract-tests test",
     "typecheck": "pnpm -r --filter \"./packages/**\" --filter \"./apps/**\" typecheck",
     "build:vendor": "pnpm apply:upstream-patches && node scripts/build-vendor-local.mjs",

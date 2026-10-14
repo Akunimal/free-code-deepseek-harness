@@ -44,6 +44,10 @@ pnpm verify:desktop-release-assets apps/shell/release-0.9.4-candidate
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
+Test workspaces run sequentially so simultaneous cold DSH CLI probes do not
+compete for filesystem initialization. Probe timeouts and assertions are not
+relaxed; archive creation and large staging copies must finish before the gate.
+
 `release:gate` runs the workspace tests/contracts/typechecks, build and
 prepackage checks, an offline MCP integration smoke backed only by
 repository-owned stdio fixtures and a loopback mock provider, checks the pinned
