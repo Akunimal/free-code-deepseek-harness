@@ -11,6 +11,13 @@ previously generated installers do not include them.
 
 ### What's new
 
+- **Browser-first system prompt.** For tasks needing web information, use the
+  embedded `computer_use` browser before DeepSeek API `web_search`. API fallback
+  is reserved for browser unavailability, blocked access or failed attempts,
+  with the limitation disclosed. Restricted tool scopes and user permissions
+  remain respected. This source change requires DSH `0.2.1-alpha.4`; its local
+  stage/archive is not generated yet and alpha3 remains immutable.
+
 - **OmniRoute removed.** No optional runtime download, automatic fallback,
   server or detector remains. Next-start migration retires only FreeCode-owned
   legacy configuration and verified caches; user providers/history are preserved.
@@ -56,6 +63,13 @@ El retiro de OmniRoute y las correcciones del puente son cambios de fuente más
 recientes; los instaladores generados anteriormente no los incluyen.
 
 ### Novedades
+
+- **Navegador embebido primero en el prompt del sistema.** Si la tarea necesita
+  información web, usar `computer_use` antes de la API DeepSeek `web_search`.
+  El fallback queda para navegador ausente, acceso bloqueado o intentos fallidos,
+  informando la limitación. Conserva scopes de herramientas y permisos del usuario.
+  Este cambio requiere DSH `0.2.1-alpha.4`: todavía falta generar su stage/archivo
+  local; alpha3 permanece inmutable.
 
 - **OmniRoute retirado.** Sin descarga opcional, fallback automático, servidor
   ni detector. La migración del próximo inicio retira solo la configuración

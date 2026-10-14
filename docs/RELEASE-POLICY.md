@@ -8,10 +8,10 @@ The current source version is v0.9.4 candidate; it remains unpublished until
 its validation is complete. The v0.9.3 assets and hashes below remain historical
 published evidence and must not be overwritten.
 
-The v0.9.4 candidate intentionally changes the DSH conversation background and
-therefore pins a new runtime, `0.2.1-alpha.3`, in the tracked
+The v0.9.4 candidate changes the DSH conversation background and browser-first
+system policy, therefore pins a new runtime, `0.2.1-alpha.4`, in the tracked
 `apps/shell/harness-runtime.json`. Regenerate its runtime before packaging;
-the stage-manifest gate rejects an old alpha2 stage. Alpha2 archives remain
+the stage-manifest gate rejects old alpha2/alpha3 stages. Their archives remain
 immutable. OmniRoute integration has been removed: no fallback, download,
 server or detection endpoint is shipped. Only obsolete app-owned configuration
 and verified caches are retired at the next startup; unrelated providers and

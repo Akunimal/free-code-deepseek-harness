@@ -10,10 +10,10 @@ evidencia histÃ³rica de la release publicada y no deben sobrescribirse.
 
 ## Contenido de la release y runtime fijado
 
-El candidato v0.9.4 cambia intencionalmente los fondos de DSH y fija un nuevo
-runtime `0.2.1-alpha.3` en `apps/shell/harness-runtime.json`, versionado en Git.
-Hay que regenerarlo antes de empaquetar; el gate rechaza un stage alpha2 viejo.
-Los archivos alpha2 publicados son inmutables. Se retiró la integración
+El candidato v0.9.4 cambia los fondos de DSH y prioriza el navegador en el prompt.
+Fija el runtime `0.2.1-alpha.4` en `apps/shell/harness-runtime.json`, versionado en Git.
+Hay que regenerarlo antes de empaquetar; el gate rechaza stages alpha2/alpha3 viejos.
+Los archivos anteriores son inmutables. Se retiró la integración
 OmniRoute: no se incluye fallback, descarga, servidor ni detector. Solo se
 retiran la configuración antigua propia y las cachés verificadas en el próximo
 inicio; se conservan los proveedores ajenos y las sesiones.

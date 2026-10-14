@@ -295,6 +295,15 @@
         "scripts/vite-worker-compat.test.mjs"
       ],
       "vendorOnly": true
+    },
+    {
+      "file": "169-freecode-browser-first-policy.patch",
+      "order": 169,
+      "owner": "freecode",
+      "description": "Prioritize embedded browser evidence over DeepSeek API search in the scoped system prompt",
+      "seam": "packages/web/tool-web/src/browser.ts",
+      "contractTests": ["packages/web/tool-web/tests/browser-policy.spec.ts"],
+      "vendorOnly": true
     }
   ]
 }
