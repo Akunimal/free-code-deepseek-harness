@@ -24,8 +24,12 @@ describe('provider-seeder', () => {
     expect(p.baseURL).toBe(LB);
     expect(p.apiKeyEnv).toBe('FREECODE_PUBLIC_KEY');
     expect(p.defaultInput).toEqual(['text']);
-    // Non-empty models: upstream refuses empty lists (settings-rejected).
-    expect(p.models).toEqual([{ id: 'x-preview-f', reasoningEfforts: false }]);
+    // Never make the synthetic bootstrap model routable. model-refresher first
+    // copies the gateway's live model catalog, then narrows it to 200 responders.
+    expect(p.models).toEqual([]);
+    // A synthetic model name is not a routable model and must not become the
+    // session default while the real catalog is still being discovered.
+    expect(settings['agent-default-model']).toBeUndefined();
     // Route-level reasoning config for deepseek models in the pool.
     expect(p.compat).toEqual({ thinkingFormat: 'deepseek' });
     // reasoning removed from provider level — each model carries its own capability.
@@ -180,7 +184,7 @@ llm-pi-ai:
     rmSync(home, { recursive: true, force: true });
   });
 
-  it('migrates stale route/default reasoning from older pool settings', () => {
+  it('clears synthetic route registration but preserves the durable default pending verification', () => {
     const home = tmpHome();
     const path = join(home, 'settings.yaml');
     writeFileSync(path, `
@@ -206,8 +210,36 @@ agent-default-model:
     const settings = loadYaml(readFileSync(path, 'utf8')) as any;
     const provider = settings['llm-pi-ai'].providers['deepseek-free'];
     expect(provider.reasoning).toBeUndefined();
-    expect(provider.models).toEqual([{ id: 'x-preview-f', reasoningEfforts: false }]);
-    expect(settings['agent-default-model']).toEqual({ provider: 'deepseek-free', model: 'x-preview-f' });
+    expect(provider.models).toEqual([]);
+    expect(settings['agent-default-model']).toEqual({
+      provider: 'deepseek-free', model: 'x-preview-f', reasoningEffort: 'high',
+    });
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  it('clears persisted free-pool model IDs before validating the current gateway catalog', () => {
+    const home = tmpHome();
+    const path = join(home, 'settings.yaml');
+    writeFileSync(path, `
+llm-pi-ai:
+  providers:
+    deepseek-free:
+      displayName: OpenCode Free
+      api: openai-completions
+      baseURL: http://127.0.0.1:1111/v1
+      models:
+        - id: x-preview-f
+        - id: removed-model
+agent-default-model:
+  provider: deepseek-free
+  model: removed-model
+`);
+
+    const { seeded } = seedProviders({ homeDir: home, lbBaseUrl: LB });
+    expect(seeded).toBe(true);
+    const settings = loadYaml(readFileSync(path, 'utf8')) as any;
+    expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([]);
+    expect(settings['agent-default-model']).toEqual({ provider: 'deepseek-free', model: 'removed-model' });
     rmSync(home, { recursive: true, force: true });
   });
 
@@ -259,7 +291,7 @@ llm-pi-ai:
     rmSync(home, { recursive: true, force: true });
   });
 
-  it('migrates an opencode-free default to deepseek-free keeping the served model', () => {
+  it('migrates an opencode-free default without inventing a replacement before catalog discovery', () => {
     const home = tmpHome();
     const path = join(home, 'settings.yaml');
     writeFileSync(path, `
@@ -293,7 +325,7 @@ agent-default-model:
     rmSync(home, { recursive: true, force: true });
   });
 
-  it('preserves a non-first deepseek-free model chosen by the user', () => {
+  it('preserves the selected free-pool model until the live catalog verifies or replaces it', () => {
     const home = tmpHome();
     const path = join(home, 'settings.yaml');
     writeFileSync(path, `
@@ -319,7 +351,7 @@ agent-default-model:
     rmSync(home, { recursive: true, force: true });
   });
 
-  it('falls back to deepseek-free when the chosen managed model is gone', () => {
+  it('migrates a removed managed provider without guessing a route before discovery', () => {
     const home = tmpHome();
     const path = join(home, 'settings.yaml');
     writeFileSync(path, `
@@ -340,12 +372,12 @@ agent-default-model:
     const settings = loadYaml(readFileSync(path, 'utf8')) as any;
     expect(settings['agent-default-model']).toEqual({
       provider: 'deepseek-free',
-      model: 'x-preview-f',
+      model: 'vanished-model',
     });
     rmSync(home, { recursive: true, force: true });
   });
 
-  it('normalizes MiMo V2.5 to binary thinking and its DeepSeek wire dialect', () => {
+  it('does not retain old configured routes as models while the live catalog is pending', () => {
     const home = tmpHome();
     const path = join(home, 'settings.yaml');
     writeFileSync(path, `
@@ -366,12 +398,8 @@ llm-pi-ai:
 
     seedProviders({ homeDir: home, lbBaseUrl: LB });
     const settings = loadYaml(readFileSync(path, 'utf8')) as any;
-    const model = settings['llm-pi-ai'].providers['deepseek-free'].models[0];
-    expect(model.reasoningEfforts).toEqual({ off: null, high: 'high' });
-    expect(model.compat).toEqual({
-      thinkingFormat: 'deepseek',
-      supportsReasoningEffort: false,
-    });
+    expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([]);
+    expect(settings['agent-default-model']).toBeUndefined();
     rmSync(home, { recursive: true, force: true });
   });
 });

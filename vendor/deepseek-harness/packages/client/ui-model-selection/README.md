@@ -47,7 +47,7 @@ The composer replaces the model and effort text with the Models icon when the ex
 
 ### Unroutable sessions
 
-Catalog availability does not block sending with a saved selection; request execution reports missing credentials or unavailable models. Refreshes and refresh failures retain the last displayed selection and groups. A Host reset clears that display. Sign-out hides the account provider from the picker while preserving the saved provider/model ID and reasoning effort. Signing in restores the catalog name when that model is available again. Existing session logs remain unchanged.
+The durable selection is preserved when a route disappears, but it is not silently treated as routable: the composer is blocked with a localized reason, and the Host revalidates the model immediately before admitting a prompt. The selector lists only models verified by the gateway's 200-only refresh; an empty result remains in a pending/retry state (slow probes can take up to two minutes). Selecting a listed model clears the block; recovery of the exact saved route also clears it. Refreshes and refresh failures retain the last displayed selection and groups, and never rewrite session history. A Host reset clears that display. Sign-out hides the account provider from the picker while preserving the saved provider/model ID and reasoning effort. Signing in restores the catalog name when that model is available again.
 
 ### Selection failures
 

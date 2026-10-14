@@ -82,7 +82,6 @@ const CATALOG_FILE = 'model-catalog.json';
 // A short probe timeout makes a healthy, advertised model disappear from the
 // user's selector while an in-flight request is still viable.
 const PROBE_TIMEOUT_MS = 120_000;
-const ALWAYS_EXPOSED_MODELS = new Set(['x-preview-f']);
 const FREE_PROVIDER = 'deepseek-free';
 
 export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog> {
@@ -92,8 +91,6 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
       provider: FREE_PROVIDER,
       baseUrl: cfg.lbBaseUrl,
       authHeader: cfg.authHeader,
-      alwaysExposedModels: ALWAYS_EXPOSED_MODELS,
-      fallbackModels: ['x-preview-f'],
       // 0.9.1: the anonymous lane exposes ONLY 200 responders. With zero
       // responders the synced list is erased (never stale/dead models in
       // the selector); bounded refresh retries repopulate it on recovery.
@@ -102,18 +99,37 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
     ...(cfg.providers ?? []).filter((target) => target.provider !== FREE_PROVIDER),
   ];
 
-  // The primary pool preserves the historical error contract. An optional
-  // provider may be offline, though, so its failure becomes an empty/degraded
-  // entry while the main catalog remains usable.
-  const results = await Promise.all(targets.map(async (target, index) => {
-    if (index === 0 && cfg.primaryUnavailable) return { target, entries: [] as CatalogModel[] };
+  // Discover candidates first, but do not make them routable in DSH settings
+  // until the strict lane has completed its bounded probes. The selector and
+  // Host both consume settings.yaml; publishing candidates here would let an
+  // unverified or protocol-rejected route slip through while a slow probe is
+  // still running. A slow model may take up to two minutes, so keep the UI in
+  // its explicit "checking"/blocked state until the 200-only result is ready.
+  const listings = await Promise.all(targets.map(async (target, index) => {
+    if (index === 0 && cfg.primaryUnavailable) return { target, ids: [] as string[] };
     try {
-      const ids = await listModelIds(target, timeoutMs);
-      const entries = await probeModels(target, ids, timeoutMs);
-      return { target, entries };
+      return { target, ids: await listModelIds(target, timeoutMs) };
+    } catch (error) {
+      // The required primary catalog keeps its historical failure contract.
+      // An optional provider can be offline without failing the primary list.
+      if (index === 0) throw error;
+      return { target, ids: [] as string[], listFailed: true as const };
+    }
+  }));
+
+  const reasoningHints = loadGatewayReasoningFlags(cfg.userDataDir);
+
+  // Keep optional-provider failures isolated and probe route IDs in parallel.
+  const results = await Promise.all(listings.map(async (listing, index) => {
+    if ((listing as { listFailed?: true }).listFailed === true) {
+      return { target: listing.target, entries: [] as CatalogModel[] };
+    }
+    if (index === 0 && cfg.primaryUnavailable) return { target: listing.target, entries: [] as CatalogModel[] };
+    try {
+      return { target: listing.target, entries: await probeModels(listing.target, listing.ids, timeoutMs) };
     } catch (error) {
       if (index === 0) throw error;
-      return { target, entries: [] as CatalogModel[] };
+      return { target: listing.target, entries: [] as CatalogModel[] };
     }
   }));
 
@@ -134,9 +150,18 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
   const settings = readSettings(settingsPath);
   const section = settings['llm-pi-ai'] ?? (settings['llm-pi-ai'] = {});
   const providers = section.providers ?? (section.providers = {});
-  const reasoningHints = loadGatewayReasoningFlags(cfg.userDataDir);
   for (const { target, entries } of results) {
     syncProviderModels(providers, target, entries, reasoningHints);
+  }
+  const responders = results.find(({ target }) => target.provider === FREE_PROVIDER)?.entries
+    .filter(model => model.responds).map(model => model.id) ?? [];
+  const defaultModel = settings['agent-default-model'] as { provider?: unknown; model?: unknown } | undefined;
+  const hasValidDefault = typeof defaultModel?.provider === 'string' && typeof defaultModel.model === 'string';
+  if (responders[0] !== undefined && (!hasValidDefault
+    || (defaultModel.provider === FREE_PROVIDER && !responders.includes(defaultModel.model as string)))) {
+    // New Sessions get a verified route after migration or when their old
+    // selection is no longer served. Existing Session history stays intact.
+    settings['agent-default-model'] = { provider: FREE_PROVIDER, model: responders[0] };
   }
   writeSettings(settingsPath, settings);
 
@@ -165,7 +190,7 @@ async function listModelIds(target: ProviderRefreshTarget, timeoutMs: number): P
       ? (model as { id: string }).id
       : null))
     .filter((id): id is string => id !== null);
-  if (ids.length === 0) {
+  if (ids.length === 0 && !target.strictResponders) {
     throw new ModelRefreshError('CATALOG_UNAVAILABLE', 'models catalog returned no models');
   }
   return target.exactModelIds ? ids.filter(id => target.exactModelIds!.includes(id)) : ids;

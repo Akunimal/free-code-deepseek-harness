@@ -1,0 +1,441 @@
+diff --git a/vendor/deepseek-harness/packages/api/session-controller/src/commands.ts b/vendor/deepseek-harness/packages/api/session-controller/src/commands.ts
+index 7e900b92ae..fae5d0ef45 100644
+--- a/vendor/deepseek-harness/packages/api/session-controller/src/commands.ts
++++ b/vendor/deepseek-harness/packages/api/session-controller/src/commands.ts
+@@ -336,8 +336,12 @@ export class SessionCommandController {
+     const hasImage = request.content.some(part => part.type === 'image')
+     const admit = async (): Promise<SessionPromptValue> => {
+       try {
++        const current = this.agents.selectionFor(agent).current
++        // The Session may outlive a provider/model removal or a previous
++        // process's bootstrap placeholder. Revalidate immediately before
++        // admission so stale durable selections never reach an upstream.
++        await this.requireModel(current)
+         if (hasImage) {
+-          const current = this.agents.selectionFor(agent).current
+           const model = await this.ctx.llm.resolveModelInfo(current.provider, current.model)
+           if (model.inputModalities !== undefined && !model.inputModalities.includes('image')) {
+             throw new RemoteError(
+@@ -373,7 +377,9 @@ export class SessionCommandController {
+       }
+       return { accepted: true }
+     }
+-    return hasImage ? this.agents.serializeImageAdmission(agent, admit) : admit()
++    // Serialize the route check and prompt admission with model selection so a
++    // concurrent picker change cannot invalidate the model after validation.
++    return this.agents.serializeImageAdmission(agent, admit)
+   }
+ 
+   private async requireModel(selection: Pick<AgentModelSelection, 'provider' | 'model'>): Promise<void> {
+diff --git a/vendor/deepseek-harness/packages/api/session-controller/tests/session-models.host.spec.ts b/vendor/deepseek-harness/packages/api/session-controller/tests/session-models.host.spec.ts
+index e852460e93..b47fe7b9b2 100644
+--- a/vendor/deepseek-harness/packages/api/session-controller/tests/session-models.host.spec.ts
++++ b/vendor/deepseek-harness/packages/api/session-controller/tests/session-models.host.spec.ts
+@@ -688,7 +688,7 @@ describe('Web session model selection', () => {
+     await ctx.fiber.dispose()
+   })
+ 
+-  it('admits saved selections without querying the advisory model catalog', async () => {
++  it('refuses a prompt when the saved model cannot be verified from the current catalog', async () => {
+     const { ctx, sessionId, agent } = await harness()
+     const followup = vi.fn()
+     Object.assign(agent, { followup })
+@@ -700,9 +700,9 @@ describe('Web session model selection', () => {
+     try {
+       expect(await remote.prompt(promptRequest({
+         sessionId, mode: 'queue', content: [{ type: 'text', text: 'hello' }],
+-      }))).toMatchObject({ ok: true, value: { accepted: true } })
+-      expect(list).not.toHaveBeenCalled()
+-      expect(followup).toHaveBeenCalledOnce()
++      }))).toMatchObject({ ok: false, error: { code: 'session/model-unavailable' } })
++      expect(list).toHaveBeenCalledWith('deepseek-official')
++      expect(followup).not.toHaveBeenCalled()
+     } finally {
+       list.mockRestore()
+       await ctx.fiber.dispose()
+@@ -726,7 +726,7 @@ describe('Web session model selection', () => {
+     }
+   })
+ 
+-  it('admits an unavailable saved route for execution without rewriting the selection', async () => {
++  it('rejects an unavailable saved route before execution without rewriting the selection', async () => {
+     const { ctx, sessionId, agent } = await harness()
+     const followup = vi.fn()
+     Object.assign(agent, { followup })
+@@ -735,11 +735,11 @@ describe('Web session model selection', () => {
+       cwd: '/tmp',
+     })
+ 
+-    const admitted = await remote.prompt(promptRequest({
++    const refused = await remote.prompt(promptRequest({
+       sessionId, mode: 'queue' as const, content: [{ type: 'text' as const, text: 'hi' }],
+     }))
+-    expect(admitted).toMatchObject({ ok: true, value: { accepted: true } })
+-    expect(followup).toHaveBeenCalledOnce()
++    expect(refused).toMatchObject({ ok: false, error: { code: 'session/model-unavailable' } })
++    expect(followup).not.toHaveBeenCalled()
+     const unavailableCatalog = await buildModelCatalog(ctx)
+     expect(unavailableCatalog.routableProviders.includes(currentSelection(ctx, sessionId).provider)).toBe(false)
+ 
+@@ -750,7 +750,7 @@ describe('Web session model selection', () => {
+     await ctx.fiber.dispose()
+   })
+ 
+-  it('admits a removed model without changing its saved selection', async () => {
++  it('refuses a removed model without changing its saved selection or session history', async () => {
+     const { ctx, sessionId, agent } = await harness({ provider: 'deepseek-official', model: 'removed-model' })
+     const remote = createSessionTestRemote(ctx, {
+       defaultModelSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-chat' }), cwd: '/tmp',
+@@ -759,8 +759,8 @@ describe('Web session model selection', () => {
+     const followup = vi.fn()
+     Object.assign(agent, { followup })
+     expect(await remote.prompt(promptRequest({ sessionId, mode: 'queue', content: [{ type: 'text', text: 'hi' }] })))
+-      .toMatchObject({ ok: true, value: { accepted: true } })
+-    expect(followup).toHaveBeenCalledOnce()
++      .toMatchObject({ ok: false, error: { code: 'session/model-unavailable' } })
++    expect(followup).not.toHaveBeenCalled()
+     expect(agent.session.snapshotEvents()).toEqual(events)
+     expect(currentSelection(ctx, sessionId)).toMatchObject({ provider: 'deepseek-official', model: 'removed-model' })
+     await ctx.fiber.dispose()
+diff --git a/vendor/deepseek-harness/packages/client/ui-model-selection/README.md b/vendor/deepseek-harness/packages/client/ui-model-selection/README.md
+index a073d9ec27..6bd1d6dad0 100644
+--- a/vendor/deepseek-harness/packages/client/ui-model-selection/README.md
++++ b/vendor/deepseek-harness/packages/client/ui-model-selection/README.md
+@@ -47,7 +47,7 @@ The composer replaces the model and effort text with the Models icon when the ex
+ 
+ ### Unroutable sessions
+ 
+-Catalog availability does not block sending with a saved selection; request execution reports missing credentials or unavailable models. Refreshes and refresh failures retain the last displayed selection and groups. A Host reset clears that display. Sign-out hides the account provider from the picker while preserving the saved provider/model ID and reasoning effort. Signing in restores the catalog name when that model is available again. Existing session logs remain unchanged.
++The durable selection is preserved when a route disappears, but it is not silently treated as routable: the composer is blocked with a localized reason, and the Host revalidates the model immediately before admitting a prompt. The selector lists only models verified by the gateway's 200-only refresh; an empty result remains in a pending/retry state (slow probes can take up to two minutes). Selecting a listed model clears the block; recovery of the exact saved route also clears it. Refreshes and refresh failures retain the last displayed selection and groups, and never rewrite session history. A Host reset clears that display. Sign-out hides the account provider from the picker while preserving the saved provider/model ID and reasoning effort. Signing in restores the catalog name when that model is available again.
+ 
+ ### Selection failures
+ 
+diff --git a/vendor/deepseek-harness/packages/client/ui-model-selection/README.zh.md b/vendor/deepseek-harness/packages/client/ui-model-selection/README.zh.md
+index bf719d839d..09df9f2f9e 100644
+--- a/vendor/deepseek-harness/packages/client/ui-model-selection/README.zh.md
++++ b/vendor/deepseek-harness/packages/client/ui-model-selection/README.zh.md
+@@ -47,7 +47,7 @@ composer 菜单中的模型名称和推理等级均使用 400（regular）字重
+ 
+ ### 不可路由的会话
+ 
+-目录可用性不会阻止使用已保存选择发送消息；请求执行负责报告凭据缺失或模型不可用。刷新及刷新失败期间保留上次显示的选择和分组。Host 重置时清空这些显示。退登后选择器隐藏账号提供方，同时保留已保存的提供方／模型 ID 和推理强度。再次登录且该模型可用时恢复目录名称。既有会话日志保持不变。
++路由不可用时仍保留持久化选择，但不会再把它当作可路由模型：composer 会显示本地化原因并阻止发送，Host 也会在接收消息前重新验证模型。选择器只列出网关通过仅限 HTTP 200 的刷新验证的模型；结果为空时会显示等待与重试状态（较慢的探测最多可能需要两分钟）。选择列表中的模型后会解除阻止；原模型恢复后也会解除阻止。刷新及刷新失败期间保留上次显示的选择和分组，且不会改写会话历史。Host 重置时清空这些显示。退登后选择器隐藏账号提供方，同时保留已保存的提供方／模型 ID 和推理强度。再次登录且该模型可用时恢复目录名称。
+ 
+ ### 选择失败
+ 
+diff --git a/vendor/deepseek-harness/packages/client/ui-model-selection/package.json b/vendor/deepseek-harness/packages/client/ui-model-selection/package.json
+index 90a4f1dbcb..11d94b45b9 100644
+--- a/vendor/deepseek-harness/packages/client/ui-model-selection/package.json
++++ b/vendor/deepseek-harness/packages/client/ui-model-selection/package.json
+@@ -30,6 +30,7 @@
+       "inject": [
+         "@deepseek-ai/dsh-api-session-controller",
+         "@deepseek-ai/dsh-client-locale",
++        "@deepseek-ai/dsh-client-ui-conversation",
+         "@deepseek-ai/dsh-client-ui-commands",
+         "@deepseek-ai/dsh-api-remotes"
+       ],
+diff --git a/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/index.ts b/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/index.ts
+index af0c325e8a..a6426b5d3a 100644
+--- a/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/index.ts
++++ b/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/index.ts
+@@ -104,7 +104,7 @@ function selectionOf(state: ModelDirectoryState, id: string): ModelSelection | u
+ const NS = 'model'
+ 
+ /** Required services: the contribution registry, the seat's slot registry, locale, and the service's own faces. */
+-export const inject = ['commandUi', 'locale', 'sessions', 'slots', 'remote', 'remote.session']
++export const inject = ['commandUi', 'conversation', 'locale', 'sessions', 'slots', 'remote', 'remote.session']
+ 
+ /**
+  * Client plugin body: mount ModelDirectoryResolver, register the `model` dictionaries,
+diff --git a/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/locales.ts b/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/locales.ts
+index b9344ce98a..54229cce45 100644
+--- a/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/locales.ts
++++ b/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/locales.ts
+@@ -26,6 +26,9 @@ export const zh = {
+   'menu.effort': '推理等级',
+   'menu.thinking': '思考模式',
+   'effort.providerDefault': 'Default',
++  'blocked.noModels': '网关尚未验证任何模型。应用会自动重试；较慢的模型检查可能需要最多两分钟。',
++  'blocked.unavailable': '已保存的模型尚未通过网关验证。请选择列表中的模型以继续。',
++  'blocked.choose': '请选择一个可用模型以继续。',
+   'status.loading': '正在刷新模型列表…',
+   'error.action': '模型操作失败：{message}',
+   'error.sessionInUse': '当前会话已被占用，可能是其他正在运行的 DSH 导致的（如其他 dsh web、桌面端），请退出其他正在运行的 DSH 后重试。',
+@@ -34,7 +37,7 @@ export const zh = {
+   'search.placeholder': '搜索模型…',
+   'search.clear': '清除搜索',
+   'search.empty': '没有匹配的模型。',
+-  'empty.models': '没有可用的模型。',
++  'empty.models': '网关尚未验证任何模型。应用会自动重试；较慢的模型检查可能需要最多两分钟。',
+   'empty.efforts': '当前模型未提供推理等级。',
+ } satisfies Record<string, string>
+ 
+@@ -64,10 +67,13 @@ export const en = {
+   'error.sessionInUse': 'This session is already in use, possibly by another running DSH instance (such as dsh web or the desktop app). Quit other running DSH instances and try again.',
+   'action.reload': 'Reload',
+   'warning.groupLoad': '{name} failed to load: {message}',
++  'blocked.noModels': 'The gateway has not verified any models yet. The app retries automatically; a slow model check can take up to two minutes.',
++  'blocked.unavailable': 'The saved model has not been verified by the gateway. Choose a listed model to continue.',
++  'blocked.choose': 'Choose an available model to continue.',
+   'search.placeholder': 'Search models…',
+   'search.clear': 'Clear search',
+   'search.empty': 'No matching models.',
+-  'empty.models': 'No models available.',
++  'empty.models': 'The gateway has not verified any models yet. The app retries automatically; a slow model check can take up to two minutes.',
+   'empty.efforts': 'This model provides no reasoning effort levels.',
+ } satisfies Record<ModelKey, string>
+ 
+@@ -91,8 +97,11 @@ export const es = {
+   "status.loading": "Actualizando lista de modelos…",
+   "error.action": "Error en la operación del modelo: {message}",
+   "action.reload": "Recargar",
++  "blocked.noModels": "La pasarela aún no verificó ningún modelo. La app vuelve a intentarlo automáticamente; una comprobación lenta puede tardar hasta dos minutos.",
++  "blocked.unavailable": "El modelo guardado todavía no fue verificado por la pasarela. Elegí un modelo de la lista para continuar.",
++  "blocked.choose": "Elegí un modelo disponible para continuar.",
+   "warning.groupLoad": "{name} no se pudo cargar: {message}",
+-  "empty.models": "No hay modelos disponibles.",
++  "empty.models": "La pasarela aún no verificó ningún modelo. La app vuelve a intentarlo automáticamente; una comprobación lenta puede tardar hasta dos minutos.",
+   "blocked.composer": "Este modelo no está disponible — seleccione uno para continuar",
+   "empty.efforts": "Este modelo no ofrece niveles de esfuerzo de razonamiento.",
+ }
+diff --git a/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/service.ts b/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/service.ts
+index 18fa88cc86..77125f63b4 100644
+--- a/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/service.ts
++++ b/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/service.ts
+@@ -13,13 +13,17 @@
+  * per-session singleton with no global layer to merge.
+  */
+ import type {} from '@deepseek-ai/dsh-client-product-analytics/client'
++import type {} from '@deepseek-ai/dsh-client-locale/client'
++import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
+ import { Service } from '@deepseek-ai/cordis'
+ import type { Context } from '@deepseek-ai/cordis'
+ import type { SessionBinding } from '@deepseek-ai/dsh-api-session-controller/client'
+ import type { SessionId } from '@deepseek-ai/dsh-session/types'
++import type { ComposerBlock } from '@deepseek-ai/dsh-client-ui-conversation/client'
+ import { WeakMapWithValues } from '@deepseek-ai/dsh-util-values'
+ import { ModelCatalogDirectory } from './catalog.ts'
+ import { ModelDirectory } from './directory.ts'
++import type { ModelKey } from './locales.ts'
+ 
+ declare module '@deepseek-ai/cordis' {
+   interface Context {
+@@ -35,7 +39,7 @@ interface LiveState {
+ 
+ /** The `ctx.modelDirectories` session model-selection service. */
+ export class ModelDirectoryResolver extends Service {
+-  static inject = ['sessions', 'remote', 'remote.session']
++  static inject = ['conversation', 'sessions', 'remote', 'remote.session']
+ 
+   private readonly live: LiveState = { directories: new WeakMapWithValues() }
+   private readonly catalog: ModelCatalogDirectory
+@@ -82,7 +86,64 @@ export class ModelDirectoryResolver extends Service {
+       (name, attributes) => this.ctx.get('productAnalytics')?.track(name, attributes),
+     )
+     live.directories.set(binding, directory)
++
++    // Client-side affordance only: the Host independently rejects a prompt
++    // whose saved route disappeared, but the composer should explain and
++    // prevent that doomed submission before the user sees an upstream 400.
++    const blocks = this.ctx.conversation.blocks
++    const blockStore = blocks.storeFor(sessionId)
++    let ownedBlock: ComposerBlock | undefined
++    const syncComposerBlock = (): void => {
++      // These model RPCs and the composer block belong only to ordinary
++      // sessions, not addressed subagent views.
++      if (sessions.subagentAddress(sessionId) !== undefined) return
++      const state = directory.store.getSnapshot()
++      let reason: ModelKey | null | undefined
++      if (state.status === 'ready') {
++        if (state.current === null) {
++          reason = state.groups.length === 0 ? 'blocked.noModels' : 'blocked.choose'
++        } else if (state.routable === true) {
++          reason = null
++        } else if (state.routable === false) {
++          reason = state.groups.length === 0 ? 'blocked.noModels' : 'blocked.unavailable'
++        }
++      } else if (state.status === 'error' && state.current === null && state.groups.length === 0) {
++        reason = 'blocked.noModels'
++      }
++      // Loading/refreshing is not a new availability decision: keep an
++      // existing block until a ready catalog verifies or rejects the route.
++      if (reason === undefined) return
++
++      const currentBlock = blockStore.getSnapshot()
++      if (reason === null) {
++        if (ownedBlock !== undefined && currentBlock === ownedBlock) {
++          ownedBlock = undefined
++          blocks.set(sessionId, undefined)
++        } else if (currentBlock !== ownedBlock) {
++          ownedBlock = undefined
++        }
++        return
++      }
++
++      if (currentBlock !== undefined && currentBlock !== ownedBlock) {
++        // Another feature owns the more specific block; never clear or
++        // overwrite it. The block-store subscription retries when it changes.
++        ownedBlock = undefined
++        return
++      }
++      if (currentBlock?.reason === reason) return
++      ownedBlock = { reason: this.ctx.locale.bind('model')(reason) }
++      blocks.set(sessionId, ownedBlock)
++    }
++    const unsubscribeDirectory = directory.store.subscribe(syncComposerBlock)
++    const unsubscribeBlock = blockStore.subscribe(syncComposerBlock)
++    syncComposerBlock()
+     actx.effect(() => () => {
++      unsubscribeDirectory()
++      unsubscribeBlock()
++      if (ownedBlock !== undefined && blockStore.getSnapshot() === ownedBlock) {
++        blocks.set(sessionId, undefined)
++      }
+       directory.dispose()
+       live.directories.delete(binding)
+     }, 'ui-model-selection: session directory')
+diff --git a/vendor/deepseek-harness/packages/client/ui-model-selection/tests/browser-plugin.client.spec.ts b/vendor/deepseek-harness/packages/client/ui-model-selection/tests/browser-plugin.client.spec.ts
+index b27163fb16..296868b700 100644
+--- a/vendor/deepseek-harness/packages/client/ui-model-selection/tests/browser-plugin.client.spec.ts
++++ b/vendor/deepseek-harness/packages/client/ui-model-selection/tests/browser-plugin.client.spec.ts
+@@ -19,9 +19,11 @@ import type { ModelSelection, ModelSelectionProjection } from '@deepseek-ai/dsh-
+ import type { CommandContribution, PopupSelectSpec, SelectOption } from '@deepseek-ai/dsh-client-ui-commands/client'
+ import type { ModelSelectInjected } from '../src/client/slots.ts'
+ import { apply, inject } from '../src/client/index.ts'
+-import { zh } from '../src/client/locales.ts'
++import { en, zh } from '../src/client/locales.ts'
+ 
+ const sid = (k: string): SessionId => k as SessionId
++const unavailableReason = 'The saved model has not been verified by the gateway. Choose a listed model to continue.'
++const noModelsReason = 'The gateway has not verified any models yet. The app retries automatically; a slow model check can take up to two minutes.'
+ 
+ const GROUPS = [{
+   id: 'deepseek-official',
+@@ -106,10 +108,19 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
+   }
+   const remote = Object.assign(new TestRemote(ctx), { session: sessionRemote })
+   ctx.reflect.provide('remote.session', sessionRemote)
+-  const blocks = new Map<SessionId, { reason: string } | undefined>()
++  const blocks = new Map<SessionId, SnapshotStore<{ reason: string } | undefined>>()
++  const blockStoreFor = (id: SessionId): SnapshotStore<{ reason: string } | undefined> => {
++    let store = blocks.get(id)
++    if (store === undefined) {
++      store = createSnapshotStore<{ reason: string } | undefined>(undefined)
++      blocks.set(id, store)
++    }
++    return store
++  }
+   ctx.provide('conversation', {
+     blocks: {
+-      set: (id: SessionId, block: { reason: string } | undefined) => { blocks.set(id, block) },
++      set: (id: SessionId, block: { reason: string } | undefined) => { blockStoreFor(id).set(block) },
++      storeFor: blockStoreFor,
+     },
+   })
+   let contribution: CommandContribution | undefined
+@@ -197,7 +208,8 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
+     setGroups: (next: typeof GROUPS) => { groups = next },
+     setCatalogFailure: (next: boolean) => { catalogFailure = next },
+     setRoutable: (next: boolean) => { routable = next },
+-    blockOf: (key: string) => blocks.get(sid(key)),
++    blockOf: (key: string) => blocks.get(sid(key))?.getSnapshot(),
++    setExternalBlock: (key: string, block: { reason: string } | undefined) => { blockStoreFor(sid(key)).set(block) },
+   }
+ }
+ 
+@@ -238,8 +250,8 @@ describe('ui-model-selection dual entry', () => {
+     expect(options[0]?.active).toBe(true)
+     expect(options[1]?.active).toBeUndefined()
+     expect(b.popup().searchLabels?.()).toEqual(locale === 'zh'
+-      ? { placeholder: '搜索模型…', empty: '没有可用的模型。', noResults: '没有匹配的模型。' }
+-      : { placeholder: 'Search models…', empty: 'No models available.', noResults: 'No matching models.' })
++      ? { placeholder: zh['search.placeholder'], empty: zh['empty.models'], noResults: zh['search.empty'] }
++      : { placeholder: en['search.placeholder'], empty: en['empty.models'], noResults: en['search.empty'] })
+   })
+ 
+   it('orders popup provider groups account-first while retaining third-party catalog order', async () => {
+@@ -466,8 +478,8 @@ describe('ui-model-selection dual entry', () => {
+     }
+   })
+ 
+-  it('keeps the composer usable when current catalog models disappear', async () => {
+-    const b = await bench()
++  it('blocks the composer when the selected model disappears, then unblocks after recovery', async () => {
++    const b = await bench('en')
+     b.mint('s1')
+     const face = b.seat().inject!(sid('s1'))
+ 
+@@ -482,7 +494,7 @@ describe('ui-model-selection dual entry', () => {
+     b.remote.emit('settings/document-updated', ['llm-deepseek', 1])
+     await Promise.resolve()
+     await Promise.resolve()
+-    expect(b.blockOf('s1')).toBeUndefined()
++    expect(b.blockOf('s1')).toEqual({ reason: noModelsReason })
+     expect(b.calls.models).toBe(2)
+ 
+     // Recovering clears it without a reload of the surface.
+@@ -494,18 +506,60 @@ describe('ui-model-selection dual entry', () => {
+     expect(b.calls.models).toBe(3)
+   })
+ 
+-  it('retains an unavailable durable selection without replacing or rewriting it', async () => {
+-    const b = await bench()
++  it('retains and blocks an unavailable durable selection without replacing or rewriting it', async () => {
++    const b = await bench('en')
+     b.mint('s1')
+     const face = b.seat().inject!(sid('s1'))
+     const intended = { provider: 'deepseek-official', model: 'unlisted' }
+     b.setProjected(sid('s1'), { lastUsed: intended, next: intended })
+     await vi.waitFor(() => { expect(face.directory.getSnapshot().status).toBe('ready') })
+     expect(face.directory.getSnapshot().current).toEqual(intended)
+-    expect(b.blockOf('s1')).toBeUndefined()
++    expect(b.blockOf('s1')).toEqual({ reason: unavailableReason })
+     expect(b.calls.select).toBe(0)
+   })
+ 
++  it('clears the stale-model composer block only after an explicit listed-model selection', async () => {
++    const b = await bench('en')
++    try {
++      b.mint('s1')
++      const face = b.seat().inject!(sid('s1'))
++      const intended = { provider: 'deepseek-official', model: 'unlisted' }
++      b.setProjected(sid('s1'), { lastUsed: intended, next: intended })
++      await vi.waitFor(() => { expect(face.directory.getSnapshot()).toMatchObject({ status: 'ready', routable: false }) })
++      expect(b.blockOf('s1')).toEqual({ reason: unavailableReason })
++      expect(b.calls.select).toBe(0)
++
++      await expect(face.select({ provider: 'deepseek-official', model: 'deepseek-v4-flash' }))
++        .resolves.toMatchObject({ ok: true })
++      expect(face.directory.getSnapshot()).toMatchObject({ current: { model: 'deepseek-v4-flash' }, routable: true })
++      expect(b.blockOf('s1')).toBeUndefined()
++    } finally {
++      await b.ctx.fiber.dispose()
++    }
++  })
++
++  it('does not overwrite or clear a composer block owned by another feature', async () => {
++    const b = await bench('en')
++    try {
++      b.mint('s1')
++      const face = b.seat().inject!(sid('s1'))
++      const intended = { provider: 'deepseek-official', model: 'unlisted' }
++      b.setProjected(sid('s1'), { lastUsed: intended, next: intended })
++      await vi.waitFor(() => { expect(b.blockOf('s1')).toEqual({ reason: unavailableReason }) })
++
++      const otherBlock = { reason: 'Workspace is not available.' }
++      b.setExternalBlock('s1', otherBlock)
++      const available = { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
++      b.setProjected(sid('s1'), { lastUsed: available, next: available })
++      b.setRoutable(true)
++      b.remote.emit('llm/adapters-updated', [])
++      await vi.waitFor(() => { expect(face.directory.getSnapshot().routable).toBe(true) })
++      expect(b.blockOf('s1')).toBe(otherBlock)
++    } finally {
++      await b.ctx.fiber.dispose()
++    }
++  })
++
+   it('an unknown session fails loud at the seat inject', async () => {
+     const b = await bench()
+     expect(() => b.seat().inject!(sid('ghost'))).toThrow(/resolved no scope/)

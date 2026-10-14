@@ -27,8 +27,15 @@ export async function retireRemovedRuntime(userDataDir: string): Promise<void> {
     const current = settings['agent-default-model'];
     if ((ownedRoute || ownedLease) && current?.provider === RETIRED_PROVIDER && current.model === RETIRED_MODEL) {
       const ids = providers?.['deepseek-free']?.models?.map((m: any) => m?.id).filter((id: unknown) => typeof id === 'string') ?? [];
-      settings['agent-default-model'] = ownedLease && ids.includes(lease.previous.model)
-        ? lease.previous : { provider: 'deepseek-free', model: ids[0] ?? 'x-preview-f' };
+      // Restore the user's recorded choice even while the live route catalog
+      // is empty; the Host blocks stale selections until a verified model is
+      // available. Without a lease, choose an already configured model or
+      // leave the default unset for model-refresher to seed after HTTP 200.
+      const replacement = ownedLease
+        ? lease.previous
+        : ids[0] === undefined ? undefined : { provider: 'deepseek-free', model: ids[0] };
+      if (replacement) settings['agent-default-model'] = replacement;
+      else delete settings['agent-default-model'];
       changed = true;
     }
     if (changed) atomic(settingsPath, dump(settings, { noRefs: true, lineWidth: 120 }));

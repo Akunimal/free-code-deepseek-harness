@@ -304,6 +304,18 @@
       "seam": "packages/web/tool-web/src/browser.ts",
       "contractTests": ["packages/web/tool-web/tests/browser-policy.spec.ts"],
       "vendorOnly": true
+    },
+    {
+      "file": "170-freecode-model-route-admission-guard.patch",
+      "order": 170,
+      "owner": "freecode",
+      "description": "Block stale or unsupported model routes before composer submission and show a recovery state",
+      "seam": "packages/api/session-controller + packages/client/ui-model-selection",
+      "contractTests": [
+        "packages/api/session-controller/tests/session-models.host.spec.ts",
+        "packages/client/ui-model-selection/tests/browser-plugin.client.spec.ts"
+      ],
+      "vendorOnly": true
     }
   ]
 }

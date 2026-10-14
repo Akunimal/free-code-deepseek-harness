@@ -19,9 +19,11 @@ import type { ModelSelection, ModelSelectionProjection } from '@deepseek-ai/dsh-
 import type { CommandContribution, PopupSelectSpec, SelectOption } from '@deepseek-ai/dsh-client-ui-commands/client'
 import type { ModelSelectInjected } from '../src/client/slots.ts'
 import { apply, inject } from '../src/client/index.ts'
-import { zh } from '../src/client/locales.ts'
+import { en, zh } from '../src/client/locales.ts'
 
 const sid = (k: string): SessionId => k as SessionId
+const unavailableReason = 'The saved model has not been verified by the gateway. Choose a listed model to continue.'
+const noModelsReason = 'The gateway has not verified any models yet. The app retries automatically; a slow model check can take up to two minutes.'
 
 const GROUPS = [{
   id: 'deepseek-official',
@@ -106,10 +108,19 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
   }
   const remote = Object.assign(new TestRemote(ctx), { session: sessionRemote })
   ctx.reflect.provide('remote.session', sessionRemote)
-  const blocks = new Map<SessionId, { reason: string } | undefined>()
+  const blocks = new Map<SessionId, SnapshotStore<{ reason: string } | undefined>>()
+  const blockStoreFor = (id: SessionId): SnapshotStore<{ reason: string } | undefined> => {
+    let store = blocks.get(id)
+    if (store === undefined) {
+      store = createSnapshotStore<{ reason: string } | undefined>(undefined)
+      blocks.set(id, store)
+    }
+    return store
+  }
   ctx.provide('conversation', {
     blocks: {
-      set: (id: SessionId, block: { reason: string } | undefined) => { blocks.set(id, block) },
+      set: (id: SessionId, block: { reason: string } | undefined) => { blockStoreFor(id).set(block) },
+      storeFor: blockStoreFor,
     },
   })
   let contribution: CommandContribution | undefined
@@ -197,7 +208,8 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
     setGroups: (next: typeof GROUPS) => { groups = next },
     setCatalogFailure: (next: boolean) => { catalogFailure = next },
     setRoutable: (next: boolean) => { routable = next },
-    blockOf: (key: string) => blocks.get(sid(key)),
+    blockOf: (key: string) => blocks.get(sid(key))?.getSnapshot(),
+    setExternalBlock: (key: string, block: { reason: string } | undefined) => { blockStoreFor(sid(key)).set(block) },
   }
 }
 
@@ -238,8 +250,8 @@ describe('ui-model-selection dual entry', () => {
     expect(options[0]?.active).toBe(true)
     expect(options[1]?.active).toBeUndefined()
     expect(b.popup().searchLabels?.()).toEqual(locale === 'zh'
-      ? { placeholder: '搜索模型…', empty: '没有可用的模型。', noResults: '没有匹配的模型。' }
-      : { placeholder: 'Search models…', empty: 'No models available.', noResults: 'No matching models.' })
+      ? { placeholder: zh['search.placeholder'], empty: zh['empty.models'], noResults: zh['search.empty'] }
+      : { placeholder: en['search.placeholder'], empty: en['empty.models'], noResults: en['search.empty'] })
   })
 
   it('orders popup provider groups account-first while retaining third-party catalog order', async () => {
@@ -466,8 +478,8 @@ describe('ui-model-selection dual entry', () => {
     }
   })
 
-  it('keeps the composer usable when current catalog models disappear', async () => {
-    const b = await bench()
+  it('blocks the composer when the selected model disappears, then unblocks after recovery', async () => {
+    const b = await bench('en')
     b.mint('s1')
     const face = b.seat().inject!(sid('s1'))
 
@@ -482,7 +494,7 @@ describe('ui-model-selection dual entry', () => {
     b.remote.emit('settings/document-updated', ['llm-deepseek', 1])
     await Promise.resolve()
     await Promise.resolve()
-    expect(b.blockOf('s1')).toBeUndefined()
+    expect(b.blockOf('s1')).toEqual({ reason: noModelsReason })
     expect(b.calls.models).toBe(2)
 
     // Recovering clears it without a reload of the surface.
@@ -494,16 +506,58 @@ describe('ui-model-selection dual entry', () => {
     expect(b.calls.models).toBe(3)
   })
 
-  it('retains an unavailable durable selection without replacing or rewriting it', async () => {
-    const b = await bench()
+  it('retains and blocks an unavailable durable selection without replacing or rewriting it', async () => {
+    const b = await bench('en')
     b.mint('s1')
     const face = b.seat().inject!(sid('s1'))
     const intended = { provider: 'deepseek-official', model: 'unlisted' }
     b.setProjected(sid('s1'), { lastUsed: intended, next: intended })
     await vi.waitFor(() => { expect(face.directory.getSnapshot().status).toBe('ready') })
     expect(face.directory.getSnapshot().current).toEqual(intended)
-    expect(b.blockOf('s1')).toBeUndefined()
+    expect(b.blockOf('s1')).toEqual({ reason: unavailableReason })
     expect(b.calls.select).toBe(0)
+  })
+
+  it('clears the stale-model composer block only after an explicit listed-model selection', async () => {
+    const b = await bench('en')
+    try {
+      b.mint('s1')
+      const face = b.seat().inject!(sid('s1'))
+      const intended = { provider: 'deepseek-official', model: 'unlisted' }
+      b.setProjected(sid('s1'), { lastUsed: intended, next: intended })
+      await vi.waitFor(() => { expect(face.directory.getSnapshot()).toMatchObject({ status: 'ready', routable: false }) })
+      expect(b.blockOf('s1')).toEqual({ reason: unavailableReason })
+      expect(b.calls.select).toBe(0)
+
+      await expect(face.select({ provider: 'deepseek-official', model: 'deepseek-v4-flash' }))
+        .resolves.toMatchObject({ ok: true })
+      expect(face.directory.getSnapshot()).toMatchObject({ current: { model: 'deepseek-v4-flash' }, routable: true })
+      expect(b.blockOf('s1')).toBeUndefined()
+    } finally {
+      await b.ctx.fiber.dispose()
+    }
+  })
+
+  it('does not overwrite or clear a composer block owned by another feature', async () => {
+    const b = await bench('en')
+    try {
+      b.mint('s1')
+      const face = b.seat().inject!(sid('s1'))
+      const intended = { provider: 'deepseek-official', model: 'unlisted' }
+      b.setProjected(sid('s1'), { lastUsed: intended, next: intended })
+      await vi.waitFor(() => { expect(b.blockOf('s1')).toEqual({ reason: unavailableReason }) })
+
+      const otherBlock = { reason: 'Workspace is not available.' }
+      b.setExternalBlock('s1', otherBlock)
+      const available = { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
+      b.setProjected(sid('s1'), { lastUsed: available, next: available })
+      b.setRoutable(true)
+      b.remote.emit('llm/adapters-updated', [])
+      await vi.waitFor(() => { expect(face.directory.getSnapshot().routable).toBe(true) })
+      expect(b.blockOf('s1')).toBe(otherBlock)
+    } finally {
+      await b.ctx.fiber.dispose()
+    }
   })
 
   it('an unknown session fails loud at the seat inject', async () => {

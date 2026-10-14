@@ -688,7 +688,7 @@ describe('Web session model selection', () => {
     await ctx.fiber.dispose()
   })
 
-  it('admits saved selections without querying the advisory model catalog', async () => {
+  it('refuses a prompt when the saved model cannot be verified from the current catalog', async () => {
     const { ctx, sessionId, agent } = await harness()
     const followup = vi.fn()
     Object.assign(agent, { followup })
@@ -700,9 +700,9 @@ describe('Web session model selection', () => {
     try {
       expect(await remote.prompt(promptRequest({
         sessionId, mode: 'queue', content: [{ type: 'text', text: 'hello' }],
-      }))).toMatchObject({ ok: true, value: { accepted: true } })
-      expect(list).not.toHaveBeenCalled()
-      expect(followup).toHaveBeenCalledOnce()
+      }))).toMatchObject({ ok: false, error: { code: 'session/model-unavailable' } })
+      expect(list).toHaveBeenCalledWith('deepseek-official')
+      expect(followup).not.toHaveBeenCalled()
     } finally {
       list.mockRestore()
       await ctx.fiber.dispose()
@@ -726,7 +726,7 @@ describe('Web session model selection', () => {
     }
   })
 
-  it('admits an unavailable saved route for execution without rewriting the selection', async () => {
+  it('rejects an unavailable saved route before execution without rewriting the selection', async () => {
     const { ctx, sessionId, agent } = await harness()
     const followup = vi.fn()
     Object.assign(agent, { followup })
@@ -735,11 +735,11 @@ describe('Web session model selection', () => {
       cwd: '/tmp',
     })
 
-    const admitted = await remote.prompt(promptRequest({
+    const refused = await remote.prompt(promptRequest({
       sessionId, mode: 'queue' as const, content: [{ type: 'text' as const, text: 'hi' }],
     }))
-    expect(admitted).toMatchObject({ ok: true, value: { accepted: true } })
-    expect(followup).toHaveBeenCalledOnce()
+    expect(refused).toMatchObject({ ok: false, error: { code: 'session/model-unavailable' } })
+    expect(followup).not.toHaveBeenCalled()
     const unavailableCatalog = await buildModelCatalog(ctx)
     expect(unavailableCatalog.routableProviders.includes(currentSelection(ctx, sessionId).provider)).toBe(false)
 
@@ -750,7 +750,7 @@ describe('Web session model selection', () => {
     await ctx.fiber.dispose()
   })
 
-  it('admits a removed model without changing its saved selection', async () => {
+  it('refuses a removed model without changing its saved selection or session history', async () => {
     const { ctx, sessionId, agent } = await harness({ provider: 'deepseek-official', model: 'removed-model' })
     const remote = createSessionTestRemote(ctx, {
       defaultModelSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-chat' }), cwd: '/tmp',
@@ -759,8 +759,8 @@ describe('Web session model selection', () => {
     const followup = vi.fn()
     Object.assign(agent, { followup })
     expect(await remote.prompt(promptRequest({ sessionId, mode: 'queue', content: [{ type: 'text', text: 'hi' }] })))
-      .toMatchObject({ ok: true, value: { accepted: true } })
-    expect(followup).toHaveBeenCalledOnce()
+      .toMatchObject({ ok: false, error: { code: 'session/model-unavailable' } })
+    expect(followup).not.toHaveBeenCalled()
     expect(agent.session.snapshotEvents()).toEqual(events)
     expect(currentSelection(ctx, sessionId)).toMatchObject({ provider: 'deepseek-official', model: 'removed-model' })
     await ctx.fiber.dispose()

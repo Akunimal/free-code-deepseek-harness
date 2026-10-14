@@ -151,6 +151,18 @@ describe('model-refresher', () => {
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
+  it('chooses the first verified route when migration left no default yet', async () => {
+    mockFetchWithModels(['deepseek-v3.2-free'], ['deepseek-v3.2-free']);
+    const { home, data } = tmpDirs();
+    const { mkdirSync, writeFileSync } = await import('node:fs');
+    mkdirSync(home, { recursive: true });
+    writeFileSync(join(home, 'settings.yaml'), 'llm-pi-ai:\n  providers:\n    deepseek-free:\n      models: []\n');
+    await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
+    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+    expect(settings['agent-default-model']).toEqual({ provider: 'deepseek-free', model: 'deepseek-v3.2-free' });
+    rmSync(dirname(home), { recursive: true, force: true });
+  });
+
   it('refreshes MiMo models with binary thinking and no reasoning_effort support', async () => {
     mockFetchWithModels(['mimo-v2.5-pro'], ['mimo-v2.5-pro']);
     const { home, data } = tmpDirs();
@@ -172,6 +184,78 @@ describe('model-refresher', () => {
     expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual(
       [deepseekModel('deepseek-v3.2-free')],
     );
+    rmSync(dirname(home), { recursive: true, force: true });
+  });
+
+  it('keeps unverified gateway IDs out of routable settings until a slow probe returns 200', async () => {
+    const { home, data } = tmpDirs();
+    const { mkdirSync, readFileSync: readFile, writeFileSync } = await import('node:fs');
+    mkdirSync(home, { recursive: true });
+    writeFileSync(join(home, 'settings.yaml'), `llm-pi-ai:\n  providers:\n    deepseek-free:\n      models: []\nagent-default-model:\n  provider: deepseek-free\n  model: x-preview-f\n`);
+    let releaseProbe!: () => void;
+    let probeStarted = false;
+    const gate = new Promise<void>((resolve) => { releaseProbe = resolve; });
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
+      if (String(url).endsWith('/v1/models')) {
+        return new Response(JSON.stringify({ data: [{ id: 'slow-supported-model' }] }), { status: 200 });
+      }
+      if (String(url).endsWith('/v1/chat/completions')) {
+        probeStarted = true;
+        await gate;
+        return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+      }
+      return new Response('not found', { status: 404 });
+    }));
+
+    const refresh = refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
+    try {
+      await vi.waitFor(() => {
+        expect(probeStarted).toBe(true);
+        const settings = loadYaml(readFile(join(home, 'settings.yaml'), 'utf8')) as any;
+        expect(settings['llm-pi-ai'].providers['deepseek-free'].models)
+          .toEqual([]);
+        expect(settings['agent-default-model']).toEqual({ provider: 'deepseek-free', model: 'x-preview-f' });
+      }, { timeout: 250 });
+    } finally {
+      releaseProbe();
+    }
+    const catalog = await refresh;
+    expect(catalog.providers['deepseek-free']!.models[0]).toMatchObject({ id: 'slow-supported-model', responds: true });
+    const settings = loadYaml(readFile(join(home, 'settings.yaml'), 'utf8')) as any;
+    expect(settings['llm-pi-ai'].providers['deepseek-free'].models)
+      .toEqual([{ id: 'slow-supported-model', reasoningEfforts: false }]);
+    expect(settings['agent-default-model']).toEqual({ provider: 'deepseek-free', model: 'slow-supported-model' });
+    rmSync(dirname(home), { recursive: true, force: true });
+  });
+
+  it('removes a gateway model that returns the exact unsupported-protocol 400', async () => {
+    const { home, data } = tmpDirs();
+    const { mkdirSync, writeFileSync } = await import('node:fs');
+    mkdirSync(home, { recursive: true });
+    writeFileSync(join(home, 'settings.yaml'), `llm-pi-ai:\n  providers:\n    deepseek-free:\n      models:\n        - id: x-preview-f\n`);
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
+      if (String(url).endsWith('/v1/models')) {
+        return new Response(JSON.stringify({ data: [{ id: 'x-preview-f' }] }), { status: 200 });
+      }
+      if (String(url).endsWith('/v1/chat/completions')) {
+        return new Response(JSON.stringify({
+          error: {
+            code: null,
+            message: 'the model uses an upstream protocol that opencode2api does not expose',
+            param: null,
+            type: 'invalid_request_error',
+          },
+        }), { status: 400, headers: { 'content-type': 'application/json' } });
+      }
+      return new Response('not found', { status: 404 });
+    }));
+
+    const catalog = await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
+    expect(catalog.providers['deepseek-free']!.models).toEqual([
+      expect.objectContaining({ id: 'x-preview-f', responds: false }),
+    ]);
+    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+    expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([]);
     rmSync(dirname(home), { recursive: true, force: true });
   });
 

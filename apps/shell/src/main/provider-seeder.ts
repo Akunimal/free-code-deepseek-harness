@@ -1,8 +1,7 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { load as loadYaml, dump as dumpYaml } from 'js-yaml';
-import { compatForModel, isDeepSeekModel, reasoningEffortsForModel } from './reasoning-policy.js';
-import type { ModelReasoningEfforts } from './reasoning-policy.js';
+import { compatForModel, isDeepSeekModel } from './reasoning-policy.js';
 
 /**
  * Provider seeder — runs ONCE the harness-supervisor reports ready.
@@ -13,11 +12,11 @@ import type { ModelReasoningEfforts } from './reasoning-policy.js';
  *     carries per-namespace sections. The `llm-pi-ai:` section schema is
  *     `{ providers: { <route>: <profile> } }` — there is NO `defaultProvider`
  *     key (it is rejected by the namespace validator).
- *   - A hand-declared route needs `api`, `baseURL`, and a NON-EMPTY `models`
- *     list of `{id,...}` entries, otherwise the section is refused
- *     (`settings-rejected`) and the provider never registers. `models: []`
- *     is NOT serviceable — the seeder must plant at least one known model;
- *     the model-refresher then syncs the full latency-sorted list.
+ *   - A hand-declared route needs a NON-EMPTY `models` list to register. The
+ *     seeder deliberately leaves the built-in route empty until the gateway's
+ *     live `/models` catalog has been probed; model-refresher only publishes
+ *     IDs after HTTP 200 responder checks. A synthetic seed can expose a
+ *     model the gateway cannot route.
  *   - Only the OpenCode Free pool is seeded; unrelated user routes remain user-owned.
  */
 
@@ -63,8 +62,6 @@ const LEGACY_FREE_PROVIDER_DISPLAY_NAMES = new Set([
  *  a user-owned provider reusing the key stays untouched. */
 const OPENCODE_PROVIDER = 'opencode-free';
 const OPENCODE_DISPLAY_NAME = 'OpenCode No-Auth';
-/** Seed model — the model-refresher replaces this with the live catalog. */
-const FALLBACK_MODELS = [{ id: 'x-preview-f', reasoningEfforts: reasoningEffortsForModel('x-preview-f') }];
 const LEGACY_PERPLEXITY_PROVIDER = 'perplexity-free';
 const LEGACY_PERPLEXITY_DISPLAY_NAME = 'Perplexity Free (local)';
 const REMOVED_GEMINI_PROVIDER = 'gemini-web';
@@ -92,8 +89,10 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
       existing.baseURL = cfg.lbBaseUrl;
       seeded = true;
     }
-    if (Array.isArray(existing.models) && existing.models.length === 0) {
-      existing.models = cloneFallbackModels();
+    // Never keep old IDs or synthesize a route at startup. The gateway's live
+    // /models response is authoritative and will repopulate this list shortly.
+    if (!Array.isArray(existing.models) || existing.models.length > 0) {
+      existing.models = [];
       seeded = true;
     }
     if (existing.reasoning !== undefined) {
@@ -102,13 +101,6 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
       delete existing.reasoning;
       seeded = true;
     }
-    if (Array.isArray(existing.models)) {
-      const normalized = normalizeModelEntries(existing.models);
-      if (normalized.some((entry, index) => entry !== existing.models![index])) {
-        existing.models = normalized;
-        seeded = true;
-      }
-    }
   } else {
     providers[DEFAULT_PROVIDER] = {
       displayName: FREE_PROVIDER_DISPLAY_NAME,
@@ -116,7 +108,7 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
       baseURL: cfg.lbBaseUrl,
       apiKeyEnv: cfg.apiKeyEnv ?? DEFAULT_API_KEY_ENV,
       defaultInput: ['text'],
-      models: cloneFallbackModels(),
+      models: [],
       compat: { thinkingFormat: 'deepseek' },
       // NOTE: reasoning removed — the pool is heterogeneous; model-refresher
       // sets reasoningEfforts per model.
@@ -149,8 +141,10 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
     seeded = true;
   }
 
-  // Ensure agent-default-model points to a model the pool actually serves,
-  // WITHOUT clobbering the user's chosen provider/model on every boot.
+  // Keep the durable default while the strict model catalog is empty. The
+  // Host revalidates it before prompt admission, and model-refresher replaces
+  // it only after an actual responder returns HTTP 200. Never invent a
+  // placeholder route such as x-preview-f during bootstrap.
   // Rules (in order):
   //  1. Missing/invalid default -> seed deepseek-free + first served model.
   //  2. Default pointing at a removed route (gemini-web, perplexity-free, or
@@ -169,7 +163,7 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
     ? providers[DEFAULT_PROVIDER]!.models as { id?: unknown }[]
     : [];
   const firstModel = freeModels.find((entry) => typeof entry?.id === 'string')?.id as string
-    | undefined ?? FALLBACK_MODELS[0]!.id;
+    | undefined;
   const modelIdsOf = (providerId: string): Set<string> => {
     const models = providers[providerId]?.models;
     if (!Array.isArray(models)) return new Set();
@@ -190,11 +184,13 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
     return false;
   };
   if (!defaultModel || typeof defaultModel.model !== 'string' || typeof defaultModel.provider !== 'string') {
-    settings['agent-default-model'] = {
-      provider: DEFAULT_PROVIDER,
-      model: firstModel,
-    };
-    seeded = true;
+    if (firstModel !== undefined) {
+      settings['agent-default-model'] = {
+        provider: DEFAULT_PROVIDER,
+        model: firstModel,
+      };
+      seeded = true;
+    }
   } else if (
     defaultModel.provider === REMOVED_GEMINI_PROVIDER
     || defaultModel.provider === LEGACY_PERPLEXITY_PROVIDER
@@ -203,7 +199,7 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
     // Migrate removed routes to the single lane, preserving the model id when
     // the consolidated lane still serves it.
     const servedIds = modelIdsOf(DEFAULT_PROVIDER);
-    const migrated = servedIds.has(defaultModel.model) ? defaultModel.model : firstModel;
+    const migrated = servedIds.has(defaultModel.model) ? defaultModel.model : firstModel ?? defaultModel.model;
     settings['agent-default-model'] = {
       provider: DEFAULT_PROVIDER,
       model: migrated,
@@ -213,7 +209,7 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
     if (modelIdsOf(DEFAULT_PROVIDER).has(defaultModel.model)) {
       // User's chosen model still served: keep it, clean stale effort only.
       if (stripStaleEffort(defaultModel)) seeded = true;
-    } else {
+    } else if (firstModel !== undefined) {
       // Chosen model no longer served: fall back to first served model.
       settings['agent-default-model'] = {
         provider: DEFAULT_PROVIDER,
@@ -230,37 +226,6 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
     if (!existing) writeMarker(cfg.homeDir, cfg.lbBaseUrl);
   }
   return { seeded, path: settingsPath };
-}
-
-function cloneFallbackModels(): { id: string; reasoningEfforts: ModelReasoningEfforts }[] {
-  return FALLBACK_MODELS.map((model) => ({ ...model }));
-}
-
-function normalizeModelEntries(models: unknown[]): unknown[] {
-  return models.map((model) => {
-    if (model === null || typeof model !== 'object' || Array.isArray(model)) return model;
-    const entry = model as {
-      id?: unknown;
-      reasoningEfforts?: unknown;
-      compat?: Record<string, unknown>;
-    };
-    if (typeof entry.id !== 'string') return model;
-    const desired = reasoningEffortsForModel(entry.id);
-    const desiredCompat = compatForModel(entry.id);
-    const mergedCompat = desiredCompat === undefined
-      ? entry.compat
-      : { ...(entry.compat ?? {}), ...desiredCompat };
-    const reasoningMatches = JSON.stringify(entry.reasoningEfforts) === JSON.stringify(desired);
-    const compatMatches = desiredCompat === undefined
-      || JSON.stringify(entry.compat) === JSON.stringify(mergedCompat);
-    return reasoningMatches && compatMatches
-      ? model
-      : {
-        ...entry,
-        reasoningEfforts: desired,
-        ...(desiredCompat === undefined ? {} : { compat: mergedCompat }),
-      };
-  });
 }
 
 function readSettings(path: string): SettingsShape {

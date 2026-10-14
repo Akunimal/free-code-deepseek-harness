@@ -26,6 +26,9 @@ export const zh = {
   'menu.effort': '推理等级',
   'menu.thinking': '思考模式',
   'effort.providerDefault': 'Default',
+  'blocked.noModels': '网关尚未验证任何模型。应用会自动重试；较慢的模型检查可能需要最多两分钟。',
+  'blocked.unavailable': '已保存的模型尚未通过网关验证。请选择列表中的模型以继续。',
+  'blocked.choose': '请选择一个可用模型以继续。',
   'status.loading': '正在刷新模型列表…',
   'error.action': '模型操作失败：{message}',
   'error.sessionInUse': '当前会话已被占用，可能是其他正在运行的 DSH 导致的（如其他 dsh web、桌面端），请退出其他正在运行的 DSH 后重试。',
@@ -34,7 +37,7 @@ export const zh = {
   'search.placeholder': '搜索模型…',
   'search.clear': '清除搜索',
   'search.empty': '没有匹配的模型。',
-  'empty.models': '没有可用的模型。',
+  'empty.models': '网关尚未验证任何模型。应用会自动重试；较慢的模型检查可能需要最多两分钟。',
   'empty.efforts': '当前模型未提供推理等级。',
 } satisfies Record<string, string>
 
@@ -64,10 +67,13 @@ export const en = {
   'error.sessionInUse': 'This session is already in use, possibly by another running DSH instance (such as dsh web or the desktop app). Quit other running DSH instances and try again.',
   'action.reload': 'Reload',
   'warning.groupLoad': '{name} failed to load: {message}',
+  'blocked.noModels': 'The gateway has not verified any models yet. The app retries automatically; a slow model check can take up to two minutes.',
+  'blocked.unavailable': 'The saved model has not been verified by the gateway. Choose a listed model to continue.',
+  'blocked.choose': 'Choose an available model to continue.',
   'search.placeholder': 'Search models…',
   'search.clear': 'Clear search',
   'search.empty': 'No matching models.',
-  'empty.models': 'No models available.',
+  'empty.models': 'The gateway has not verified any models yet. The app retries automatically; a slow model check can take up to two minutes.',
   'empty.efforts': 'This model provides no reasoning effort levels.',
 } satisfies Record<ModelKey, string>
 
@@ -91,8 +97,11 @@ export const es = {
   "status.loading": "Actualizando lista de modelos…",
   "error.action": "Error en la operación del modelo: {message}",
   "action.reload": "Recargar",
+  "blocked.noModels": "La pasarela aún no verificó ningún modelo. La app vuelve a intentarlo automáticamente; una comprobación lenta puede tardar hasta dos minutos.",
+  "blocked.unavailable": "El modelo guardado todavía no fue verificado por la pasarela. Elegí un modelo de la lista para continuar.",
+  "blocked.choose": "Elegí un modelo disponible para continuar.",
   "warning.groupLoad": "{name} no se pudo cargar: {message}",
-  "empty.models": "No hay modelos disponibles.",
+  "empty.models": "La pasarela aún no verificó ningún modelo. La app vuelve a intentarlo automáticamente; una comprobación lenta puede tardar hasta dos minutos.",
   "blocked.composer": "Este modelo no está disponible — seleccione uno para continuar",
   "empty.efforts": "Este modelo no ofrece niveles de esfuerzo de razonamiento.",
 }

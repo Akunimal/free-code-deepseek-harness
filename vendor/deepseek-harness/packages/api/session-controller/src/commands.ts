@@ -336,8 +336,12 @@ export class SessionCommandController {
     const hasImage = request.content.some(part => part.type === 'image')
     const admit = async (): Promise<SessionPromptValue> => {
       try {
+        const current = this.agents.selectionFor(agent).current
+        // The Session may outlive a provider/model removal or a previous
+        // process's bootstrap placeholder. Revalidate immediately before
+        // admission so stale durable selections never reach an upstream.
+        await this.requireModel(current)
         if (hasImage) {
-          const current = this.agents.selectionFor(agent).current
           const model = await this.ctx.llm.resolveModelInfo(current.provider, current.model)
           if (model.inputModalities !== undefined && !model.inputModalities.includes('image')) {
             throw new RemoteError(
@@ -373,7 +377,9 @@ export class SessionCommandController {
       }
       return { accepted: true }
     }
-    return hasImage ? this.agents.serializeImageAdmission(agent, admit) : admit()
+    // Serialize the route check and prompt admission with model selection so a
+    // concurrent picker change cannot invalidate the model after validation.
+    return this.agents.serializeImageAdmission(agent, admit)
   }
 
   private async requireModel(selection: Pick<AgentModelSelection, 'provider' | 'model'>): Promise<void> {

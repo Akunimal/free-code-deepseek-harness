@@ -65,6 +65,39 @@ describe('retired optional runtime', () => {
     } finally { rmSync(f.root, { recursive: true, force: true }); }
   });
 
+  it('never fabricates a model when retiring OmniRoute before Free models are verified', async () => {
+    const f = fixture();
+    try {
+      writeFileSync(f.settings, dump({ 'llm-pi-ai': { providers: {
+        'deepseek-free': { models: [] },
+        'freecode-omniroute': { baseURL: 'http://127.0.0.1:1234/v1', models: [{ id: 'auto/coding:free' }] },
+      } }, 'agent-default-model': { provider: 'freecode-omniroute', model: 'auto/coding:free' } }));
+      await retireRemovedRuntime(f.root);
+      const settings = load(readFileSync(f.settings, 'utf8')) as any;
+      expect(settings['llm-pi-ai'].providers['freecode-omniroute']).toBeUndefined();
+      expect(settings['agent-default-model']).toBeUndefined();
+      expect(readFileSync(f.settings, 'utf8')).not.toContain('x-preview-f');
+    } finally { rmSync(f.root, { recursive: true, force: true }); }
+  });
+
+  it('restores its recorded default even when that model awaits the next verified catalog', async () => {
+    const f = fixture();
+    try {
+      writeFileSync(f.settings, dump({ 'llm-pi-ai': { providers: {
+        'deepseek-free': { models: [] },
+        'freecode-omniroute': { baseURL: 'http://127.0.0.1:1234/v1', models: [{ id: 'auto/coding:free' }] },
+      } }, 'agent-default-model': { provider: 'freecode-omniroute', model: 'auto/coding:free' } }));
+      writeFileSync(join(f.root, 'model-fallback-state.json'), JSON.stringify({
+        previous: { provider: 'deepseek-free', model: 'deepseek-v3.2-free' },
+        assigned: { provider: 'freecode-omniroute', model: 'auto/coding:free' },
+      }));
+      await retireRemovedRuntime(f.root);
+      const settings = load(readFileSync(f.settings, 'utf8')) as any;
+      expect(settings['agent-default-model']).toEqual({ provider: 'deepseek-free', model: 'deepseek-v3.2-free' });
+      expect(readFileSync(f.settings, 'utf8')).not.toContain('x-preview-f');
+    } finally { rmSync(f.root, { recursive: true, force: true }); }
+  });
+
   it('preserves manually changed defaults and an unrelated provider reusing the retired key', async () => {
     const f = fixture();
     try {
