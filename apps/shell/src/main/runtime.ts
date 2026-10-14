@@ -1,6 +1,8 @@
 import { HarnessSupervisor, HarnessInstance } from './harness-supervisor.js';
 import { SecretStore, resolveSecrets } from './secret-store.js';
 import { join, resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { OmniRouteBootstrap } from './omniroute-bootstrap.js';
 import { startOpencode2api, type Opencode2apiInstance } from './opencode2api.js';
 import { embeddedMcpEnvironment, ensureEmbeddedMcpConfig } from './mcp-home.js';
 import type { EmbeddedMcpState, McpRuntimeStatus, WorkerHandle } from '@freecode/shared-types';
@@ -13,6 +15,7 @@ import type { EmbeddedMcpState, McpRuntimeStatus, WorkerHandle } from '@freecode
 export interface ShellRuntimeConfig {
   /** Static resources dir containing sidecars such as opencode2api and OCR. */
   resourcesDir: string;
+  appVersion?: string;
   /** Root containing the DSH CLI; defaults to resourcesDir for development. */
   harnessDir?: string;
   /** Node binary used to run the dsh CLI. */
@@ -42,6 +45,7 @@ export type McpStatusListener = (status: McpRuntimeStatus) => void;
 export interface ShellRuntime {
   /** opencode2api anonymous-Zen instance; undefined when unavailable. */
   opencode2api?: Opencode2apiInstance;
+  omnirouteBootstrap?: OmniRouteBootstrap;
   supervisor: HarnessSupervisor;
   /** No per-worker handles; returns empty array. */
   workers: () => WorkerHandle[];
@@ -57,6 +61,13 @@ export interface ShellRuntime {
 }
 
 export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<ShellRuntime> {
+  const descriptorPath = join(cfg.resourcesDir, 'omniroute-runtime.json');
+  const omnirouteBootstrap = existsSync(descriptorPath)
+    ? new OmniRouteBootstrap({ descriptorPath, userDataDir: cfg.userDataDir, appVersion: cfg.appVersion }) : undefined;
+  void omnirouteBootstrap?.prepare().then(() => cfg.log?.('info', 'optional OmniRoute runtime ready'))
+    .catch(error => cfg.log?.('warn', 'optional OmniRoute preparation unavailable', {
+      error: error instanceof Error ? error.message : String(error),
+    }));
   const ocrEnv: Record<string, string> = process.platform === 'win32'
     ? {
         FREECODE_TESSERACT_PATH: join(cfg.resourcesDir, 'tesseract', 'tesseract.exe'),
@@ -187,6 +198,7 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
 
   return {
     opencode2api,
+    omnirouteBootstrap,
     supervisor,
     workers: () => [],
     mcpState,
@@ -216,6 +228,7 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
       await supervisor.start();
     },
     stop: async () => {
+      await omnirouteBootstrap?.stop();
       await supervisor.stop();
       await opencode2api?.stop();
     },

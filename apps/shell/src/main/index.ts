@@ -160,6 +160,7 @@ async function bootstrap(harnessDir: string): Promise<ShellRuntime> {
   appLogger?.logger.info({}, '[DEBUG-STARTUP] bootstrap 5/5 createShellRuntime starting');
   const runtime = await createShellRuntime({
     resourcesDir: resources,
+    appVersion: app.getVersion(),
     harnessDir,
     nodePath: findNode(),
     userDataDir,
