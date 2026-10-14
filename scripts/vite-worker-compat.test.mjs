@@ -1,0 +1,65 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { existsSync, mkdtempSync, mkdirSync, copyFileSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, dirname, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { spawnSync } from 'node:child_process';
+
+const root = resolve(import.meta.dirname, '..');
+const relative = 'vendor/deepseek-harness/apps/web/product-isolation.ts';
+const patch = join(root, 'patches/upstream/168-freecode-vite-worker-inputs.patch');
+test('Vite worker input contract survives Rollup and Rolldown without disabling isolation', async () => {
+  assert.ok(existsSync(patch), 'compatibility must remain a replayable overlay');
+  const scratch = mkdtempSync(join(tmpdir(), 'freecode-vite-worker-contract-'));
+  const git = args => spawnSync('git', ['-c', 'core.autocrlf=false', 'apply', ...args, patch], { cwd: scratch, encoding: 'utf8', windowsHide: true });
+  try {
+    mkdirSync(dirname(join(scratch, relative)), { recursive: true });
+    copyFileSync(join(root, relative), join(scratch, relative));
+    const script = 'vendor/deepseek-harness/scripts/web-product-bundle-isolation.ts';
+    mkdirSync(dirname(join(scratch, script)), { recursive: true });
+    copyFileSync(join(root, script), join(scratch, script));
+    copyFileSync(join(root, 'vendor/deepseek-harness/scripts/bundle-input-isolation.ts'), join(scratch, 'vendor/deepseek-harness/scripts/bundle-input-isolation.ts'));
+    if (git(['--reverse', '--check']).status === 0) assert.equal(git(['--reverse']).status, 0);
+    const checked = git(['--check']);
+    assert.equal(checked.status, 0, `${checked.stdout}\n${checked.stderr}`);
+    const applied = git([]);
+    assert.equal(applied.status, 0, `${applied.stdout}\n${applied.stderr}`);
+    const source = readFileSync(join(scratch, relative), 'utf8');
+    assert.ok(source.includes('inputs.workerBundle(bundle, workerBuildInputFiles(this))'));
+    assert.ok(source.includes('inputs.verify(bundle, id => this.getModuleInfo(id))'));
+    const helper = source.slice(source.indexOf('export interface WorkerBuildContext'), source.indexOf('/**\n * Identify'));
+    assert.ok(helper.includes('workerBuildInputFiles'));
+    const file = join(scratch, 'helper.ts');
+    writeFileSync(file, helper);
+    const { workerBuildInputFiles } = await import(pathToFileURL(file).href);
+    assert.deepEqual(workerBuildInputFiles({ getWatchFiles: () => ['watched.ts'], getModuleIds: () => ['ignored.ts'] }), ['watched.ts']);
+    assert.deepEqual(workerBuildInputFiles({ getModuleIds: () => new Set(['entry.ts', 'dependency.ts']) }), ['entry.ts', 'dependency.ts']);
+    assert.throws(() => workerBuildInputFiles({}), /input enumeration/);
+    const { WebProductBundleIsolation } = await import(pathToFileURL(join(scratch, script)).href);
+    const web = join(scratch, 'fixture/apps/web');
+    const entry = join(web, 'main.js');
+    mkdirSync(web, { recursive: true });
+    writeFileSync(entry, 'globalThis.fixture=true');
+    writeFileSync(join(web, 'index.html'), '<script type="module" src="/main.js"></script>');
+    const isolation = new WebProductBundleIsolation(join(scratch, 'fixture'), web);
+    isolation.assetReference('main.js', 'index.html', 'asset');
+    const chunk = { type: 'chunk', fileName: 'main.js', facadeModuleId: entry, modules: { [entry]: {} }, imports: [], dynamicImports: [] };
+    const bundle = { 'index.html': { type: 'asset', fileName: 'index.html', names: ['index.html'], originalFileNames: [join(web, 'index.html')] }, 'main.js': chunk };
+    // Rolldown does not implement the Rollup-only implicit/reference fields.
+    isolation.captureChunks(bundle);
+    isolation.verify(bundle, () => ({ importedIds: [], dynamicallyImportedIds: [], isExternal: false }));
+    const experimental = join(scratch, 'fixture/packages/experimental/prototype/style.css');
+    mkdirSync(dirname(experimental), { recursive: true });
+    writeFileSync(experimental, '.bad{}');
+    isolation.cssTransform(experimental);
+    assert.throws(() => isolation.verify(bundle, id => ({ importedIds: id === entry ? [experimental] : [], dynamicallyImportedIds: [], isExternal: false })), /experimental input/);
+    const runtime = '\u0000rolldown/runtime.js';
+    const fresh = new WebProductBundleIsolation(join(scratch, 'fixture'), web);
+    fresh.assetReference('main.js', 'index.html', 'asset');
+    const withRuntime = { ...bundle, 'main.js': { ...chunk, modules: { [entry]: {}, [runtime]: {} } } };
+    fresh.captureChunks(withRuntime);
+    fresh.verify(withRuntime, id => id === runtime ? null : { importedIds: [], dynamicallyImportedIds: [], isExternal: false });
+    assert.throws(() => fresh.verify({ ...bundle, 'main.js': { ...chunk, modules: { [entry]: {}, '\u0000unknown': {} } } }, id => id === entry ? { importedIds: [], dynamicallyImportedIds: [], isExternal: false } : null), /no Rollup module record/);
+  } finally { rmSync(scratch, { recursive: true, force: true }); }
+});

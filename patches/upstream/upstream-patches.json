@@ -15,7 +15,9 @@
       "owner": "freecode",
       "description": "Electron dialog bridge for Win32 directory picker",
       "seam": "packages/host/directory-picker-native",
-      "contractTests": ["packages/host/directory-picker-native/tests/native-picker.spec.ts"],
+      "contractTests": [
+        "packages/host/directory-picker-native/tests/native-picker.spec.ts"
+      ],
       "vendorOnly": true
     },
     {
@@ -66,7 +68,7 @@
       "file": "060-freecode-settings-and-mcp-ui.patch",
       "order": 60,
       "owner": "freecode",
-      "description": "Authenticated file-open bridge and Settings → Plugins → MCP tab",
+      "description": "Authenticated file-open bridge and Settings \u00e2\u2020\u2019 Plugins \u00e2\u2020\u2019 MCP tab",
       "seam": "packages/client/ui-settings-plugins + packages/util/native-command",
       "contractTests": [
         "packages/client/ui-settings-plugins/tests/apply.client.spec.ts",
@@ -89,7 +91,9 @@
       "owner": "freecode",
       "description": "Persistent terminal execution behind upstream process seam",
       "seam": "packages/subprocess/subprocess-local",
-      "contractTests": ["packages/subprocess/subprocess-local/tests/local.spec.ts"],
+      "contractTests": [
+        "packages/subprocess/subprocess-local/tests/local.spec.ts"
+      ],
       "vendorOnly": true
     },
     {
@@ -278,6 +282,17 @@
       "seam": "packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css",
       "contractTests": [
         "apps/shell/tests/conversation-background.test.ts"
+      ],
+      "vendorOnly": true
+    },
+    {
+      "file": "168-freecode-vite-worker-inputs.patch",
+      "order": 168,
+      "owner": "freecode",
+      "description": "Preserve worker input isolation on both Rollup and Vite 8 Rolldown plugin contexts",
+      "seam": "apps/web/product-isolation.ts",
+      "contractTests": [
+        "scripts/vite-worker-compat.test.mjs"
       ],
       "vendorOnly": true
     }

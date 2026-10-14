@@ -1,0 +1,360 @@
+diff --git a/vendor/deepseek-harness/apps/web/product-isolation.ts b/vendor/deepseek-harness/apps/web/product-isolation.ts
+--- a/vendor/deepseek-harness/apps/web/product-isolation.ts
++++ b/vendor/deepseek-harness/apps/web/product-isolation.ts
+@@ -1,105 +1,118 @@
+ /** Vite adapters for recording product chunk, asset, CSS, and worker inputs. */
+-
++
+ import type { Plugin } from 'vite'
+ import { WebProductBundleIsolation } from '../../scripts/web-product-bundle-isolation.ts'
+-
++
+ const DEPENDENCY_ANALYSIS_PLUGIN = 'dsh-browser-dependency-analysis'
++
++
++export interface WorkerBuildContext {
++  getWatchFiles?: () => string[]
++  getModuleIds?: () => Iterable<string>
++}
++
++/** Enumerate worker inputs on Rollup and Rolldown; never skip isolation. */
++export function workerBuildInputFiles(context: WorkerBuildContext): string[] {
++  if (typeof context.getWatchFiles === 'function') return context.getWatchFiles()
++  if (typeof context.getModuleIds === 'function') return [...context.getModuleIds()]
++  throw new Error('Web product isolation: worker input enumeration is unavailable')
++}
+-
++
+ /**
+  * Identify a dependency-disclosure walk that deliberately leaves third-party imports external.
+  * @returns Analysis intent that refuses builds which can write output.
+  */
+ export function browserDependencyAnalysis(): Plugin {
+   return {
+     name: DEPENDENCY_ANALYSIS_PLUGIN,
+     apply: 'build',
+     configResolved(config) { requireNonWritingAnalysis(config.build.write) },
+   }
+ }
+-
++
+ function requireNonWritingAnalysis(write: boolean): void {
+   if (write !== false) throw new Error('browser dependency analysis requires build.write: false')
+ }
+-
++
+ /**
+  * Reject experimental inputs reachable from the built default Web page.
+  * @param repository - repository root supplying package ownership.
+  * @param webRoot - Vite root containing index.html and public assets.
+  * @returns Build plugins that preserve Vite's output and fail before publication on a violation.
+  */
+ export function productWebBundleIsolation(repository: string, webRoot: string): Plugin[] {
+   const inputs = new WebProductBundleIsolation(repository, webRoot)
+   let dependencyAnalysis = false
+   return [{
+     name: 'dsh-product-web-chunk-inputs',
+     apply: 'build',
+     generateBundle: {
+       order: 'pre',
+       handler(_options, bundle) {
+         if (!dependencyAnalysis) inputs.captureChunks(bundle)
+       },
+     },
+   }, {
+     name: 'dsh-product-web-bundle-isolation',
+     apply: 'build',
+     enforce: 'post',
+     config(config) {
+       const renderBuiltUrl = config.experimental?.renderBuiltUrl
+       const workerPlugins = config.worker?.plugins
+       return {
+         experimental: {
+           renderBuiltUrl(filename, context) {
+             inputs.assetReference(filename, context.hostId, context.type)
+             return renderBuiltUrl?.(filename, context)
+           },
+         },
+         worker: {
+           plugins: () => [...workerPlugins?.() ?? [], {
+             name: 'dsh-worker-build-inputs',
+             generateBundle: {
+               order: 'post',
+-              handler(_options, bundle) { inputs.workerBundle(bundle, this.getWatchFiles()) },
++              handler(_options, bundle) { inputs.workerBundle(bundle, workerBuildInputFiles(this)) },
+             },
+           }],
+         },
+       }
+     },
+     configResolved(config) {
+       dependencyAnalysis = config.plugins.some(plugin => plugin.name === DEPENDENCY_ANALYSIS_PLUGIN)
+       if (dependencyAnalysis) {
+         requireNonWritingAnalysis(config.build.write)
+         return
+       }
+       const cssPlugins = config.plugins.filter(plugin => plugin.name === 'vite:css')
+       const css = cssPlugins[0]
+       if (cssPlugins.length !== 1 || css?.transform === undefined) {
+         throw new Error('Web product isolation: Vite CSS input instrumentation is unavailable')
+       }
+       const transform = typeof css.transform === 'function' ? css.transform : css.transform.handler
+       css.transform = {
+         ...typeof css.transform === 'function' ? {} : css.transform,
+         handler(code, id, options) {
+           inputs.cssTransform(id)
+           const context = new Proxy(this, {
+             get(target, property) {
+               if (property === 'addWatchFile') return (file: string): void => {
+                 inputs.cssDependency(id, file)
+                 target.addWatchFile(file)
+               }
+               const value: unknown = Reflect.get(target, property, target)
+               return typeof value === 'function' ? value.bind(target) : value
+             },
+           })
+           return transform.call(context, code, id, options)
+         },
+       }
+     },
+     buildStart() { inputs.reset() },
+     generateBundle: {
+       order: 'post',
+       handler(_options, bundle) {
+         if (!dependencyAnalysis) inputs.verify(bundle, id => this.getModuleInfo(id))
+       },
+     },
+   }]
+ }
+diff --git a/vendor/deepseek-harness/scripts/web-product-bundle-isolation.ts b/vendor/deepseek-harness/scripts/web-product-bundle-isolation.ts
+--- a/vendor/deepseek-harness/scripts/web-product-bundle-isolation.ts
++++ b/vendor/deepseek-harness/scripts/web-product-bundle-isolation.ts
+@@ -1,199 +1,205 @@
+ /** Experimental-package isolation over Vite's emitted product graph and recorded file inputs. */
+-
++
+ import { basename, resolve } from 'node:path'
+ import { BundleInputIsolation, physicalBundleInput } from './bundle-input-isolation.ts'
+-
++
+ /** The emitted chunk fields used to follow the product's actual output graph. */
+ export interface WebOutputChunk {
+   type: 'chunk'
+   fileName: string
+   preliminaryFileName?: string
+   facadeModuleId: string | null
+   modules: Record<string, unknown>
+   imports: string[]
+   dynamicImports: string[]
+-  implicitlyLoadedBefore: string[]
+-  referencedFiles: string[]
++  implicitlyLoadedBefore?: string[]
++  referencedFiles?: string[]
+   viteMetadata?: { importedCss: Set<string>; importedAssets: Set<string> }
+ }
+-
++
+ /** Original file names provide ownership for emitted, non-CSS assets. */
+ export interface WebOutputAsset {
+   type: 'asset'
+   fileName: string
+   names: string[]
+   originalFileNames: string[]
+ }
+-
++
+ /** Vite's output bundle, restricted to the fields needed by this check. */
+ export type WebOutputBundle = Record<string, WebOutputChunk | WebOutputAsset>
+-
++
+ /** Retained source edges, including CSS modules whose pure output chunks Vite removes. */
+ export interface WebModuleInfo {
+   importedIds: readonly string[]
+   dynamicallyImportedIds: readonly string[]
+   isExternal: boolean
+-  isIncluded: boolean | null
++  isIncluded?: boolean | null
+ }
+-
++
+ interface AssetReference {
+   host: string
+   file: string
+   type: 'asset' | 'public'
+ }
+-
++
+ /** Output graphs are rebuilt each time; cached transforms retain their file-input observations. */
+ export class WebProductBundleIsolation {
+   private readonly cssInputs = new Map<string, Set<string>>()
+   private readonly chunks = new Map<string, WebOutputChunk>()
+   private readonly references: AssetReference[] = []
+   private readonly workerInputs = new Map<string, Set<string>>()
+   private readonly inputs: BundleInputIsolation
+   private readonly webRoot: string
+-
++
+   constructor(repository: string, webRoot: string) {
+     this.webRoot = webRoot
+     this.inputs = new BundleInputIsolation(repository, 'Web product isolation')
+   }
+-
++
+   /** Discard output graphs and package metadata before a build or watch rebuild. */
+   reset(): void {
+     this.chunks.clear()
+     this.references.length = 0
+     this.workerInputs.clear()
+     this.inputs.reset()
+   }
+-
++
+   /** Replace dependency observations whenever Vite transforms a module again. */
+   cssTransform(module: string): void { this.cssInputs.set(module, new Set<string>()) }
+-
++
+   /** Record the files the actual CSS transform asks Rollup to watch. */
+   cssDependency(module: string, file: string): void {
+     const inputs = this.cssInputs.get(module) ?? new Set<string>()
+     inputs.add(file)
+     this.cssInputs.set(module, inputs)
+   }
+-
++
+   /** Record Vite's asset URL edges without changing their rendered values. */
+   assetReference(file: string, host: string, type: 'asset' | 'public'): void {
+     this.references.push({ file, host, type })
+   }
+-
++
+   /** Preserve pure CSS chunk inputs before Vite removes their JavaScript wrappers. */
+   captureChunks(bundle: WebOutputBundle): void {
+     for (const item of Object.values(bundle)) {
+       if (item.type !== 'chunk') continue
+       this.chunks.set(item.fileName, {
+         ...item,
+         modules: { ...item.modules },
+         imports: [...item.imports],
+         dynamicImports: [...item.dynamicImports],
+-        implicitlyLoadedBefore: [...item.implicitlyLoadedBefore],
+-        referencedFiles: [...item.referencedFiles],
++        implicitlyLoadedBefore: [...item.implicitlyLoadedBefore ?? []],
++        referencedFiles: [...item.referencedFiles ?? []],
+         ...(item.viteMetadata === undefined ? {} : { viteMetadata: {
+           importedCss: new Set(item.viteMetadata.importedCss),
+           importedAssets: new Set(item.viteMetadata.importedAssets),
+         } }),
+       })
+     }
+   }
+-
++
+   /** Each Vite worker subbuild has one entry and owns its complete watched input set. */
+   workerBundle(bundle: WebOutputBundle, watchedFiles: readonly string[]): void {
+     const inputs = new Set(watchedFiles)
+     const entries: string[] = []
+     for (const item of Object.values(bundle)) {
+       if (item.type === 'chunk') {
+         for (const id of Object.keys(item.modules)) inputs.add(id)
+         if (item.facadeModuleId !== null) entries.push(physicalBundleInput(item.facadeModuleId) ?? item.facadeModuleId)
+       }
+     }
+     for (const file of [...Object.keys(bundle), ...entries]) {
+       this.workerInputs.set(file, new Set([...this.workerInputs.get(file) ?? [], ...inputs]))
+     }
+   }
+-
++
+   /** Reject experimental ownership in everything the emitted index page can load. */
+   verify(bundle: WebOutputBundle, moduleInfo: (id: string) => WebModuleInfo | null): void {
+     const html = bundle['index.html']
+     if (html?.type !== 'asset' || !html.originalFileNames.some(file =>
+       resolve(this.webRoot, file) === resolve(this.webRoot, 'index.html'))) {
+       throw new Error('Web product isolation: emitted index.html is missing its original HTML input')
+     }
+     const outputs = new Map(Object.entries(bundle))
+     const aliases = new Map<string, string>()
+     const cssOwners = new Map<string, Set<string>>()
+     for (const [file, chunk] of this.chunks) {
+       aliases.set(chunk.preliminaryFileName ?? file, file)
+       for (const css of chunk.viteMetadata?.importedCss ?? []) {
+         const owners = cssOwners.get(css) ?? new Set<string>()
+         for (const id of Object.keys(chunk.modules)) owners.add(id)
+         cssOwners.set(css, owners)
+       }
+     }
+     for (const item of Object.values(bundle)) {
+       if (item.type === 'asset') {
+         for (const name of item.names) aliases.set(name, item.fileName)
+       }
+     }
+     const outputName = (name: string): string => outputs.has(name) ? name
+       : aliases.get(name) ?? aliases.get(basename(name)) ?? name
+     const references = new Map<string, AssetReference[]>()
+     for (const reference of this.references) {
+       const host = outputName(reference.host)
+       references.set(host, [...references.get(host) ?? [], reference])
+     }
++    // Rolldown has no isIncluded flag; emitted modules and recorded CSS
++    // inputs provide the actual inclusion proof, never an unconditional bypass.
++    const includedModuleIds = new Set([...this.chunks.values()].flatMap(chunk => Object.keys(chunk.modules)))
+     const visitedOutputs = new Set<string>()
+     const visitedModules = new Set<string>()
+     const queue = ['index.html']
+     const checkWorker = (key: string): void => {
+       const inputs = this.workerInputs.get(key)
+       if (inputs === undefined) throw new Error(`Web product isolation: worker ${key} has no recorded build inputs`)
+       for (const input of inputs) this.inputs.assertInput(input)
+     }
+     const checkModule = (id: string): void => {
++      // Rolldown emits its own interop runtime without a module record.
++      if (id === '\u0000rolldown/runtime.js' && moduleInfo(id) === null) return
+       if (visitedModules.has(id)) return
+       visitedModules.add(id)
+       this.inputs.assertInput(id)
+       const info = moduleInfo(id)
+       if (info === null) throw new Error(`Web product isolation: module ${id} has no Rollup module record`)
+       if (info.isExternal) throw new Error(`Web product isolation: external module ${id} has no bundled input proof`)
+       if (/\.(?:css|less|sass|scss|styl|stylus|pcss|postcss|sss)(?:$|\?)/i.test(id) && !this.cssInputs.has(id)) {
+         throw new Error(`Web product isolation: stylesheet ${id} has no recorded transform inputs`)
+       }
+       if (/[?&](?:sharedworker|worker)(?:&|$)/.test(id)) checkWorker(physicalBundleInput(id) ?? id)
+       for (const file of this.cssInputs.get(id) ?? []) this.inputs.assertInput(file)
+       for (const child of [...info.importedIds, ...info.dynamicallyImportedIds]) {
+         const childInfo = moduleInfo(child)
+         if (childInfo === null) throw new Error(`Web product isolation: module ${child} has no Rollup module record`)
+-        if (childInfo.isIncluded || childInfo.isExternal) checkModule(child)
++        const included = childInfo.isIncluded ?? (includedModuleIds.has(child) || this.cssInputs.has(child))
++        if (included || childInfo.isExternal) checkModule(child)
+       }
+     }
+     for (const name of queue) {
+       const file = outputName(name)
+       if (visitedOutputs.has(file)) continue
+       visitedOutputs.add(file)
+       const item = outputs.get(file)
+       if (item === undefined) throw new Error(`Web product isolation: referenced output ${file} is missing`)
+       if (this.workerInputs.has(file)) checkWorker(file)
+       else if (item.type === 'chunk') {
+         for (const id of Object.keys(item.modules)) checkModule(id)
+-        queue.push(...item.imports, ...item.dynamicImports, ...item.implicitlyLoadedBefore, ...item.referencedFiles)
++        queue.push(...item.imports, ...item.dynamicImports, ...item.implicitlyLoadedBefore ?? [], ...item.referencedFiles ?? [])
+         queue.push(...item.viteMetadata?.importedCss ?? [], ...item.viteMetadata?.importedAssets ?? [])
+       } else if (cssOwners.has(file)) {
+         for (const id of cssOwners.get(file) ?? []) checkModule(id)
+       } else {
+         if (item.originalFileNames.length === 0) {
+           throw new Error(`Web product isolation: asset ${file} has no recorded original files`)
+         }
+         for (const original of item.originalFileNames) this.inputs.assertInput(resolve(this.webRoot, original))
+       }
+       for (const reference of references.get(file) ?? []) {
+         if (reference.type === 'public') this.inputs.assertInput(resolve(this.webRoot, 'public', reference.file))
+         else queue.push(reference.file)
+       }
+     }
+     if (visitedModules.size === 0) throw new Error('Web product isolation: index.html has no recorded reachable modules')
+   }
+-
++
+ }
