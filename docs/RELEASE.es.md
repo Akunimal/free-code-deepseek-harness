@@ -38,38 +38,33 @@ El roadmap de 0.7.0 está cerrado; su ledger está en el
 [ledger de 0.7.0](STATE-0.7.0.md). Los hallazgos completos de sólo lectura
 están en [AUDIT-0.6.0-TEST-PLAN.md](AUDIT-0.6.0-TEST-PLAN.md).
 
-El árbol de código actual es una candidata: **v0.9.4 es una candidata sin
-publicar**; v0.9.3
-sigue siendo la última release publicada para Windows x64. Los cambios de la
-candidata incluyen opencode2api v1.3.8, diagnósticos/recuperación del
-ControlPort/bootstrap de Tor, aislamiento del perfil NSIS smoke, verificación
-del fondo de conversación empaquetado y restauración del modo optativo Gentle AI.
-Las notas están en [release-notes-v0.9.4.md](../release-notes-v0.9.4.md).
+El árbol de código actual es candidato: **v0.9.4 sigue sin publicarse**; v0.9.3
+es la última release publicada para Windows x64. Esta candidata incluye
+opencode2api v1.3.8, recuperación Tor, fondos empaquetados, Gentle AI y las
+correcciones de catálogo/Tor V094-21. Ver
+[release-notes-v0.9.4.md](../release-notes-v0.9.4.md).
 
-El setup y portable alpha4 anteriores se compilaron y verificaron en
-`apps/shell/release-0.9.4-candidate-refresh-20261014/`. El setup one-click se
-ejecutó tras confirmar que FreeCode estaba cerrada; NSIS devolvió código 0. Su
-inicio normal posterior informó `No harness runtime asset for packaged version
-0.2.1-alpha.4 (win32-x64)`. Se precargó el runtime alpha4 local verificado y se
-preservó la caché alpha3 anterior como respaldo. El usuario todavía debe
-verificar el arranque, Tor y los fondos de esa instalación. Son hechos históricos
-de la candidata alpha4 obsoleta. La fuente actual fija `0.2.1-alpha.5`; el tarball
-local y su SHA-256 están verificados (`421.377.684` bytes;
-`26953ba93ab1daab8d837c2980f1f5f9c0a60f65677ac48fc973300f5b2229f2`). La lista
-completa del tarball se leyó sin error y el manifest interno confirma alpha5,
-ABI de Electron 149 y la entrada CLI esperada. El stage también pasó los 21
-contratos de procesos headless y conserva las reglas CSS/motion del fondo.
-El setup/portable actualizados se generaron y verificaron en
-`apps/shell/release-0.9.4-alpha5-candidate-20261014/`; el gate completo de Windows
-pasó, incluida la prueba temporal de movimiento renderizado y la compilación estática de NSIS.
-Setup: `FreeCode-DeepSeek-Harness-0.9.4-win-x64-setup.exe` (178.630.999 bytes,
-SHA-256 `3117054ba2ee29c6c9993e7f7cdd525262f8d39e4f037e037c411142659d8a08`).
-Portable: `FreeCode-DeepSeek-Harness-0.9.4-win-x64-portable.exe` (178.255.861
-bytes, SHA-256 `79e03080494efcd9fc9f06311b1b4f78238e57b97fd2ea00ba97baa5513f520b`).
-El runtime no está publicado, por lo que una instalación limpia aún necesita
-adjuntar ese asset exacto a una release. La caché alpha4 no satisface alpha5.
-La app no se reinició ni se volvió a probar, y el setup candidato no se ejecutó. No se
-creó tag ni release v0.9.4.
+El setup y portable alpha5 anteriores están en
+`apps/shell/release-0.9.4-alpha5-candidate-20261014/`: setup 178.630.999 bytes
+(SHA-256 `3117054ba2ee29c6c9993e7f7cdd525262f8d39e4f037e037c411142659d8a08`),
+portable 178.255.861 bytes (SHA-256
+`79e03080494efcd9fc9f06311b1b4f78238e57b97fd2ea00ba97baa5513f520b`). El usuario
+ejecutó el setup tras precargar alpha5 y luego informó que aparece un solo modelo
+y fallan requests por upstream, API key, conexión y protocolo no soportado. La
+causa fue que DSH arrancaba con settings obsoletos, el probe de Muse Spark usaba
+menos de 16 tokens de salida y los 401/403 enfriaban la ruta anónima Tor. La
+fuente ya corrige esos tres puntos; los binarios anteriores no los incluyen y
+quedaron obsoletos. Pruebas focalizadas shell: 35/35; typecheck pasó y Go: 43/43
+en 13 paquetes. El
+último run completo tuvo timeout de 15 s en startup Tor y de 120 s en readiness
+DSH. Ambas pruebas pasaron luego aisladas: Tor 1/1 (1,58 s) y supervisor 5/5
+(102,47 s total; readiness real del CLI DSH en 80,10 s). Falta nuevo build y
+gate completo en
+`apps/shell/release-0.9.4-model-resilience-20261015/`. El runtime alpha5 está
+verificado localmente (421.377.684 bytes; SHA-256
+`26953ba93ab1daab8d837c2980f1f5f9c0a60f65677ac48fc973300f5b2229f2`) pero no se
+publicó; una instalación limpia necesita ese asset exacto. No se interrumpió la
+instancia activa. No existe tag ni release v0.9.4.
 
 ## Build local de Windows
 
@@ -83,9 +78,9 @@ tarball.
 pnpm install --frozen-lockfile
 pnpm package:runtime:release
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha5-candidate-20261014'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-model-resilience-20261015'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha5-candidate-20261014
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-model-resilience-20261015
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 

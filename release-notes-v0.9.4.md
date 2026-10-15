@@ -4,21 +4,24 @@
 
 **Status: candidate; not yet published.** v0.9.3 remains the latest published
 Windows x64 release. These notes describe the local source candidate, not a
-release announcement. Fresh setup and portable artifacts are built and statically
-verified in `apps/shell/release-0.9.4-candidate-refresh-20261014/`; the older
-candidate build is superseded. The setup (178,620,019 bytes; SHA-256
-`c112637c95de1564a401ac9852300081983bf15d92f82330df16ff7279d1304b`) and
-portable (178,246,021 bytes; SHA-256
-`c3b1e9a65e8b5e420c48059aac14b6ded3790c5b8b7804bfef58acec454d01ea`) are ready.
-The refreshed one-click setup was executed after confirmation that FreeCode was
-closed; NSIS returned exit code 0. The normal post-install launch reported
-`No harness runtime asset for packaged version 0.2.1-alpha.4 (win32-x64)` because
-the installer excludes DSH and the matching alpha4 release asset is unpublished.
-With separate user authorization, the verified local alpha4 runtime was seeded
-into this machine's per-user cache and its previous alpha3 cache was preserved
-as a backup. This is a local-only workaround; other installations still need
-the exact-version published runtime asset. The app has not been retried, so
-startup, Tor and backgrounds await user verification.
+release announcement. The latest pre-fix alpha5 setup and portable are in
+`apps/shell/release-0.9.4-alpha5-candidate-20261014/` (setup: 178,630,999 bytes,
+SHA-256 `3117054ba2ee29c6c9993e7f7cdd525262f8d39e4f037e037c411142659d8a08`;
+portable: 178,255,861 bytes, SHA-256
+`79e03080494efcd9fc9f06311b1b4f78238e57b97fd2ea00ba97baa5513f520b`). The setup
+was executed after the matching alpha5 runtime had been locally precached; NSIS
+returned exit code 0. The user then tried the installed candidate and reported
+only one model plus upstream/API-key, connection and unsupported-protocol errors.
+These alpha5 desktop artifacts predate V094-21 and are superseded; do not use
+them to validate or publish this source. The alpha5 DSH archive is locally
+verified but unpublished, so clean installations still require a matching
+release asset. A fresh desktop build and release gate are pending in
+`apps/shell/release-0.9.4-model-resilience-20261015/`; neither has been run yet.
+The v0.9.4 candidate remains unpublished.
+
+Historical runtime note: the earlier alpha4 setup's first launch reported
+`No harness runtime asset for packaged version 0.2.1-alpha.4 (win32-x64)`.
+That local-only alpha4 cache workaround did not satisfy the later alpha5 pin.
 
 ### What's new
 
@@ -26,7 +29,7 @@ startup, Tor and backgrounds await user verification.
   embedded `computer_use` browser before DeepSeek API `web_search`. API fallback
   is reserved for browser unavailability, blocked access or failed attempts,
   with the limitation disclosed. Tool scopes and user permissions remain
-  respected. DSH `0.2.1-alpha.4` is locally rebuilt and its archive, SHA-256,
+  respected. DSH `0.2.1-alpha.5` is locally rebuilt and its archive, SHA-256,
   Electron ABI and Node engine are verified; it is not published remotely yet.
 - **OmniRoute removed.** No optional runtime download, automatic fallback,
   server or detector remains. Next-start migration retires only FreeCode-owned
@@ -39,6 +42,12 @@ startup, Tor and backgrounds await user verification.
   refreshes, temporary probe failures recover, and canonical/stable request and
   session identities are preserved. FreeCode's anonymous lane still tries
   Direct first and advances to Tor only after a non-2xx response in the same request.
+- **Model availability and Tor route health corrected (V094-21).** Seed the
+  live provider catalog before starting DSH so stale unsupported IDs cannot be
+  selected; send model probes with Muse Spark's minimum 16-token output budget;
+  and do not cool Direct/Tor for upstream HTTP 400/401/403 responses. HTTP 429,
+  5xx and transport failures still use route cooldown/failover. A real upstream
+  401/403 still means that provider denied access and must be resolved upstream.
 - **Tor availability and failover hardened.** The ControlPort uses SAFECOOKIE;
   readiness waits for authenticated bootstrap progress 100% and a usable SOCKS
   listener. Circuit-timeout learning stays adaptive, with the stable 600-second
@@ -65,44 +74,42 @@ startup, Tor and backgrounds await user verification.
 
 ### Candidate verification
 
-Focused Tor/background/runtime tests passed 51/51; NSIS smoke-safety passed 5/5;
-release-doc contract passed 8/8. Full shell suite: 45 files / 315 tests passed;
-workspace contracts: 113 passed / 12 intentional skips; opencode2api adapter:
-21/21; Go: 36 tests across 13 packages and `go vet` clean. `pnpm release:gate`
-passed completely, verifying DSH alpha4, runtime/Tor hashes, backgrounds in the
-packaged runtime, and an isolated NSIS setup without installing or launching the
-FreeCode GUI. The real packaged Tor config also passed `tor.exe --verify-config`
-(exit 0); this validates syntax/assets only, not network bootstrap. The fresh
-setup and portable passed static PE, updater, blockmap and SHA-256 verification.
-The new setup was executed after confirmation that FreeCode was closed (NSIS exit
-code 0), but that did not prove application startup: the post-install launch
-reported the missing unpublished DSH alpha4 release asset. The verified local
-alpha4 runtime has since been seeded into the per-user cache, preserving the
-previous alpha3 cache as a backup. The app has not been retried; startup, Tor and
-backgrounds still await user verification. Other installations require the
-matching published runtime asset. Unrelated pre-existing failures in the full
-vendor composite build remain outside this candidate. No tag or public release
-exists for v0.9.4.
+Before V094-21, the alpha5 candidate's release gate and static desktop-asset
+checks passed; that evidence applies only to the superseded binaries above. For
+V094-21, TDD RED reproduced stale startup ordering, the invalid probe budget and
+HTTP-403 route cooldown. GREEN: focused shell tests passed 35/35, shell typecheck
+passed, and `go test ./...` passed 43 tests across 13 Go packages. The full shell
+suite reported 44/46 files and 342/344 tests: the packaged Tor startup test timed
+out at 15 s and the DSH supervisor readiness smoke timed out at 120 s. Both now
+pass in isolation: Tor 1/1 (1.58 s) and supervisor 5/5 (102.47 s total, real CLI
+readiness at 80.10 s). The full release gate and fresh desktop build remain
+pending, so the previous alpha5 setup/portable are superseded and no current
+installer contains V094-21. The active FreeCode instance was not interrupted.
+No tag or public v0.9.4 release exists.
 
 ## Español
 
 **Estado: candidata; todavía no publicada.** v0.9.3 sigue siendo la última release
 publicada para Windows x64. Estas notas describen el código local, no anuncian
-una release. El setup y portable nuevos se compilaron y verificaron
-estáticamente en `apps/shell/release-0.9.4-candidate-refresh-20261014/`; la build
-candidata anterior quedó obsoleta. El setup (178.620.019 bytes; SHA-256
-`c112637c95de1564a401ac9852300081983bf15d92f82330df16ff7279d1304b`) y el
-portable (178.246.021 bytes; SHA-256
-`c3b1e9a65e8b5e420c48059aac14b6ded3790c5b8b7804bfef58acec454d01ea`) están
-listos. El setup one-click actualizado se ejecutó tras confirmar que FreeCode
-estaba cerrada; NSIS devolvió código 0. El inicio normal posterior informó
-`No harness runtime asset for packaged version 0.2.1-alpha.4 (win32-x64)` porque
-el instalador excluye DSH y el asset alpha4 correspondiente aún no se publicó.
-Con autorización separada del usuario, se precargó el runtime alpha4 local
-verificado en la caché por usuario de esta máquina y se preservó como respaldo
-la caché alpha3 anterior. Es una solución sólo local: otras instalaciones
-necesitan el asset publicado de versión exacta. La app no se volvió a probar;
-el usuario todavía debe verificar el arranque, Tor y los fondos.
+una release. El setup/portable alpha5 anterior a V094-21 está en
+`apps/shell/release-0.9.4-alpha5-candidate-20261014/` (setup: 178.630.999 bytes,
+SHA-256 `3117054ba2ee29c6c9993e7f7cdd525262f8d39e4f037e037c411142659d8a08`;
+portable: 178.255.861 bytes, SHA-256
+`79e03080494efcd9fc9f06311b1b4f78238e57b97fd2ea00ba97baa5513f520b`). El setup
+se ejecutó tras precargar localmente el runtime alpha5 correspondiente; NSIS
+devolvió código 0. El usuario probó esa candidata instalada e informó que solo
+aparece un modelo y que fallan requests con errores de upstream/API key,
+conexión y protocolo no soportado. Estos artefactos alpha5 son anteriores a
+V094-21 y quedaron obsoletos; no los uses para validar ni publicar esta fuente.
+El archivo DSH alpha5 está verificado localmente, pero no publicado: una
+instalación limpia todavía necesita el asset de release correspondiente. Falta
+un nuevo build desktop y gate completo en
+`apps/shell/release-0.9.4-model-resilience-20261015/`; todavía no se ejecutaron.
+v0.9.4 continúa sin publicarse.
+
+Nota histórica del runtime: el primer arranque del setup alpha4 anterior informó
+`No harness runtime asset for packaged version 0.2.1-alpha.4 (win32-x64)`.
+La precarga local alpha4 fue un workaround y no satisface el pin alpha5 posterior.
 
 ### Novedades
 
@@ -110,7 +117,7 @@ el usuario todavía debe verificar el arranque, Tor y los fondos.
   información web, usar `computer_use` antes de DeepSeek API `web_search`.
   El fallback queda para navegador ausente, acceso bloqueado o intentos fallidos,
   informando la limitación. Se respetan scopes y permisos del usuario. DSH
-  `0.2.1-alpha.4` se recompiló localmente y se verificaron el archivo, SHA-256,
+  `0.2.1-alpha.5` se recompiló localmente y se verificaron el archivo, SHA-256,
   ABI de Electron y versión de Node; todavía no está publicado.
 - **OmniRoute retirado.** Sin descarga opcional, fallback automático, servidor
   ni detector. La migración del próximo inicio retira solo la configuración
@@ -124,6 +131,12 @@ el usuario todavía debe verificar el arranque, Tor y los fondos.
   identidades canónicas/estables de requests y sesiones. El lane anónimo de
   FreeCode sigue intentando Direct primero y pasa a Tor solo tras no-2xx en el
   mismo request.
+- **Corregida la disponibilidad de modelos y la salud de rutas Tor (V094-21).**
+  Se siembra el catálogo antes de iniciar DSH para no seleccionar IDs obsoletos;
+  los probes usan el mínimo de 16 tokens de salida de Muse Spark; y respuestas
+  upstream HTTP 400/401/403 ya no enfrían Direct/Tor. HTTP 429, 5xx y fallos de
+  transporte sí conservan cooldown/failover. Un 401/403 real sigue indicando
+  acceso denegado por el upstream y hay que resolverlo allí.
 - **Disponibilidad y failover Tor reforzados.** El ControlPort usa SAFECOOKIE;
   la disponibilidad espera bootstrap autenticado al 100% y un listener SOCKS
   utilizable. El timeout de circuito sigue siendo adaptativo y se conserva el
@@ -153,21 +166,15 @@ el usuario todavía debe verificar el arranque, Tor y los fondos.
 
 ### Verificación de la candidata
 
-Las pruebas focalizadas de Tor/fondos/runtime pasaron 51/51; NSIS smoke-safety,
-5/5; contrato documental, 8/8. Suite shell completa: 45 archivos / 315 tests;
-contratos: 113 aprobados / 12 saltos intencionales; adapter opencode2api: 21/21;
-Go: 36 tests en 13 paquetes y `go vet` sin hallazgos. `pnpm release:gate` pasó
-completo: verificó DSH alpha4, hashes runtime/Tor, fondos en el runtime
-empaquetado y un setup NSIS aislado sin instalar ni iniciar la GUI FreeCode. La
-configuración Tor empaquetada también pasó `tor.exe --verify-config` (código 0);
-eso valida sintaxis/assets, no el bootstrap de red. Setup y portable nuevos
-pasaron la verificación estática de PE, updater, blockmap y SHA-256. El setup
-nuevo se ejecutó tras confirmar que FreeCode estaba cerrada (NSIS devolvió código
-0), pero eso no probó el arranque: el intento normal informó que no existe el
-asset DSH alpha4 correspondiente, aún sin publicar. Con autorización separada
-del usuario, se precargó el runtime alpha4 local verificado en la caché por
-usuario de esta máquina y se preservó como respaldo la caché alpha3 anterior.
-La app no se volvió a probar; el usuario todavía debe verificar arranque, Tor y
-fondos. Otras instalaciones necesitan el asset publicado de versión exacta.
-Persisten fallos preexistentes y ajenos en el build compuesto completo del
-vendor. v0.9.4 no tiene tag ni release pública.
+Antes de V094-21, el gate y la verificación estática de los binarios alpha5
+pasaron; esa evidencia corresponde solo a los artefactos obsoletos de arriba.
+En V094-21, TDD RED reprodujo el orden de arranque incorrecto, el presupuesto de
+probe inválido y el cooldown por HTTP 403. GREEN: las pruebas focalizadas shell
+pasaron 35/35, el typecheck shell pasó y `go test ./...` pasó 43 tests en 13
+paquetes Go. La suite shell completa informó 44/46 archivos y 342/344 tests: el
+startup Tor empaquetado agotó 15 s y el smoke de readiness DSH agotó 120 s. Ambos
+ahora pasan aislados: Tor 1/1 (1,58 s) y supervisor 5/5 (102,47 s; readiness real
+del CLI en 80,10 s). El gate completo y el nuevo build desktop siguen pendientes;
+el setup/portable alpha5 anterior quedó obsoleto y ningún instalador actual trae
+V094-21. No se interrumpió la instancia FreeCode activa. v0.9.4 no tiene tag ni
+release pública.

@@ -1,6 +1,6 @@
 # Roadmap / Hoja de ruta
 
-Última sincronización documental / Last documentation sync: 2026-10-13
+Última sincronización documental / Last documentation sync: 2026-10-15
 Baseline: `v0.9.4 candidate`
 Published baseline: `v0.9.3`
 Estado / Status: objetivos sujetos a validación; no son fechas ni promesas de release.
@@ -36,7 +36,7 @@ RTK and Caveman are not enabled together by default: they may complement each ot
 
 ## En curso / In progress
 
-### `v0.9.4` candidate — Reliability and Gentle AI restoration / Confiabilidad y restauración de Gentle AI
+### `v0.9.4` candidate — Model reliability, Tor and Gentle AI / Modelos, Tor y Gentle AI
 
 **Status / Estado:** local candidate; unpublished / candidata local; sin publicar.
 
@@ -59,15 +59,25 @@ RTK and Caveman are not enabled together by default: they may complement each ot
    PATH fallbacks do not fail the required-runtime check. The alpha5 archive and
    checksum are locally generated/verified, not published; alpha4 cache and
    artifacts are superseded.
-6. **Release state / Estado de release** — source remains unpublished v0.9.4.
-   The previous alpha4 setup was run after FreeCode was confirmed closed, but its
-   post-install launch could not find the unpublished alpha4 runtime. The
-   authorized alpha4 local cache seed did not prove a successful startup and
-    does not satisfy alpha5. The alpha5 desktop setup/portable were generated and
-    statically verified in `apps/shell/release-0.9.4-alpha5-candidate-20261014/`,
-    and the full release gate passed. The new setup was not executed; the app has
-    not been restarted or retested.
-   v0.9.3 remains latest.
+6. **Model/Tor resilience / Resiliencia de modelos/Tor** — clear stale provider
+   settings before DSH starts, use Muse Spark's minimum 16-token probe budget,
+   and keep upstream 400/401/403 responses from cooling the anonymous Direct/Tor
+   pool. HTTP 429, 5xx and transport failures still use cooldown. A real 401/403
+   still requires valid upstream access.
+7. **Release state / Estado de release** — source remains unpublished v0.9.4.
+   The earlier alpha4 setup required a runtime asset that was not published;
+   later alpha5 setup/portable and gate passed after local runtime precache. The
+   user tried the installed alpha5 candidate and reports only one model and
+   upstream/API-key, connection and protocol errors. Those pre-fix artifacts
+   are superseded. V094-21 focused shell tests passed 35/35, shell typecheck and
+   Go tests passed (43/43 across 13 packages); the latest full suite had packaged Tor startup (15 s)
+   and DSH readiness (120 s) timeouts. Both affected suites later passed in
+   isolation (Tor 1/1 in 1.58 s; supervisor 5/5, real DSH readiness in 80.10 s).
+   A fresh build and
+   full gate are pending in
+   `apps/shell/release-0.9.4-model-resilience-20261015/`. The alpha5 runtime
+   remains unpublished; v0.9.3 is still latest. The running app was not
+   interrupted.
 
 ## Completado / Completed
 

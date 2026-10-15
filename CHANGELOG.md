@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.4 — Candidate — 2026-10-14
+## 0.9.4 — Candidate — 2026-10-15
 
 See the [bilingual v0.9.4 candidate notes](release-notes-v0.9.4.md). This is an
 unpublished candidate; v0.9.3 remains the latest published Windows x64 release.
@@ -14,6 +14,14 @@ unpublished candidate; v0.9.3 remains the latest published Windows x64 release.
   persistente, recuperación ante sondeos transitorios e identidades estables
   de request/sesión. Los tests protegen la política Direct primero y Tor solo
   tras no-2xx.
+- Model catalog startup now clears stale IDs before DSH reads settings; Muse
+  Spark probes use its 16-token minimum; upstream 400/401/403 responses no longer
+  cool Direct/Tor proxy health (429, 5xx and transport failures still do). The
+  pre-fix alpha5 setup/portable are superseded pending a fresh build and gate. /
+  El catálogo ahora limpia IDs obsoletos antes de que DSH lea settings; los
+  probes de Muse Spark usan el mínimo de 16 tokens; HTTP 400/401/403 upstream ya
+  no enfría Direct/Tor (429, 5xx y fallos de transporte sí). Setup/portable
+  alpha5 anteriores al fix quedan obsoletos hasta un nuevo build y gate.
 - Tor ControlPort now authenticates with SAFECOOKIE; readiness requires
   bootstrap 100% and a usable SOCKS listener, with adaptive circuit timeouts. /
   El ControlPort Tor ahora se autentica con SAFECOOKIE; la disponibilidad

@@ -38,38 +38,32 @@ The 0.7.0 roadmap is closed; its ledger is
 [docs/STATE-0.7.0.md](STATE-0.7.0.md). The full read-only findings are in
 [docs/AUDIT-0.6.0-TEST-PLAN.md](AUDIT-0.6.0-TEST-PLAN.md).
 
-The current source tree is a candidate: **v0.9.4 is an unpublished candidate**;
-v0.9.3 remains
-the latest published Windows x64 release. Candidate changes cover opencode2api
-v1.3.8, Tor ControlPort/bootstrap diagnostics and recovery, isolation of the
-NSIS smoke profile, packaged conversation-background verification, and the
-restored opt-in Gentle AI selector mode. Candidate notes are in
+The current source tree is a candidate: **v0.9.4 is unpublished**; v0.9.3
+remains the latest published Windows x64 release. Candidate changes include
+opencode2api v1.3.8, Tor recovery, packaged backgrounds, Gentle AI, and the
+V094-21 model-catalog/Tor fixes. Candidate notes are in
 [release-notes-v0.9.4.md](../release-notes-v0.9.4.md).
 
-The earlier alpha4 setup and portable were built and verified in
-`apps/shell/release-0.9.4-candidate-refresh-20261014/`. The alpha4 setup was
-executed after confirmation that FreeCode was closed; NSIS returned exit code 0.
-Its normal post-install launch reported `No harness runtime asset for packaged
-version 0.2.1-alpha.4 (win32-x64)`. The verified local alpha4 runtime was seeded
-while the previous alpha3 cache was preserved as a backup. Startup, Tor and
-backgrounds still await user verification for that installed build. These are
-historical facts for the superseded alpha4 candidate. The current source pins
-`0.2.1-alpha.5`; its local runtime archive and SHA-256 are verified
-(`421,377,684` bytes; `26953ba93ab1daab8d837c2980f1f5f9c0a60f65677ac48fc973300f5b2229f2`).
-A full tar listing succeeded and its embedded manifest reports alpha5, Electron
-ABI 149 and the intended CLI entry. Stage verification also passed all 21
-packaged headless-process contracts and found the conversation CSS/motion rules.
-The refreshed setup/portable were generated and verified in
-`apps/shell/release-0.9.4-alpha5-candidate-20261014/`; the full Windows release
-gate passed, including the timed rendered-motion check and static NSIS compile.
-Setup: `FreeCode-DeepSeek-Harness-0.9.4-win-x64-setup.exe` (178,630,999 bytes,
-SHA-256 `3117054ba2ee29c6c9993e7f7cdd525262f8d39e4f037e037c411142659d8a08`).
-Portable: `FreeCode-DeepSeek-Harness-0.9.4-win-x64-portable.exe` (178,255,861
-bytes, SHA-256 `79e03080494efcd9fc9f06311b1b4f78238e57b97fd2ea00ba97baa5513f520b`).
-The runtime archive is not published, so a clean install still needs that exact
-asset attached to a release. The alpha4 cache cannot satisfy alpha5. The app has
-not been restarted or retested, and the candidate setup was not executed. No
-v0.9.4 tag or release has been created.
+The previous alpha5 setup and portable are in
+`apps/shell/release-0.9.4-alpha5-candidate-20261014/`: setup 178,630,999 bytes
+(SHA-256 `3117054ba2ee29c6c9993e7f7cdd525262f8d39e4f037e037c411142659d8a08`),
+portable 178,255,861 bytes (SHA-256
+`79e03080494efcd9fc9f06311b1b4f78238e57b97fd2ea00ba97baa5513f520b`). The user
+ran the setup after precaching alpha5, then reported a single model and upstream,
+API-key, connection and unsupported-protocol errors. Root causes were stale
+provider settings reaching DSH before startup cleanup, a Muse Spark probe budget
+below 16 output tokens, and anonymous Tor cooldown on upstream 401/403. Source
+fixes now address all three; the prior binaries predate these changes and are
+superseded. Focused shell tests passed 35/35, typecheck passed and Go tests passed
+43/43 across 13 packages; the latest full shell run had a packaged Tor startup timeout (15 s) and a
+DSH readiness timeout (120 s). Both affected suites later passed in isolation:
+Tor 1/1 (1.58 s), supervisor 5/5 (102.47 s total; real DSH CLI readiness in
+80.10 s). A fresh build and full release gate are pending in
+`apps/shell/release-0.9.4-model-resilience-20261015/`. The alpha5 runtime archive
+is locally verified (421,377,684 bytes; SHA-256
+`26953ba93ab1daab8d837c2980f1f5f9c0a60f65677ac48fc973300f5b2229f2`) but not
+published; clean first launch still requires the exact runtime release asset.
+The active app was not interrupted. No v0.9.4 tag or release exists.
 
 ## Local Windows build
 
@@ -83,9 +77,9 @@ runtime archive.
 pnpm install --frozen-lockfile
 pnpm package:runtime:release
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha5-candidate-20261014'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-model-resilience-20261015'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha5-candidate-20261014
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-model-resilience-20261015
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 

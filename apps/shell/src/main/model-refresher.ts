@@ -267,7 +267,10 @@ async function probeModels(
         body: JSON.stringify({
           model: id,
           messages: [{ role: 'user', content: 'ping' }],
-          max_tokens: 1,
+          // Muse Spark rejects output budgets below 16. The probe only needs
+          // one short response, but its request must satisfy that upstream
+          // minimum or a healthy model is falsely marked unavailable.
+          max_tokens: 16,
           stream: false,
         }),
         signal: AbortSignal.timeout(timeoutMs),

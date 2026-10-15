@@ -113,8 +113,15 @@ func (p *anonymousPool) MarkFailure(node *anonymousNode, resp *http.Response, er
 	if node == nil {
 		return
 	}
-	if err == nil && resp != nil && resp.StatusCode != http.StatusUnauthorized && resp.StatusCode != http.StatusForbidden && resp.StatusCode != http.StatusTooManyRequests && resp.StatusCode < 500 {
-		return
+	if err == nil && resp != nil {
+		// An HTTP response proves the route reached the upstream. Model/input
+		// errors and auth/access denials (including 401/403) are not proxy
+		// failures; only rate limits, upstream server errors, and transport
+		// failures should cool an anonymous route. Keep trying Tor after a 403
+		// within this request, but do not poison either route for later requests.
+		if resp.StatusCode != http.StatusTooManyRequests && resp.StatusCode < 500 {
+			return
+		}
 	}
 	failures := node.failures.Add(1)
 	delay := p.cooldown * time.Duration(1<<min(failures-1, 3))

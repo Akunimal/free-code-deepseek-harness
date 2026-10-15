@@ -13,20 +13,23 @@ calls.
 Source version: 0.9.4 (candidate, not published); latest published release: v0.9.3 (Windows x64).
 
 The [v0.9.4 candidate notes](release-notes-v0.9.4.md) cover opencode2api v1.3.8,
-Tor diagnostics/recovery and the NSIS-smoke profile-isolation fix, shipped
-conversation-background verification, and restored opt-in Gentle AI. The earlier
-alpha4 candidate passed its release gate and produced setup/portable artifacts,
-but its one-click setup could not start DSH because the matching alpha4 release
-asset was unpublished. The alpha4 artifacts are superseded. The source now pins
-DSH `0.2.1-alpha.5`; the local runtime archive was generated and SHA-256 verified
-(`421,377,684` bytes; `26953ba93ab1daab8d837c2980f1f5f9c0a60f65677ac48fc973300f5b2229f2`).
-The full Windows release gate passed. Local setup and portable artifacts were
-generated and verified in `apps/shell/release-0.9.4-alpha5-candidate-20261014/`.
-The alpha5 runtime archive is not published, so a clean first launch still
-requires that exact version to be attached to a release. The authorized alpha4
-local cache seed was only a workaround for the older build and does not satisfy
-the alpha5 pin. The current app was not restarted or retested, and the new setup
-was not executed. v0.9.4 remains unpublished; v0.9.3 is still the latest release.
+Tor diagnostics/recovery, packaged backgrounds, restored opt-in Gentle AI, and
+the V094-21 model/Tor fixes. The previous alpha5 desktop build passed its gate,
+but predates V094-21 and is superseded. The user tried that installed candidate
+and reports only one model plus upstream/API-key, connection and
+unsupported-protocol errors. The source now seeds provider settings before DSH
+starts, probes with Muse Spark's 16-token minimum, and avoids cooling Tor routes
+on upstream 400/401/403 responses. Targeted shell tests passed 35/35, typecheck
+passed, and Go tests passed 43/43 across 13 packages; the full shell run had two readiness/timeouts,
+but both affected suites then passed in isolation (packaged Tor 1/1; DSH supervisor
+5/5, including real CLI readiness). The full release gate still needs a rerun. DSH
+`0.2.1-alpha.5` remains separately pinned; its verified
+archive (`421,377,684` bytes; SHA-256
+`26953ba93ab1daab8d837c2980f1f5f9c0a60f65677ac48fc973300f5b2229f2`) is not
+published. Rebuild and full release gate are pending in
+`apps/shell/release-0.9.4-model-resilience-20261015/`; do not use the superseded
+alpha5 setup/portable. v0.9.4 remains unpublished; v0.9.3 is still the latest
+release. The active FreeCode instance was not interrupted.
 
 v0.9.3 is published for Windows x64. The NSIS setup was installed and confirmed
 working by the user; the portable executable was built but not separately
@@ -298,36 +301,37 @@ the recorded child PID tree and never enumerates or kills unrelated processes.
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-candidate-refresh-20261014'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-model-resilience-20261015'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-candidate-refresh-20261014
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-model-resilience-20261015
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 `build:desktop` creates setup and portable artifacts in the new
-`apps/shell/release-0.9.4-candidate-refresh-20261014/` output directory; it refuses to replace an
+`apps/shell/release-0.9.4-model-resilience-20261015/` output directory; it refuses to replace an
 existing non-empty folder. `verify:desktop-release-assets` checks the exact PE
 files, setup blockmap, updater metadata and hashes without launching either
 executable. Desktop packaging does not rebuild or replace the separately versioned DSH runtime. Only when the DSH
 runtime itself changes should maintainers bump its manifest version and run
 `pnpm package:runtime:release`; existing runtime versions are immutable.
 
-The alpha4 v0.9.4 setup is superseded. Its setup and portable were hash-verified
-under `apps/shell/release-0.9.4-candidate-refresh-20261014/` (setup:
-178,620,019 bytes; SHA-256 `c112637c95de1564a401ac9852300081983bf15d92f82330df16ff7279d1304b`;
-portable: 178,246,021 bytes; SHA-256
-`c3b1e9a65e8b5e420c48059aac14b6ded3790c5b8b7804bfef58acec454d01ea`). The
-one-click setup was executed after confirmation that FreeCode was closed; NSIS
-returned exit code 0. Its post-install error was `No harness runtime asset for
-packaged version 0.2.1-alpha.4 (win32-x64)`. The verified local alpha4 runtime was seeded
-while the previous alpha3 cache was preserved as a backup. Startup, Tor and backgrounds
-still await user verification for that installed build.
-That seed does not satisfy the newly pinned alpha5 runtime. The current source
-pins `0.2.1-alpha.5`; its local runtime archive and checksum are verified. The
-refreshed setup/portable were generated and verified and the full release gate
-passed. The alpha5 archive is not published. Do not use the superseded alpha4
-artifacts. The app was not restarted or re-tested, the new setup was not
-executed, and v0.9.4 remains unpublished.
+The latest setup/portable are the pre-fix alpha5 artifacts in
+`apps/shell/release-0.9.4-alpha5-candidate-20261014/` (setup: 178,630,999 bytes;
+SHA-256 `3117054ba2ee29c6c9993e7f7cdd525262f8d39e4f037e037c411142659d8a08`;
+portable: 178,255,861 bytes; SHA-256
+`79e03080494efcd9fc9f06311b1b4f78238e57b97fd2ea00ba97baa5513f520b`). The user
+ran the setup after the alpha5 runtime was locally precached, then reported only
+one model and upstream/API-key, connection and unsupported-protocol errors. The
+source fixes the stale provider seed ordering, the Muse Spark probe budget and
+false Tor cooldowns on HTTP 400/401/403, but these artifacts predate that fix and
+are superseded. Focused tests, typecheck and 43 Go tests pass; the two tests that
+timed out in the full shell suite passed individually (Tor startup 1/1; DSH
+supervisor 5/5, readiness in 80.1 s). The full release gate and new desktop build
+must still run again.
+Use the fresh output directory above; do not reuse the pre-fix files. The alpha5
+runtime archive is verified locally but unpublished, so a clean installation
+still requires its exact asset. The active app instance was not interrupted;
+v0.9.4 remains unpublished.
 
 The user confirmed the installed v0.9.3 application works on Windows x64. The
 portable executable is not separately installation-tested. The interactive

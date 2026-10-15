@@ -1233,6 +1233,18 @@ app.whenReady().then(async () => {
   appLogger?.logger.info({}, '[DEBUG-STARTUP] 7/10 before bootstrap()');
   runtime = await bootstrap(harnessRuntimeDir);
   appLogger?.logger.info({}, '[DEBUG-STARTUP] 8/10 bootstrap() OK');
+  const opencodeUrl = runtime.opencode2api?.url ?? 'http://127.0.0.1:55405';
+  const opencodeApiKey = runtime.opencode2api?.apiKey ?? 'public';
+
+  // The gateway URL is known now, while the DSH child has not started yet.
+  // Clear stale/unsupported model IDs before its first settings read; otherwise
+  // it can advertise a persisted route (for example x-preview-f) that the
+  // gateway correctly rejects with an unsupported-protocol 400.
+  seedProviders({
+    homeDir: join(userDataDir, 'dsh-home'),
+    lbBaseUrl: `${opencodeUrl}/v1`,
+  });
+
   // Register before start so MCP failures from the first child generation are
   // visible in the tray/notification path as well as in the Settings tab.
   runtime.onMcpStatus(reportMcpStatus);
@@ -1277,13 +1289,7 @@ app.whenReady().then(async () => {
   await runtime.start();
   appLogger?.logger.info({}, '[DEBUG-STARTUP] 10/10 runtime.start() OK — harness should be starting');
 
-  const opencodeUrl = runtime.opencode2api?.url ?? 'http://127.0.0.1:55405';
-  const opencodeApiKey = runtime.opencode2api?.apiKey ?? 'public';
   reportBackendState('pool', 'ready', 'opencode2api gateway active');
-  seedProviders({
-    homeDir: join(userDataDir, 'dsh-home'),
-    lbBaseUrl: `${opencodeUrl}/v1`,
-  });
 
   // FASE 6: model refresh at boot + every 30 min.
   let catalog: ModelCatalog | null = null;

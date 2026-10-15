@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"net"
+	"net/http"
 	"testing"
 	"time"
 )
@@ -25,6 +26,69 @@ func TestAnonymousPoolStartsDirectThenFallsThroughToTor(t *testing.T) {
 		}
 		if got := firstRequest.Next(); got != nil {
 			t.Fatalf("cursor for affinity %q visited more than its configured routes: %+v", affinity, got)
+		}
+	}
+}
+
+func TestAnonymousPoolDoesNotCoolRoutesForUpstreamAccessRejections(t *testing.T) {
+	for _, status := range []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden} {
+		status := status
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			direct := &proxyTransport{name: "direct"}
+			tor := &proxyTransport{name: "socks5://127.0.0.1:9050"}
+			direct.healthy.Store(true)
+			tor.healthy.Store(true)
+			directNode := &anonymousNode{proxy: direct}
+			torNode := &anonymousNode{proxy: tor}
+			pool := &anonymousPool{
+				nodes:    []*anonymousNode{directNode, torNode},
+				cooldown: time.Minute,
+			}
+
+			for attempt := 0; attempt < 5; attempt++ {
+				for _, node := range pool.nodes {
+					pool.MarkFailure(node, &http.Response{StatusCode: status}, nil)
+				}
+			}
+
+			for _, node := range pool.nodes {
+				if got := node.failures.Load(); got != 0 {
+					t.Errorf("HTTP %d counted as proxy failure %d times; want 0", status, got)
+				}
+				if got := node.cooldownUntil.Load(); got != 0 {
+					t.Errorf("HTTP %d set proxy cooldown to %d; want none", status, got)
+				}
+			}
+
+			cursor := pool.CursorFor("session")
+			if got := cursor.Next(); got != directNode {
+				t.Fatalf("first route after repeated upstream HTTP %d = %v, want direct", status, got)
+			}
+			if got := cursor.Next(); got != torNode {
+				t.Fatalf("fallback after repeated upstream HTTP %d = %v, want Tor", status, got)
+			}
+		})
+	}
+}
+
+func TestAnonymousPoolStillCoolsRateLimitedAndUnavailableRoutes(t *testing.T) {
+	for _, status := range []int{http.StatusTooManyRequests, http.StatusBadGateway} {
+		proxy := &proxyTransport{name: "direct"}
+		proxy.healthy.Store(true)
+		node := &anonymousNode{proxy: proxy}
+		pool := &anonymousPool{
+			nodes:    []*anonymousNode{node},
+			cooldown: time.Minute,
+		}
+
+		pool.MarkFailure(node, &http.Response{StatusCode: status, Header: make(http.Header)}, nil)
+
+		if got := node.failures.Load(); got != 1 {
+			t.Errorf("HTTP %d failure count = %d, want 1", status, got)
+		}
+		cursor := pool.CursorFor("")
+		if got := cursor.Next(); got != nil {
+			t.Errorf("HTTP %d route remained selectable during cooldown: %+v", status, got)
 		}
 	}
 }

@@ -4,9 +4,15 @@ Las releases son manuales y tienen como target Windows x64. Esta política
 describe el límite real entre la app desktop y el runtime para v0.9.3; no
 autoriza a tocar una instancia de FreeCode que esté en ejecución.
 
-La versión actual de la fuente es candidata v0.9.4. La validación local terminó,
-pero publicar y subir el asset runtime requiere autorización aparte. Los
-artefactos y hashes v0.9.3 que siguen abajo son
+La versión actual de la fuente es candidata v0.9.4. La candidata alpha5 pasó su
+gate anterior, pero después se agregaron las correcciones de modelos/Tor V094-21;
+ese gate y sus artefactos desktop ya no son actuales. Las pruebas focalizadas
+shell, typecheck y Go pasan; la última suite shell completa tuvo dos timeouts,
+pero ambas pruebas pasaron luego aisladas (Tor 1/1; supervisor DSH 5/5, readiness
+real del CLI en 80,10 s). Hace falta repetir el gate y compilar setup/
+portable antes de publicar. El usuario probó la alpha5 instalada e informa que
+solo aparece un modelo y hay fallos de upstream/API key, conexión y protocolo.
+Los artefactos y hashes v0.9.3 que siguen abajo son
 evidencia histórica de la release publicada y no deben sobrescribirse.
 
 ## Contenido de la release y runtime fijado
@@ -19,16 +25,17 @@ alpha5 ya se generó localmente y se verificó:
 `apps/shell/release/deepseek-harness-runtime-0.2.1-alpha.5-win32-x64.tar.gz`
 (421.377.684 bytes; SHA-256
 `26953ba93ab1daab8d837c2980f1f5f9c0a60f65677ac48fc973300f5b2229f2`). No está
-publicado. El gate completo pasó y el setup/portable se generaron y verificaron
-estáticamente en local. La caché local alpha4 no satisface el nuevo pin. Nunca
+publicado. El setup/portable anteriores se generaron y verificaron estáticamente,
+pero son previos a V094-21 y quedaron obsoletos. La caché local alpha4 no satisface
+el nuevo pin. Nunca
 presentes un archivo no subido como asset descargable de release. Se retiró
 OmniRoute: sin fallback, descarga, servidor ni detector. El próximo inicio
 elimina solo config antigua propia y cachés verificadas; conserva proveedores e
 historial ajenos.
 
-Los artefactos desktop verificados están en el directorio único
-`apps/shell/release-0.9.4-alpha5-candidate-20261014/`; no reutilices ni
-sobrescribas el directorio obsoleto de la candidata alpha4.
+La nueva salida pendiente usa el directorio único
+`apps/shell/release-0.9.4-model-resilience-20261015/`; no reutilices ni
+sobrescribas el directorio obsoleto de la candidata alpha5.
 
 Tras cambiar opencode2api o su overlay activo, recompilá con
 `bash scripts/build-opencode2api.sh`. También prepara el nuevo sidecar Windows

@@ -4,9 +4,16 @@ Releases are manual and target Windows x64. This policy describes the real
 desktop/runtime boundary used by v0.9.3; it does not authorize touching a
 maintainer's running FreeCode instance.
 
-The current source version is v0.9.4 candidate. Local validation is complete,
-but publication remains pending separate authorization and runtime-asset upload.
-The v0.9.3 assets and hashes below remain historical
+The current source version is v0.9.4 candidate. The alpha5 candidate passed its
+earlier release gate, but V094-21 model/Tor source fixes were added afterward;
+that gate and its desktop artifacts are no longer current. Focused shell tests,
+typecheck and Go tests pass; the latest full shell suite had two readiness/timeouts,
+but both affected suites later passed in isolation (packaged Tor 1/1; DSH
+supervisor 5/5, with real CLI readiness in 80.10 s). A new release gate and
+setup/portable build are required
+before publication. The user tried the installed alpha5 candidate and reports
+only one model plus upstream/API-key, connection and protocol failures. The
+v0.9.3 assets and hashes below remain historical
 published evidence and must not be overwritten.
 
 The v0.9.4 candidate changes the DSH conversation background and browser-first
@@ -17,16 +24,16 @@ archives remain immutable. The alpha5 archive was regenerated locally and
 verified: `apps/shell/release/deepseek-harness-runtime-0.2.1-alpha.5-win32-x64.tar.gz`
 (421,377,684 bytes; SHA-256
 `26953ba93ab1daab8d837c2980f1f5f9c0a60f65677ac48fc973300f5b2229f2`). It is not
-published. The full release gate passed, and setup/portable were generated and
-statically verified locally. The old alpha4 local cache does not satisfy alpha5.
-Never describe an unuploaded archive as a downloadable release asset. OmniRoute has
+published. The previous setup/portable were generated and statically verified,
+but predate V094-21 and are superseded. The old alpha4 local cache does not
+satisfy alpha5. Never describe an unuploaded archive as a downloadable release asset. OmniRoute has
 been removed: no fallback, download, server or detection endpoint is shipped.
 Only obsolete app-owned configuration and verified caches are retired at the
 next startup; unrelated providers and sessions are preserved.
 
 The verified desktop artifacts are in the unique output directory
-`apps/shell/release-0.9.4-alpha5-candidate-20261014/`; do not reuse or overwrite
-the superseded alpha4 candidate directory.
+`apps/shell/release-0.9.4-model-resilience-20261015/`; do not reuse or overwrite
+the superseded alpha5 candidate directory.
 
 After changing opencode2api source or its active fork overlay, rebuild with
 `bash scripts/build-opencode2api.sh`. It also stages the new Windows sidecar

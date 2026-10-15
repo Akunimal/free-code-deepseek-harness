@@ -63,6 +63,30 @@ function mockFetchWithModels(modelIds: string[], okIds: string[]): void {
 }
 
 describe('model-refresher', () => {
+  it('uses the minimum accepted output budget for upstream health probes', async () => {
+    const { home, data } = tmpDirs();
+    const probeBodies: Array<{ model: string; max_tokens: number }> = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const endpoint = String(url);
+      if (endpoint.endsWith('/v1/models')) {
+        return new Response(JSON.stringify({ data: [{ id: 'muse-spark-1.3-contributor-free' }] }), { status: 200 });
+      }
+      if (endpoint.endsWith('/v1/chat/completions')) {
+        probeBodies.push(JSON.parse(String(init?.body)) as { model: string; max_tokens: number });
+        return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+      }
+      return new Response('not found', { status: 404 });
+    }));
+
+    try {
+      await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
+      expect(probeBodies).toHaveLength(1);
+      expect(probeBodies[0]).toMatchObject({ model: 'muse-spark-1.3-contributor-free', max_tokens: 16 });
+    } finally {
+      rmSync(dirname(home), { recursive: true, force: true });
+    }
+  });
+
   it.each([
     ['empty route list', [], true],
     ['transport failure despite another responder', [
