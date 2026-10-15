@@ -2,9 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { buildTorrcContent, quoteTorrcPath } from '../src/main/tor-config.js';
 
 describe('Tor configuration generation', () => {
-  it('quotes Windows paths with spaces using Tor-compatible forward slashes', () => {
+  it('keeps absolute Windows paths native and escapes separators inside quotes', () => {
     expect(quoteTorrcPath('C:\\Users\\Inti User\\AppData\\Roaming\\FreeCode'))
-      .toBe('"C:/Users/Inti User/AppData/Roaming/FreeCode"');
+      .toBe('"C:\\\\Users\\\\Inti User\\\\AppData\\\\Roaming\\\\FreeCode"');
+  });
+
+  it('preserves absolute POSIX paths and spaces', () => {
+    expect(quoteTorrcPath('/tmp/Tor Data/control_auth_cookie'))
+      .toBe('"/tmp/Tor Data/control_auth_cookie"');
   });
 
   it('rejects line breaks that could inject additional torrc directives', () => {
@@ -22,13 +27,13 @@ describe('Tor configuration generation', () => {
       geoip6File: 'C:\\Program Files\\Tor\\geoip6',
     });
 
-    expect(torrc).toContain('DataDirectory "C:/Users/Inti User/Tor Data"');
-    expect(torrc).toContain('GeoIPFile "C:/Program Files/Tor/geoip"');
-    expect(torrc).toContain('GeoIPv6File "C:/Program Files/Tor/geoip6"');
+    expect(torrc).toContain('DataDirectory "C:\\\\Users\\\\Inti User\\\\Tor Data"');
+    expect(torrc).toContain('GeoIPFile "C:\\\\Program Files\\\\Tor\\\\geoip"');
+    expect(torrc).toContain('GeoIPv6File "C:\\\\Program Files\\\\Tor\\\\geoip6"');
     expect(torrc).toContain('Log notice stdout');
     expect(torrc).not.toContain('Log notice file');
     expect(torrc).toContain('CookieAuthentication 1');
-    expect(torrc).toContain('CookieAuthFile "C:/Users/Inti User/Tor Data/control_auth_cookie"');
+    expect(torrc).toContain('CookieAuthFile "C:\\\\Users\\\\Inti User\\\\Tor Data\\\\control_auth_cookie"');
     expect(torrc).toContain('LearnCircuitBuildTimeout 1');
     expect(torrc).toContain('MaxCircuitDirtiness 600');
     expect(torrc).not.toContain('FastFirstHopPK');

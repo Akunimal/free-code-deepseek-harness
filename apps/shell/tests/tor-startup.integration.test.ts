@@ -176,6 +176,7 @@ describe('packaged Windows Tor startup', () => {
       expect(controlReady, output).toBe(true);
       expect(existsSync(cookiePath), output).toBe(true);
       expect(output).toContain('Opened Control listener connection (ready)');
+      expect(output).not.toMatch(/Path for (?:CookieAuthFile|DataDirectory|GeoIPFile|GeoIPv6File) .* is relative and will resolve to/);
       expect(output).not.toContain("Couldn't open file for");
       expect(bootstrapProgress).not.toBeNull();
       if (disableNetwork) {

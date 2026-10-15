@@ -7,12 +7,19 @@ export interface TorrcOptions {
   geoip6File?: string;
 }
 
-/** Quote an absolute path for torrc and normalize Windows separators. */
+/** Quote an absolute path using separators Tor recognizes on the current platform. */
 export function quoteTorrcPath(value: string): string {
   if (/[\u0000-\u001f\u007f]/.test(value)) {
     throw new Error('Tor configuration paths cannot contain control characters');
   }
-  return `"${value.replace(/\\/g, '/').replace(/"/g, '\\"')}"`;
+  // Tor 0.4.8 on Windows treats drive paths written with forward slashes
+  // (for example D:/Data) as relative. Keep Windows separators and escape
+  // each backslash for torrc's quoted-string parser; POSIX paths stay `/`.
+  const windowsPath = /^(?:[A-Za-z]:[\\/]|\\\\)/.test(value);
+  const normalized = windowsPath
+    ? value.replace(/\//g, '\\')
+    : value.replace(/\\/g, '/');
+  return `"${normalized.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 }
 
 export function buildTorrcContent(options: TorrcOptions): string {
