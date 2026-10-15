@@ -15,7 +15,7 @@
       "arch": "win-x64",
       "source": "jasonxu114514/opencode2api",
       "license": "GPL-3.0-or-later",
-      "sha256": "88d2aceca6e54103591aa62b4cf3192da68caf0b3b35beff0c29de09fef6859d",
+      "sha256": "e16e2cf2fa1155b543a5c4f88c475dddf1ea552021e696046f46848c5e547e2d",
       "path": "opencode2api/opencode2api-win-x64.exe",
       "launch": {
         "type": "exec",

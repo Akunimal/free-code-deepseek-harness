@@ -507,5 +507,6 @@ This project is free software: you may redistribute and modify it under the GNU 
 Vendored stable v1.4.0, with direct-first routing, transport-only route cooldown,
 loopback SOCKS health checks, supported-protocol catalog filtering and downstream
 tool-name normalization. The anonymous endpoint remains the tagged upstream
-default (https://opencode.ai/inference); its public network completion is not
+default (https://opencode.ai/inference), with protocol namespaces corrected from
+the official inference-proxy route map (OpenAI/Anthropic). Its public completion is not
 verified in the local Windows environment (socket access denied).

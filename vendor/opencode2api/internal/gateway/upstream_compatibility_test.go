@@ -20,7 +20,7 @@ import (
 
 func TestAnonymousCatalogCompletesViaCurrentInferenceOrigin(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/inference/v1/chat/completions" || r.Header.Get("x-opencode-session-id") == "" || r.Header.Get("x-opencode-request") != "" {
+		if r.URL.Path != "/inference/openai/v1/chat/completions" || r.Header.Get("x-opencode-session-id") == "" || r.Header.Get("x-opencode-request") != "" {
 			t.Errorf("obsolete inference request: path=%s session-id-present=%t legacy-header-present=%t", r.URL.Path, r.Header.Get("x-opencode-session-id") != "", r.Header.Get("x-opencode-request") != "")
 			http.Error(w, "fixture rejects obsolete contract", http.StatusForbidden)
 			return
@@ -103,4 +103,28 @@ func TestCurrentAnonymousEndpointIsSeparateFromCatalogOrigin(t *testing.T) {
 		t.Fatalf("current stable upstream endpoint config rejected: %v", err)
 	}
 	_ = cfg
+}
+
+func TestInferenceProtocolNamespaces(t *testing.T) {
+	for _, c := range []struct {
+		base     string
+		protocol wire.Protocol
+		key      string
+		path     string
+	}{
+		{"https://opencode.ai/inference", wire.Chat, "public", "/inference/openai/v1/chat/completions"},
+		{"https://opencode.ai/inference/", wire.Responses, "public", "/inference/openai/v1/responses"},
+		{"https://opencode.ai/inference", wire.Anthropic, "public", "/inference/anthropic/v1/messages"},
+		{"https://opencode.ai/zen", wire.Chat, "paid-fixture", "/zen/v1/chat/completions"},
+		{"http://127.0.0.1:1234/custom", wire.Chat, "public", "/custom/v1/chat/completions"},
+		{"https://opencode.ai/inference/openai", wire.Chat, "public", "/inference/openai/v1/chat/completions"},
+	} {
+		req, err := newUpstreamRequest(context.Background(), c.base, c.protocol, []byte("{}"), identity.RequestIDs{}, c.key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if req.URL.Path != c.path {
+			t.Errorf("%s %s: path=%s want=%s", c.base, c.protocol, req.URL.Path, c.path)
+		}
+	}
 }

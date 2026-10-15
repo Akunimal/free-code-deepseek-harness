@@ -27,7 +27,9 @@ That local-only alpha4 cache workaround did not satisfy the later alpha5 pin.
 
 - **Current upstream compatibility (V094-25).** Stable opencode2api v1.4.0 is
   imported with FreeCode routing/tool overlays retained. Anonymous inference
-  and catalog discovery now have separate origins; public session/request
+  and catalog discovery now have separate origins; the inference root resolves
+  OpenAI/Anthropic protocol namespaces from the official OpenCode router instead
+  of generating the invalid bare /inference/v1 route. Public session/request
   compatibility follows the tagged source. Go and isolated gateway fixtures
   validate multiple completions. Two authorized live checks were blocked by
   Windows socket access permissions before connecting, so public completion
@@ -135,7 +137,9 @@ La precarga local alpha4 fue un workaround y no satisface el pin alpha5 posterio
 
 - **Compatibilidad upstream actual (V094-25).** Se incorpora opencode2api
   estable v1.4.0 conservando routing y correcciones de herramientas del fork.
-  Se separan los orígenes de inferencia anónima y catálogo, con el contrato de
+  Se separan los orígenes de inferencia anónima y catálogo. La raíz de inferencia
+  agrega los namespaces OpenAI/Anthropic del router oficial, en lugar de generar
+  la ruta incorrecta /inference/v1. Se conserva el contrato de
   sesión/request de la versión etiquetada. Go y fixtures aislados verifican
   varias respuestas. Windows bloqueó las dos pruebas públicas autorizadas
   antes de conectar por permisos de socket: la respuesta pública no quedó

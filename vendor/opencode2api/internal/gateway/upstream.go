@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -865,6 +866,22 @@ func (g *Gateway) recordUpstreamAttempt(ctx context.Context, route models.Route,
 }
 
 func newUpstreamRequest(ctx context.Context, baseURL string, protocol wire.Protocol, body []byte, ids identity.RequestIDs, key string) (*http.Request, error) {
+	// The public inference root is protocol-namespaced. Keep explicitly
+	// qualified/custom origins and paid Zen/Go routes unchanged. Source contract:
+	// anomalyco/opencode packages/console/app/src/lib/inference-proxy.ts.
+	if key == anonymousZenKey {
+		if parsed, err := url.Parse(baseURL); err == nil && strings.TrimRight(parsed.Path, "/") == "/inference" {
+			namespace := "openai"
+			if protocol == wire.Anthropic {
+				namespace = "anthropic"
+			}
+			if protocol == wire.SystemOne {
+				namespace = "systemone"
+			}
+			parsed.Path = "/inference/" + namespace
+			baseURL = parsed.String()
+		}
+	}
 	endpoint := strings.TrimRight(baseURL, "/") + wire.Path(protocol)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
