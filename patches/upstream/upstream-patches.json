@@ -355,6 +355,18 @@
         "scripts/vendor-client-contracts.test.mjs"
       ],
       "vendorOnly": true
+    },
+    {
+      "file": "174-freecode-model-route-selection-ack.patch",
+      "order": 174,
+      "owner": "freecode",
+      "description": "Clear stale-model composer blocks on Host-accepted model selections before the session projection arrives",
+      "seam": "packages/client/ui-model-selection/src/client/directory.ts",
+      "contractTests": [
+        "packages/client/ui-model-selection/tests/browser-plugin.client.spec.ts",
+        "packages/contract-tests/tests/patch-stack-replay.contract.test.ts"
+      ],
+      "vendorOnly": true
     }
   ]
 }

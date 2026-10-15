@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { verifyOverlappingAppliedPatches } from '../../../scripts/patch-stack-replay.mjs';
 
 const roots: string[] = [];
@@ -50,6 +50,21 @@ afterEach(() => {
 });
 
 describe('stack-aware patch replay', () => {
+  it('keeps the model-route patch reversible against the checked-in vendor snapshot', () => {
+    const root = resolve(import.meta.dirname, '../../..');
+    const patchDir = join(root, 'patches/upstream');
+    const manifest = JSON.parse(readFileSync(join(patchDir, 'upstream-patches.json'), 'utf8'));
+    expect(manifest.patches.find((entry: { file: string }) => entry.file === '174-freecode-model-route-selection-ack.patch'))
+      .toMatchObject({ order: 174 });
+    const result = verifyOverlappingAppliedPatches({
+      root,
+      patchDir,
+      patches: manifest.patches,
+      vendorPrefix: manifest.vendorPrefix,
+    });
+    expect(result, JSON.stringify(result)).toMatchObject({ ok: true });
+  });
+
   it('validates overlapping patches by reversing and replaying the ordered stack', () => {
     const f = fixture('alpha\nbeta-two\nomega\n');
     const result = verifyOverlappingAppliedPatches({ root: f.root, patchDir: f.patchDir, patches: f.patches, vendorPrefix });

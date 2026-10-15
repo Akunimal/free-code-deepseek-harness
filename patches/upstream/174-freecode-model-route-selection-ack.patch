@@ -1,0 +1,202 @@
+diff --git a/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/directory.ts b/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/directory.ts
+index 41f67832a0..58070c4859 100644
+--- a/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/directory.ts
++++ b/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/directory.ts
+@@ -34,6 +34,15 @@ export interface ModelDirectoryState {
+   error: string | null
+ }
+ 
++type ProjectedSelection = ModelSelection | null | undefined
++
++interface HostSelectionAcknowledgement {
++  /** Selection normalized and accepted by the Host RPC. */
++  readonly selected: ModelSelection
++  /** Projection value at submit time; unchanged value means its event is still pending. */
++  readonly projectionBefore: ProjectedSelection
++}
++
+ /** One session's shared directory controller; disposed with the session scope. */
+ export class ModelDirectory {
+   /** The shared snapshot both entries render from (uSES-safe store). */
+@@ -44,6 +53,8 @@ export class ModelDirectory {
+   /** Latest selection operation wins; an older response never overwrites a newer one. */
+   private generation = 0
+   private disposed = false
++  /** Bridges the RPC acknowledgement until its asynchronous projection event arrives. */
++  private hostAcknowledgement: HostSelectionAcknowledgement | undefined
+   private readonly unsubscribeCatalog: () => void
+   private readonly unsubscribeSelection: () => void
+ 
+@@ -90,6 +101,7 @@ export class ModelDirectory {
+    */
+   async select(selection: ModelSelection): Promise<RemoteResult<void>> {
+     this.assertAvailable()
++    const projectionBefore = projectedSelection(this.projected.getSnapshot())
+     const previous = this.store.getSnapshot().current
+     const previousEffort = previous?.reasoningEffort ?? (previous === null ? undefined : this.catalog.reasoningFor(previous)?.defaultEffort)
+     const nextEffort = selection.reasoningEffort ?? this.catalog.reasoningFor(selection)?.defaultEffort
+@@ -114,9 +126,16 @@ export class ModelDirectory {
+       })
+       return result
+     }
++    const selected = result.value.selected
++    const currentProjection = projectedSelection(this.projected.getSnapshot())
++    this.hostAcknowledgement = sameSelection(currentProjection, selected)
++      ? undefined
++      : sameSelection(currentProjection, projectionBefore)
++        ? { selected, projectionBefore }
++        : undefined
+     if (previous !== null) {
+       const from = `${previous.provider}/${previous.model}`
+-      const to = `${selection.provider}/${selection.model}`
++      const to = `${selected.provider}/${selected.model}`
+       if (from !== to) this.track?.('model_switch', { ...this.isBlank() ? {} : { session_id: this.sessionId }, switch_from: from, switch_to: to })
+       if (from === to && previousEffort !== nextEffort) this.track?.('thinking_level_switch', {
+         ...this.isBlank() ? {} : { session_id: this.sessionId }, model_name: to, switch_from: previousEffort ?? 'default', switch_to: nextEffort ?? 'default',
+@@ -133,6 +152,7 @@ export class ModelDirectory {
+   resetConnected(): void {
+     if (this.disposed) return
+     ++this.generation
++    this.hostAcknowledgement = undefined
+     this.store.update((state) => {
+       if (state.status === 'selecting') state.status = 'idle'
+       state.pending = null
+@@ -157,13 +177,28 @@ export class ModelDirectory {
+   private syncInputs(): void {
+     if (this.disposed) return
+     const catalog = this.catalog.store.getSnapshot()
+-    const projected = modelSelectionProjection(this.projected.getSnapshot())
+-    const intended = projected?.next ?? catalog.value?.default
++    const projection = modelSelectionProjection(this.projected.getSnapshot())
++    let next = projection?.next
++    let acknowledgedSelection = false
++    const acknowledgement = this.hostAcknowledgement
++    if (acknowledgement !== undefined) {
++      if (sameSelection(next, acknowledgement.selected)) {
++        this.hostAcknowledgement = undefined
++      } else if (sameSelection(next, acknowledgement.projectionBefore)) {
++        next = acknowledgement.selected
++        acknowledgedSelection = true
++      } else {
++        // A different projection is newer Host state; never let an older RPC ack override it.
++        this.hostAcknowledgement = undefined
++      }
++    }
++    const intended = next ?? catalog.value?.default
+     const reasoning = intended === undefined ? undefined : this.catalog.reasoningFor(intended)
+     const effort = intended?.reasoningEffort ?? reasoning?.defaultEffort
+     const retainedEffort = effort === undefined ? undefined
+       : reasoning?.efforts.find(level => level.id === effort)?.name ?? effort
+-    if (catalog.status !== 'ready' || catalog.value === null || projected === undefined) {
++    if (catalog.status !== 'ready' || catalog.value === null
++      || (projection === undefined && !acknowledgedSelection)) {
+       this.store.set({
+         current: catalog.value === null ? null : this.store.getSnapshot().current,
+         ...retainedEffort === undefined ? {} : { retainedEffort },
+@@ -176,7 +211,7 @@ export class ModelDirectory {
+       })
+       return
+     }
+-    const selection = projected.next ?? catalog.value.default
++    const selection = next ?? catalog.value.default
+     const routable = catalog.value.groups.some(group => group.id === selection.provider
+       && group.models.some(model => model.id === selection.model))
+     this.store.set({
+@@ -197,3 +232,14 @@ export class ModelDirectory {
+ function modelSelectionProjection(value: unknown): ModelSelectionProjection | undefined {
+   return value === undefined ? undefined : value as ModelSelectionProjection
+ }
++
++function projectedSelection(value: unknown): ProjectedSelection {
++  return modelSelectionProjection(value)?.next
++}
++
++function sameSelection(left: ProjectedSelection, right: ProjectedSelection): boolean {
++  if (left === null || left === undefined || right === null || right === undefined) return left === right
++  return left.provider === right.provider
++    && left.model === right.model
++    && left.reasoningEffort === right.reasoningEffort
++}
+diff --git a/vendor/deepseek-harness/packages/client/ui-model-selection/tests/browser-plugin.client.spec.ts b/vendor/deepseek-harness/packages/client/ui-model-selection/tests/browser-plugin.client.spec.ts
+index 296868b700..6ccff9a9c6 100644
+--- a/vendor/deepseek-harness/packages/client/ui-model-selection/tests/browser-plugin.client.spec.ts
++++ b/vendor/deepseek-harness/packages/client/ui-model-selection/tests/browser-plugin.client.spec.ts
+@@ -75,6 +75,8 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
+   const projections = new Map<SessionId, SnapshotStore<ModelSelectionProjection | undefined>>()
+   // Whether the Host advertises available models for the current route.
+   let routable = true
++  // Delays the client projection event independently of the successful RPC result.
++  let delayProjection = false
+   let catalogFailure = false
+   let groups = GROUPS
+   let selectionFailure: RemoteError<'session/writer-held'> | undefined
+@@ -102,7 +104,7 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
+           ? {}
+           : { reasoningEffort: payload.reasoningEffort },
+       }
+-      projections.get(payload.sessionId)?.set({ lastUsed: null, next: selected })
++      if (!delayProjection) projections.get(payload.sessionId)?.set({ lastUsed: null, next: selected })
+       return Promise.resolve({ ok: true as const, value: { selected } })
+     },
+   }
+@@ -208,6 +210,7 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
+     setGroups: (next: typeof GROUPS) => { groups = next },
+     setCatalogFailure: (next: boolean) => { catalogFailure = next },
+     setRoutable: (next: boolean) => { routable = next },
++    delayProjection: (next: boolean) => { delayProjection = next },
+     blockOf: (key: string) => blocks.get(sid(key))?.getSnapshot(),
+     setExternalBlock: (key: string, block: { reason: string } | undefined) => { blockStoreFor(sid(key)).set(block) },
+   }
+@@ -538,6 +541,52 @@ describe('ui-model-selection dual entry', () => {
+     }
+   })
+ 
++  it('unblocks on a Host-confirmed listed model before the session projection event arrives', async () => {
++    const b = await bench('en')
++    try {
++      b.mint('s1')
++      const face = b.seat().inject!(sid('s1'))
++      const stale = { provider: 'deepseek-official', model: 'unlisted' }
++      b.setProjected(sid('s1'), { lastUsed: stale, next: stale })
++      await vi.waitFor(() => { expect(face.directory.getSnapshot()).toMatchObject({ status: 'ready', routable: false }) })
++      expect(b.blockOf('s1')).toEqual({ reason: unavailableReason })
++
++      b.delayProjection(true)
++      const accepted = { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
++      await expect(face.select(accepted)).resolves.toMatchObject({ ok: true })
++
++      expect(face.directory.getSnapshot()).toMatchObject({ current: accepted, routable: true, status: 'ready' })
++      expect(b.blockOf('s1')).toBeUndefined()
++
++      // A later, genuinely newer Host projection must supersede the local ack.
++      const external = { provider: 'deepseek-official', model: 'deepseek-v4-pro' }
++      b.setProjected(sid('s1'), { lastUsed: stale, next: external })
++      await vi.waitFor(() => { expect(face.directory.getSnapshot()).toMatchObject({ current: external, routable: true }) })
++      expect(b.blockOf('s1')).toBeUndefined()
++    } finally {
++      await b.ctx.fiber.dispose()
++    }
++  })
++
++  it('keeps the stale-model composer block when the Host rejects model selection', async () => {
++    const b = await bench('en')
++    try {
++      b.mint('s1')
++      const face = b.seat().inject!(sid('s1'))
++      const stale = { provider: 'deepseek-official', model: 'unlisted' }
++      b.setProjected(sid('s1'), { lastUsed: stale, next: stale })
++      await vi.waitFor(() => { expect(face.directory.getSnapshot()).toMatchObject({ status: 'ready', routable: false }) })
++      b.rejectSelection()
++
++      const rejected = await face.select({ provider: 'deepseek-official', model: 'deepseek-v4-flash' })
++      expect(rejected).toMatchObject({ ok: false })
++      expect(face.directory.getSnapshot()).toMatchObject({ current: stale, routable: false, status: 'error' })
++      expect(b.blockOf('s1')).toEqual({ reason: unavailableReason })
++    } finally {
++      await b.ctx.fiber.dispose()
++    }
++  })
++
+   it('does not overwrite or clear a composer block owned by another feature', async () => {
+     const b = await bench('en')
+     try {
