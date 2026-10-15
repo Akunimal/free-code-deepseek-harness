@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { load as loadYaml } from 'js-yaml';
-import { refreshModels, ModelCatalog } from '../src/main/model-refresher.js';
+import { refreshModels, ModelCatalog, shouldRetryModelRefresh } from '../src/main/model-refresher.js';
 
 const LB = 'http://127.0.0.1:41234';
 const REASONING_EFFORTS = { off: null, low: 'low', high: 'high', max: 'max' };
@@ -63,6 +63,57 @@ function mockFetchWithModels(modelIds: string[], okIds: string[]): void {
 }
 
 describe('model-refresher', () => {
+  it.each([
+    ['empty route list', [], true],
+    ['transport failure despite another responder', [
+      { id: 'online', responds: true, latencyMs: 1, lastSeen: 1 },
+      { id: 'flaky', responds: false, latencyMs: null, lastSeen: 1, failureKind: 'transport' },
+    ], true],
+    ['HTTP 408', [{ id: 'slow', responds: false, latencyMs: 1, lastSeen: 1, failureKind: 'http', statusCode: 408 }], true],
+    ['HTTP 429', [{ id: 'limited', responds: false, latencyMs: 1, lastSeen: 1, failureKind: 'http', statusCode: 429 }], true],
+    ['HTTP 5xx', [{ id: 'gateway', responds: false, latencyMs: 1, lastSeen: 1, failureKind: 'http', statusCode: 503 }], true],
+    ['permanent unsupported-protocol HTTP 400', [{ id: 'unsupported', responds: false, latencyMs: 1, lastSeen: 1, failureKind: 'http', statusCode: 400 }], false],
+    ['permanent auth HTTP 401', [{ id: 'unauthorized', responds: false, latencyMs: 1, lastSeen: 1, failureKind: 'http', statusCode: 401 }], false],
+    ['ready catalog', [{ id: 'online', responds: true, latencyMs: 1, lastSeen: 1 }], false],
+  ])('retry policy: %s', (_name, models, expected) => {
+    const catalog = {
+      refreshedAt: 1,
+      providers: { 'deepseek-free': { models } },
+    } as ModelCatalog;
+    expect(shouldRetryModelRefresh(catalog)).toBe(expected);
+  });
+
+  it('marks partial transient probe failures degraded while keeping verified routes selectable', async () => {
+    const { home, data } = tmpDirs();
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const endpoint = String(url);
+      if (endpoint.endsWith('/v1/models')) {
+        return new Response(JSON.stringify({ data: [{ id: 'verified' }, { id: 'temporarily-offline' }] }), { status: 200 });
+      }
+      if (endpoint.endsWith('/v1/chat/completions')) {
+        const { model } = JSON.parse(String(init?.body)) as { model: string };
+        if (model === 'temporarily-offline') throw new TypeError('socket hang up');
+        return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+      }
+      return new Response('not found', { status: 404 });
+    }));
+
+    try {
+      const catalog = await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
+      expect(catalog.availability).toBe('degraded');
+      expect(shouldRetryModelRefresh(catalog)).toBe(true);
+      expect(catalog.providers['deepseek-free']!.models).toEqual([
+        expect.objectContaining({ id: 'verified', responds: true }),
+        expect.objectContaining({ id: 'temporarily-offline', failureKind: 'transport' }),
+      ]);
+      const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+      expect(settings['llm-pi-ai'].providers['deepseek-free'].models.map((model: { id: string }) => model.id))
+        .toEqual(['verified']);
+    } finally {
+      rmSync(dirname(home), { recursive: true, force: true });
+    }
+  });
+
   afterEach(() => vi.unstubAllGlobals());
 
   it('probes models, persists catalog with latency, syncs settings with responders sorted', async () => {
@@ -251,12 +302,113 @@ describe('model-refresher', () => {
     }));
 
     const catalog = await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
-    expect(catalog.providers['deepseek-free']!.models).toEqual([
-      expect.objectContaining({ id: 'x-preview-f', responds: false }),
-    ]);
+    expect(catalog.providers['deepseek-free']!.models[0]).toMatchObject({
+      id: 'x-preview-f',
+      responds: false,
+      failureKind: 'http',
+      statusCode: 400,
+    });
+    expect(catalog.lastKnownGoodByProvider?.['deepseek-free']).toEqual([]);
     const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
     expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([]);
     rmSync(dirname(home), { recursive: true, force: true });
+  });
+
+  it('retains only previously verified models across transport failures and evicts explicit HTTP rejections', async () => {
+    const { home, data } = tmpDirs();
+    let phase: 'initial' | 'transport-down' | 'recovered' = 'initial';
+    const fetchMock = vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const endpoint = String(url);
+      if (endpoint.endsWith('/v1/models')) {
+        const data = phase === 'initial'
+          ? ['known-good', 'will-be-rejected']
+          : ['known-good', 'new-candidate', 'will-be-rejected'];
+        return new Response(JSON.stringify({ data: data.map((id) => ({ id })) }), { status: 200 });
+      }
+      if (endpoint.endsWith('/v1/chat/completions')) {
+        const { model } = JSON.parse(String(init?.body)) as { model: string };
+        if (phase === 'initial') {
+          return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+        }
+        if (phase === 'transport-down') {
+          if (model === 'will-be-rejected') {
+            return new Response(JSON.stringify({
+              error: {
+                code: null,
+                message: 'the model uses an upstream protocol that opencode2api does not expose',
+                param: null,
+                type: 'invalid_request_error',
+              },
+            }), { status: 400, headers: { 'content-type': 'application/json' } });
+          }
+          throw new TypeError('socket hang up');
+        }
+        if (model === 'will-be-rejected') {
+          return new Response('unsupported', { status: 400 });
+        }
+        return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+      }
+      return new Response('not found', { status: 404 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    try {
+      const first = await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
+      expect(first.providers['deepseek-free']!.models.map((model) => model.id)).toEqual([
+        'known-good', 'will-be-rejected',
+      ]);
+      expect(first.lastKnownGoodByProvider?.['deepseek-free']).toEqual([
+        'known-good', 'will-be-rejected',
+      ]);
+      // Upgrade catalogs created before the durable last-known-good field.
+      writeFileSync(join(data, 'model-catalog.json'), JSON.stringify({
+        refreshedAt: 1,
+        availability: 'ready',
+        providers: {
+          'deepseek-free': {
+            models: [
+              { id: 'known-good', responds: true, latencyMs: 1, lastSeen: 1 },
+              { id: 'will-be-rejected', responds: true, latencyMs: 1, lastSeen: 1 },
+            ],
+          },
+        },
+      }));
+
+      phase = 'transport-down';
+      const degraded = await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
+      expect(degraded.availability).toBe('degraded');
+      expect(degraded.providers['deepseek-free']!.models).toEqual([
+        expect.objectContaining({ id: 'known-good', responds: false, failureKind: 'transport', lastKnownGood: true }),
+        expect.objectContaining({ id: 'new-candidate', responds: false, failureKind: 'transport' }),
+        expect.objectContaining({ id: 'will-be-rejected', responds: false, failureKind: 'http', statusCode: 400 }),
+      ]);
+      expect(degraded.lastKnownGoodByProvider?.['deepseek-free']).toEqual(['known-good']);
+      let settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+      expect(settings['llm-pi-ai'].providers['deepseek-free'].models.map((model: { id: string }) => model.id))
+        .toEqual(['known-good']);
+      expect(settings['agent-default-model']).toEqual({ provider: 'deepseek-free', model: 'known-good' });
+
+      const repeatedFailure = await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
+      expect(repeatedFailure.lastKnownGoodByProvider?.['deepseek-free']).toEqual(['known-good']);
+      settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+      expect(settings['llm-pi-ai'].providers['deepseek-free'].models.map((model: { id: string }) => model.id))
+        .toEqual(['known-good']);
+
+      phase = 'recovered';
+      const recovered = await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
+      expect(recovered.availability).toBe('ready');
+      expect(recovered.providers['deepseek-free']!.models).toEqual([
+        expect.objectContaining({ id: 'known-good', responds: true }),
+        expect.objectContaining({ id: 'new-candidate', responds: true }),
+        expect.objectContaining({ id: 'will-be-rejected', responds: false, failureKind: 'http', statusCode: 400 }),
+      ]);
+      expect(recovered.lastKnownGoodByProvider?.['deepseek-free']).toEqual(['known-good', 'new-candidate']);
+      settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+      expect(settings['llm-pi-ai'].providers['deepseek-free'].models.map((model: { id: string }) => model.id))
+        .toEqual(['known-good', 'new-candidate']);
+    } finally {
+      rmSync(dirname(home), { recursive: true, force: true });
+    }
   });
 
   it('syncs optional no-auth providers with their own credential and input shape', async () => {

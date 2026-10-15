@@ -15,12 +15,18 @@ export interface CatalogModel {
   responds: boolean;
   latencyMs: number | null;
   lastSeen: number;
+  failureKind?: 'http' | 'transport';
+  statusCode?: number;
+  /** The route had a prior HTTP-200 probe; its current probe had no response. */
+  lastKnownGood?: boolean;
 }
 
 export interface ModelCatalog {
   refreshedAt: number;
   availability?: 'ready' | 'degraded';
   providers: Record<string, { models: CatalogModel[] }>;
+  /** Last routes proven with HTTP 200, retained only across transport failures. */
+  lastKnownGoodByProvider?: Record<string, string[]>;
 }
 
 export type ModelRefreshFailureCode = 'CATALOG_UNAVAILABLE';
@@ -59,10 +65,29 @@ export interface ProviderRefreshTarget {
   /** Schema-valid seed models used when the route has not answered yet. */
   fallbackModels?: readonly string[];
   /** When true, settings expose ONLY probed responders: with zero responders
-   *  the synced list is erased (stale entries are not kept) so the selector
-   *  never offers dead models. The diagnostic catalog still records every
-   *  advertised id with its responds flag. */
+   *  the synced list is erased except for previously HTTP-200-verified models
+   *  whose current probe failed before an HTTP response. Explicit HTTP
+   *  rejections and newly advertised IDs are never retained. */
   strictResponders?: boolean;
+}
+
+/**
+ * Decide whether a successful refresh still deserves a short bounded retry.
+ * Empty free catalogs, transport failures, and transient HTTP statuses can
+ * recover quickly. Permanent protocol/auth 4xx responses must not create a
+ * retry loop; the regular long refresh cadence will re-check them later.
+ */
+export function shouldRetryModelRefresh(catalog: ModelCatalog): boolean {
+  const models = catalog.providers['deepseek-free']?.models ?? [];
+  if (models.length === 0) return true;
+  return models.some(isRetryableModelProbeFailure);
+}
+
+function isRetryableModelProbeFailure(model: CatalogModel): boolean {
+  return model.failureKind === 'transport'
+    || (model.failureKind === 'http'
+      && (model.statusCode === 408 || model.statusCode === 429
+        || (model.statusCode !== undefined && model.statusCode >= 500 && model.statusCode < 600)));
 }
 
 export interface RefresherConfig {
@@ -86,6 +111,7 @@ const FREE_PROVIDER = 'deepseek-free';
 
 export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog> {
   const timeoutMs = cfg.probeTimeoutMs ?? PROBE_TIMEOUT_MS;
+  const previousLastKnownGood = readLastKnownGoodByProvider(cfg.userDataDir);
   const targets: ProviderRefreshTarget[] = [
     {
       provider: FREE_PROVIDER,
@@ -133,12 +159,33 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
     }
   }));
 
+  // A transport failure is not proof that a formerly-working model changed
+  // protocol or disappeared. Keep only routes with prior HTTP-200 evidence
+  // that remain advertised and failed without an HTTP response. Any explicit
+  // HTTP status (especially the unsupported-protocol 400) retires that ID.
+  const lastKnownGoodByProvider: Record<string, string[]> = {};
+  for (const { target, entries } of results) {
+    const previouslyVerified = new Set(previousLastKnownGood[target.provider] ?? []);
+    const retained: string[] = [];
+    for (const entry of entries) {
+      if (entry.responds) {
+        retained.push(entry.id);
+      } else if (entry.failureKind === 'transport' && previouslyVerified.has(entry.id)) {
+        entry.lastKnownGood = true;
+        retained.push(entry.id);
+      }
+    }
+    lastKnownGoodByProvider[target.provider] = retained;
+  }
+
   const catalog: ModelCatalog = {
     refreshedAt: Math.floor(Date.now() / 1000),
     availability: results.some(({ entries }) => entries.some((model) => model.responds))
+      && !results.some(({ entries }) => entries.some((model) => model.lastKnownGood || isRetryableModelProbeFailure(model)))
       ? 'ready'
       : 'degraded',
     providers: Object.fromEntries(results.map(({ target, entries }) => [target.provider, { models: entries }])),
+    lastKnownGoodByProvider,
   };
   const catalogPath = join(cfg.userDataDir, CATALOG_FILE);
   mkdirSync(cfg.userDataDir, { recursive: true });
@@ -208,6 +255,8 @@ async function probeModels(
     const started = Date.now();
     let responds = false;
     let latencyMs: number | null = null;
+    let failureKind: CatalogModel['failureKind'];
+    let statusCode: number | undefined;
     try {
       const res = await fetch(endpointUrl(target.baseUrl, '/chat/completions'), {
         method: 'POST',
@@ -224,14 +273,59 @@ async function probeModels(
         signal: AbortSignal.timeout(timeoutMs),
       });
       latencyMs = Date.now() - started;
+      statusCode = res.status;
       responds = res.status === 200;
-      await res.body?.cancel();
+      if (!responds) failureKind = 'http';
+      try {
+        await res.body?.cancel();
+      } catch {
+        // The received HTTP status is authoritative even if body cleanup races
+        // a connection close; do not relabel an HTTP 400/500 as transport loss.
+      }
     } catch {
       responds = false;
       latencyMs = null;
+      failureKind = 'transport';
     }
-    return { id, responds, latencyMs, lastSeen: nowSeconds() };
+    return {
+      id,
+      responds,
+      latencyMs,
+      lastSeen: nowSeconds(),
+      ...(failureKind === undefined ? {} : { failureKind }),
+      ...(statusCode === undefined ? {} : { statusCode }),
+    };
   }));
+}
+
+function readLastKnownGoodByProvider(userDataDir: string): Record<string, string[]> {
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(join(userDataDir, CATALOG_FILE), 'utf8'));
+    if (!parsed || typeof parsed !== 'object') return {};
+    const record = parsed as { lastKnownGoodByProvider?: unknown; providers?: unknown };
+    if (record.lastKnownGoodByProvider && typeof record.lastKnownGoodByProvider === 'object') {
+      return Object.fromEntries(Object.entries(record.lastKnownGoodByProvider as Record<string, unknown>)
+        .filter((entry): entry is [string, string[]] => Array.isArray(entry[1])
+          && entry[1].every((id) => typeof id === 'string')));
+    }
+    // Migrate catalogs created before the explicit last-known-good set existed.
+    if (!record.providers || typeof record.providers !== 'object') return {};
+    return Object.fromEntries(Object.entries(record.providers as Record<string, unknown>).map(([provider, value]) => {
+      const models = value && typeof value === 'object'
+        ? (value as { models?: unknown }).models
+        : undefined;
+      const ids = Array.isArray(models)
+        ? models.flatMap((model) => model && typeof model === 'object'
+          && (model as { responds?: unknown }).responds === true
+          && typeof (model as { id?: unknown }).id === 'string'
+          ? [(model as { id: string }).id]
+          : [])
+        : [];
+      return [provider, ids];
+    }));
+  } catch {
+    return {};
+  }
 }
 
 /**
@@ -296,20 +390,24 @@ function syncProviderModels(
       if (Math.abs(aLatency - bLatency) <= 1) return 0;
       return aLatency - bLatency;
     });
+  const lastKnownGood = entries.filter((model) => model.lastKnownGood === true);
   const advertisedFallbacks = target.strictResponders ? [] : entries.filter((model) => target.alwaysExposedModels?.has(model.id));
   if (responders.length > 0) {
     const responderIds = new Set(responders.map((model) => model.id));
-    provider.models = [...responders, ...advertisedFallbacks.filter((model) => !responderIds.has(model.id))]
+    provider.models = [
+      ...responders,
+      ...lastKnownGood.filter((model) => !responderIds.has(model.id)),
+      ...advertisedFallbacks.filter((model) => !responderIds.has(model.id)),
+    ]
       .map((model) => modelSettingsForModel(model.id, reasoningHints?.get(model.id)));
     return;
   }
 
-  // Strict lanes (anonymous free tiers) must not offer anything that did not
-  // answer 200: erase the synced list instead of keeping last-known-good.
-  // An empty list makes the upstream validator skip the route until the next
-  // refresh repopulates it; the catalog below still records the attempts.
+  // A strict lane never exposes a newly advertised/unverified model. Preserve
+  // only prior HTTP-200 routes when this refresh ended in a transport failure;
+  // explicit HTTP rejections (including unsupported-protocol 400) are dropped.
   if (target.strictResponders) {
-    provider.models = [];
+    provider.models = lastKnownGood.map((model) => modelSettingsForModel(model.id, reasoningHints?.get(model.id)));
     return;
   }
 

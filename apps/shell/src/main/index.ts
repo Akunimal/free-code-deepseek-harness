@@ -7,7 +7,7 @@ import { createShellRuntime, ShellRuntime } from './runtime.js';
 import { DEFAULT_POOL_SIZE } from '@freecode/opencode-adapter';
 import { createSecretStore, ensureSecret } from './secret-store.js';
 import { seedProviders } from './provider-seeder.js';
-import { refreshModels, ModelCatalog } from './model-refresher.js';
+import { refreshModels, ModelCatalog, shouldRetryModelRefresh } from './model-refresher.js';
 import { registerIpc } from './ipc.js';
 import { nodeRuntimeEnv, resolveHarnessRuntimeDir, resolveNodePath, resolveResourcesDir } from './resource-paths.js';
 import { createAppLogger, type AppLogger } from './logger.js';
@@ -1289,7 +1289,7 @@ app.whenReady().then(async () => {
   let catalog: ModelCatalog | null = null;
   let refreshInFlight = false;
   let refreshRetryAttempt = 0;
-  let noResponderRetries = 0;
+  let degradedProbeRetries = 0;
   const OPENCODE_REFRESH_RETRY_MS = 30_000;
   const scheduleRefreshRetry = (): void => {
     if (refreshRetryTimer) return;
@@ -1316,19 +1316,33 @@ app.whenReady().then(async () => {
         providers: [],
         onUpdate: (c) => {
           catalog = c;
+          const retainedRoutes = Object.values(c.providers)
+            .flatMap((provider) => provider.models)
+            .filter((model) => model.lastKnownGood === true).length;
+          const verifiedRoutes = Object.values(c.providers)
+            .flatMap((provider) => provider.models)
+            .filter((model) => model.responds).length;
+          const retrying = shouldRetryModelRefresh(c);
+          const retrySuffix = retrying ? ' Bounded refresh retries are scheduled.' : ' The next check follows the regular refresh cadence.';
+          const degradedMessage = retainedRoutes > 0
+            ? `Some model probes failed at the transport layer; retaining ${retainedRoutes} previously HTTP-200-verified route(s).${retrySuffix}`
+            : verifiedRoutes > 0
+              ? `Some model probes failed transiently; ${verifiedRoutes} currently verified route(s) remain selectable.${retrySuffix}`
+              : `No model probe returned HTTP 200; unverified or explicitly rejected routes are hidden.${retrySuffix}`;
           reportBackendState('catalog', c.availability === 'degraded' ? 'degraded' : 'ready',
-            c.availability === 'degraded' ? 'No model probe responded; keeping the last known-good selection.' : undefined);
+            c.availability === 'degraded' ? degradedMessage : undefined);
         },
       });
       refreshRetryAttempt = 0;
-      // Retry while nothing responds, so the selector self-heals within
-      // minutes of quota recovery instead of waiting for the 30-minute
-      // cadence. Bounded: 8 attempts, then cadence.
+      // Retry transient per-model failures even when another route responds,
+      // so the selector can recover without discarding the last-known-good
+      // choices or waiting for the 30-minute cadence. Permanent HTTP 4xx
+      // protocol/auth failures only use that regular cadence. Bounded: 8
+      // short retries per degraded period, then cadence.
       if (opencodeUrl) {
-        const freeEntries = catalog?.providers['deepseek-free']?.models ?? [];
-        const responders = freeEntries.filter((model) => model.responds).length;
-        if (responders > 0) noResponderRetries = 0;
-        if (responders === 0 && noResponderRetries++ < 8 && !shuttingDown) {
+        const shouldRetry = catalog ? shouldRetryModelRefresh(catalog) : true;
+        if (!shouldRetry) degradedProbeRetries = 0;
+        if (shouldRetry && degradedProbeRetries++ < 8 && !shuttingDown) {
           refreshRetryTimer = setTimeout(() => { refreshRetryTimer = null; void doRefresh(); }, OPENCODE_REFRESH_RETRY_MS);
           refreshRetryTimer.unref();
         }
