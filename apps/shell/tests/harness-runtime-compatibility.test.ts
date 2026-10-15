@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import { readHarnessRuntimeRequirements } from '../src/main/harness-updater.js';
+import { assertHarnessRuntimeVersion, readHarnessRuntimeRequirements } from '../src/main/harness-updater.js';
 
 const roots: string[] = [];
 const manifestVerifier = new URL('../../../scripts/verify-runtime-manifest.mjs', import.meta.url);
@@ -23,6 +23,21 @@ afterEach(() => {
 });
 
 describe('packaged DSH compatibility manifest', () => {
+  it('pins the shell and staged manifest to alpha5 and orders prereleases semantically', () => {
+    const shellPin = JSON.parse(readFileSync(new URL('../harness-runtime.json', import.meta.url), 'utf8')) as { version?: unknown };
+    const stagedManifest = JSON.parse(readFileSync(new URL('../resources/freecode/runtime-manifest.json', import.meta.url), 'utf8')) as { version?: unknown };
+
+    expect(shellPin.version).toBe('0.2.1-alpha.5');
+    expect(stagedManifest.version).toBe(shellPin.version);
+    expect(() => assertHarnessRuntimeVersion('0.2.1-alpha.4', String(shellPin.version))).toThrow(/below packaged minimum/);
+    expect(() => assertHarnessRuntimeVersion('0.2.1-alpha.5', String(shellPin.version))).not.toThrow();
+    expect(() => assertHarnessRuntimeVersion('0.2.1-alpha.10', '0.2.1-alpha.5')).not.toThrow();
+    expect(() => assertHarnessRuntimeVersion('0.2.1-alpha.5', '0.2.1-alpha.10')).toThrow(/below packaged minimum/);
+    // The existing shared-cache contract is a minimum, not an exact pin: older
+    // shells may reuse a newer additive runtime. Keep that SemVer behavior explicit.
+    expect(() => assertHarnessRuntimeVersion('0.2.1-alpha.5', '0.2.1-alpha.4')).not.toThrow();
+  });
+
   it('provides the minimum runtime version and Electron native ABI requirement', () => {
     const path = temporaryManifest(JSON.stringify({
       version: '0.2.1-alpha.2',

@@ -39,6 +39,87 @@ export interface HarnessRuntimeRequirements {
   nodeModuleVersion?: string;
 }
 
+export interface HarnessRuntimePromotionFileSystem {
+  exists(path: string): boolean;
+  rename(from: string, to: string): void;
+  remove(path: string, recursive: boolean): void;
+}
+
+const promotionFileSystem: HarnessRuntimePromotionFileSystem = {
+  exists: existsSync,
+  rename: renameSync,
+  remove: (path, recursive) => rmSync(path, { recursive, force: true, maxRetries: recursive ? 5 : undefined, retryDelay: 200 }),
+};
+
+/** Promote an already-verified staged runtime without deleting an unbacked current cache. */
+export function promoteHarnessRuntime(
+  nextHarness: string,
+  nextManifest: string,
+  targetRoot: string,
+  validate: (harnessDir: string, manifestPath: string) => void,
+  fileSystem: HarnessRuntimePromotionFileSystem = promotionFileSystem,
+): void {
+  const currentHarness = resolve(targetRoot, 'dsh');
+  const backupHarness = resolve(targetRoot, `.dsh-backup-${process.pid}-${Date.now()}`);
+  const currentManifest = resolve(targetRoot, 'runtime-manifest.json');
+  const backupManifest = resolve(targetRoot, `.runtime-manifest-backup-${process.pid}-${Date.now()}`);
+  if (!fileSystem.exists(nextManifest)) throw new Error('Harness runtime is missing runtime-manifest.json');
+  let harnessBackedUp = false;
+  let manifestBackedUp = false;
+  let harnessPromoted = false;
+  let manifestPromoted = false;
+  try {
+    if (fileSystem.exists(currentHarness)) {
+      fileSystem.rename(currentHarness, backupHarness);
+      harnessBackedUp = true;
+    }
+    if (fileSystem.exists(currentManifest)) {
+      fileSystem.rename(currentManifest, backupManifest);
+      manifestBackedUp = true;
+    }
+    fileSystem.rename(nextHarness, currentHarness);
+    harnessPromoted = true;
+    fileSystem.rename(nextManifest, currentManifest);
+    manifestPromoted = true;
+    validate(currentHarness, currentManifest);
+  } catch (error) {
+    const rollbackErrors: unknown[] = [];
+    const attemptRollback = (operation: () => void): void => {
+      try {
+        operation();
+      } catch (rollbackError) {
+        rollbackErrors.push(rollbackError);
+      }
+    };
+    if (harnessPromoted && fileSystem.exists(currentHarness)) {
+      attemptRollback(() => fileSystem.remove(currentHarness, true));
+    }
+    if (harnessBackedUp && fileSystem.exists(backupHarness)) {
+      attemptRollback(() => fileSystem.rename(backupHarness, currentHarness));
+    }
+    if (manifestPromoted && fileSystem.exists(currentManifest)) {
+      attemptRollback(() => fileSystem.remove(currentManifest, false));
+    }
+    if (manifestBackedUp && fileSystem.exists(backupManifest)) {
+      attemptRollback(() => fileSystem.rename(backupManifest, currentManifest));
+    }
+    if (rollbackErrors.length > 0) {
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new AggregateError([error, ...rollbackErrors], `Harness runtime promotion failed and rollback was incomplete; preserved backups may remain. Cause: ${reason}`);
+    }
+    throw error;
+  }
+
+  // Promotion and validation have committed. A backup cleanup issue must not
+  // trigger a reverse swap after the valid new runtime is already in service.
+  if (harnessBackedUp && fileSystem.exists(backupHarness)) {
+    try { fileSystem.remove(backupHarness, true); } catch { /* retain the old cache as a recoverable backup */ }
+  }
+  if (manifestBackedUp && fileSystem.exists(backupManifest)) {
+    try { fileSystem.remove(backupManifest, false); } catch { /* retain the old manifest as a recoverable backup */ }
+  }
+}
+
 export interface HarnessDownloadProgress {
   phase: 'download' | 'extract';
   receivedBytes?: number;
@@ -273,34 +354,12 @@ export async function installHarnessRuntime(
     const nextHarness = resolve(extractRoot, 'dsh');
     const nextManifest = resolve(extractRoot, 'runtime-manifest.json');
     validateHarnessRuntime(nextHarness, nextManifest, process.platform, requirements);
-    const currentHarness = resolve(targetRoot, 'dsh');
-    if (!existsSync(nextManifest)) throw new Error('Harness runtime is missing runtime-manifest.json');
-    const backupHarness = resolve(targetRoot, `.dsh-backup-${process.pid}-${Date.now()}`);
-    const currentManifest = resolve(targetRoot, 'runtime-manifest.json');
-    const backupManifest = resolve(targetRoot, `.runtime-manifest-backup-${process.pid}-${Date.now()}`);
-    let harnessBackedUp = false;
-    let manifestBackedUp = false;
-    try {
-      if (existsSync(currentHarness)) {
-        renameSync(currentHarness, backupHarness);
-        harnessBackedUp = true;
-      }
-      if (existsSync(currentManifest)) {
-        renameSync(currentManifest, backupManifest);
-        manifestBackedUp = true;
-      }
-      renameSync(nextHarness, currentHarness);
-      renameSync(nextManifest, currentManifest);
-      validateHarnessRuntime(currentHarness, currentManifest, process.platform, requirements);
-      if (harnessBackedUp) rmSync(backupHarness, { recursive: true, force: true });
-      if (manifestBackedUp) rmSync(backupManifest, { force: true });
-    } catch (error) {
-      if (existsSync(currentHarness)) rmSync(currentHarness, { recursive: true, force: true });
-      if (harnessBackedUp && existsSync(backupHarness)) renameSync(backupHarness, currentHarness);
-      if (existsSync(currentManifest)) rmSync(currentManifest, { force: true });
-      if (manifestBackedUp && existsSync(backupManifest)) renameSync(backupManifest, currentManifest);
-      throw error;
-    }
+    promoteHarnessRuntime(
+      nextHarness,
+      nextManifest,
+      targetRoot,
+      (harnessDir, manifestPath) => validateHarnessRuntime(harnessDir, manifestPath, process.platform, requirements),
+    );
   } catch (error) {
     if (timeoutError) throw timeoutError;
     throw error;

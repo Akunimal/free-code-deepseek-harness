@@ -1,11 +1,11 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
 import { checkUpstreamUpdate, createUpdateService, isNewerVersion, resolveUpdaterAdapter, type UpdaterAdapter } from '../src/main/updater.js';
-import { checkHarnessRelease, harnessAssetName, installHarnessRuntime, resolveTarExecutable } from '../src/main/harness-updater.js';
+import { checkHarnessRelease, harnessAssetName, installHarnessRuntime, promoteHarnessRuntime, resolveTarExecutable } from '../src/main/harness-updater.js';
 
 function writeValidHarnessRuntime(
   root: string,
@@ -366,6 +366,35 @@ describe('update service', () => {
     }
   });
 
+  it('preserves alpha4 when the alpha5 asset digest is corrupt', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'freecode-updater-alpha5-digest-reject-'));
+    try {
+      const resources = join(root, 'resources');
+      const archiveRoot = join(root, 'archive-root');
+      const archivePath = join(root, 'harness.tar.gz');
+      mkdirSync(resources, { recursive: true });
+      mkdirSync(archiveRoot, { recursive: true });
+      writeValidHarnessRuntime(resources, '0.2.1-alpha.4', 'alpha4-last-known-good');
+      writeValidHarnessRuntime(archiveRoot, '0.2.1-alpha.5', 'alpha5-candidate');
+      const bytes = createHarnessArchive(archivePath, archiveRoot);
+
+      await expect(installHarnessRuntime({
+        latestVersion: '0.2.1-alpha.5',
+        assetUrl: 'https://github.com/Akunimal/free-code-deepseek-harness/releases/download/v0.9.4/deepseek-harness-runtime-0.2.1-alpha.5-win32-x64.tar.gz',
+        digest: `sha256:${'0'.repeat(64)}`,
+        available: true,
+      }, resources, vi.fn(async () => new Response(new Uint8Array(bytes), { status: 200 })), undefined, {}, {
+        minimumVersion: '0.2.1-alpha.5',
+        nodeModuleVersion: process.versions.modules,
+      })).rejects.toThrow(/digest does not match/);
+
+      expect(readFileSync(join(resources, 'dsh', 'apps', 'cli', 'lib', 'bin.js'), 'utf8')).toBe('alpha4-last-known-good');
+      expect(JSON.parse(readFileSync(join(resources, 'runtime-manifest.json'), 'utf8')).version).toBe('0.2.1-alpha.4');
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('keeps a first-run runtime download alive while bytes continue arriving past the idle timeout', async () => {
     const root = mkdtempSync(join(tmpdir(), 'freecode-updater-slow-stream-'));
     const resources = join(root, 'user-data', 'harness-runtime');
@@ -546,5 +575,70 @@ describe('update service', () => {
       status: 'failed',
       upstream: { available: true, latestCommit: 'new-sha' },
     });
+  });
+});
+
+describe('DSH runtime promotion rollback', () => {
+  function makePromotionFilesystem(shouldFail: (from: string, to: string) => boolean) {
+    let failed = false;
+    return {
+      exists: existsSync,
+      remove: (path: string, recursive: boolean) => rmSync(path, { recursive, force: true }),
+      rename: (from: string, to: string) => {
+        if (!failed && shouldFail(from, to)) {
+          failed = true;
+          const error = new Error('simulated Windows sharing violation') as NodeJS.ErrnoException;
+          error.code = 'EPERM';
+          throw error;
+        }
+        renameSync(from, to);
+      },
+    };
+  }
+
+  it('keeps alpha4 intact when Windows rejects the first rename', () => {
+    const root = mkdtempSync(join(tmpdir(), 'freecode-runtime-alpha5-first-rename-'));
+    try {
+      const resources = join(root, 'resources');
+      const staged = join(root, 'staged');
+      mkdirSync(resources, { recursive: true });
+      mkdirSync(staged, { recursive: true });
+      writeValidHarnessRuntime(resources, '0.2.1-alpha.4', 'alpha4-last-known-good');
+      writeValidHarnessRuntime(staged, '0.2.1-alpha.5', 'alpha5-candidate');
+      const operations = makePromotionFilesystem((from, to) => from === join(resources, 'dsh') && to.includes('.dsh-backup-'));
+
+      expect(() => promoteHarnessRuntime(
+        join(staged, 'dsh'), join(staged, 'runtime-manifest.json'), resources, () => {}, operations,
+      )).toThrow(/simulated Windows sharing violation/);
+
+      expect(readFileSync(join(resources, 'dsh', 'apps', 'cli', 'lib', 'bin.js'), 'utf8')).toBe('alpha4-last-known-good');
+      expect(JSON.parse(readFileSync(join(resources, 'runtime-manifest.json'), 'utf8')).version).toBe('0.2.1-alpha.4');
+      expect(readdirSync(resources).filter(name => name.startsWith('.dsh-backup-') || name.startsWith('.runtime-manifest-backup-'))).toEqual([]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('restores alpha4 and its manifest when Windows rejects the final promotion rename', () => {
+    const root = mkdtempSync(join(tmpdir(), 'freecode-runtime-alpha5-final-rename-'));
+    try {
+      const resources = join(root, 'resources');
+      const staged = join(root, 'staged');
+      mkdirSync(resources, { recursive: true });
+      mkdirSync(staged, { recursive: true });
+      writeValidHarnessRuntime(resources, '0.2.1-alpha.4', 'alpha4-last-known-good');
+      writeValidHarnessRuntime(staged, '0.2.1-alpha.5', 'alpha5-candidate');
+      const operations = makePromotionFilesystem((from, to) => from === join(staged, 'runtime-manifest.json') && to === join(resources, 'runtime-manifest.json'));
+
+      expect(() => promoteHarnessRuntime(
+        join(staged, 'dsh'), join(staged, 'runtime-manifest.json'), resources, () => {}, operations,
+      )).toThrow(/simulated Windows sharing violation/);
+
+      expect(readFileSync(join(resources, 'dsh', 'apps', 'cli', 'lib', 'bin.js'), 'utf8')).toBe('alpha4-last-known-good');
+      expect(JSON.parse(readFileSync(join(resources, 'runtime-manifest.json'), 'utf8')).version).toBe('0.2.1-alpha.4');
+      expect(readdirSync(resources).filter(name => name.startsWith('.dsh-backup-') || name.startsWith('.runtime-manifest-backup-'))).toEqual([]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
