@@ -3,7 +3,11 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 export function emittedRegion(source, suffix) {
-  const header = source.split('\n').find(line => line.includes('//#region ') && line.trimEnd().endsWith(suffix));
+  const candidates = [suffix, suffix.replace(/\.tsx?$/, '.js')];
+  const headers = source.split('\n').filter(line => line.includes('//#region ')
+    && candidates.some(candidate => line.trimEnd().replaceAll('\\', '/').endsWith(candidate)));
+  if (headers.length > 1) throw new Error('conversation renderer: ambiguous production region ' + suffix);
+  const header = headers[0];
   if (!header) throw new Error('conversation renderer: missing production region ' + suffix);
   const start = source.indexOf(header) + header.length;
   const end = source.indexOf('//#endregion', start);

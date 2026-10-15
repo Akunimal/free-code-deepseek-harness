@@ -1,5 +1,27 @@
 # Release and packaging
 
+### Current 0.9.4 candidate (alpha6)
+
+The new candidate targets `apps/shell/release-0.9.4-alpha6-20261015/` with
+DSH `0.2.1-alpha.6` and opencode2api v1.4.0. Previous alpha5 builds are
+superseded: the user reported only one model and connection/protocol errors.
+The active `profiles/web/cordis.patch.yml` now receives catalog/port changes
+through real Host HMR, not the boot-only legacy settings file. Public inference
+uses the documented OpenAI/Anthropic protocol namespace. Actual MIT Hermes
+Phoenix patterns run at 18 idle / 72 working steps per second, with reduced
+motion, visibility pause, resize and cleanup checks. Both strict compiler
+faces pass; workspace shell tests pass 346/346 and contracts 114 with 12
+configured skips. Live public completion remains unverified: two authorized
+connections were blocked by Windows before HTTP, and were not retried.
+Runtime build, exact staged visual proof and the final packaging gate are in
+progress. This is not publication or installation acceptance. For unpublished
+local testing, the distribution will include the matching runtime archive and
+`Prepare-Local-Runtime.ps1`: default CHECK ONLY; explicit closed-app consent is
+required to prepare cache with backups. It never starts setup or FreeCode.
+No tag, upload, installed-cache mutation or active-process action is authorized.
+V094-21 historical fixes remain included.
+
+
 This repository is the public Akunimal/free-code-deepseek-harness fork of
 deepseek-ai/deepseek-harness. Product code lives outside the
 vendor/deepseek-harness subtree where possible; upstream changes are replayed
@@ -40,30 +62,12 @@ The 0.7.0 roadmap is closed; its ledger is
 
 The current source tree is a candidate: **v0.9.4 is unpublished**; v0.9.3
 remains the latest published Windows x64 release. Candidate changes include
-opencode2api v1.3.8, Tor recovery, packaged backgrounds, Gentle AI, and the
+opencode2api v1.4.0, Tor recovery, packaged backgrounds, Gentle AI, and the
 V094-21 model-catalog/Tor fixes. Candidate notes are in
 [release-notes-v0.9.4.md](../release-notes-v0.9.4.md).
 
-The previous alpha5 setup and portable are in
-`apps/shell/release-0.9.4-alpha5-candidate-20261014/`: setup 178,630,999 bytes
-(SHA-256 `3117054ba2ee29c6c9993e7f7cdd525262f8d39e4f037e037c411142659d8a08`),
-portable 178,255,861 bytes (SHA-256
-`79e03080494efcd9fc9f06311b1b4f78238e57b97fd2ea00ba97baa5513f520b`). The user
-ran the setup after precaching alpha5, then reported a single model and upstream,
-API-key, connection and unsupported-protocol errors. Root causes were stale
-provider settings reaching DSH before startup cleanup, a Muse Spark probe budget
-below 16 output tokens, and anonymous Tor cooldown on upstream 401/403. Source
-fixes now address all three; the prior binaries predate these changes and are
-superseded. Focused shell tests passed 35/35, typecheck passed and Go tests passed
-43/43 across 13 packages; the latest full shell run had a packaged Tor startup timeout (15 s) and a
-DSH readiness timeout (120 s). Both affected suites later passed in isolation:
-Tor 1/1 (1.58 s), supervisor 5/5 (102.47 s total; real DSH CLI readiness in
-80.10 s). A fresh build and full release gate are pending in
-`apps/shell/release-0.9.4-model-resilience-20261015/`. The alpha5 runtime archive
-is locally verified (421,377,684 bytes; SHA-256
-`26953ba93ab1daab8d837c2980f1f5f9c0a60f65677ac48fc973300f5b2229f2`) but not
-published; clean first launch still requires the exact runtime release asset.
-The active app was not interrupted. No v0.9.4 tag or release exists.
+Previous alpha5 attempts and hashes are preserved as history in the candidate
+notes; do not install or publish them as this candidate.
 
 ## Local Windows build
 
@@ -77,15 +81,15 @@ runtime archive.
 pnpm install --frozen-lockfile
 pnpm package:runtime:release
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-model-resilience-20261015'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha6-20261015'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-model-resilience-20261015
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha6-20261015
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 The gate runs tests, contracts, typechecks, build/prepackage validation, an
 offline MCP integration smoke using repository-owned stdio fixtures and a
-loopback mock provider, verifies the v0.2.1-alpha.5 runtime SHA-256 in place,
+loopback mock provider, verifies the v0.2.1-alpha.6 runtime SHA-256 in place,
 and builds one exact NSIS package into an OS-temporary directory for static
 validation. Smoke processes use scratch-only profile/cache/temp paths and the
 MCP smoke does not inherit maintainer credentials or execute third-party

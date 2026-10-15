@@ -72,9 +72,10 @@ failure. Activation and tool calls share one serialized queue per session.
 
 ## free-search and uvx
 
-`free-search` is the no-browser research route. Its default HTTP engines do
-not need a browser or a Gemini key. A browser is opened only when the user
-explicitly asks to view a result.
+Research is embedded-browser-first when web evidence is needed. `free-search`
+is the HTTP-only fallback if the embedded browser is unavailable or cannot
+answer; its engines do not need a Gemini key. This fallback does not authorize
+opening an external browser or replacing the preferred browser in silence.
 
 On Windows FreeCode first reuses a user-installed `uvx.exe`. If absent, the
 shell silently downloads the pinned official uv ZIP over HTTPS, verifies its

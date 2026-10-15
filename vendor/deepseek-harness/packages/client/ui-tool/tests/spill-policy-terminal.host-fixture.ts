@@ -113,4 +113,3 @@ export const executeShell: SpillTerminalFixture['executeShell'] = async (text, n
     await ctx.fiber.dispose()
   }
 }
-

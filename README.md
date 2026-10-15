@@ -1,5 +1,27 @@
 # FreeCode DeepSeek Harness
 
+### Current 0.9.4 candidate (alpha6)
+
+The new candidate targets `apps/shell/release-0.9.4-alpha6-20261015/` with
+DSH `0.2.1-alpha.6` and opencode2api v1.4.0. Previous alpha5 builds are
+superseded: the user reported only one model and connection/protocol errors.
+The active `profiles/web/cordis.patch.yml` now receives catalog/port changes
+through real Host HMR, not the boot-only legacy settings file. Public inference
+uses the documented OpenAI/Anthropic protocol namespace. Actual MIT Hermes
+Phoenix patterns run at 18 idle / 72 working steps per second, with reduced
+motion, visibility pause, resize and cleanup checks. Both strict compiler
+faces pass; workspace shell tests pass 346/346 and contracts 114 with 12
+configured skips. Live public completion remains unverified: two authorized
+connections were blocked by Windows before HTTP, and were not retried.
+Runtime build, exact staged visual proof and the final packaging gate are in
+progress. This is not publication or installation acceptance. For unpublished
+local testing, the distribution will include the matching runtime archive and
+`Prepare-Local-Runtime.ps1`: default CHECK ONLY; explicit closed-app consent is
+required to prepare cache with backups. It never starts setup or FreeCode.
+No tag, upload, installed-cache mutation or active-process action is authorized.
+V094-21 historical fixes remain included.
+
+
 Windows-first coding with OpenCode Free models: choose a project, describe the
 work, and let the local Harness coordinate files, tools, MCP servers and model
 calls.
@@ -12,24 +34,8 @@ calls.
 
 Source version: 0.9.4 (candidate, not published); latest published release: v0.9.3 (Windows x64).
 
-The [v0.9.4 candidate notes](release-notes-v0.9.4.md) cover opencode2api v1.4.0,
-Tor diagnostics/recovery, packaged backgrounds, restored opt-in Gentle AI, and
-the V094-21 model/Tor fixes. The previous alpha5 desktop build passed its gate,
-but predates V094-21 and is superseded. The user tried that installed candidate
-and reports only one model plus upstream/API-key, connection and
-unsupported-protocol errors. The source now seeds provider settings before DSH
-starts, probes with Muse Spark's 16-token minimum, and avoids cooling Tor routes
-on upstream 400/401/403 responses. Targeted shell tests passed 35/35, typecheck
-passed, and Go tests passed 43/43 across 13 packages; the full shell run had two readiness/timeouts,
-but both affected suites then passed in isolation (packaged Tor 1/1; DSH supervisor
-5/5, including real CLI readiness). The full release gate still needs a rerun. DSH
-`0.2.1-alpha.5` remains separately pinned; its verified
-archive (`421,377,684` bytes; SHA-256
-`26953ba93ab1daab8d837c2980f1f5f9c0a60f65677ac48fc973300f5b2229f2`) is not
-published. Rebuild and full release gate are pending in
-`apps/shell/release-0.9.4-model-resilience-20261015/`; do not use the superseded
-alpha5 setup/portable. v0.9.4 remains unpublished; v0.9.3 is still the latest
-release. The active FreeCode instance was not interrupted.
+The [v0.9.4 candidate notes](release-notes-v0.9.4.md) retain the historical
+superseded alpha5 attempts; those are not the new installer being prepared.
 
 v0.9.3 is published for Windows x64. The NSIS setup was installed and confirmed
 working by the user; the portable executable was built but not separately
@@ -167,9 +173,10 @@ use `cmd.exe`, `start`, a terminal or a visible window; isolated transient
 reports are still welcome (window title/content) and the backstop logs every
 destroyed popup.
 
-free-search uses `free-search-mcp` through `uvx` and is the default HTTP-first
-research route. It does not open a browser to search. The embedded browser is
-used only when the user asks to view a result.
+Research is embedded-browser-first when browsing is needed. `free-search-mcp`
+through `uvx` is an HTTP-only fallback when the browser cannot answer; API
+search must not silently replace the embedded browser. The browser must not
+open unrelated native windows.
 
 Details are in [docs/mcp-servers.md](docs/mcp-servers.md).
 
@@ -301,37 +308,23 @@ the recorded child PID tree and never enumerates or kills unrelated processes.
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-model-resilience-20261015'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha6-20261015'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-model-resilience-20261015
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha6-20261015
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 `build:desktop` creates setup and portable artifacts in the new
-`apps/shell/release-0.9.4-model-resilience-20261015/` output directory; it refuses to replace an
+`apps/shell/release-0.9.4-alpha6-20261015/` output directory; it refuses to replace an
 existing non-empty folder. `verify:desktop-release-assets` checks the exact PE
 files, setup blockmap, updater metadata and hashes without launching either
 executable. Desktop packaging does not rebuild or replace the separately versioned DSH runtime. Only when the DSH
 runtime itself changes should maintainers bump its manifest version and run
 `pnpm package:runtime:release`; existing runtime versions are immutable.
 
-The latest setup/portable are the pre-fix alpha5 artifacts in
-`apps/shell/release-0.9.4-alpha5-candidate-20261014/` (setup: 178,630,999 bytes;
-SHA-256 `3117054ba2ee29c6c9993e7f7cdd525262f8d39e4f037e037c411142659d8a08`;
-portable: 178,255,861 bytes; SHA-256
-`79e03080494efcd9fc9f06311b1b4f78238e57b97fd2ea00ba97baa5513f520b`). The user
-ran the setup after the alpha5 runtime was locally precached, then reported only
-one model and upstream/API-key, connection and unsupported-protocol errors. The
-source fixes the stale provider seed ordering, the Muse Spark probe budget and
-false Tor cooldowns on HTTP 400/401/403, but these artifacts predate that fix and
-are superseded. Focused tests, typecheck and 43 Go tests pass; the two tests that
-timed out in the full shell suite passed individually (Tor startup 1/1; DSH
-supervisor 5/5, readiness in 80.1 s). The full release gate and new desktop build
-must still run again.
-Use the fresh output directory above; do not reuse the pre-fix files. The alpha5
-runtime archive is verified locally but unpublished, so a clean installation
-still requires its exact asset. The active app instance was not interrupted;
-v0.9.4 remains unpublished.
+Hashes and failures of previous alpha5 installers remain historical in the
+candidate notes. Use only the new alpha6 output and its local preflight; the
+active instance has not been modified.
 
 The user confirmed the installed v0.9.3 application works on Windows x64. The
 portable executable is not separately installation-tested. The interactive

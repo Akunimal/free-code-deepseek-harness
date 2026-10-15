@@ -31,3 +31,9 @@ test('packaging rejects stale sidecar bytes, source fingerprint and missing buil
     assert.equal(readFileSync(source,'utf8'),'built test fixture');
   } finally {rmSync(root,{recursive:true,force:true});}
 });
+
+test('runtime regeneration retains the sidecar license and verifies it after copying', () => {
+  const script = readFileSync(new URL('package-runtime.sh', import.meta.url), 'utf8');
+  assert.match(script, /cp "\$ROOT\/apps\/shell\/resources\/opencode2api\/LICENSE" "\$OUT\/opencode2api\/"/);
+  assert.match(script, /opencode2api-staging\.mjs" --verify/);
+});

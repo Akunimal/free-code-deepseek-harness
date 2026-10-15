@@ -74,7 +74,7 @@ test('V094-21 candidate documentation supersedes the pre-fix installer and recor
   assert.match(english, /full release gate and fresh desktop build remain\s+pending/i);
   assert.match(spanish, /gate completo y el nuevo build desktop siguen pendientes/i);
 
-  const pendingBuildDir = 'release-0.9.4-model-resilience-20261015';
+  const pendingBuildDir = 'release-0.9.4-alpha6-20261015';
   const activeDocs = [
     read('README.md'), read('README.es.md'), read('docs/RELEASE.md'),
     read('docs/RELEASE.es.md'), read('docs/RELEASE-POLICY.md'),
@@ -85,6 +85,17 @@ test('V094-21 candidate documentation supersedes the pre-fix installer and recor
     assert.match(document, /V094-21/i);
     assert.match(document, /(?:superseded|obsolet[oa]s?|no longer current)/i);
     assert.match(document, /user[\s\S]{0,220}(?:single|only one) model|el usuario[\s\S]{0,220}(?:un solo modelo|solo aparece un modelo)/i);
+  }
+});
+
+test('active bilingual candidate docs identify alpha6, the real Hermes patterns and active-profile repair', () => {
+  for (const file of ['README.md', 'README.es.md', 'docs/RELEASE.md', 'docs/RELEASE.es.md',
+    'docs/RELEASE-POLICY.md', 'docs/RELEASE-POLICY.es.md', 'docs/ROADMAP.md', 'release-notes-v0.9.4.md']) {
+    const source = read(file);
+    assert.match(source, /0\.2\.1-alpha\.6/, file);
+    assert.match(source, /Hermes/, file);
+    assert.match(source, /cordis\.patch\.yml/, file);
+    assert.match(source, /1\.4\.0/, file);
   }
 });
 
@@ -134,8 +145,8 @@ test('release guides and known-issues ledger identify v0.9.3 as the supported ba
   assert.match(englishRelease, /published v0\.9\.3 release is the current Windows x64 baseline/i);
   assert.match(englishRelease, /v0\.9\.4 is unpublished|unpublished candidate/i);
   assert.match(spanishRelease, /v0\.9\.4 sigue sin publicarse/i);
-  assert.match(englishRelease, /release-0\.9\.4-model-resilience-20261015/);
-  assert.match(spanishRelease, /release-0\.9\.4-model-resilience-20261015/);
+  assert.match(englishRelease, /release-0\.9\.4-alpha6-20261015/);
+  assert.match(spanishRelease, /release-0\.9\.4-alpha6-20261015/);
   assert.match(englishRelease, /portable executable \(~178\.2 MB \/ 169\.9 MiB/i);
   assert.match(spanishRelease, /portable v0\.9\.3 \(~178,2 MB \/ 169,9 MiB/i);
   assert.match(englishRelease, /53dfde329731d19081204a82bbbafc4678f4c81b4588a22884ef49064f400cd5/i);
@@ -143,10 +154,9 @@ test('release guides and known-issues ledger identify v0.9.3 as the supported ba
   assert.match(spanishRelease, /53dfde329731d19081204a82bbbafc4678f4c81b4588a22884ef49064f400cd5/i);
   assert.match(spanishRelease, /830eba7ca48d2ee56d2272dfa1d2d23684f5cc7507db55d7617dbc6ed8cd12d3/i);
   assert.match(spanishRelease, /release publicada v0\.9\.3 es la baseline actual para Windows x64/i);
-  assert.match(englishRelease, /user\s+ran the setup after precaching alpha5/i);
-  assert.match(spanishRelease, /usuario\s+ejecutó el setup tras precargar alpha5/i);
-  assert.match(englishRelease, /then reported a single model/i);
-  assert.match(spanishRelease, /informó que aparece un solo modelo/i);
+  assert.match(englishRelease, /user reported only one model/i);
+  assert.match(spanishRelease, /usuario reportó un solo modelo/i);
+  assert.match(read('release-notes-v0.9.4.md'), /matching alpha5 runtime had been locally precached/i);
   assert.match(englishRelease, /v0\.9\.3 also prevents older DSH runtimes/i);
   assert.match(spanishRelease, /v0\.9\.3 también evita que runtimes\s+DSH/i);
   assert.match(knownIssues, /Última release publicada.*Latest published release: `v0\.9\.3`;.*fuente candidata.*candidate source: `v0\.9\.4`/is);
@@ -167,7 +177,7 @@ test('release guides and known-issues ledger identify v0.9.3 as the supported ba
   assert.match(roadmap, /^### `v0\.9\.3`/m);
   assert.match(translations, /baseline publicada v0\.9\.3/i);
 
-  const freshOutputDir = 'release-0.9.4-model-resilience-20261015';
+  const freshOutputDir = 'release-0.9.4-alpha6-20261015';
   for (const document of [englishRelease, spanishRelease, read('README.md'), read('README.es.md'), read('docs/RELEASE-POLICY.md'), read('docs/RELEASE-POLICY.es.md')]) {
     assert.ok(document.includes(freshOutputDir), `expected ${freshOutputDir} in the active release docs`);
   }
@@ -181,23 +191,21 @@ test('bilingual v0.9.4 docs mark pre-fix assets superseded and require a fresh g
   const policyEn = read('docs/RELEASE-POLICY.md');
   const policyEs = read('docs/RELEASE-POLICY.es.md');
   const roadmap = read('docs/ROADMAP.md');
-  const outputDir = 'apps/shell/release-0.9.4-model-resilience-20261015/';
+  const outputDir = 'apps/shell/release-0.9.4-alpha6-20261015/';
   const setupSha = '3117054ba2ee29c6c9993e7f7cdd525262f8d39e4f037e037c411142659d8a08';
   const portableSha = '79e03080494efcd9fc9f06311b1b4f78238e57b97fd2ea00ba97baa5513f520b';
 
-  assert.match(readmeEn, /previous alpha5 desktop build passed its gate[\s\S]{0,120}superseded/i);
-  assert.match(readmeEs, /build desktop alpha5 anterior pasó su\s+gate[\s\S]{0,120}obsoleto/i);
-  assert.match(readmeEn, /Rebuild and full release gate are pending/i);
-  assert.match(readmeEs, /Falta recompilar y volver a pasar el gate/i);
+  assert.match(readmeEn, /Previous alpha5 builds are\s+superseded/i);
+  assert.match(readmeEs, /builds alpha5 anteriores quedan\s+obsoletos/i);
+  assert.match(readmeEn, /final packaging gate/i);
+  assert.match(readmeEs, /gate final de empaquetado/i);
   for (const document of [readmeEn, readmeEs, releaseEn, releaseEs, policyEn, policyEs]) {
     assert.ok(document.includes(outputDir), `expected ${outputDir} in active release docs`);
   }
-  for (const document of [releaseEn, releaseEs]) {
-    assert.ok(document.includes(setupSha), 'release guide must record the setup digest');
-    assert.ok(document.includes(portableSha), 'release guide must record the portable digest');
-  }
-  assert.match(releaseEn, /user\s+ran the setup[\s\S]{0,180}then reported a single model/i);
-  assert.match(releaseEs, /usuario\s+ejecutó el setup[\s\S]{0,140}informó que aparece un solo modelo/i);
+  const history = read('release-notes-v0.9.4.md');
+  assert.ok(history.includes(setupSha), 'historical candidate notes must retain the old setup digest');
+  assert.ok(history.includes(portableSha), 'historical candidate notes must retain the old portable digest');
+  for (const document of [releaseEn, releaseEs]) assert.match(document, /Prepare-Local-Runtime\.ps1/);
   assert.match(policyEn, /not\s+published/i);
   assert.match(policyEs, /no está\s+publicado/i);
   assert.match(roadmap, /alpha5 setup\/portable and gate passed after local runtime precache/i);

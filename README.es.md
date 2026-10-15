@@ -1,5 +1,28 @@
 # FreeCode DeepSeek Harness
 
+### Candidata actual 0.9.4 (alpha6)
+
+v0.9.4 no está publicado; v0.9.3 sigue como baseline publicada.
+
+La nueva candidata apunta a `apps/shell/release-0.9.4-alpha6-20261015/`, con
+DSH `0.2.1-alpha.6` y opencode2api v1.4.0. Los builds alpha5 anteriores quedan
+obsoletos: el usuario reportó un solo modelo y errores de conexión/protocolo.
+Ahora el catálogo/puerto se sincroniza con `profiles/web/cordis.patch.yml` y HMR
+del Host real, no con settings legado importado una sola vez. La inferencia
+pública usa el namespace OpenAI/Anthropic documentado. Los patrones MIT Hermes
+Phoenix reales funcionan a 18 pasos/s en reposo y 72 trabajando, con movimiento
+reducido, pausa al ocultar, resize y limpieza comprobados. Pasan ambos programas
+de tipado estricto, 346/346 pruebas shell y 114 contratos con 12 skips previstos.
+La respuesta pública real sigue sin verificarse: Windows bloqueó antes de HTTP
+las dos conexiones autorizadas y no se repitieron. Build runtime, evidencia
+visual del stage exacto y gate final de empaquetado están en curso. No equivale
+a publicación ni aceptación de instalación. La prueba local sin publicar tendrá
+el archivo runtime exacto y `Prepare-Local-Runtime.ps1`: por defecto CHECK ONLY;
+la precarga exige confirmación explícita de app cerrada y conserva backups.
+Nunca ejecuta setup ni FreeCode. No se autorizó tag, subida ni tocar caché o
+procesos activos. Se conservan los fixes históricos V094-21.
+
+
 Programación en Windows con modelos OpenCode Free: elegí un proyecto,
 describí el trabajo y dejá que el Harness coordine archivos, herramientas,
 servidores MCP y llamadas al modelo.
@@ -12,24 +35,8 @@ servidores MCP y llamadas al modelo.
 
 Versión de la fuente: 0.9.4 (candidata, todavía no publicada); última release publicada: v0.9.3 (Windows x64).
 
-Las [notas candidatas de v0.9.4](release-notes-v0.9.4.md) cubren opencode2api
-v1.4.0, resiliencia Tor, fondos empaquetados, Gentle AI optativo y las
-correcciones de modelos/Tor V094-21. El build desktop alpha5 anterior pasó su
-gate, pero es previo a V094-21 y quedó obsoleto. El usuario probó esa candidata
-instalada e informó que aparece un solo modelo y hay errores de upstream/API key,
-conexión y protocolo no soportado. La fuente ahora siembra el catálogo antes de
-iniciar DSH, sondea con el mínimo de 16 tokens de Muse Spark y evita enfriar Tor
-ante HTTP 400/401/403 upstream. Pruebas focalizadas shell: 35/35 y typecheck
-pasó; 43 pruebas Go pasaron en 13 paquetes. En el run completo shell hubo dos
-timeouts, pero luego ambas pruebas pasaron aisladas (startup Tor empaquetado
-1/1; supervisor DSH 5/5, incluida la
-readiness real del CLI). Falta repetir el gate completo.
-DSH `0.2.1-alpha.5` sigue separado; su archivo local verificado (421.377.684
-bytes; SHA-256 `26953ba93ab1daab8d837c2980f1f5f9c0a60f65677ac48fc973300f5b2229f2`)
-no está publicado. Falta recompilar y volver a pasar el gate en
-`apps/shell/release-0.9.4-model-resilience-20261015/`; no uses el setup/portable
-alpha5 obsoleto. v0.9.4 continúa sin publicarse; v0.9.3 sigue siendo la última
-release. La instancia activa no se interrumpió.
+Las [notas candidatas de v0.9.4](release-notes-v0.9.4.md) conservan el historial
+de los intentos alpha5 obsoletos; no son el instalador que se está preparando.
 
 v0.9.3 está publicada para Windows x64. El usuario instaló el setup NSIS y
 confirmó que funciona; el ejecutable portable se compiló, pero no se probó con
@@ -172,9 +179,10 @@ ventanas transitorias sobre tu trabajo. Ningún hijo MCP debe usar `cmd.exe`,
 flashes siguen bienvenidos (título/contenido de la ventana) y el backstop
 loguea cada popup destruido.
 
-free-search usa `free-search-mcp` mediante `uvx` y es la ruta HTTP-first para
-investigar. No abre el navegador para buscar. El navegador embebido sólo se
-abre si el usuario pide ver un resultado.
+La investigación usa el navegador embebido primero cuando necesita navegar.
+`free-search-mcp` mediante `uvx` queda como fallback HTTP si el navegador no
+puede resolver la consulta; la búsqueda API no debe reemplazarlo en silencio.
+El navegador no debe abrir ventanas nativas ajenas.
 
 Más detalle en [docs/mcp-servers.md](docs/mcp-servers.md).
 
@@ -298,14 +306,14 @@ enumera ni termina procesos ajenos.
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-model-resilience-20261015'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha6-20261015'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-model-resilience-20261015
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha6-20261015
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 `build:desktop` crea setup y portable en la nueva carpeta
-`apps/shell/release-0.9.4-model-resilience-20261015/`; rechaza reemplazar una carpeta no vacía.
+`apps/shell/release-0.9.4-alpha6-20261015/`; rechaza reemplazar una carpeta no vacía.
 `verify:desktop-release-assets` valida los PE exactos, el blockmap, los metadatos
 del updater y sus hashes sin iniciar ninguno de los ejecutables. El packaging
 desktop no reconstruye ni reemplaza el runtime DSH, que tiene su propia versión.
@@ -313,22 +321,9 @@ Sólo cuando cambie el runtime DSH
 se debe subir su versión en el manifest y ejecutar `pnpm package:runtime:release`;
 las versiones existentes del runtime son inmutables.
 
-El setup/portable más recientes son los artefactos alpha5 anteriores al fix, en
-`apps/shell/release-0.9.4-alpha5-candidate-20261014/` (setup: 178.630.999 bytes;
-SHA-256 `3117054ba2ee29c6c9993e7f7cdd525262f8d39e4f037e037c411142659d8a08`;
-portable: 178.255.861 bytes; SHA-256
-`79e03080494efcd9fc9f06311b1b4f78238e57b97fd2ea00ba97baa5513f520b`). El usuario
-ejecutó el setup tras precargar el runtime alpha5 y luego informó que aparece un
-solo modelo y fallan requests por upstream/API key, conexión y protocolo no
-soportado. La fuente corrige el orden de seeding, el presupuesto de probe de
-Muse Spark y el cooldown Tor falso por HTTP 400/401/403; los artefactos aún no
-incluyen esos cambios y quedan obsoletos. Las pruebas focalizadas y el typecheck
-pasaron; las dos pruebas que agotaron timeout en la suite completa pasaron
-aisladas (startup Tor 1/1; supervisor DSH 5/5, readiness en 80,1 s). Aún hay que
-repetir el gate completo y compilar nuevos artefactos. Usá la carpeta de salida nueva
-de arriba; no reutilices los archivos anteriores. El runtime alpha5 está
-verificado localmente pero no publicado; la instancia activa no se interrumpió
-y v0.9.4 sigue sin publicarse.
+Los hashes y fallos de los instaladores alpha5 anteriores se conservan como
+historia en las notas candidatas. Usá únicamente la salida alpha6 nueva y su
+preflight local; no se modificó la instancia activa.
 
 El usuario confirmó que la aplicación v0.9.3 instalada funciona en Windows x64.
 El portable no se probó con instalación por separado. El `smoke:nsis`

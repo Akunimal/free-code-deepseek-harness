@@ -344,6 +344,17 @@
         "packages/client/locale/tests/locale.client.spec.ts"
       ],
       "vendorOnly": true
+    },
+    {
+      "file": "173-freecode-recovery-export-resolution.patch",
+      "order": 173,
+      "owner": "freecode",
+      "description": "Resolve the pure recovery export consistently in Typert and the materialized runtime",
+      "seam": "tsconfig.base + session-persistence package build",
+      "contractTests": [
+        "scripts/vendor-client-contracts.test.mjs"
+      ],
+      "vendorOnly": true
     }
   ]
 }

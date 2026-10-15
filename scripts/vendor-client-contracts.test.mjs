@@ -101,6 +101,10 @@ test('the shared producer fixture belongs to the Host compiler, never the Client
 test('read-only recovery metadata has a Cordis-free Client import', () => {
   const manifest = JSON.parse(readFileSync(resolve(root, 'packages/session/session-persistence/package.json'), 'utf8'));
   assert.ok(manifest.exports['./recovery'], 'recovery metadata needs its own public leaf');
+  const config = ts.readConfigFile(resolve(root, 'tsconfig.base.json'), ts.sys.readFile).config;
+  assert.deepEqual(config.compilerOptions.paths['@deepseek-ai/dsh-session-persistence/recovery'],
+    ['./packages/session/session-persistence/src/recovery.ts'], 'Typert source analysis must resolve the same symbol as the exported leaf');
+  assert.match(readFileSync(resolve(root, 'packages/session/session-persistence/tsdown.config.ts'), 'utf8'), /index,recovery/);
   for (const file of [
     'packages/api/session-controller/src/types.ts',
     'packages/api/session-controller/src/client/contract/snapshot.ts',

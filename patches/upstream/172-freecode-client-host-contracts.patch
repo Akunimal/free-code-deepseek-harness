@@ -238,6 +238,33 @@ index 459c4db863..cfaa8c4634 100644
    it('declares the services it uses', () => {
      expect(inject).toEqual([
        'slots', 'sessions', 'locale', 'remote', 'remote.agentPresets', 'remote.settings', 'configForms',
+diff --git a/vendor/deepseek-harness/packages/client/ui-agent-preset/tests/entry.host.spec.ts b/vendor/deepseek-harness/packages/client/ui-agent-preset/tests/entry.host.spec.ts
+new file mode 100644
+index 0000000000..03e3430cb6
+--- /dev/null
++++ b/vendor/deepseek-harness/packages/client/ui-agent-preset/tests/entry.host.spec.ts
+@@ -0,0 +1,6 @@
++import { expect, it } from 'vitest'
++import { apply } from '../src/index.ts'
++
++it('keeps the host Loader entry inert', () => {
++  expect(apply).not.toThrow()
++})
+diff --git a/vendor/deepseek-harness/packages/client/ui-agent-preset/tsconfig.host.json b/vendor/deepseek-harness/packages/client/ui-agent-preset/tsconfig.host.json
+new file mode 100644
+index 0000000000..b98164619d
+--- /dev/null
++++ b/vendor/deepseek-harness/packages/client/ui-agent-preset/tsconfig.host.json
+@@ -0,0 +1,9 @@
++{
++  "extends": "../../../tsconfig.base.json",
++  "compilerOptions": {
++    "rootDir": "src",
++    "outDir": "lib/types",
++    "tsBuildInfoFile": "lib/tsconfig.host.tsbuildinfo"
++  },
++  "include": ["src/index.ts"]
++}
 diff --git a/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/phoenixPatterns.ts b/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/phoenixPatterns.ts
 index 92415ed74f..0273fae795 100644
 --- a/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/phoenixPatterns.ts
@@ -463,6 +490,83 @@ index 9642bd55f7..9c7cf278dd 100644
      expect(details('session_search', 'No prior session matches found.')?.summary).toBe('0 matches')
      expect(details('session_event_search', 'Session s1 — Session one\n\nNo prior event matches found.')?.summary).toBe('0 matches')
    })
+diff --git a/vendor/deepseek-harness/packages/client/ui-tool/tests/details-models.contract.ts b/vendor/deepseek-harness/packages/client/ui-tool/tests/details-models.contract.ts
+new file mode 100644
+index 0000000000..e9f73f2dd1
+--- /dev/null
++++ b/vendor/deepseek-harness/packages/client/ui-tool/tests/details-models.contract.ts
+@@ -0,0 +1,18 @@
++/** Only recorded text crosses the Host producer / Client adapter test boundary. */
++export interface DetailsProducerOutput {
++  terminalsEmpty: string
++  terminals: string
++  spawn: string
++  read: string
++  jobCompleted: string
++  jobExit: string
++  sessionSearch: string
++  eventSearch: string
++  trace: string
++  eventTrace: string
++  eventRead: string
++}
++
++export interface DetailsProducerFixture {
++  produceDetails(): DetailsProducerOutput
++}
+diff --git a/vendor/deepseek-harness/packages/client/ui-tool/tests/details-models.host-fixture.ts b/vendor/deepseek-harness/packages/client/ui-tool/tests/details-models.host-fixture.ts
+new file mode 100644
+index 0000000000..0f48638c76
+--- /dev/null
++++ b/vendor/deepseek-harness/packages/client/ui-tool/tests/details-models.host-fixture.ts
+@@ -0,0 +1,47 @@
++/** Real Host formatters; independently typechecked by the Host aggregate. */
++import { statusLine } from '@deepseek-ai/dsh-tool-jobs/src/render.ts'
++import { presentation } from '@deepseek-ai/dsh-tool-session-query/src/presentation.ts'
++import { renderList, renderRead, renderSpawn } from '@deepseek-ai/dsh-tool-terminal/src/render.ts'
++import type { DetailsProducerFixture } from './details-models.contract.ts'
++
++export const produceDetails: DetailsProducerFixture['produceDetails'] = () => {
++  const terminals = [
++    { sessionId: 'pty-1' as never, type: 'shell', status: { kind: 'running' as const } },
++    { sessionId: 'pty-2' as never, name: 'done', type: 'shell', pid: 4, status: { kind: 'exited' as const, exitCode: 2, signal: null } },
++  ]
++  const sessionRecord = (id: string, live: boolean, persisted: boolean) => ({
++    header: { id: id as never, createdAt: 1_000, parentSession: undefined }, live, persisted,
++  })
++  const session = sessionRecord('s1', true, true)
++  const hit = { ...session, bestMatch: { sessionId: 's1' as never, seq: 2, type: 'user/message', time: 2_000, surface: 'current', snippet: 'needle' } }
++  const title = { text: 'Session one' }
++  const titles = new Map([
++    ['s1' as never, title], ['s2' as never, { text: 'Child' }], ['s3' as never, { text: 'Grandchild' }],
++  ]) as Parameters<typeof presentation.formatSessionSearch>[1]
++  const event = { seq: 2, time: 2_000, type: 'tool/call', data: { name: 'x' } }
++  return {
++    terminalsEmpty: renderList([], 1000),
++    terminals: renderList(terminals, 1000),
++    spawn: renderSpawn({ sessionId: 'pty-1', type: 'shell', status: { kind: 'running' }, motd: 'ready' }, 1000),
++    read: renderRead({ text: 'line', totalLines: 2, lineBegin: 0, lineEnd: 1, truncated: true }, 1000),
++    jobCompleted: statusLine({ status: 'completed' }),
++    jobExit: statusLine({ status: 'completed', detail: 'exit code: 0' }),
++    sessionSearch: presentation.formatSessionSearch({ items: [hit as never], capped: true }, titles, new Set()),
++    eventSearch: presentation.formatEventSearch('s1' as never, title, {
++      items: [{ sessionId: 's1' as never, seq: 2 as never, type: 'tool/call', time: 2_000, surface: 'current', snippet: 'needle' }], capped: false,
++    }),
++    trace: presentation.formatSessionTrace(
++      { target: session as never, ancestors: [], descendants: [], complete: true, root: session as never } as never,
++      [], false, [{ record: sessionRecord('s2', true, true) as never, descendants: [{ record: sessionRecord('s3', true, true) as never, descendants: [] }] }], titles,
++    ),
++    eventTrace: presentation.formatEventTrace('s1' as never, title, {
++      session: { id: 's1' as never, createdAt: 1_000 } as never,
++      target: { sessionId: 's1' as never, seq: 2 as never, type: 'tool/call', time: 2_000, surface: 'current' },
++      replacementChain: [], replacedEventSeqs: [], sourceEventSeqs: [], derivedEventSeqs: [],
++    }),
++    eventRead: presentation.formatEventRead('s1' as never, title, {
++      session: {} as never, inheritedEventCount: 0 as never, target: event as never,
++      events: [event as never], startSeq: 2 as never, endSeq: 2 as never,
++    }),
++  }
++}
 diff --git a/vendor/deepseek-harness/packages/client/ui-tool/tests/spill-policy-terminal.client.spec.ts b/vendor/deepseek-harness/packages/client/ui-tool/tests/spill-policy-terminal.client.spec.ts
 index 149bbfc4ab..290cd36e3c 100644
 --- a/vendor/deepseek-harness/packages/client/ui-tool/tests/spill-policy-terminal.client.spec.ts
@@ -601,6 +705,159 @@ index 149bbfc4ab..290cd36e3c 100644
 
  describe.each([
    { location: 'root', nested: false },
+diff --git a/vendor/deepseek-harness/packages/client/ui-tool/tests/spill-policy-terminal.contract.ts b/vendor/deepseek-harness/packages/client/ui-tool/tests/spill-policy-terminal.contract.ts
+new file mode 100644
+index 0000000000..7bd47e31ff
+--- /dev/null
++++ b/vendor/deepseek-harness/packages/client/ui-tool/tests/spill-policy-terminal.contract.ts
+@@ -0,0 +1,26 @@
++import type { ContentBlock } from '@deepseek-ai/dsh-llm'
++import type { PartialArguments } from '@deepseek-ai/dsh-util-values'
++
++/** Structural wire value; the Client checks it against its actual card input. */
++export interface SpillTerminalBlock {
++  kind: 'tool-result'
++  seq: number
++  time: number
++  callTime: number | null
++  callId: string
++  parentCallId?: string
++  name: string
++  args: PartialArguments
++  call: { name: string; argsRaw: string }
++  content: readonly ContentBlock[]
++  isError: boolean
++  subCalls: readonly never[]
++}
++
++/** Pure value boundary shared by independently typechecked Host/Client tests. */
++export interface SpillTerminalFixture {
++  executeShell(text: string, nested: boolean, name?: string, maxInlineTokens?: number): Promise<{
++    block: SpillTerminalBlock
++    saves: { input: unknown; bytes: Buffer }[]
++  }>
++}
+diff --git a/vendor/deepseek-harness/packages/client/ui-tool/tests/spill-policy-terminal.host-fixture.ts b/vendor/deepseek-harness/packages/client/ui-tool/tests/spill-policy-terminal.host-fixture.ts
+new file mode 100644
+index 0000000000..222200e336
+--- /dev/null
++++ b/vendor/deepseek-harness/packages/client/ui-tool/tests/spill-policy-terminal.host-fixture.ts
+@@ -0,0 +1,115 @@
++/** Host-only producer, typechecked separately from Client Context services. */
++import { Context } from '@deepseek-ai/cordis'
++import type { Agent } from '@deepseek-ai/dsh-agent'
++import type { SpillTerminalBlock, SpillTerminalFixture } from './spill-policy-terminal.contract.ts'
++import { PtcRuntime } from '@deepseek-ai/dsh-ptc-runtime'
++import type { PtcRunRequest, PtcRunSpec, PtcRunResult } from '@deepseek-ai/dsh-ptc-runtime'
++import { ToolCallId } from '@deepseek-ai/dsh-llm'
++import { Session, SessionId } from '@deepseek-ai/dsh-session'
++import { SpillLocator, SpillStore, type SaveTextSpill, type SpillRef } from '@deepseek-ai/dsh-spill'
++import * as SpillPolicy from '@deepseek-ai/dsh-spill-policy'
++import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
++import ToolRuntime, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
++import { PartialArguments } from '@deepseek-ai/dsh-util-values'
++import { expect } from 'vitest'
++
++const spillReference = {
++  locator: SpillLocator('/spill/shell.txt'),
++  retrievalHint: 'Read the saved text.',
++}
++
++class MemorySpillStore extends SpillStore {
++  readonly saves: { input: SaveTextSpill; bytes: Buffer }[] = []
++
++  async saveText(input: SaveTextSpill): Promise<SpillRef> {
++    const bytes = Buffer.from(input.content, 'utf8')
++    this.saves.push({ input, bytes })
++    return {
++      ...spillReference,
++      bytes: bytes.length,
++    }
++  }
++}
++
++const shellArgs = { command: 'fixture-output', description: 'Return shell output fixture' }
++
++export const executeShell: SpillTerminalFixture['executeShell'] = async (text, nested, name = 'bash', maxInlineTokens = 256) => {
++  const ctx = new Context()
++  try {
++    await ctx.plugin(SystemPrompt)
++    await ctx.plugin(ToolRuntime, { mode: 'both' })
++    await ctx.plugin(MemorySpillStore)
++    await ctx.plugin(SpillPolicy, { maxInlineTokens })
++    if (nested) {
++      // The real registry and spill policy own nested output; evaluator execution has its own process suite.
++      class BindingRuntime extends PtcRuntime {
++        readonly language = 'typescript'
++        readonly isolation = 'fixture'
++        resolve(request: PtcRunRequest): PtcRunSpec {
++          return { ...request, cwd: process.cwd(), timeoutMs: 120_000 }
++        }
++        async run(spec: PtcRunSpec): Promise<PtcRunResult> {
++          const tool = spec.bindings.find(binding => binding.global === 'tools')?.functions[name]
++          if (tool === undefined) throw new Error('missing fixture binding')
++          const blocks = await tool(shellArgs)
++          expect(blocks).toEqual([{ type: 'text', text }])
++          return { logs: [], value: true }
++        }
++      }
++      await ctx.plugin(BindingRuntime)
++    }
++    ctx.effect(() => ctx.tools.register(defineContentToolFixture({
++      name,
++      description: 'Return deterministic shell text without spawning a process.',
++      parameters: {
++        command: { type: 'string', required: true },
++        description: { type: 'string', required: true },
++      },
++      async execute() { return [{ type: 'text', text }] },
++    })))
++    const session = Session.create(SessionId('spill-terminal'))
++    // The tool pipeline reads only the owner session; no agent loop runs here.
++    const agent = { session } as Agent
++    const callId = ToolCallId('shell-call')
++    const result = await ctx.tools.execute({
++      callId,
++      agent,
++      signal: new AbortController().signal,
++      name: nested ? 'run_code' : name,
++      arguments: nested ? {
++        code: `const blocks = await tools.${name}(${JSON.stringify(shellArgs)}); return blocks[0].text === ${JSON.stringify(text)};`,
++        description: 'Dispatch shell fixture through the tool pipeline',
++      } : shellArgs,
++    })
++    expect(result.isError).toBe(false)
++    if (result.isError) throw new Error('shell fixture execution failed')
++
++    let block: SpillTerminalBlock
++    if (nested) {
++      expect(result.value).toMatchObject({ result: true })
++      const dispatches = session.snapshotEvents().filter(event => event.type === 'tool/ptc-dispatch')
++      expect(dispatches).toHaveLength(1)
++      const event = dispatches[0]!
++      block = {
++        kind: 'tool-result', seq: event.seq, time: event.time, callTime: null,
++        callId: event.data.subCallId, parentCallId: event.data.parentCallId,
++        name: event.data.name, args: PartialArguments.fromText(JSON.stringify(event.data.arguments)),
++        call: { name: event.data.name, argsRaw: JSON.stringify(event.data.arguments) },
++        content: event.data.content, isError: event.data.isError, subCalls: [],
++      }
++    } else {
++      expect(result.value).toEqual([{ type: 'text', text }])
++      block = {
++        kind: 'tool-result', seq: 1, time: 1, callTime: null, callId,
++        name, args: PartialArguments.fromText(JSON.stringify(shellArgs)),
++        call: { name, argsRaw: JSON.stringify(shellArgs) },
++        content: result.content, isError: result.isError, subCalls: [],
++      }
++    }
++    expect(block.isError).toBe(false)
++    const saves = (ctx.spillStore as MemorySpillStore).saves
++    return { block, saves }
++  } finally {
++    await ctx.fiber.dispose()
++  }
++}
 diff --git a/vendor/deepseek-harness/packages/client/ui-user-questions/tests/question-reply.client.spec.ts b/vendor/deepseek-harness/packages/client/ui-user-questions/tests/question-reply.client.spec.ts
 index f7570515d4..5efc4a84af 100644
 --- a/vendor/deepseek-harness/packages/client/ui-user-questions/tests/question-reply.client.spec.ts
@@ -773,6 +1030,23 @@ index ae32ea840d..ed71d6140a 100644
  /** One persistence event slice returned by {@link SessionHandle.read}. */
  export interface SessionHandleReadResult {
    /**
+diff --git a/vendor/deepseek-harness/packages/session/session-persistence/src/recovery.ts b/vendor/deepseek-harness/packages/session/session-persistence/src/recovery.ts
+new file mode 100644
+index 0000000000..3b317bd1ef
+--- /dev/null
++++ b/vendor/deepseek-harness/packages/session/session-persistence/src/recovery.ts
+@@ -0,0 +1,11 @@
++/** Read-only recovery metadata shared by Host and Client, without service declarations. */
++export interface SessionHandleReadRecovery {
++  /** Recovery never rewrites the original artifact. */
++  readonly kind: 'invalid-tail'
++  /** First event omitted from the returned contiguous prefix. */
++  readonly firstInvalidSeq: number
++  /** Complete event rows omitted from the returned suffix. */
++  readonly discardedEvents: number
++  /** Bounded released-format diagnostic for logs and UI surfaces. */
++  readonly reason: string
++}
 diff --git a/vendor/deepseek-harness/packages/shell/pwsh-sandbox/tests/acl.e2e.ts b/vendor/deepseek-harness/packages/shell/pwsh-sandbox/tests/acl.e2e.ts
 index 27f157f9bc..040c19246e 100644
 --- a/vendor/deepseek-harness/packages/shell/pwsh-sandbox/tests/acl.e2e.ts
@@ -854,278 +1128,3 @@ index f61cdcfd0e..bb6aaf7773 100644
      { "path": "./packages/client/product-analytics/tsconfig.host.json" },
      { "path": "./packages/telemetry/otel" },
      { "path": "./packages/experimental/speech-to-text" },
-diff --git a/vendor/deepseek-harness/packages/client/ui-agent-preset/tests/entry.host.spec.ts b/vendor/deepseek-harness/packages/client/ui-agent-preset/tests/entry.host.spec.ts
-new file mode 100644
-index 0000000000..03e3430cb6
---- /dev/null
-+++ b/vendor/deepseek-harness/packages/client/ui-agent-preset/tests/entry.host.spec.ts
-@@ -0,0 +1,6 @@
-+import { expect, it } from 'vitest'
-+import { apply } from '../src/index.ts'
-+
-+it('keeps the host Loader entry inert', () => {
-+  expect(apply).not.toThrow()
-+})
-diff --git a/vendor/deepseek-harness/packages/client/ui-agent-preset/tsconfig.host.json b/vendor/deepseek-harness/packages/client/ui-agent-preset/tsconfig.host.json
-new file mode 100644
-index 0000000000..b98164619d
---- /dev/null
-+++ b/vendor/deepseek-harness/packages/client/ui-agent-preset/tsconfig.host.json
-@@ -0,0 +1,9 @@
-+{
-+  "extends": "../../../tsconfig.base.json",
-+  "compilerOptions": {
-+    "rootDir": "src",
-+    "outDir": "lib/types",
-+    "tsBuildInfoFile": "lib/tsconfig.host.tsbuildinfo"
-+  },
-+  "include": ["src/index.ts"]
-+}
-diff --git a/vendor/deepseek-harness/packages/client/ui-tool/tests/details-models.contract.ts b/vendor/deepseek-harness/packages/client/ui-tool/tests/details-models.contract.ts
-new file mode 100644
-index 0000000000..e9f73f2dd1
---- /dev/null
-+++ b/vendor/deepseek-harness/packages/client/ui-tool/tests/details-models.contract.ts
-@@ -0,0 +1,18 @@
-+/** Only recorded text crosses the Host producer / Client adapter test boundary. */
-+export interface DetailsProducerOutput {
-+  terminalsEmpty: string
-+  terminals: string
-+  spawn: string
-+  read: string
-+  jobCompleted: string
-+  jobExit: string
-+  sessionSearch: string
-+  eventSearch: string
-+  trace: string
-+  eventTrace: string
-+  eventRead: string
-+}
-+
-+export interface DetailsProducerFixture {
-+  produceDetails(): DetailsProducerOutput
-+}
-diff --git a/vendor/deepseek-harness/packages/client/ui-tool/tests/details-models.host-fixture.ts b/vendor/deepseek-harness/packages/client/ui-tool/tests/details-models.host-fixture.ts
-new file mode 100644
-index 0000000000..0f48638c76
---- /dev/null
-+++ b/vendor/deepseek-harness/packages/client/ui-tool/tests/details-models.host-fixture.ts
-@@ -0,0 +1,47 @@
-+/** Real Host formatters; independently typechecked by the Host aggregate. */
-+import { statusLine } from '@deepseek-ai/dsh-tool-jobs/src/render.ts'
-+import { presentation } from '@deepseek-ai/dsh-tool-session-query/src/presentation.ts'
-+import { renderList, renderRead, renderSpawn } from '@deepseek-ai/dsh-tool-terminal/src/render.ts'
-+import type { DetailsProducerFixture } from './details-models.contract.ts'
-+
-+export const produceDetails: DetailsProducerFixture['produceDetails'] = () => {
-+  const terminals = [
-+    { sessionId: 'pty-1' as never, type: 'shell', status: { kind: 'running' as const } },
-+    { sessionId: 'pty-2' as never, name: 'done', type: 'shell', pid: 4, status: { kind: 'exited' as const, exitCode: 2, signal: null } },
-+  ]
-+  const sessionRecord = (id: string, live: boolean, persisted: boolean) => ({
-+    header: { id: id as never, createdAt: 1_000, parentSession: undefined }, live, persisted,
-+  })
-+  const session = sessionRecord('s1', true, true)
-+  const hit = { ...session, bestMatch: { sessionId: 's1' as never, seq: 2, type: 'user/message', time: 2_000, surface: 'current', snippet: 'needle' } }
-+  const title = { text: 'Session one' }
-+  const titles = new Map([
-+    ['s1' as never, title], ['s2' as never, { text: 'Child' }], ['s3' as never, { text: 'Grandchild' }],
-+  ]) as Parameters<typeof presentation.formatSessionSearch>[1]
-+  const event = { seq: 2, time: 2_000, type: 'tool/call', data: { name: 'x' } }
-+  return {
-+    terminalsEmpty: renderList([], 1000),
-+    terminals: renderList(terminals, 1000),
-+    spawn: renderSpawn({ sessionId: 'pty-1', type: 'shell', status: { kind: 'running' }, motd: 'ready' }, 1000),
-+    read: renderRead({ text: 'line', totalLines: 2, lineBegin: 0, lineEnd: 1, truncated: true }, 1000),
-+    jobCompleted: statusLine({ status: 'completed' }),
-+    jobExit: statusLine({ status: 'completed', detail: 'exit code: 0' }),
-+    sessionSearch: presentation.formatSessionSearch({ items: [hit as never], capped: true }, titles, new Set()),
-+    eventSearch: presentation.formatEventSearch('s1' as never, title, {
-+      items: [{ sessionId: 's1' as never, seq: 2 as never, type: 'tool/call', time: 2_000, surface: 'current', snippet: 'needle' }], capped: false,
-+    }),
-+    trace: presentation.formatSessionTrace(
-+      { target: session as never, ancestors: [], descendants: [], complete: true, root: session as never } as never,
-+      [], false, [{ record: sessionRecord('s2', true, true) as never, descendants: [{ record: sessionRecord('s3', true, true) as never, descendants: [] }] }], titles,
-+    ),
-+    eventTrace: presentation.formatEventTrace('s1' as never, title, {
-+      session: { id: 's1' as never, createdAt: 1_000 } as never,
-+      target: { sessionId: 's1' as never, seq: 2 as never, type: 'tool/call', time: 2_000, surface: 'current' },
-+      replacementChain: [], replacedEventSeqs: [], sourceEventSeqs: [], derivedEventSeqs: [],
-+    }),
-+    eventRead: presentation.formatEventRead('s1' as never, title, {
-+      session: {} as never, inheritedEventCount: 0 as never, target: event as never,
-+      events: [event as never], startSeq: 2 as never, endSeq: 2 as never,
-+    }),
-+  }
-+}
-diff --git a/vendor/deepseek-harness/packages/client/ui-tool/tests/spill-policy-terminal.contract.ts b/vendor/deepseek-harness/packages/client/ui-tool/tests/spill-policy-terminal.contract.ts
-new file mode 100644
-index 0000000000..7bd47e31ff
---- /dev/null
-+++ b/vendor/deepseek-harness/packages/client/ui-tool/tests/spill-policy-terminal.contract.ts
-@@ -0,0 +1,26 @@
-+import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-+import type { PartialArguments } from '@deepseek-ai/dsh-util-values'
-+
-+/** Structural wire value; the Client checks it against its actual card input. */
-+export interface SpillTerminalBlock {
-+  kind: 'tool-result'
-+  seq: number
-+  time: number
-+  callTime: number | null
-+  callId: string
-+  parentCallId?: string
-+  name: string
-+  args: PartialArguments
-+  call: { name: string; argsRaw: string }
-+  content: readonly ContentBlock[]
-+  isError: boolean
-+  subCalls: readonly never[]
-+}
-+
-+/** Pure value boundary shared by independently typechecked Host/Client tests. */
-+export interface SpillTerminalFixture {
-+  executeShell(text: string, nested: boolean, name?: string, maxInlineTokens?: number): Promise<{
-+    block: SpillTerminalBlock
-+    saves: { input: unknown; bytes: Buffer }[]
-+  }>
-+}
-diff --git a/vendor/deepseek-harness/packages/client/ui-tool/tests/spill-policy-terminal.host-fixture.ts b/vendor/deepseek-harness/packages/client/ui-tool/tests/spill-policy-terminal.host-fixture.ts
-new file mode 100644
-index 0000000000..2e318c8047
---- /dev/null
-+++ b/vendor/deepseek-harness/packages/client/ui-tool/tests/spill-policy-terminal.host-fixture.ts
-@@ -0,0 +1,116 @@
-+/** Host-only producer, typechecked separately from Client Context services. */
-+import { Context } from '@deepseek-ai/cordis'
-+import type { Agent } from '@deepseek-ai/dsh-agent'
-+import type { SpillTerminalBlock, SpillTerminalFixture } from './spill-policy-terminal.contract.ts'
-+import { PtcRuntime } from '@deepseek-ai/dsh-ptc-runtime'
-+import type { PtcRunRequest, PtcRunSpec, PtcRunResult } from '@deepseek-ai/dsh-ptc-runtime'
-+import { ToolCallId } from '@deepseek-ai/dsh-llm'
-+import { Session, SessionId } from '@deepseek-ai/dsh-session'
-+import { SpillLocator, SpillStore, type SaveTextSpill, type SpillRef } from '@deepseek-ai/dsh-spill'
-+import * as SpillPolicy from '@deepseek-ai/dsh-spill-policy'
-+import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
-+import ToolRuntime, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
-+import { PartialArguments } from '@deepseek-ai/dsh-util-values'
-+import { expect } from 'vitest'
-+
-+const spillReference = {
-+  locator: SpillLocator('/spill/shell.txt'),
-+  retrievalHint: 'Read the saved text.',
-+}
-+
-+class MemorySpillStore extends SpillStore {
-+  readonly saves: { input: SaveTextSpill; bytes: Buffer }[] = []
-+
-+  async saveText(input: SaveTextSpill): Promise<SpillRef> {
-+    const bytes = Buffer.from(input.content, 'utf8')
-+    this.saves.push({ input, bytes })
-+    return {
-+      ...spillReference,
-+      bytes: bytes.length,
-+    }
-+  }
-+}
-+
-+const shellArgs = { command: 'fixture-output', description: 'Return shell output fixture' }
-+
-+export const executeShell: SpillTerminalFixture['executeShell'] = async (text, nested, name = 'bash', maxInlineTokens = 256) => {
-+  const ctx = new Context()
-+  try {
-+    await ctx.plugin(SystemPrompt)
-+    await ctx.plugin(ToolRuntime, { mode: 'both' })
-+    await ctx.plugin(MemorySpillStore)
-+    await ctx.plugin(SpillPolicy, { maxInlineTokens })
-+    if (nested) {
-+      // The real registry and spill policy own nested output; evaluator execution has its own process suite.
-+      class BindingRuntime extends PtcRuntime {
-+        readonly language = 'typescript'
-+        readonly isolation = 'fixture'
-+        resolve(request: PtcRunRequest): PtcRunSpec {
-+          return { ...request, cwd: process.cwd(), timeoutMs: 120_000 }
-+        }
-+        async run(spec: PtcRunSpec): Promise<PtcRunResult> {
-+          const tool = spec.bindings.find(binding => binding.global === 'tools')?.functions[name]
-+          if (tool === undefined) throw new Error('missing fixture binding')
-+          const blocks = await tool(shellArgs)
-+          expect(blocks).toEqual([{ type: 'text', text }])
-+          return { logs: [], value: true }
-+        }
-+      }
-+      await ctx.plugin(BindingRuntime)
-+    }
-+    ctx.effect(() => ctx.tools.register(defineContentToolFixture({
-+      name,
-+      description: 'Return deterministic shell text without spawning a process.',
-+      parameters: {
-+        command: { type: 'string', required: true },
-+        description: { type: 'string', required: true },
-+      },
-+      async execute() { return [{ type: 'text', text }] },
-+    })))
-+    const session = Session.create(SessionId('spill-terminal'))
-+    // The tool pipeline reads only the owner session; no agent loop runs here.
-+    const agent = { session } as Agent
-+    const callId = ToolCallId('shell-call')
-+    const result = await ctx.tools.execute({
-+      callId,
-+      agent,
-+      signal: new AbortController().signal,
-+      name: nested ? 'run_code' : name,
-+      arguments: nested ? {
-+        code: `const blocks = await tools.${name}(${JSON.stringify(shellArgs)}); return blocks[0].text === ${JSON.stringify(text)};`,
-+        description: 'Dispatch shell fixture through the tool pipeline',
-+      } : shellArgs,
-+    })
-+    expect(result.isError).toBe(false)
-+    if (result.isError) throw new Error('shell fixture execution failed')
-+
-+    let block: SpillTerminalBlock
-+    if (nested) {
-+      expect(result.value).toMatchObject({ result: true })
-+      const dispatches = session.snapshotEvents().filter(event => event.type === 'tool/ptc-dispatch')
-+      expect(dispatches).toHaveLength(1)
-+      const event = dispatches[0]!
-+      block = {
-+        kind: 'tool-result', seq: event.seq, time: event.time, callTime: null,
-+        callId: event.data.subCallId, parentCallId: event.data.parentCallId,
-+        name: event.data.name, args: PartialArguments.fromText(JSON.stringify(event.data.arguments)),
-+        call: { name: event.data.name, argsRaw: JSON.stringify(event.data.arguments) },
-+        content: event.data.content, isError: event.data.isError, subCalls: [],
-+      }
-+    } else {
-+      expect(result.value).toEqual([{ type: 'text', text }])
-+      block = {
-+        kind: 'tool-result', seq: 1, time: 1, callTime: null, callId,
-+        name, args: PartialArguments.fromText(JSON.stringify(shellArgs)),
-+        call: { name, argsRaw: JSON.stringify(shellArgs) },
-+        content: result.content, isError: result.isError, subCalls: [],
-+      }
-+    }
-+    expect(block.isError).toBe(false)
-+    const saves = (ctx.spillStore as MemorySpillStore).saves
-+    return { block, saves }
-+  } finally {
-+    await ctx.fiber.dispose()
-+  }
-+}
-+
-diff --git a/vendor/deepseek-harness/packages/session/session-persistence/src/recovery.ts b/vendor/deepseek-harness/packages/session/session-persistence/src/recovery.ts
-new file mode 100644
-index 0000000000..3b317bd1ef
---- /dev/null
-+++ b/vendor/deepseek-harness/packages/session/session-persistence/src/recovery.ts
-@@ -0,0 +1,11 @@
-+/** Read-only recovery metadata shared by Host and Client, without service declarations. */
-+export interface SessionHandleReadRecovery {
-+  /** Recovery never rewrites the original artifact. */
-+  readonly kind: 'invalid-tail'
-+  /** First event omitted from the returned contiguous prefix. */
-+  readonly firstInvalidSeq: number
-+  /** Complete event rows omitted from the returned suffix. */
-+  readonly discardedEvents: number
-+  /** Bounded released-format diagnostic for logs and UI surfaces. */
-+  readonly reason: string
-+}

@@ -2,6 +2,28 @@
 
 ## English
 
+### Current 0.9.4 candidate (alpha6)
+
+The new candidate targets `apps/shell/release-0.9.4-alpha6-20261015/` with
+DSH `0.2.1-alpha.6` and opencode2api v1.4.0. Previous alpha5 builds are
+superseded: the user reported only one model and connection/protocol errors.
+The active `profiles/web/cordis.patch.yml` now receives catalog/port changes
+through real Host HMR, not the boot-only legacy settings file. Public inference
+uses the documented OpenAI/Anthropic protocol namespace. Actual MIT Hermes
+Phoenix patterns run at 18 idle / 72 working steps per second, with reduced
+motion, visibility pause, resize and cleanup checks. Both strict compiler
+faces pass; workspace shell tests pass 346/346 and contracts 114 with 12
+configured skips. Live public completion remains unverified: two authorized
+connections were blocked by Windows before HTTP, and were not retried.
+Runtime build, exact staged visual proof and the final packaging gate are in
+progress. This is not publication or installation acceptance. For unpublished
+local testing, the distribution will include the matching runtime archive and
+`Prepare-Local-Runtime.ps1`: default CHECK ONLY; explicit closed-app consent is
+required to prepare cache with backups. It never starts setup or FreeCode.
+No tag, upload, installed-cache mutation or active-process action is authorized.
+V094-21 historical fixes remain included.
+
+
 **Status: candidate; not yet published.** v0.9.3 remains the latest published
 Windows x64 release. These notes describe the local source candidate, not a
 release announcement. The latest pre-fix alpha5 setup and portable are in
@@ -121,6 +143,27 @@ installer contains V094-21. The active FreeCode instance was not interrupted.
 No tag or public v0.9.4 release exists.
 
 ## Español
+
+### Candidata actual 0.9.4 (alpha6)
+
+La nueva candidata apunta a `apps/shell/release-0.9.4-alpha6-20261015/`, con
+DSH `0.2.1-alpha.6` y opencode2api v1.4.0. Los builds alpha5 anteriores quedan
+obsoletos: el usuario reportó un solo modelo y errores de conexión/protocolo.
+Ahora el catálogo/puerto se sincroniza con `profiles/web/cordis.patch.yml` y HMR
+del Host real, no con settings legado importado una sola vez. La inferencia
+pública usa el namespace OpenAI/Anthropic documentado. Los patrones MIT Hermes
+Phoenix reales funcionan a 18 pasos/s en reposo y 72 trabajando, con movimiento
+reducido, pausa al ocultar, resize y limpieza comprobados. Pasan ambos programas
+de tipado estricto, 346/346 pruebas shell y 114 contratos con 12 skips previstos.
+La respuesta pública real sigue sin verificarse: Windows bloqueó antes de HTTP
+las dos conexiones autorizadas y no se repitieron. Build runtime, evidencia
+visual del stage exacto y gate final de empaquetado están en curso. No equivale
+a publicación ni aceptación de instalación. La prueba local sin publicar tendrá
+el archivo runtime exacto y `Prepare-Local-Runtime.ps1`: por defecto CHECK ONLY;
+la precarga exige confirmación explícita de app cerrada y conserva backups.
+Nunca ejecuta setup ni FreeCode. No se autorizó tag, subida ni tocar caché o
+procesos activos. Se conservan los fixes históricos V094-21.
+
 
 **Estado: candidata; todavía no publicada.** v0.9.3 sigue siendo la última release
 publicada para Windows x64. Estas notas describen el código local, no anuncian

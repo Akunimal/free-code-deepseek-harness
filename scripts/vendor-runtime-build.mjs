@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, globSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { execFileSync } from 'node:child_process';
@@ -23,6 +23,33 @@ export function canReuseVendorInstall(vendor, platform) {
   } catch { return false; }
 }
 
+/** Avoid retaining hundreds of Rolldown graphs beside Typert's compiler model. */
+export async function buildRuntimePackages({ vendor, base, env, build }) {
+  const workspace = runtimeWorkspace(base.workspace);
+  const packages = [...globSync(workspace.include, { cwd: vendor, exclude: workspace.exclude })]
+    .filter(path => existsSync(join(vendor, path, 'package.json')))
+    .map(path => path.replaceAll('\\', '/'))
+    .sort((a, b) => a.localeCompare(b, 'en'));
+  if (packages.length === 0) throw new Error('vendor-runtime-build: no workspace packages');
+  for (let offset = 0; offset < packages.length; offset += 4) {
+    const include = packages.slice(offset, offset + 4);
+    console.log(`vendor-runtime-build: batch ${offset + 1}-${offset + include.length}/${packages.length}`);
+    // Resolve the root config once. In particular the shared Typert plugin's
+    // emit-once state must survive batches. Workspace-local configs still load
+    // normally through workspace.config; no artifacts or checks are skipped.
+    try {
+      await build({ ...base, cwd: vendor, config: false, env,
+        workspace: { ...workspace, include }, report: false });
+    } catch (error) {
+      // Package-local configs deliberately disable the other face. A batch
+      // consisting solely of those configs has no build (the combined upstream
+      // pass filters the same entries). Never swallow a real build failure.
+      if (!(error instanceof Error) || error.message !== 'No valid configuration found.') throw error;
+      console.log('vendor-runtime-build: this batch has no entries for the selected face');
+    }
+  }
+}
+
 async function main() {
   const root = resolve(import.meta.dirname, '..');
   const vendor = join(root, 'vendor/deepseek-harness');
@@ -41,8 +68,7 @@ async function main() {
   const base = typeof upstream === 'function' ? await upstream({ env }) : upstream;
   const { build } = await import(pathToFileURL(join(vendor, 'node_modules/tsdown/dist/index.mjs')).href);
   process.chdir(vendor);
-  await build({ cwd: vendor, config: configPath, configLoader: 'native', env,
-    workspace: runtimeWorkspace(base.workspace), report: false });
+  await buildRuntimePackages({ vendor, base, env, build });
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) await main();

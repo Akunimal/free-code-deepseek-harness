@@ -102,18 +102,16 @@ fi
 node "$ROOT/scripts/link-upstream-workspace-packages.mjs"
 
 echo "package-runtime: building upstream libraries and web app"
-# The vendored release currently has a host/client aggregate that includes
-# upstream tests with a newer TypeScript/Vite type mismatch. The package build
-# still emits the same production artifacts, so suppress type diagnostics only
-# for this artifact-generation step; our harness gates remain typechecked.
+# Both independent compiler faces must pass before their artifacts can ship.
+# Do not hide a new Host/Client contract regression during artifact generation.
 (
   cd "$VENDOR"
-  node node_modules/typescript/bin/tsc -b tsconfig.host.json --noCheck
+  node node_modules/typescript/bin/tsc -b tsconfig.host.json
 )
 node "$ROOT/scripts/vendor-runtime-build.mjs" host
 (
   cd "$VENDOR"
-  node node_modules/typescript/bin/tsc -b tsconfig.client.json --noCheck
+  node node_modules/typescript/bin/tsc -b tsconfig.client.json
 )
 node "$ROOT/scripts/vendor-runtime-build.mjs" client
 (
@@ -222,6 +220,8 @@ if [[ ! -f "$ROOT/apps/shell/resources/opencode2api/opencode2api-win-x64.exe" ]]
 fi
 cp "$ROOT/apps/shell/resources/opencode2api/opencode2api-win-x64.exe" "$OUT/opencode2api/"
 cp "$ROOT/apps/shell/resources/opencode2api/freecode-build-receipt.json" "$OUT/opencode2api/"
+cp "$ROOT/apps/shell/resources/opencode2api/LICENSE" "$OUT/opencode2api/"
+node "$ROOT/scripts/opencode2api-staging.mjs" --verify
 # The Windows release owns its OCR runtime. The helper copies only the native
 # executable/DLLs and language data, and fails closed when a release build host
 # does not provide the expected Tesseract installation.

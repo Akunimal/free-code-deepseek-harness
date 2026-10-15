@@ -1,0 +1,22 @@
+diff --git a/vendor/deepseek-harness/tsconfig.base.json b/vendor/deepseek-harness/tsconfig.base.json
+index f18926dcaf..2382f21d9f 100644
+--- a/vendor/deepseek-harness/tsconfig.base.json
++++ b/vendor/deepseek-harness/tsconfig.base.json
+@@ -434,6 +434,7 @@
+       "@deepseek-ai/dsh-session-log-deepseek": ["./packages/session/session-log-deepseek/src"],
+       "@deepseek-ai/dsh-session-log-export": ["./packages/session-query/session-log-export/src"],
+       "@deepseek-ai/dsh-session-persistence": ["./packages/session/session-persistence/src"],
++      "@deepseek-ai/dsh-session-persistence/recovery": ["./packages/session/session-persistence/src/recovery.ts"],
+       "@deepseek-ai/dsh-session-persistence-jsonl": ["./packages/session/session-persistence-jsonl/src"],
+       "@deepseek-ai/dsh-session-projection": ["./packages/session/session-projection/src"],
+       "@deepseek-ai/dsh-session-projection-cache": ["./packages/session/session-projection-cache/src"],
+diff --git a/vendor/deepseek-harness/packages/session/session-persistence/tsdown.config.ts b/vendor/deepseek-harness/packages/session/session-persistence/tsdown.config.ts
+new file mode 100644
+index 0000000000..695c74776b
+--- /dev/null
++++ b/vendor/deepseek-harness/packages/session/session-persistence/tsdown.config.ts
+@@ -0,0 +1,4 @@
++import { defineConfig } from 'tsdown'
++
++// The shared metadata leaf must exist at the public export after materializing.
++export default defineConfig({ entry: ['lib/types/{index,recovery}.js'] })

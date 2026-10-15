@@ -1,5 +1,28 @@
 # Release y packaging
 
+### Candidata actual 0.9.4 (alpha6)
+
+v0.9.4 no está publicado; v0.9.3 sigue como baseline publicada.
+
+La nueva candidata apunta a `apps/shell/release-0.9.4-alpha6-20261015/`, con
+DSH `0.2.1-alpha.6` y opencode2api v1.4.0. Los builds alpha5 anteriores quedan
+obsoletos: el usuario reportó un solo modelo y errores de conexión/protocolo.
+Ahora el catálogo/puerto se sincroniza con `profiles/web/cordis.patch.yml` y HMR
+del Host real, no con settings legado importado una sola vez. La inferencia
+pública usa el namespace OpenAI/Anthropic documentado. Los patrones MIT Hermes
+Phoenix reales funcionan a 18 pasos/s en reposo y 72 trabajando, con movimiento
+reducido, pausa al ocultar, resize y limpieza comprobados. Pasan ambos programas
+de tipado estricto, 346/346 pruebas shell y 114 contratos con 12 skips previstos.
+La respuesta pública real sigue sin verificarse: Windows bloqueó antes de HTTP
+las dos conexiones autorizadas y no se repitieron. Build runtime, evidencia
+visual del stage exacto y gate final de empaquetado están en curso. No equivale
+a publicación ni aceptación de instalación. La prueba local sin publicar tendrá
+el archivo runtime exacto y `Prepare-Local-Runtime.ps1`: por defecto CHECK ONLY;
+la precarga exige confirmación explícita de app cerrada y conserva backups.
+Nunca ejecuta setup ni FreeCode. No se autorizó tag, subida ni tocar caché o
+procesos activos. Se conservan los fixes históricos V094-21.
+
+
 Este repositorio es el fork público Akunimal/free-code-deepseek-harness de
 deepseek-ai/deepseek-harness. El código de producto vive fuera del subtree
 vendor/deepseek-harness cuando es posible; los cambios de upstream se
@@ -40,31 +63,12 @@ están en [AUDIT-0.6.0-TEST-PLAN.md](AUDIT-0.6.0-TEST-PLAN.md).
 
 El árbol de código actual es candidato: **v0.9.4 sigue sin publicarse**; v0.9.3
 es la última release publicada para Windows x64. Esta candidata incluye
-opencode2api v1.3.8, recuperación Tor, fondos empaquetados, Gentle AI y las
+opencode2api v1.4.0, recuperación Tor, fondos empaquetados, Gentle AI y las
 correcciones de catálogo/Tor V094-21. Ver
 [release-notes-v0.9.4.md](../release-notes-v0.9.4.md).
 
-El setup y portable alpha5 anteriores están en
-`apps/shell/release-0.9.4-alpha5-candidate-20261014/`: setup 178.630.999 bytes
-(SHA-256 `3117054ba2ee29c6c9993e7f7cdd525262f8d39e4f037e037c411142659d8a08`),
-portable 178.255.861 bytes (SHA-256
-`79e03080494efcd9fc9f06311b1b4f78238e57b97fd2ea00ba97baa5513f520b`). El usuario
-ejecutó el setup tras precargar alpha5 y luego informó que aparece un solo modelo
-y fallan requests por upstream, API key, conexión y protocolo no soportado. La
-causa fue que DSH arrancaba con settings obsoletos, el probe de Muse Spark usaba
-menos de 16 tokens de salida y los 401/403 enfriaban la ruta anónima Tor. La
-fuente ya corrige esos tres puntos; los binarios anteriores no los incluyen y
-quedaron obsoletos. Pruebas focalizadas shell: 35/35; typecheck pasó y Go: 43/43
-en 13 paquetes. El
-último run completo tuvo timeout de 15 s en startup Tor y de 120 s en readiness
-DSH. Ambas pruebas pasaron luego aisladas: Tor 1/1 (1,58 s) y supervisor 5/5
-(102,47 s total; readiness real del CLI DSH en 80,10 s). Falta nuevo build y
-gate completo en
-`apps/shell/release-0.9.4-model-resilience-20261015/`. El runtime alpha5 está
-verificado localmente (421.377.684 bytes; SHA-256
-`26953ba93ab1daab8d837c2980f1f5f9c0a60f65677ac48fc973300f5b2229f2`) pero no se
-publicó; una instalación limpia necesita ese asset exacto. No se interrumpió la
-instancia activa. No existe tag ni release v0.9.4.
+Los intentos alpha5 anteriores y sus hashes se conservan como historia en
+las notas candidatas; no deben instalarse ni publicarse como esta candidata.
 
 ## Build local de Windows
 
@@ -78,9 +82,9 @@ tarball.
 pnpm install --frozen-lockfile
 pnpm package:runtime:release
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-model-resilience-20261015'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha6-20261015'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-model-resilience-20261015
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha6-20261015
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 

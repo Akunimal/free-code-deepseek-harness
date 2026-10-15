@@ -1,5 +1,27 @@
 # Release policy
 
+### Current 0.9.4 candidate (alpha6)
+
+The new candidate targets `apps/shell/release-0.9.4-alpha6-20261015/` with
+DSH `0.2.1-alpha.6` and opencode2api v1.4.0. Previous alpha5 builds are
+superseded: the user reported only one model and connection/protocol errors.
+The active `profiles/web/cordis.patch.yml` now receives catalog/port changes
+through real Host HMR, not the boot-only legacy settings file. Public inference
+uses the documented OpenAI/Anthropic protocol namespace. Actual MIT Hermes
+Phoenix patterns run at 18 idle / 72 working steps per second, with reduced
+motion, visibility pause, resize and cleanup checks. Both strict compiler
+faces pass; workspace shell tests pass 346/346 and contracts 114 with 12
+configured skips. Live public completion remains unverified: two authorized
+connections were blocked by Windows before HTTP, and were not retried.
+Runtime build, exact staged visual proof and the final packaging gate are in
+progress. This is not publication or installation acceptance. For unpublished
+local testing, the distribution will include the matching runtime archive and
+`Prepare-Local-Runtime.ps1`: default CHECK ONLY; explicit closed-app consent is
+required to prepare cache with backups. It never starts setup or FreeCode.
+No tag, upload, installed-cache mutation or active-process action is authorized.
+V094-21 historical fixes remain included.
+
+
 Releases are manual and target Windows x64. This policy describes the real
 desktop/runtime boundary used by v0.9.3; it does not authorize touching a
 maintainer's running FreeCode instance.
@@ -32,7 +54,7 @@ Only obsolete app-owned configuration and verified caches are retired at the
 next startup; unrelated providers and sessions are preserved.
 
 The verified desktop artifacts are in the unique output directory
-`apps/shell/release-0.9.4-model-resilience-20261015/`; do not reuse or overwrite
+`apps/shell/release-0.9.4-alpha6-20261015/`; do not reuse or overwrite
 the superseded alpha5 candidate directory.
 
 After changing opencode2api source or its active fork overlay, rebuild with
@@ -81,9 +103,9 @@ artifacts into a new, isolated output directory and verify that exact directory:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha5-candidate-20261014'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha6-20261015'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha5-candidate-20261014
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha6-20261015
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 

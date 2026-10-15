@@ -7,6 +7,17 @@ unpublished candidate; v0.9.3 remains the latest published Windows x64 release.
 
 ### Reliability / Confiabilidad
 
+- Model updates now target the active DSH profile (`cordis.patch.yml`) with
+  verified hot reload, rather than the legacy one-time import. Public free
+  requests use the protocol-qualified v1.4.0 inference route. / Los modelos
+  ahora actualizan el perfil activo y recargan sin reinicio; la ruta pública
+  v1.4.0 usa el namespace de protocolo correcto.
+- The candidate requires the new immutable DSH `0.2.1-alpha.6`. Strict Host
+  and Client builds pass independently; Hermes indexed access and Spanish
+  dictionary contracts are enforced. Old alpha5 installers do not contain
+  these repairs. / La candidata requiere alpha6 nuevo e inmutable; ambos
+  builds estrictos pasan y los instaladores alpha5 anteriores no lo contienen.
+
 - Updated vendored opencode2api to v1.4.0 with persistent manual model choice,
   transient-probe recovery, and stable request/session identity contracts. The
   FreeCode direct-first then Tor-on-non-2xx policy remains covered by tests. /

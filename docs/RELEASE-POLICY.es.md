@@ -1,5 +1,28 @@
 # Política de releases
 
+### Candidata actual 0.9.4 (alpha6)
+
+v0.9.4 no está publicado; v0.9.3 sigue como baseline publicada.
+
+La nueva candidata apunta a `apps/shell/release-0.9.4-alpha6-20261015/`, con
+DSH `0.2.1-alpha.6` y opencode2api v1.4.0. Los builds alpha5 anteriores quedan
+obsoletos: el usuario reportó un solo modelo y errores de conexión/protocolo.
+Ahora el catálogo/puerto se sincroniza con `profiles/web/cordis.patch.yml` y HMR
+del Host real, no con settings legado importado una sola vez. La inferencia
+pública usa el namespace OpenAI/Anthropic documentado. Los patrones MIT Hermes
+Phoenix reales funcionan a 18 pasos/s en reposo y 72 trabajando, con movimiento
+reducido, pausa al ocultar, resize y limpieza comprobados. Pasan ambos programas
+de tipado estricto, 346/346 pruebas shell y 114 contratos con 12 skips previstos.
+La respuesta pública real sigue sin verificarse: Windows bloqueó antes de HTTP
+las dos conexiones autorizadas y no se repitieron. Build runtime, evidencia
+visual del stage exacto y gate final de empaquetado están en curso. No equivale
+a publicación ni aceptación de instalación. La prueba local sin publicar tendrá
+el archivo runtime exacto y `Prepare-Local-Runtime.ps1`: por defecto CHECK ONLY;
+la precarga exige confirmación explícita de app cerrada y conserva backups.
+Nunca ejecuta setup ni FreeCode. No se autorizó tag, subida ni tocar caché o
+procesos activos. Se conservan los fixes históricos V094-21.
+
+
 Las releases son manuales y tienen como target Windows x64. Esta política
 describe el límite real entre la app desktop y el runtime para v0.9.3; no
 autoriza a tocar una instancia de FreeCode que esté en ejecución.
@@ -18,7 +41,7 @@ evidencia histórica de la release publicada y no deben sobrescribirse.
 ## Contenido de la release y runtime fijado
 
 El candidato v0.9.4 cambia los fondos de DSH y prioriza el navegador en el prompt.
-Fija `0.2.1-alpha.5` en `apps/shell/harness-runtime.json`. El runtime se regeneró
+Fija `0.2.1-alpha.6` en `apps/shell/harness-runtime.json`. El runtime se regeneró
 antes de empaquetar; el gate de stage rechaza stages obsoletos
 alpha2/alpha3/alpha4. Los archivos runtime existentes son inmutables. El tarball
 alpha5 ya se generó localmente y se verificó:
@@ -34,7 +57,7 @@ elimina solo config antigua propia y cachés verificadas; conserva proveedores e
 historial ajenos.
 
 La nueva salida pendiente usa el directorio único
-`apps/shell/release-0.9.4-model-resilience-20261015/`; no reutilices ni
+`apps/shell/release-0.9.4-alpha6-20261015/`; no reutilices ni
 sobrescribas el directorio obsoleto de la candidata alpha5.
 
 Tras cambiar opencode2api o su overlay activo, recompilá con
@@ -79,9 +102,9 @@ nueva y aislada, y verificá exactamente esa carpeta:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha5-candidate-20261014'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha6-20261015'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha5-candidate-20261014
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha6-20261015
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
