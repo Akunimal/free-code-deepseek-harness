@@ -26,7 +26,6 @@ const IpcChannels = {
   mcpStatus: 'mcp:status',
   harnessRestart: 'harness:restart',
   torStatus: 'tor:status',
-  torRotate: 'tor:rotate',
   torGetStatus: 'tor:getStatus',
   torStart: 'tor:start',
   torStop: 'tor:stop',
@@ -81,7 +80,6 @@ const api: FreeCodeApi = {
     },
   },
   tor: {
-    rotate: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.torRotate),
     getStatus: (): Promise<TorStatus | null> => ipcRenderer.invoke(IpcChannels.torGetStatus),
     start: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.torStart),
     stop: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.torStop),

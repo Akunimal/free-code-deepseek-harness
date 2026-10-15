@@ -26,11 +26,8 @@ describe('native shell locale', () => {
   it('covers the Tor overlay block in all three locales', () => {
     const keys = [
       'overlay.torTitle',
-      'overlay.torRotate',
-      'overlay.torRotating',
       'overlay.torLoading',
-      'overlay.torRotated',
-      'overlay.torRotateFailed',
+      'overlay.torOperationFailed',
       'overlay.torUnavailable',
       'overlay.torCancelStarting',
       'overlay.directOnly',

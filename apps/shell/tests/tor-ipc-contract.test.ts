@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { IpcChannels, TorStatusSchema } from '@freecode/shared-types';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
-describe('Tor IPC contract (0.9.1)', () => {
-  it('exposes tor:getStatus alongside tor:status/tor:rotate', () => {
+const root = join(import.meta.dirname, '../../..');
+
+describe('Tor IPC contract (0.9.4)', () => {
+  it('exposes Tor status and lifecycle without the overlay rotation channel', () => {
     expect(IpcChannels.torStatus).toBe('tor:status');
-    expect(IpcChannels.torRotate).toBe('tor:rotate');
     expect(IpcChannels.torGetStatus).toBe('tor:getStatus');
     expect(IpcChannels.torStart).toBe('tor:start');
     expect(IpcChannels.torStop).toBe('tor:stop');
@@ -36,5 +39,13 @@ describe('Tor IPC contract (0.9.1)', () => {
       lastError: 'nope',
     };
     expect(() => TorStatusSchema.parse(bad)).toThrow();
+  });
+
+  it('does not expose the removed overlay-only rotate bridge', () => {
+    expect(IpcChannels).not.toHaveProperty('torRotate');
+    const preload = readFileSync(join(root, 'apps/shell/src/preload/index.ts'), 'utf8');
+    const mainIpc = readFileSync(join(root, 'apps/shell/src/main/ipc.ts'), 'utf8');
+    expect(preload).not.toContain('torRotate');
+    expect(mainIpc).not.toContain('IpcChannels.torRotate');
   });
 });

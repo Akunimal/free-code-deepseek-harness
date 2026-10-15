@@ -193,12 +193,6 @@ export function registerIpc(deps: IpcDeps): () => void {
     return extractText(buffer, { lang: parsed.lang });
   });
 
-  // tor:rotate — trigger manual SIGNAL NEWNYM rotation
-  ipcMain.handle(IpcChannels.torRotate, async () => {
-    if (!deps.torManager) return false;
-    return deps.torManager.rotateIdentity();
-  });
-
   // tor:getStatus — snapshot for surfaces opened after the last push
   // (e.g. the pool overlay). Returns null when Tor is not configured.
   ipcMain.handle(IpcChannels.torGetStatus, () => {
@@ -242,7 +236,6 @@ export function registerIpc(deps: IpcDeps): () => void {
     ipcMain.removeHandler(IpcChannels.mcpGetState);
     ipcMain.removeHandler(IpcChannels.mcpSetEnabled);
     ipcMain.removeHandler(IpcChannels.mcpOpenConfig);
-    ipcMain.removeHandler(IpcChannels.torRotate);
     ipcMain.removeHandler(IpcChannels.torGetStatus);
     ipcMain.removeHandler(IpcChannels.torStart);
     ipcMain.removeHandler(IpcChannels.torStop);

@@ -55,7 +55,6 @@ export const IpcChannels = {
   mcpStatus: 'mcp:status',
   harnessRestart: 'harness:restart',
   torStatus: 'tor:status',
-  torRotate: 'tor:rotate',
   torGetStatus: 'tor:getStatus',
   torStart: 'tor:start',
   torStop: 'tor:stop',
@@ -83,7 +82,6 @@ export interface IpcPayloads {
   [IpcChannels.mcpStatus]: McpRuntimeStatus;
   [IpcChannels.harnessRestart]: void;
   [IpcChannels.torStatus]: TorStatus;
-  [IpcChannels.torRotate]: void;
   [IpcChannels.torGetStatus]: void;
   [IpcChannels.torStart]: void;
   [IpcChannels.torStop]: void;
@@ -168,7 +166,6 @@ export interface FreeCodeApi {
     onStatus(cb: (status: McpRuntimeStatus) => void): () => void;
   };
   tor: {
-    rotate(): Promise<boolean>;
     getStatus(): Promise<TorStatus | null>;
     start(): Promise<boolean>;
     stop(): Promise<boolean>;

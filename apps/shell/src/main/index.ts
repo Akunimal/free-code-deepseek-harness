@@ -595,7 +595,7 @@ table,button,label{-webkit-app-region:no-drag}
 table{width:100%;border-collapse:collapse}
 td,th{border:1px solid #2a2f3a;padding:6px 8px;font-size:12px;text-align:left}
 th{background:#1a1e27}
-button{background:#ff7a00;border:0;color:#000;padding:8px 12px;border-radius:6px;cursor:pointer;font-weight:600}
+button{background:#2a2f3a;border:0;color:#d7dae2;padding:8px 12px;border-radius:6px;cursor:pointer;font-weight:600}
 button:disabled{opacity:.55;cursor:default}
 .close-btn{position:fixed;top:8px;right:8px;background:transparent;color:#9da4b3;font-size:18px;padding:4px 10px;border-radius:4px;-webkit-app-region:no-drag}
 .close-btn:hover{background:#2a2f3a;color:#fff}
@@ -615,7 +615,6 @@ button:disabled{opacity:.55;cursor:default}
 </div>
 <div style="display:flex;gap:8px;margin-bottom:8px">
   <button id="tor-toggle-btn" class="tor-toggle" onclick="window.__torToggle()">${escapeOverlayHtml(t('overlay.torDisable'))}</button>
-  <button id="tor-rotate-btn" style="padding:8px 12px;font-size:12px" onclick="window.__torRotate()">${escapeOverlayHtml(t('overlay.torRotate'))}</button>
 </div>
 <div id="tor-direct" class="tor-direct">${escapeOverlayHtml(t('overlay.directOnly'))}</div>
 <div id="tor-msg" class="tor-msg" role="status"></div>
@@ -626,11 +625,8 @@ button:disabled{opacity:.55;cursor:default}
 var torLabels = ${JSON.stringify(torStatusLabels)};
 var torYes = ${JSON.stringify(t('common.yes'))};
 var torNo = ${JSON.stringify(t('common.no'))};
-var torRotating = ${JSON.stringify(t('overlay.torRotating'))};
-var torRotated = ${JSON.stringify(t('overlay.torRotated'))};
-var torRotateFailed = ${JSON.stringify(t('overlay.torRotateFailed'))};
+var torOperationFailed = ${JSON.stringify(t('overlay.torOperationFailed'))};
 var torUnavailableLabel = ${JSON.stringify(t('overlay.torUnavailable'))};
-var torRotateLabel = ${JSON.stringify(t('overlay.torRotate'))};
 var torRouteDirect = ${JSON.stringify(t('overlay.routeDirect'))};
 var torRouteTor = ${JSON.stringify(t('overlay.routeTor'))};
 var torEnableLabel = ${JSON.stringify(t('overlay.torEnable'))};
@@ -638,14 +634,12 @@ var torCancelStartingLabel = ${JSON.stringify(t('overlay.torCancelStarting'))};
 var torDisableLabel = ${JSON.stringify(t('overlay.torDisable'))};
 var torStartingLabel = ${JSON.stringify(t('overlay.torStarting'))};
 var torStoppingLabel = ${JSON.stringify(t('overlay.torStopping'))};
-var torCooldownUntil = 0;
 function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 function renderTor(s) {
   var tbody = document.getElementById('tor-rows');
   var direct = document.getElementById('tor-direct');
-  var btn = document.getElementById('tor-rotate-btn');
   var toggle = document.getElementById('tor-toggle-btn');
   var pill = document.getElementById('tor-route');
   var msg = document.getElementById('tor-msg');
@@ -653,7 +647,6 @@ function renderTor(s) {
   if (!s) {
     tbody.innerHTML = '<tr><td colspan="5" style="color:#9da4b3">' + esc(torUnavailableLabel) + '</td></tr>';
     if (direct) direct.style.display = 'block';
-    if (btn) btn.disabled = true;
     if (pill) pill.textContent = torRouteDirect;
     if (toggle) { toggle.disabled = false; toggle.textContent = torEnableLabel; }
     if (msg) msg.textContent = torUnavailableLabel;
@@ -667,27 +660,9 @@ function renderTor(s) {
     toggle.textContent = starting ? torCancelStartingLabel : s.active ? torDisableLabel : torEnableLabel;
     toggle.disabled = false;
   }
-  if (btn) btn.disabled = !s.active;
   if (msg) msg.textContent = s.status === 'failed' && s.lastError ? s.lastError : '';
   tbody.innerHTML = '<tr><td>'+(s.active ? esc(torYes) : esc(torNo))+'</td><td>'+esc(torLabels[s.status] || s.status)+'</td><td>127.0.0.1:'+s.socksPort+'</td><td>127.0.0.1:'+s.controlPort+'</td><td>'+s.pid+'</td></tr>';
 }
-window.__torRotate = function() {
-  var btn = document.getElementById('tor-rotate-btn');
-  var msg = document.getElementById('tor-msg');
-  var now = Date.now();
-  if (now < torCooldownUntil) return;
-  torCooldownUntil = now + 10000;
-  if (btn) { btn.disabled = true; btn.textContent = torRotating; }
-  if (msg) msg.textContent = torRotating;
-  window.freecode.tor.rotate().then(function(ok) {
-    if (msg) msg.textContent = ok ? torRotated : torRotateFailed;
-    return window.freecode.tor.getStatus().then(renderTor, function() {});
-  }).catch(function() {
-    if (msg) msg.textContent = torRotateFailed;
-  }).then(function() {
-    setTimeout(function() { if (btn) { btn.disabled = false; btn.textContent = torRotateLabel; } }, 10000);
-  });
-};
 window.__torToggle = function() {
   var toggle = document.getElementById('tor-toggle-btn');
   var msg = document.getElementById('tor-msg');
@@ -700,7 +675,7 @@ window.__torToggle = function() {
       return window.freecode.tor.getStatus().then(renderTor, function() {});
     });
   }).catch(function() {
-    if (msg) msg.textContent = torRotateFailed;
+    if (msg) msg.textContent = torOperationFailed;
   }).then(function() {
     if (toggle) { toggle.disabled = false; delete toggle.dataset.busy; }
     return window.freecode.tor.getStatus().then(renderTor, function() {});

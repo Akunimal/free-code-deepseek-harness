@@ -61,4 +61,17 @@ describe('Tor direct-first recovery route', () => {
     expect(source).toContain('torCancelStartingLabel')
     expect(source).toContain("s.active || s.status === 'starting'")
   })
+
+  it('removes the orange NEWNYM overlay control but preserves the green toggle and menu action', () => {
+    const source = readFileSync(join(root, 'apps/shell/src/main/index.ts'), 'utf8')
+    expect(source).not.toContain('tor-rotate-btn')
+    expect(source).not.toContain('window.__torRotate')
+    expect(source).not.toContain('background:#ff7a00')
+    expect(source).not.toContain('NEWNYM')
+    expect(source).toContain('id="tor-toggle-btn"')
+    expect(source).toContain('window.__torToggle()')
+    expect(source).toContain("label: t('menu.rotateTor')")
+    expect(source).toContain('torManager?.rotateIdentity()')
+    expect(source).toContain('var torOperationFailed =')
+  })
 })
