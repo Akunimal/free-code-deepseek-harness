@@ -54,18 +54,20 @@ RTK and Caveman are not enabled together by default: they may complement each ot
    bundles are guarded against stale CSS.
 4. **Agent selector / Selector de agentes** — Gentle AI restored as an explicit
    opt-in Web mode; Standard remains the default.
-5. **Runtime integrity / Integridad runtime** — DSH alpha4 and opencode2api
-   version/SHA pins match the locally built artifacts; optional PATH fallbacks
-   do not fail the required-runtime check. Alpha4 is not published remotely.
-6. **Release state / Estado de release** — source is 0.9.4 candidate; the
-   complete release gate passed and fresh setup/portable are hash-verified under
-   `apps/shell/release-0.9.4-candidate-refresh-20261014/`. The setup ran after
-   confirmation that FreeCode was closed (NSIS exit 0), but its post-install
-   launch could not find the unpublished alpha4 runtime asset. A user-authorized
-   local alpha4 cache seed preserved the prior alpha3 cache; the app has not
-   been retried. Startup, Tor and backgrounds await user verification; other
-   installs still need the exact-version runtime release asset. v0.9.3 remains
-   latest.
+5. **Runtime integrity / Integridad runtime** — source now pins DSH alpha5 and
+   opencode2api version/SHA pins match the locally built artifacts; optional
+   PATH fallbacks do not fail the required-runtime check. The alpha5 archive and
+   checksum are locally generated/verified, not published; alpha4 cache and
+   artifacts are superseded.
+6. **Release state / Estado de release** — source remains unpublished v0.9.4.
+   The previous alpha4 setup was run after FreeCode was confirmed closed, but its
+   post-install launch could not find the unpublished alpha4 runtime. The
+   authorized alpha4 local cache seed did not prove a successful startup and
+    does not satisfy alpha5. The alpha5 desktop setup/portable were generated and
+    statically verified in `apps/shell/release-0.9.4-alpha5-candidate-20261014/`,
+    and the full release gate passed. The new setup was not executed; the app has
+    not been restarted or retested.
+   v0.9.3 remains latest.
 
 ## Completado / Completed
 

@@ -46,16 +46,30 @@ NSIS smoke profile, packaged conversation-background verification, and the
 restored opt-in Gentle AI selector mode. Candidate notes are in
 [release-notes-v0.9.4.md](../release-notes-v0.9.4.md).
 
-The fresh local setup and portable were built and SHA-256-verified in
-`apps/shell/release-0.9.4-candidate-refresh-20261014/`. The one-click setup was
+The earlier alpha4 setup and portable were built and verified in
+`apps/shell/release-0.9.4-candidate-refresh-20261014/`. The alpha4 setup was
 executed after confirmation that FreeCode was closed; NSIS returned exit code 0.
-Its normal post-install launch reported that no DSH alpha4 asset exists for the
-packaged version, because the installer excludes DSH and alpha4 is unpublished.
-With separate user authorization, the verified alpha4 runtime was seeded into
-this machine's per-user cache, preserving the previous alpha3 cache as a backup.
-The app has not been retried, so startup, Tor and backgrounds await user
-verification; other installations still need the exact-version release asset.
-No v0.9.4 tag or release has been created.
+Its normal post-install launch reported `No harness runtime asset for packaged
+version 0.2.1-alpha.4 (win32-x64)`. The verified local alpha4 runtime was seeded
+while the previous alpha3 cache was preserved as a backup. Startup, Tor and
+backgrounds still await user verification for that installed build. These are
+historical facts for the superseded alpha4 candidate. The current source pins
+`0.2.1-alpha.5`; its local runtime archive and SHA-256 are verified
+(`421,377,684` bytes; `26953ba93ab1daab8d837c2980f1f5f9c0a60f65677ac48fc973300f5b2229f2`).
+A full tar listing succeeded and its embedded manifest reports alpha5, Electron
+ABI 149 and the intended CLI entry. Stage verification also passed all 21
+packaged headless-process contracts and found the conversation CSS/motion rules.
+The refreshed setup/portable were generated and verified in
+`apps/shell/release-0.9.4-alpha5-candidate-20261014/`; the full Windows release
+gate passed, including the timed rendered-motion check and static NSIS compile.
+Setup: `FreeCode-DeepSeek-Harness-0.9.4-win-x64-setup.exe` (178,630,999 bytes,
+SHA-256 `3117054ba2ee29c6c9993e7f7cdd525262f8d39e4f037e037c411142659d8a08`).
+Portable: `FreeCode-DeepSeek-Harness-0.9.4-win-x64-portable.exe` (178,255,861
+bytes, SHA-256 `79e03080494efcd9fc9f06311b1b4f78238e57b97fd2ea00ba97baa5513f520b`).
+The runtime archive is not published, so a clean install still needs that exact
+asset attached to a release. The alpha4 cache cannot satisfy alpha5. The app has
+not been restarted or retested, and the candidate setup was not executed. No
+v0.9.4 tag or release has been created.
 
 ## Local Windows build
 
@@ -67,16 +81,17 @@ runtime archive.
 
 ```powershell
 pnpm install --frozen-lockfile
+pnpm package:runtime:release
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-candidate-refresh-20261014'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha5-candidate-20261014'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-candidate-refresh-20261014
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha5-candidate-20261014
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 The gate runs tests, contracts, typechecks, build/prepackage validation, an
 offline MCP integration smoke using repository-owned stdio fixtures and a
-loopback mock provider, verifies the v0.2.1-alpha.4 runtime SHA-256 in place,
+loopback mock provider, verifies the v0.2.1-alpha.5 runtime SHA-256 in place,
 and builds one exact NSIS package into an OS-temporary directory for static
 validation. Smoke processes use scratch-only profile/cache/temp paths and the
 MCP smoke does not inherit maintainer credentials or execute third-party

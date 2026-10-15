@@ -4,21 +4,31 @@ Las releases son manuales y tienen como target Windows x64. Esta política
 describe el límite real entre la app desktop y el runtime para v0.9.3; no
 autoriza a tocar una instancia de FreeCode que esté en ejecución.
 
-La versión actual de la fuente es candidata v0.9.4 y sigue sin publicar hasta
-completar su validación. Los artefactos y hashes v0.9.3 que siguen abajo son
+La versión actual de la fuente es candidata v0.9.4. La validación local terminó,
+pero publicar y subir el asset runtime requiere autorización aparte. Los
+artefactos y hashes v0.9.3 que siguen abajo son
 evidencia histórica de la release publicada y no deben sobrescribirse.
 
 ## Contenido de la release y runtime fijado
 
 El candidato v0.9.4 cambia los fondos de DSH y prioriza el navegador en el prompt.
-Fija el runtime `0.2.1-alpha.4` en `apps/shell/harness-runtime.json`. El stage
-alpha4 se regeneró localmente y el gate verificó SHA-256, ABI de Electron y
-versión de Node; no está publicado de forma remota, así que el primer DSH del
-instalador candidato requiere una caché local válida o un asset publicado.
-Nunca presentes el archivo local como descarga de una release. Los stages
-alpha2/alpha3 siguen inmutables. Se retiró OmniRoute: sin fallback, descarga,
-servidor ni detector. El próximo inicio elimina solo config antigua propia y
-cachés verificadas; conserva proveedores e historial ajenos.
+Fija `0.2.1-alpha.5` en `apps/shell/harness-runtime.json`. El runtime se regeneró
+antes de empaquetar; el gate de stage rechaza stages obsoletos
+alpha2/alpha3/alpha4. Los archivos runtime existentes son inmutables. El tarball
+alpha5 ya se generó localmente y se verificó:
+`apps/shell/release/deepseek-harness-runtime-0.2.1-alpha.5-win32-x64.tar.gz`
+(421.377.684 bytes; SHA-256
+`26953ba93ab1daab8d837c2980f1f5f9c0a60f65677ac48fc973300f5b2229f2`). No está
+publicado. El gate completo pasó y el setup/portable se generaron y verificaron
+estáticamente en local. La caché local alpha4 no satisface el nuevo pin. Nunca
+presentes un archivo no subido como asset descargable de release. Se retiró
+OmniRoute: sin fallback, descarga, servidor ni detector. El próximo inicio
+elimina solo config antigua propia y cachés verificadas; conserva proveedores e
+historial ajenos.
+
+Los artefactos desktop verificados están en el directorio único
+`apps/shell/release-0.9.4-alpha5-candidate-20261014/`; no reutilices ni
+sobrescribas el directorio obsoleto de la candidata alpha4.
 
 Tras cambiar opencode2api o su overlay activo, recompilá con
 `bash scripts/build-opencode2api.sh`. También prepara el nuevo sidecar Windows
@@ -27,6 +37,15 @@ o bytes de un binario viejo; nunca prepara silenciosamente una build antigua
 sin verificar. El empaquetado actualiza los pins de versión/hash solo para
 opencode2api y DSH compilados localmente; acepta herramientas opcionales por
 PATH ausentes, pero exige assets requeridos presentes y con hashes válidos.
+
+Antes de electron-builder, el gate revisa el CSS DSH real después de materializar
+el runtime y copiarlo a resources/freecode/dsh. También renderiza esas reglas
+emitidas con Chrome/Edge headless aislado desde una data URL y muestrea ambos
+transforms en fotogramas separados: cada capa debe moverse al menos 8 píxeles CSS
+en 1,65 segundos. Con movimiento reducido, las animaciones se detienen sin
+oscurecer ninguno de los dos lavados. Si Chrome/Edge no está en una ruta habitual
+de Windows, configurá FREECODE_CHROME_PATH. La prueba usa un perfil temporal
+separado; no inicia FreeCode ni reutiliza el perfil del navegador personal.
 
 El smoke runtime de NSIS debe aislar APPDATA, LOCALAPPDATA, USERPROFILE, HOME y
 las rutas temporales: `--user-data-dir` de Chromium no redirige por sí solo
@@ -53,9 +72,9 @@ nueva y aislada, y verificá exactamente esa carpeta:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-candidate-refresh-20261014'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha5-candidate-20261014'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-candidate-refresh-20261014
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha5-candidate-20261014
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
@@ -69,7 +88,8 @@ preflight, un smoke de integración MCP offline basado únicamente en fixtures
 stdio del repositorio y un proveedor mock de loopback, verifica el asset runtime
 fijado y compila un setup NSIS en una carpeta temporal del sistema operativo.
 El gate no es literalmente libre de procesos: sí inicia hijos headless propios
-de prueba, el CLI DSH/Electron en modo Node y los fixtures MCP. El smoke usa sólo
+de prueba, el CLI DSH/Electron en modo Node, Chromium aislado para renderizar el
+CSS y los fixtures MCP. El smoke usa sólo
 fixtures del repo, un endpoint loopback y HOME/perfil/caché/temporales dentro de
 scratch; no descarga ni ejecuta paquetes MCP de terceros ni hereda credenciales
 de la persona mantenedora. La limpieza apunta únicamente al árbol PID DSH

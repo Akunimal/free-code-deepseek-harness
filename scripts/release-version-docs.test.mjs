@@ -115,7 +115,7 @@ test('release guides and known-issues ledger identify v0.9.3 as the supported ba
   assert.match(spanishRelease, /release publicada v0\.9\.3 es la baseline actual para Windows x64/i);
   assert.match(englishRelease, /setup was\s+executed after confirmation[\s\S]{0,100}NSIS returned exit code 0/i);
   assert.match(spanishRelease, /setup one-click se\s+ejecutó tras confirmar[\s\S]{0,100}NSIS devolvió código 0/i);
-  assert.match(englishRelease, /previous alpha3 cache as a backup/i);
+  assert.match(englishRelease, /previous alpha3 cache was preserved as a backup/i);
   assert.match(spanishRelease, /caché\s+alpha3 anterior/i);
   assert.match(englishRelease, /v0\.9\.3 also prevents older DSH runtimes/i);
   assert.match(spanishRelease, /v0\.9\.3 también evita que runtimes\s+DSH/i);
@@ -124,8 +124,8 @@ test('release guides and known-issues ledger identify v0.9.3 as the supported ba
   assert.match(knownIssues, /v0\.9\.3 sólo se soporta Windows x64/i);
   assert.match(knownIssues, /KI-009.*resolved in v0\.9\.3/is);
   assert.match(knownIssues, /KI-009.*resuelto en v0\.9\.3/is);
-  assert.match(knownIssues, /KI-010.*published DSH alpha4 runtime asset/is);
-  assert.match(knownIssues, /KI-010.*requiere publicar el runtime DSH alpha4/is);
+  assert.match(knownIssues, /KI-010.*published DSH alpha5 runtime asset/is);
+  assert.match(knownIssues, /KI-010.*requiere publicar el runtime DSH alpha5/is);
   assert.match(knownIssues, /KI-009.*semantic.*tail/is);
   assert.match(knownIssues, /sufijo semántico puede ocultar historial válido/i);
   assert.match(knownIssues, /preserva los bytes originales raw\/Zstandard/i);
@@ -137,10 +137,42 @@ test('release guides and known-issues ledger identify v0.9.3 as the supported ba
   assert.match(roadmap, /^### `v0\.9\.3`/m);
   assert.match(translations, /baseline publicada v0\.9\.3/i);
 
-  const freshOutputDir = 'release-0.9.4-candidate-refresh-20261014';
+  const freshOutputDir = 'release-0.9.4-alpha5-candidate-20261014';
   for (const document of [englishRelease, spanishRelease, read('README.md'), read('README.es.md'), read('docs/RELEASE-POLICY.md'), read('docs/RELEASE-POLICY.es.md')]) {
     assert.ok(document.includes(freshOutputDir), `expected ${freshOutputDir} in the active release docs`);
   }
+});
+
+test('bilingual v0.9.4 docs record the passed local gate and verified desktop artifacts without implying publication', () => {
+  const readmeEn = read('README.md');
+  const readmeEs = read('README.es.md');
+  const releaseEn = read('docs/RELEASE.md');
+  const releaseEs = read('docs/RELEASE.es.md');
+  const policyEn = read('docs/RELEASE-POLICY.md');
+  const policyEs = read('docs/RELEASE-POLICY.es.md');
+  const roadmap = read('docs/ROADMAP.md');
+  const outputDir = 'apps/shell/release-0.9.4-alpha5-candidate-20261014/';
+  const setupSha = '3117054ba2ee29c6c9993e7f7cdd525262f8d39e4f037e037c411142659d8a08';
+  const portableSha = '79e03080494efcd9fc9f06311b1b4f78238e57b97fd2ea00ba97baa5513f520b';
+
+  assert.match(readmeEn, /local setup and portable.*(?:generated|built).*(?:verified|validated)/is);
+  assert.match(readmeEs, /setup y portable local(?:es)? .*?(?:generaron|compilaron).*(?:verificaron|validaron)/is);
+  assert.match(readmeEn, /full (?:Windows )?release gate passed/i);
+  assert.match(readmeEs, /gate completo.*pasó/i);
+  for (const document of [readmeEn, readmeEs, releaseEn, releaseEs, policyEn, policyEs]) {
+    assert.ok(document.includes(outputDir), `expected ${outputDir} in active release docs`);
+  }
+  for (const document of [releaseEn, releaseEs]) {
+    assert.ok(document.includes(setupSha), 'release guide must record the setup digest');
+    assert.ok(document.includes(portableSha), 'release guide must record the portable digest');
+  }
+  assert.match(releaseEn, /app\s+(?:has\s+)?not been restarted or retested/i);
+  assert.match(releaseEs, /no se reinició ni se volvió a probar/i);
+  assert.match(policyEn, /not\s+published/i);
+  assert.match(policyEs, /no está\s+publicado/i);
+  assert.match(roadmap, /desktop setup\/portable.*(?:generated|built).*(?:verified|passed)/is);
+  assert.match(roadmap, /app\s+has\s+not been restarted or retested/i);
+  assert.match(roadmap, /v0\.9\.3 remains latest/i);
 });
 
 test('current release policy and EN/ES build guidance match the separate-runtime non-interactive gate', () => {

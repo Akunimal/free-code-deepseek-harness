@@ -14,20 +14,19 @@ Source version: 0.9.4 (candidate, not published); latest published release: v0.9
 
 The [v0.9.4 candidate notes](release-notes-v0.9.4.md) cover opencode2api v1.3.8,
 Tor diagnostics/recovery and the NSIS-smoke profile-isolation fix, shipped
-conversation-background verification, and restored opt-in Gentle AI. The
-complete release gate passed, including an isolated NSIS build. Fresh v0.9.4
-setup and portable artifacts are now built and hash-verified under
-`apps/shell/release-0.9.4-candidate-refresh-20261014/`; the older candidate
-artifacts are superseded. The refreshed one-click setup was executed after the
-user confirmed FreeCode was closed and NSIS returned exit code 0. Its normal
-post-install launch then reported `No harness runtime asset for packaged version
-0.2.1-alpha.4 (win32-x64)`: this small installer intentionally excludes DSH, and
-the matching alpha4 release asset is not published yet. With separate user
-authorization, the verified local alpha4 runtime was seeded into this machine's
-per-user cache and the previous alpha3 cache was preserved as a backup. This
-local workaround does not provide the runtime to other installations. The user
-still needs to relaunch and verify startup, Tor and backgrounds; none is claimed
-as tested. v0.9.4 remains unpublished; v0.9.3 is still the latest release.
+conversation-background verification, and restored opt-in Gentle AI. The earlier
+alpha4 candidate passed its release gate and produced setup/portable artifacts,
+but its one-click setup could not start DSH because the matching alpha4 release
+asset was unpublished. The alpha4 artifacts are superseded. The source now pins
+DSH `0.2.1-alpha.5`; the local runtime archive was generated and SHA-256 verified
+(`421,377,684` bytes; `26953ba93ab1daab8d837c2980f1f5f9c0a60f65677ac48fc973300f5b2229f2`).
+The full Windows release gate passed. Local setup and portable artifacts were
+generated and verified in `apps/shell/release-0.9.4-alpha5-candidate-20261014/`.
+The alpha5 runtime archive is not published, so a clean first launch still
+requires that exact version to be attached to a release. The authorized alpha4
+local cache seed was only a workaround for the older build and does not satisfy
+the alpha5 pin. The current app was not restarted or retested, and the new setup
+was not executed. v0.9.4 remains unpublished; v0.9.3 is still the latest release.
 
 v0.9.3 is published for Windows x64. The NSIS setup was installed and confirmed
 working by the user; the portable executable was built but not separately
@@ -313,16 +312,22 @@ executable. Desktop packaging does not rebuild or replace the separately version
 runtime itself changes should maintainers bump its manifest version and run
 `pnpm package:runtime:release`; existing runtime versions are immutable.
 
-The earlier v0.9.4 setup is superseded. The current fresh setup and portable
-passed static asset and SHA-256 verification in
-`apps/shell/release-0.9.4-candidate-refresh-20261014/`. The current one-click
-setup was executed after confirming FreeCode was closed and NSIS returned 0,
-but its post-install launch could not find the unpublished DSH alpha4 release
-asset. The verified alpha4 source runtime has since been seeded into this
-machine's per-user cache, preserving the prior alpha3 cache as a backup. The app
-has not been retried, so startup, Tor and background behavior remain unverified.
-Other installations still need a matching published alpha4 runtime asset. The
-candidate remains unpublished.
+The alpha4 v0.9.4 setup is superseded. Its setup and portable were hash-verified
+under `apps/shell/release-0.9.4-candidate-refresh-20261014/` (setup:
+178,620,019 bytes; SHA-256 `c112637c95de1564a401ac9852300081983bf15d92f82330df16ff7279d1304b`;
+portable: 178,246,021 bytes; SHA-256
+`c3b1e9a65e8b5e420c48059aac14b6ded3790c5b8b7804bfef58acec454d01ea`). The
+one-click setup was executed after confirmation that FreeCode was closed; NSIS
+returned exit code 0. Its post-install error was `No harness runtime asset for
+packaged version 0.2.1-alpha.4 (win32-x64)`. The verified local alpha4 runtime was seeded
+while the previous alpha3 cache was preserved as a backup. Startup, Tor and backgrounds
+still await user verification for that installed build.
+That seed does not satisfy the newly pinned alpha5 runtime. The current source
+pins `0.2.1-alpha.5`; its local runtime archive and checksum are verified. The
+refreshed setup/portable were generated and verified and the full release gate
+passed. The alpha5 archive is not published. Do not use the superseded alpha4
+artifacts. The app was not restarted or re-tested, the new setup was not
+executed, and v0.9.4 remains unpublished.
 
 The user confirmed the installed v0.9.3 application works on Windows x64. The
 portable executable is not separately installation-tested. The interactive

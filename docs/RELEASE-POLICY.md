@@ -4,22 +4,29 @@ Releases are manual and target Windows x64. This policy describes the real
 desktop/runtime boundary used by v0.9.3; it does not authorize touching a
 maintainer's running FreeCode instance.
 
-The current source version is v0.9.4 candidate; it remains unpublished until
-its validation is complete. The v0.9.3 assets and hashes below remain historical
+The current source version is v0.9.4 candidate. Local validation is complete,
+but publication remains pending separate authorization and runtime-asset upload.
+The v0.9.3 assets and hashes below remain historical
 published evidence and must not be overwritten.
 
 The v0.9.4 candidate changes the DSH conversation background and browser-first
-system policy, therefore pins a new runtime, `0.2.1-alpha.4`, in the tracked
-`apps/shell/harness-runtime.json`. Regenerate its runtime before packaging;
-the stage-manifest gate rejects old alpha2/alpha3 stages. Their archives remain
-immutable. The alpha4 archive has now been regenerated locally and the release
-gate verified its SHA-256, Electron ABI and Node engine; it is not published
-remotely, so a candidate installer still needs an available local runtime cache
-or a published runtime asset before first-run DSH can succeed. Never describe
-the local archive as a downloadable release asset. OmniRoute integration has
+system policy, therefore pins `0.2.1-alpha.5` in the tracked
+`apps/shell/harness-runtime.json`. Its runtime was regenerated before packaging;
+stage-manifest gate rejects stale alpha2/alpha3/alpha4 stages. Existing runtime
+archives remain immutable. The alpha5 archive was regenerated locally and
+verified: `apps/shell/release/deepseek-harness-runtime-0.2.1-alpha.5-win32-x64.tar.gz`
+(421,377,684 bytes; SHA-256
+`26953ba93ab1daab8d837c2980f1f5f9c0a60f65677ac48fc973300f5b2229f2`). It is not
+published. The full release gate passed, and setup/portable were generated and
+statically verified locally. The old alpha4 local cache does not satisfy alpha5.
+Never describe an unuploaded archive as a downloadable release asset. OmniRoute has
 been removed: no fallback, download, server or detection endpoint is shipped.
 Only obsolete app-owned configuration and verified caches are retired at the
 next startup; unrelated providers and sessions are preserved.
+
+The verified desktop artifacts are in the unique output directory
+`apps/shell/release-0.9.4-alpha5-candidate-20261014/`; do not reuse or overwrite
+the superseded alpha4 candidate directory.
 
 After changing opencode2api source or its active fork overlay, rebuild with
 `bash scripts/build-opencode2api.sh`. It also stages the new Windows sidecar
@@ -29,9 +36,15 @@ an unverified old build. Runtime packaging refreshes version/hash pins only for
 locally built opencode2api and DSH outputs; optional PATH-fallback tools may be
 absent, while required runtime assets must exist and match their pinned hashes.
 
-The desktop package gate also checks the actual DSH conversation CSS after
-runtime materialization, after copying into `resources/freecode/dsh`, and before
-electron-builder. Tor's loopback SOCKS proxy is checked locally every 10 seconds
+The desktop package gate checks the actual DSH conversation CSS after runtime
+materialization, after copying into `resources/freecode/dsh`, and before
+electron-builder. It also renders those emitted rules in isolated headless
+Chrome/Edge from a data URL and samples both ambient transforms over timed
+frames; each must move at least 8 CSS pixels in 1.65 seconds. Reduced motion
+must stop both animations without dimming either wash. Set FREECODE_CHROME_PATH
+if Chromium is not installed at a standard Windows location. This test uses a
+disposable browser profile and does not launch FreeCode or reuse a user browser
+profile. Tor's loopback SOCKS proxy is checked locally every 10 seconds
 when unhealthy; remote proxies retain the slower external health-check cadence.
 Tor daemon failure diagnostics exposed to the UI must remain bounded and redact
 cookie/password/token-like values. NSIS runtime smoke must isolate APPDATA,
@@ -61,9 +74,9 @@ artifacts into a new, isolated output directory and verify that exact directory:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-candidate-refresh-20261014'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha5-candidate-20261014'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-candidate-refresh-20261014
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha5-candidate-20261014
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
@@ -76,8 +89,9 @@ prepackage checks, an offline MCP integration smoke backed only by
 repository-owned stdio fixtures and a loopback mock provider, checks the pinned
 runtime asset, and builds one NSIS package under an OS-temporary directory. The
 gate is non-interactive at the desktop UI boundary, not literally process-free:
-it starts test-owned hidden DSH CLI/Electron-as-Node and fixture child
-processes. The MCP smoke uses only repository fixtures, a loopback endpoint and
+it starts test-owned hidden DSH CLI/Electron-as-Node, isolated headless
+Chromium for the CSS renderer, and fixture child processes. The MCP smoke uses
+only repository fixtures, a loopback endpoint and
 scratch HOME/profile/cache/temp paths; it does not download or execute
 third-party MCP packages or inherit maintainer credentials. Cleanup targets
 only its recorded DSH child PID tree and unique scratch paths; it does not

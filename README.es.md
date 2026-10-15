@@ -15,19 +15,18 @@ Versión de la fuente: 0.9.4 (candidata, todavía no publicada); última release
 Las [notas candidatas de v0.9.4](release-notes-v0.9.4.md) cubren opencode2api
 v1.3.8, diagnósticos/recuperación Tor y el aislamiento del perfil NSIS smoke,
 verificación del fondo de conversación empaquetado y restauración del modo
-optativo Gentle AI. Pasó el gate completo de release, incluido un build NSIS
-aislado. Ya se recompilaron y verificaron con SHA-256 el setup y portable v0.9.4
-en `apps/shell/release-0.9.4-candidate-refresh-20261014/`; los artefactos
-candidatos anteriores quedan obsoletos. El setup one-click actualizado se
-ejecutó tras confirmar que FreeCode estaba cerrada y NSIS terminó con código 0.
-El intento normal de inicio posterior informó `No harness runtime asset for
-packaged version 0.2.1-alpha.4 (win32-x64)`: este instalador pequeño excluye
-intencionalmente DSH y el asset de release alpha4 correspondiente todavía no se
-publicó. Con autorización separada del usuario, se precargó el runtime alpha4
-local verificado en la caché por usuario de esta máquina y se preservó la caché
-alpha3 anterior como respaldo. Esta solución local no provee el runtime a otras
-instalaciones. El usuario todavía debe volver a iniciar y verificar el arranque,
-Tor y los fondos; no se afirma que hayan sido probados. v0.9.4 no está publicada;
+optativo Gentle AI. La candidata alpha4 anterior pasó su gate y produjo setup y
+portable, pero el setup one-click no pudo iniciar DSH porque el asset alpha4
+correspondiente no estaba publicado. Esos artefactos quedaron obsoletos. La
+fuente ahora fija DSH `0.2.1-alpha.5`; el tarball runtime local ya se generó y
+verificó con SHA-256 (`421.377.684` bytes;
+`26953ba93ab1daab8d837c2980f1f5f9c0a60f65677ac48fc973300f5b2229f2`). El gate
+completo de Windows pasó. El setup y portable locales se generaron y verificaron
+en `apps/shell/release-0.9.4-alpha5-candidate-20261014/`. El runtime alpha5 no está
+publicado, así que un primer inicio limpio todavía requiere adjuntar esa versión
+exacta a una release. La precarga local alpha4 autorizada solo fue un workaround
+para el build anterior y no satisface el pin alpha5. La app actual no se reinició
+ni volvió a probar, y el nuevo setup no se ejecutó. v0.9.4 no está publicada;
 v0.9.3 sigue siendo la última release.
 
 v0.9.3 está publicada para Windows x64. El usuario instaló el setup NSIS y
@@ -312,16 +311,21 @@ Sólo cuando cambie el runtime DSH
 se debe subir su versión en el manifest y ejecutar `pnpm package:runtime:release`;
 las versiones existentes del runtime son inmutables.
 
-El setup v0.9.4 anterior queda obsoleto. El setup y portable nuevos pasaron la
-verificación estática y SHA-256 en
-`apps/shell/release-0.9.4-candidate-refresh-20261014/`. El setup one-click actual
-se ejecutó tras confirmar que FreeCode estaba cerrada y NSIS terminó con código
-0, pero el inicio posterior no encontró el asset de release DSH alpha4, que aún
-no está publicado. Después se precargó el runtime alpha4 local verificado en la
-caché por usuario de esta máquina y se preservó como respaldo la caché alpha3
-anterior. No se volvió a probar la app: el arranque, Tor y los fondos siguen sin
-verificar. Otras instalaciones aún necesitan que se publique el asset alpha4
-correspondiente. La candidata sigue sin publicarse.
+El setup v0.9.4 alpha4 quedó obsoleto. El setup y portable se verificaron con
+hash en `apps/shell/release-0.9.4-candidate-refresh-20261014/` (setup:
+178,620,019 bytes; SHA-256 `c112637c95de1564a401ac9852300081983bf15d92f82330df16ff7279d1304b`;
+portable: 178,246,021 bytes; SHA-256
+`c3b1e9a65e8b5e420c48059aac14b6ded3790c5b8b7804bfef58acec454d01ea`). El setup
+one-click se ejecutó tras confirmar que FreeCode estaba cerrada; NSIS devolvió
+código 0. El error posterior fue `No harness runtime asset for packaged version
+0.2.1-alpha.4 (win32-x64)`. Se precargó el runtime alpha4 local verificado y se
+preservó la caché alpha3 anterior como respaldo. El usuario todavía debe
+verificar el arranque, Tor y los fondos de esa instalación. Esa precarga no
+satisface el nuevo pin alpha5. La fuente fija ahora `0.2.1-alpha.5`; el tarball
+local y su checksum están verificados, el setup/portable nuevos se generaron y
+verificaron, y el gate completo pasó. El asset no está publicado. No uses los
+artefactos alpha4 obsoletos. La app no se reinició ni volvió a probar, el nuevo
+setup no se ejecutó, y v0.9.4 sigue sin publicarse.
 
 El usuario confirmó que la aplicación v0.9.3 instalada funciona en Windows x64.
 El portable no se probó con instalación por separado. El `smoke:nsis`
