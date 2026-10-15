@@ -2,6 +2,7 @@ import type { ConversationSlotProps } from '../contract/slots.ts'
 import { conversationPhase } from '../contract/snapshot.ts'
 import { ConversationWidthControls } from './ConversationWidthControls.tsx'
 import css from './ConversationRoot.module.css'
+import { PhoenixBackground } from './PhoenixBackground.tsx'
 
 const CONTENT_SLOTS = { widthControls: ConversationWidthControls }
 
@@ -44,6 +45,7 @@ export function ConversationMainPanel(props: ConversationSlotProps) {
 
   return (
     <div className={css.root} data-phase={phase}>
+      <PhoenixBackground working={session?.running === true} />
       {renderSlot('conversation.header', {})}
       {renderFactorySlot('conversation.content', {
         variant: 'main',

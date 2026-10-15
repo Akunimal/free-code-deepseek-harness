@@ -25,6 +25,17 @@ That local-only alpha4 cache workaround did not satisfy the later alpha5 pin.
 
 ### What's new
 
+- **Actual Hermes Phoenix backgrounds (V094-26).** Replaced the mistaken generic
+  wash with the nine MIT-licensed Hermes particle patterns. They change on new
+  work and every 45 seconds, run at 18 virtual steps/s idle versus 72 working,
+  pause while hidden, and stop for reduced motion. Tests execute the unchanged
+  emitted production panel/effect/CSS regions in isolated Chromium, check pixel
+  motion, host resize, composer hit-testing, nine-pattern paint and cleanup.
+  Screenshots exist locally; the installed alpha5 runtime is unchanged and does
+  not contain this source correction. Global client typecheck and release gate
+  must pass before building a newly versioned runtime or another installer.
+
+
 - **Current upstream compatibility (V094-25).** Stable opencode2api v1.4.0 is
   imported with FreeCode routing/tool overlays retained. Anonymous inference
   and catalog discovery now have separate origins; the inference root resolves
@@ -45,8 +56,8 @@ That local-only alpha4 cache workaround did not satisfy the later alpha5 pin.
   invalid empty model list. A real isolated DSH Host test verifies multiple
   selectable models, route removal and recovery at a new port without restart.
   This source correction is not yet in a newly built installer; live upstream
-  HTTP 403 compatibility and the actual Hermes visual reference remain separate
-  follow-on work, not proven by the old release gate.
+  HTTP 403 compatibility is updated in V094-25 and the actual Hermes visual
+  reference is implemented in V094-26; neither is proven by the old release gate.
 - **Browser-first system prompt.** For tasks needing web information, use the
   embedded `computer_use` browser before DeepSeek API `web_search`. API fallback
   is reserved for browser unavailability, blocked access or failed attempts,
@@ -84,10 +95,10 @@ That local-only alpha4 cache workaround did not satisfy the later alpha5 pin.
   followed `APPDATA`. It therefore wrote Tor config into the maintainer profile
   with GeoIP paths under a disposable install directory. The smoke now redirects
   APPDATA, LOCALAPPDATA, USERPROFILE, HOME, TEMP and TMP into its own test tree.
-- **Conversation backgrounds reach the package.** Runtime packaging checks
-  materialized and copied DSH bundles, and electron-builder rejects a stale
-  embedded bundle. Reduced motion stops animation without dimming the visible
-  background; a rendered-pixel regression checks normal and reduced-motion paint.
+- **Background packaging guards.** Materialized/copied runtime and desktop
+  packaging checks now require Hermes patterns plus actual live-turn wiring;
+  the old two-gradient fixture is rejected. Staged alpha5 is intentionally old,
+  so it cannot satisfy the new gate until a fresh runtime version is built.
 - **Runtime pins stay aligned.** The package step refreshes version/SHA-256 only
   for locally built opencode2api and DSH artifacts, leaves external Tor pins
   explicit, and treats absent optional PATH-fallback tools as optional.
@@ -135,6 +146,17 @@ La precarga local alpha4 fue un workaround y no satisface el pin alpha5 posterio
 
 ### Novedades
 
+- **Fondos reales Hermes Phoenix (V094-26).** Se reemplazó el gradiente equivocado
+  por los nueve patrones de partículas de Hermes, con licencia MIT. Cambian al
+  empezar una tarea y cada 45 segundos; pasan de 18 pasos virtuales/s en reposo
+  a 72 trabajando. Se pausan con la vista oculta y se detienen con movimiento
+  reducido. Chromium aislado ejecuta el panel/efectos/CSS emitidos reales y
+  verifica píxeles, resize, interacción del composer, nueve patrones y limpieza.
+  Hay capturas locales; el runtime alpha5 instalado no se modificó ni contiene
+  este arreglo. Faltan el typecheck global y gate antes de compilar otro runtime
+  versionado e instalador.
+
+
 - **Compatibilidad upstream actual (V094-25).** Se incorpora opencode2api
   estable v1.4.0 conservando routing y correcciones de herramientas del fork.
   Se separan los orígenes de inferencia anónima y catálogo. La raíz de inferencia
@@ -154,9 +176,8 @@ La precarga local alpha4 fue un workaround y no satisface el pin alpha5 posterio
   la ruta administrada si queda vacía, en lugar de enviar una lista inválida.
   Una prueba con DSH real aislado verifica varios modelos seleccionables,
   eliminación y recuperación con otro puerto sin reiniciar. Este arreglo de
-  fuente aún no está en un instalador nuevo; los HTTP 403 del upstream y los
-  fondos de referencia de Hermes siguen siendo trabajos separados, no quedan
-  demostrados por el gate anterior.
+  fuente aún no está en un instalador nuevo; la compatibilidad upstream está actualizada en V094-25 y Hermes implementado
+  en V094-26; no quedan demostrados por el gate anterior.
 - **Navegador embebido primero en el prompt del sistema.** Si la tarea necesita
   información web, usar `computer_use` antes de DeepSeek API `web_search`.
   El fallback queda para navegador ausente, acceso bloqueado o intentos fallidos,
@@ -197,10 +218,11 @@ La precarga local alpha4 fue un workaround y no satisface el pin alpha5 posterio
   con GeoIP apuntando a una instalación temporal ya eliminada. Ahora el smoke
   redirige APPDATA, LOCALAPPDATA, USERPROFILE, HOME, TEMP y TMP a su propio
   directorio temporal.
-- **Los fondos de conversación llegan al paquete.** El empaquetado verifica
-  bundles DSH materializados y copiados; electron-builder rechaza uno obsoleto.
-  El movimiento reducido detiene la animación sin atenuar el fondo visible y
-  una prueba de píxeles protege el render normal y con movimiento reducido.
+- **Contratos de fondos.** Stage/runtime copiado y empaquetado desktop exigen
+  patrones Hermes y conexión al turno real; rechazan el fixture de gradientes.
+  Alpha5 es anterior al arreglo y no puede pasar el nuevo gate hasta generar
+  un runtime con versión nueva.
+
 - **Los pins runtime quedan alineados.** El empaquetado actualiza versión y
   SHA-256 solo para opencode2api/DSH generados localmente, mantiene explícito el
   pin externo de Tor y acepta herramientas opcionales ausentes si tienen

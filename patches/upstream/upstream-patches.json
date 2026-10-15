@@ -68,7 +68,7 @@
       "file": "060-freecode-settings-and-mcp-ui.patch",
       "order": 60,
       "owner": "freecode",
-      "description": "Authenticated file-open bridge and Settings \u00e2\u2020\u2019 Plugins \u00e2\u2020\u2019 MCP tab",
+      "description": "Authenticated file-open bridge and Settings â†’ Plugins â†’ MCP tab",
       "seam": "packages/client/ui-settings-plugins + packages/util/native-command",
       "contractTests": [
         "packages/client/ui-settings-plugins/tests/apply.client.spec.ts",
@@ -302,7 +302,9 @@
       "owner": "freecode",
       "description": "Prioritize embedded browser evidence over DeepSeek API search in the scoped system prompt",
       "seam": "packages/web/tool-web/src/browser.ts",
-      "contractTests": ["packages/web/tool-web/tests/browser-policy.spec.ts"],
+      "contractTests": [
+        "packages/web/tool-web/tests/browser-policy.spec.ts"
+      ],
       "vendorOnly": true
     },
     {
@@ -314,6 +316,18 @@
       "contractTests": [
         "packages/api/session-controller/tests/session-models.host.spec.ts",
         "packages/client/ui-model-selection/tests/browser-plugin.client.spec.ts"
+      ],
+      "vendorOnly": true
+    },
+    {
+      "file": "171-freecode-hermes-activity-background.patch",
+      "order": 171,
+      "owner": "freecode",
+      "description": "Replace generic wash with actual MIT Hermes Phoenix patterns and bounded live-turn acceleration",
+      "seam": "packages/client/ui-conversation/src/client/skeleton",
+      "contractTests": [
+        "packages/client/ui-conversation/tests/phoenix-background.client.spec.tsx",
+        "apps/shell/tests/conversation-background.test.ts"
       ],
       "vendorOnly": true
     }

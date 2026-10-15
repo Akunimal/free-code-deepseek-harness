@@ -1,93 +1,29 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
-
-const ROOT = join(import.meta.dirname, '../../..');
-const CONVERSATION_CSS = join(
-  ROOT,
-  'vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css',
-);
-
-function cssBlock(css: string, selector: string): string {
-  // For a single pseudo selector prefer its dedicated rule after the shared
-  // pseudo-element block (notably `.root::after`), but ignore later keyframes
-  // and reduced-motion overrides when reading the base style.
-  const keyframes = css.indexOf('@keyframes');
-  const baseRules = keyframes < 0 ? css : css.slice(0, keyframes);
-  const start = baseRules.lastIndexOf(`${selector} {`);
-  if (start < 0) throw new Error(`missing CSS rule: ${selector}`);
-  const open = css.indexOf('{', start);
-  let depth = 1;
-  for (let index = open + 1; index < css.length; index += 1) {
-    if (css[index] === '{') depth += 1;
-    if (css[index] === '}') depth -= 1;
-    if (depth === 0) return css.slice(open + 1, index);
-  }
-  throw new Error(`unterminated CSS rule: ${selector}`);
-}
-
-function effectiveMixAlpha(rule: string): number {
-  const mixPercent = rule.match(/(\d+(?:\.\d+)?)%\s*,\s*transparent\)/)?.[1];
-  const opacity = rule.match(/\bopacity:\s*(\d*\.?\d+)/)?.[1];
-  if (mixPercent === undefined || opacity === undefined) {
-    throw new Error('ambient gradient must declare a color-mix alpha and layer opacity');
-  }
-  return Number(mixPercent) / 100 * Number(opacity);
-}
-
-function reducedMotionBlock(css: string): string {
-  const start = css.indexOf('@media (prefers-reduced-motion: reduce)');
-  if (start < 0) throw new Error('missing reduced-motion rule');
-  return cssBlock(css.slice(start), '@media (prefers-reduced-motion: reduce)');
-}
-
-function ambientMotion(css: string, name: string): { xTravel: number; yTravel: number; scaleTravel: number; duration: number } {
-  const keyframes = css.match(new RegExp(`@keyframes\\s+${name}\\s*\\{([^}]+\\}[^}]*)\\}`))?.[1];
-  if (keyframes === undefined) throw new Error(`missing ambient keyframes: ${name}`);
-  const from = keyframes.match(/from\s*\{[^}]*transform:\s*translate3d\((-?[\d.]+)%,\s*(-?[\d.]+)%,\s*0\)\s*scale\(([\d.]+)\)/);
-  const to = keyframes.match(/to\s*\{[^}]*transform:\s*translate3d\((-?[\d.]+)%,\s*(-?[\d.]+)%,\s*0\)\s*scale\(([\d.]+)\)/);
-  const duration = css.match(new RegExp(`animation:\\s*${name}\\s+([\\d.]+)s`))?.[1];
-  if (from === null || to === null || duration === undefined) {
-    throw new Error(`ambient animation must have transform endpoints and a duration: ${name}`);
-  }
-  return {
-    xTravel: Math.abs(Number(to[1]) - Number(from[1])),
-    yTravel: Math.abs(Number(to[2]) - Number(from[2])),
-    scaleTravel: Math.abs(Number(to[3]) - Number(from[3])),
-    duration: Number(duration),
-  };
-}
-
-describe('ConversationRoot ambient background visibility', () => {
-  const css = readFileSync(CONVERSATION_CSS, 'utf8');
-
-  it('keeps both gradient hotspots visibly colored instead of barely tinting the base', () => {
-    for (const selector of ['.root::before', '.root::after']) {
-      expect(effectiveMixAlpha(cssBlock(css, selector)), selector).toBeGreaterThanOrEqual(0.25);
-    }
-  });
-
-  it('retains the static ambient wash when reduced motion disables animation', () => {
-    const reduced = reducedMotionBlock(css);
-    expect(reduced).toMatch(/animation:\s*none/);
-    expect(reduced).not.toMatch(/\bopacity\s*:/);
-  });
-
-  it('stacks the ambient layers above the opaque root base and below conversation content', () => {
-    expect(cssBlock(css, '.root')).toMatch(/isolation:\s*isolate/);
-    const layers = cssBlock(css, '.root::before,\n.root::after');
-    expect(layers).toMatch(/z-index:\s*0/);
-    expect(layers).toMatch(/pointer-events:\s*none/);
-    expect(cssBlock(css, '.root > *')).toMatch(/z-index:\s*1/);
-  });
-
-  it('moves each ambient layer far enough and fast enough to be visibly dynamic', () => {
-    for (const name of ['dsh-conversation-ambient-drift-a', 'dsh-conversation-ambient-drift-b']) {
-      const motion = ambientMotion(css, name);
-      expect(motion.xTravel, `${name} horizontal drift`).toBeGreaterThanOrEqual(12);
-      expect(motion.yTravel, `${name} vertical drift`).toBeGreaterThanOrEqual(6);
-      expect(motion.scaleTravel, `${name} scale drift`).toBeGreaterThanOrEqual(0.1);
-      expect(motion.duration, `${name} period`).toBeLessThanOrEqual(30);
-    }
-  });
+import {readFileSync} from 'node:fs';
+import {join} from 'node:path';
+import {describe,expect,it} from 'vitest';
+const root=join(import.meta.dirname,'../../../vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton');
+describe('actual Hermes activity background',()=>{
+ const css=readFileSync(join(root,'ConversationRoot.module.css'),'utf8');
+ const pattern=readFileSync(join(root,'phoenixPatterns.ts'),'utf8');
+ const component=readFileSync(join(root,'PhoenixBackground.tsx'),'utf8');
+ it('contains the licensed reference family, not the old wash',()=>{
+   for(const name of ['synapse','rain','constellations','sparkles','perlin-flow','petals','embers','bubbles','squares'])expect(pattern).toContain(name);
+   expect(pattern).toContain('Copyright (c) 2026 github.com/fathah');
+   expect(css).not.toContain('dsh-conversation-ambient-drift');
+ });
+ it('uses actual running rather than retained history or shell phase',()=>{
+   expect(readFileSync(join(root,'ConversationMainPanel.tsx'),'utf8')).toContain('working={session?.running === true}');
+   expect(component).toContain('data-working={String(working)}');
+ });
+ it('caps frame catch-up and cancels owned resources',()=>{
+   for(const text of ['Math.min(100','Math.min(4','cancelAnimationFrame(raf)','ro.disconnect()','canvas.remove()'])expect(pattern).toContain(text);
+   for(const text of ['visibilitychange','prefers-reduced-motion','clearInterval(timer)','return startPhoenixPattern'])expect(component).toContain(text);
+ });
+ it('isolates pointer-transparent effects below content with a static reduced-motion fallback',()=>{
+   expect(css).toContain('isolation: isolate;');
+   expect(css).toContain('.root > :not(.phoenixBackground)');
+   expect(css).toContain('pointer-events: none;');
+   expect(css).toContain(".phoenixBackground[data-reduced-motion='true']");
+   expect(css).toContain('.phoenixBackground canvas { display: none; }');
+ });
 });

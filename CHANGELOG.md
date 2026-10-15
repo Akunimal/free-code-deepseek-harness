@@ -48,15 +48,15 @@ unpublished candidate; v0.9.3 remains the latest published Windows x64 release.
 - Gentle AI is back in the shipped Web selector as an explicit opt-in mode;
   Standard remains the default. / Gentle AI vuelve al selector Web incluido
   como modo optativo explícito; Standard sigue siendo el predeterminado.
-- Restored the two-layer CSS conversation atmosphere, including a static
-  `prefers-reduced-motion` fallback; the release gate now checks its specific
-  animation markers instead of unrelated generic CSS. / Se restauró el fondo
-  ambiental CSS de dos capas en las conversaciones, con alternativa estática
-  para `prefers-reduced-motion`; el gate de release verifica sus marcadores
-  propios y no animaciones CSS ajenas. Runtime staging, copied output, and the
-  desktop packaging input now all reject stale conversation bundles. / El stage,
-  el runtime copiado y la entrada de empaquetado desktop ahora rechazan bundles
-  de conversación obsoletos.
+- Replaced the incorrect generic wash with the actual nine MIT Hermes Phoenix
+  patterns, accelerated by live running state, with bounded loops, hidden-view
+  pause and reduced-motion fallback. Production-bundle Chromium proof checks
+  timed pixels, 4x work speed, resize, interaction and cleanup. A newly versioned
+  DSH runtime is still required; alpha5 was not overwritten. / Se reemplazó el
+  gradiente equivocado por los nueve patrones MIT de Hermes, con aceleración
+  según el turno real, pausas y movimiento reducido. Pruebas Chromium verifican
+  píxeles, velocidad 4x, resize, interacción y limpieza. Falta un runtime nuevo;
+  no se sobrescribió alpha5.
 
 ## 0.9.3 — 2026-10-12
 

@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -8,16 +8,12 @@ import { removeRendererProfile } from '../../../scripts/conversation-render-clea
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
 const verifierPath = join(repoRoot, 'scripts/verify-conversation-bundle.mjs')
-const patchPath = join(repoRoot, 'patches/upstream/167-freecode-conversation-ambient-background.patch')
+const patchPath = join(repoRoot, 'patches/upstream/171-freecode-hermes-activity-background.patch')
 const patchManifestPath = join(repoRoot, 'patches/upstream/upstream-patches.json')
 const runtimePackagerPath = join(repoRoot, 'scripts/package-runtime.sh')
 const shellPackagePath = join(repoRoot, 'apps/shell/package.json')
-const sourcePath = join(
-  repoRoot,
-  'vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css',
-)
 
-describe('conversation ambient background', () => {
+describe('Hermes conversation activity background', () => {
   it('retries transient Windows profile locks with a bounded backoff', async () => {
     const attempts: number[] = []
     const delays: number[] = []
@@ -70,13 +66,13 @@ describe('conversation ambient background', () => {
     const manifest = JSON.parse(readFileSync(patchManifestPath, 'utf8')) as {
       patches: Array<{ file: string; order: number; owner: string; vendorOnly: boolean; contractTests: string[] }>
     }
-    const entry = manifest.patches.find(({ file }) => file === '167-freecode-conversation-ambient-background.patch')
+    const entry = manifest.patches.find(({ file }) => file === '171-freecode-hermes-activity-background.patch')
 
     expect(entry).toMatchObject({
-      order: 167,
+      order: 171,
       owner: 'freecode',
       vendorOnly: true,
-      contractTests: ['apps/shell/tests/conversation-background.test.ts'],
+      contractTests: expect.arrayContaining(['apps/shell/tests/conversation-background.test.ts']),
     })
   })
 
@@ -97,87 +93,43 @@ describe('conversation ambient background', () => {
       })
 
       expect(result.status, `${result.stdout}\n${result.stderr}`).not.toBe(0)
-      expect(`${result.stdout}\n${result.stderr}`).toContain('dsh-conversation-ambient-drift-a')
+      expect(`${result.stdout}\n${result.stderr}`).toContain('Hermes synapse')
     } finally {
       rmSync(scratchRoot, { recursive: true, force: true })
     }
   })
 
-  it('replays the FreeCode patch and verifies both motion layers plus reduced-motion fallback', () => {
-    expect(existsSync(patchPath), 'the ambient background must be a replayable FreeCode patch').toBe(true)
-    if (!existsSync(patchPath)) return
-
-    const scratchRoot = mkdtempSync(join(tmpdir(), 'freecode-conversation-patch-'))
+  it('round-trips the real Hermes overlay, including new files, without drift', () => {
+    const scratchRoot=mkdtempSync(join(tmpdir(),'freecode-conversation-patch-'))
     try {
-      const cssPath = join(
-        scratchRoot,
-        'vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/ConversationRoot.module.css',
-      )
-      mkdirSync(dirname(cssPath), { recursive: true })
-      copyFileSync(sourcePath, cssPath)
-
-      // Test replay from clean input even when the supported build pipeline
-      // has already materialized the overlay in the working vendor tree.
-      const reverse = spawnSync('git', ['-c', 'core.autocrlf=false', 'apply', '--reverse', '--check', patchPath], {
-        cwd: scratchRoot, encoding: 'utf8', windowsHide: true,
-      })
-      if (reverse.status === 0) {
-        const reverted = spawnSync('git', ['-c', 'core.autocrlf=false', 'apply', '--reverse', patchPath], {
-          cwd: scratchRoot, encoding: 'utf8', windowsHide: true,
-        })
-        expect(reverted.status, `${reverted.stdout}\n${reverted.stderr}`).toBe(0)
+      const patch=readFileSync(patchPath,'utf8')
+      const paths=[...patch.matchAll(/^\+\+\+ b\/(.+)$/gm)].map(m=>m[1]!)
+      for(const path of paths) {
+        const target=join(scratchRoot,path);mkdirSync(dirname(target),{recursive:true})
+        writeFileSync(target,readFileSync(join(repoRoot,path),'utf8').replaceAll('\r\n','\n'))
       }
+      for(const flags of [['--reverse'],[],['--reverse','--check']]) {
+        const result=spawnSync('git',['-c','core.autocrlf=false','apply',...flags,patchPath],{cwd:scratchRoot,encoding:'utf8',windowsHide:true})
+        expect(result.status,result.stderr).toBe(0)
+      }
+    } finally { rmSync(scratchRoot,{recursive:true,force:true}) }
+  })
 
-      const apply = spawnSync('git', ['-c', 'core.autocrlf=false', 'apply', '--check', patchPath], {
-        cwd: scratchRoot,
-        encoding: 'utf8',
-        windowsHide: true,
-      })
-      expect(apply.status, `${apply.stdout}\n${apply.stderr}`).toBe(0)
-      const applied = spawnSync('git', ['-c', 'core.autocrlf=false', 'apply', patchPath], {
-        cwd: scratchRoot,
-        encoding: 'utf8',
-        windowsHide: true,
-      })
-      expect(applied.status, `${applied.stdout}\n${applied.stderr}`).toBe(0)
-
-      const css = readFileSync(cssPath, 'utf8')
-      expect(css).toContain('isolation: isolate;')
-      expect(css).toContain('pointer-events: none;')
-      expect(css).toContain('@media (prefers-reduced-motion: reduce)')
-      expect(css).toContain('animation: none;')
-      expect(css).toContain('opacity: .90;')
-      expect(css).toContain('opacity: .85;')
-      expect(css).not.toContain('opacity: .22;')
-      expect(css).toContain('translate3d(')
-      expect(css).toContain('dsh-conversation-ambient-drift-a')
-      expect(css).toContain('dsh-conversation-ambient-drift-b')
-
-      const bundlePath = join(scratchRoot, 'packages/client/ui-conversation/lib/client.js')
-      mkdirSync(dirname(bundlePath), { recursive: true })
-      const emittedCss = [
-        '.ConversationRoot_root{isolation:isolate}',
-        '.ConversationRoot_root:before,.ConversationRoot_root:after{z-index:0;pointer-events:none}',
-        '.ConversationRoot_root>*{z-index:1}',
-        '.ConversationRoot_root:before{background:radial-gradient(color-mix(in srgb,blue 40%,transparent) 0%,transparent);opacity:.9;animation:10s ease-in-out infinite alternate NSS-DW_dsh-conversation-ambient-drift-a}',
-        '.ConversationRoot_root:after{background:radial-gradient(color-mix(in srgb,blue 30%,transparent) 0%,transparent);opacity:.85;animation:10s ease-in-out infinite alternate NSS-DW_dsh-conversation-ambient-drift-b}',
-        '@media (prefers-reduced-motion:reduce){.ConversationRoot_root:before,.ConversationRoot_root:after{animation:none;transform:none}}',
-        '@keyframes NSS-DW_dsh-conversation-ambient-drift-a{0%{transform:translate(-9%,-5%)scale(1)}to{transform:translate(9%,5%)scale(1.16)}}',
-        '@keyframes NSS-DW_dsh-conversation-ambient-drift-b{0%{transform:translate(8%,6%)scale(1.14)}to{transform:translate(-8%,-6%)scale(1)}}',
-      ].join('')
-      writeFileSync(
-        bundlePath,
-        `//#region ConversationRoot.module.css.mjs\nconst css$0 = ${JSON.stringify(emittedCss)};\n//#endregion\n`,
-      )
-      const verify = spawnSync(process.execPath, [verifierPath, scratchRoot], {
-        cwd: repoRoot,
-        encoding: 'utf8',
-        windowsHide: true,
-      })
-      expect(verify.status, `${verify.stdout}\n${verify.stderr}`).toBe(0)
-    } finally {
-      rmSync(scratchRoot, { recursive: true, force: true })
-    }
+  it('accepts the actual emitted panel but rejects a disconnected working flag and missing license', () => {
+    const source=readFileSync(join(repoRoot,'vendor/deepseek-harness/packages/client/ui-conversation/lib/client.js'),'utf8')
+    const scratch=mkdtempSync(join(tmpdir(),'freecode-conversation-bundle-'))
+    try {
+      const path=join(scratch,'packages/client/ui-conversation/lib/client.js');mkdirSync(dirname(path),{recursive:true})
+      for(const [label,bytes,expected] of [
+        ['real',source,0],
+        ['disconnected',source.replace('working: session?.running === true','working: false'),1],
+        ['license',source.replaceAll('github.com/fathah','removed-attribution'),1],
+      ] as const) {
+        writeFileSync(path,bytes)
+        const result=spawnSync(process.execPath,[verifierPath,scratch],{cwd:repoRoot,encoding:'utf8',windowsHide:true})
+        expect(result.status,label+' '+result.stderr).toBe(expected)
+      }
+    } finally {rmSync(scratch,{recursive:true,force:true})}
   })
 
   it('verifies the materialized stage and copied runtime, not only the vendor source', () => {
@@ -202,7 +154,7 @@ describe('conversation ambient background', () => {
     )
   })
 
-  it('requires timed Chromium rendering of the staged production CSS before packaging', () => {
+  it('requires timed Chromium rendering of the staged production panel before packaging', () => {
     const pkg = JSON.parse(readFileSync(shellPackagePath, 'utf8')) as {
       scripts: Record<string, string>
     }

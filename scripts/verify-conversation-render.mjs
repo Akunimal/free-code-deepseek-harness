@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Render emitted ConversationRoot ambient CSS in isolated headless Chromium.
+ * Render emitted ConversationMainPanel and Hermes effects in isolated headless Chromium.
  * Uses a data URL and disposable browser profiles; no network, FreeCode app,
  * Electron process, or user browser profile is involved.
  */
@@ -9,6 +9,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { removeRendererProfile } from './conversation-render-cleanup.mjs';
+import { conversationFixture } from './conversation-render-fixture.mjs';
 
 const root = resolve(process.argv[2] ?? '');
 const evidenceArg = process.argv.indexOf('--evidence-dir');
@@ -24,52 +25,6 @@ const candidates = [
 const bundle = candidates.find(existsSync);
 if (!bundle) throw new Error('conversation renderer: emitted client bundle not found under ' + root);
 const source = readFileSync(bundle, 'utf8');
-const marker = source.indexOf('ConversationRoot.module.css.mjs');
-const endMarker = source.indexOf('//#endregion', marker);
-const region = marker >= 0 && endMarker >= 0 ? source.slice(marker, endMarker) : '';
-const literal = region.match(/const css\$\d+ = ("(?:\\.|[^"\\])*");/)?.[1];
-if (literal === undefined) throw new Error('conversation renderer: emitted CSS module missing in ' + bundle);
-const css = JSON.parse(literal);
-const rootSelector = css.match(/(\.[\w-]+_root)\{[^}]*isolation:isolate/)?.[1];
-if (rootSelector === undefined) throw new Error('conversation renderer: isolated root selector missing in ' + bundle);
-
-function rule(selector) {
-  const marker = selector + '{';
-  const result = [];
-  const reducedStart = css.indexOf('@media (prefers-reduced-motion:reduce)');
-  const staticCss = reducedStart >= 0 ? css.slice(0, reducedStart) : css;
-  let start = staticCss.indexOf(marker);
-  if (start < 0) throw new Error('conversation renderer: emitted rule missing: ' + selector);
-  while (start >= 0) {
-    const end = staticCss.indexOf('}', start + marker.length);
-    if (end < 0) throw new Error('conversation renderer: emitted rule incomplete: ' + selector);
-    result.push(staticCss.slice(start, end + 1));
-    start = staticCss.indexOf(marker, end + 1);
-  }
-  return result.join('');
-}
-
-function keyframes(name) {
-  const result = css.match(new RegExp(
-    '@keyframes [\\w-]*' + name + '\\{(?:from|0%)\\{[^{}]*\\}(?:to|100%)\\{[^{}]*\\}\\}',
-  ))?.[0];
-  if (result === undefined) throw new Error('conversation renderer: emitted keyframes missing: ' + name);
-  return result;
-}
-
-const reducedRule = css.match(/@media \(prefers-reduced-motion:reduce\)\{[^{}]*\{[^{}]*\}\}/)?.[0];
-if (reducedRule === undefined) throw new Error('conversation renderer: reduced-motion rule missing in ' + bundle);
-const rendererCss = [
-  rule(rootSelector),
-  rule(rootSelector + ':before,' + rootSelector + ':after'),
-  rule(rootSelector + '>*'),
-  rule(rootSelector + ':before'),
-  rule(rootSelector + ':after'),
-  keyframes('dsh-conversation-ambient-drift-a'),
-  keyframes('dsh-conversation-ambient-drift-b'),
-  reducedRule,
-].join('');
-
 function findChromium() {
   const explicit = process.env.FREECODE_CHROME_PATH;
   if (explicit && !existsSync(explicit)) {
@@ -89,25 +44,7 @@ function findChromium() {
 }
 
 const chromium = findChromium();
-const page = '<!doctype html><html><head><meta charset="utf-8"><style>'
-  + 'html,body{width:100%;height:100%;margin:0;background:#111216;color:#f3f4f6;font:14px Segoe UI,Arial,sans-serif}'
-  + '.app{height:100vh;display:flex}.sidebar{box-sizing:border-box;width:220px;background:#1b1c20;padding:28px 18px;color:#d8d9dd}'
-  + '.main{min-width:0;flex:1;display:flex;flex-direction:column}.header{height:54px;box-sizing:border-box;padding:18px 28px;background:#1b1c20;border-bottom:1px solid #34353b}'
-  + '.surface{position:relative;flex:1;min-height:0;overflow:hidden;background:#17181d}'
-  + '.conversation{box-sizing:border-box;height:100%;padding:80px 12%;display:flex;flex-direction:column;justify-content:center;gap:20px}'
-  + '.bubble{position:relative;z-index:2;max-width:640px;padding:22px 26px;border-radius:16px;background:#292a30;line-height:1.6;box-shadow:0 8px 32px #0003}'
-  + '.composer{position:relative;z-index:2;margin:0 auto;width:min(640px,90%);padding:18px 22px;border-radius:18px;background:#292a30;color:#b9bbc4}'
-  + rendererCss + rootSelector + '.render-proof-complete:before,' + rootSelector + '.render-proof-complete:after{animation-play-state:paused!important}'
-  + '</style></head><body><div class="app"><aside class="sidebar">FreeCode<br><br>Sesiones<br><br>Proyectos</aside>'
-  + '<main class="main"><header class="header">Conversación — prueba del fondo dinámico</header><section class="surface">'
-  + '<div id="root" class="' + rootSelector.slice(1) + '" style="--dsw-alias-bg-base:#17181d;--dsw-alias-state-business-primary:#4176e6;--dsw-alias-state-business-tertiary:#e4edfd">'
-  + '<div class="conversation"><div class="bubble">CSS de ConversationRoot emitido por el runtime. Se mide el movimiento entre fotogramas, no solo una captura fija.</div>'
-  + '<div class="composer">Escriba un mensaje o ejecute una tarea…</div></div></div></section></main></div>'
-  + '<script>const root=document.getElementById("root");'
-  + 'const sample=()=>{const b=getComputedStyle(root,"::before"),a=getComputedStyle(root,"::after");return {beforeTransform:b.transform,afterTransform:a.transform,beforeAnimation:b.animationName,afterAnimation:a.animationName,beforeOpacity:b.opacity,afterOpacity:a.opacity,beforeBackground:b.backgroundImage,afterBackground:a.backgroundImage}};'
-  + 'const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));'
-  + '(async()=>{await new Promise(requestAnimationFrame);const first=sample();await wait(450);const middle=sample();await wait(1200);const last=sample();'
-  + 'const result={reduced:matchMedia("(prefers-reduced-motion: reduce)").matches,first,middle,last};document.documentElement.setAttribute("data-render-proof",btoa(JSON.stringify(result)));root.classList.add("render-proof-complete")})()</script></body></html>';
+const page = conversationFixture(source);
 const dataUrl = 'data:text/html;base64,' + Buffer.from(page).toString('base64');
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -123,7 +60,9 @@ async function connectDebugger(url) {
       const request = pending.get(message.id);
       if (request) {
         pending.delete(message.id);
+        clearTimeout(request.timeout);
         if (message.error) request.reject(new Error(message.error.message));
+        else if(message.result?.exceptionDetails) request.reject(new Error(JSON.stringify(message.result.exceptionDetails)));
         else request.resolve(message.result);
       }
       return;
@@ -141,7 +80,8 @@ async function connectDebugger(url) {
     send(method, params = {}) {
       const id = ++nextId;
       return new Promise((resolve, reject) => {
-        pending.set(id, { resolve, reject });
+        const timeout = setTimeout(() => {pending.delete(id); reject(new Error("Chrome DevTools command timed out: "+method))}, 15_000);
+        pending.set(id, { resolve, reject, timeout });
         socket.send(JSON.stringify({ id, method, params }));
       });
     },
@@ -174,19 +114,6 @@ async function readRenderProof(debuggerClient) {
     await delay(50);
   }
   throw new Error('conversation renderer: timed samples were not emitted by the page');
-}
-
-function movementPixels(start, end) {
-  const vector = (transform) => {
-    const values = transform.match(/^matrix\(([^)]+)\)$/)?.[1].split(',').map(Number);
-    if (!values || values.length !== 6 || values.some((value) => !Number.isFinite(value))) {
-      throw new Error('conversation renderer: Chromium returned a non-2D transform: ' + transform);
-    }
-    return [values[4], values[5]];
-  };
-  const a = vector(start);
-  const b = vector(end);
-  return Math.hypot(b[0] - a[0], b[1] - a[1]);
 }
 
 async function waitForDevtoolsPort(profile, child, stderr) {
@@ -261,26 +188,54 @@ async function render(mode) {
     if (proof.reduced !== (mode === 'reduced')) {
       throw new Error('conversation renderer: expected reduced=' + (mode === 'reduced') + ', got ' + proof.reduced);
     }
-    for (const pseudo of ['before', 'after']) {
-      const last = proof.last;
-      if (!last[pseudo + 'Background'].includes('radial-gradient') || Number(last[pseudo + 'Opacity']) < 0.8) {
-        throw new Error('conversation renderer: ' + mode + ' ::' + pseudo + ' wash is not visible: ' + JSON.stringify(last));
-      }
-      if (mode === 'reduced') {
-        if (last[pseudo + 'Animation'] !== 'none' || last[pseudo + 'Transform'] !== 'none') {
-          throw new Error('conversation renderer: reduced-motion ::' + pseudo + ' did not stop: ' + JSON.stringify(last));
-        }
-      } else {
-        const movement = movementPixels(proof.first[pseudo + 'Transform'], last[pseudo + 'Transform']);
-        if (!last[pseudo + 'Animation'].includes('dsh-conversation-ambient-drift') || movement < 8) {
-          throw new Error('conversation renderer: normal-motion ::' + pseudo + ' moved only ' + movement.toFixed(2) + 'px in 1.65s; minimum is 8px: ' + JSON.stringify(proof));
-        }
-      }
+    if (proof.errors.length || proof.clicks !== 1 || !proof.hitTarget) {
+      throw new Error('conversation renderer: interaction or runtime failure: '+JSON.stringify(proof));
+    }
+    if (proof.idle.working !== 'false' || proof.workingEnd.working !== 'true' || proof.finished.working !== 'false') {
+      throw new Error('conversation renderer: real panel did not follow turn state');
+    }
+    if (mode === 'reduced') {
+      if ([proof.idle,proof.workingEnd,proof.finished].some(s=>s.canvases!==0)) throw new Error('conversation renderer: reduced motion retained animation');
+    } else {
+      const fast=proof.workingEnd.draws-proof.workingStart.draws;
+      const slow=proof.finished.draws-proof.finishStart.draws;
+      if (fast < slow*2.5 || slow < 8 || fast > 130) throw new Error('conversation renderer: unbounded or missing work acceleration '+JSON.stringify({fast,slow}));
+      if (proof.idle.pattern===proof.workingEnd.pattern) throw new Error('conversation renderer: pattern did not change on new work');
+      if ([proof.idle,proof.workingEnd,proof.finished].some(s=>s.canvases!==1 || s.colored<100)) throw new Error('conversation renderer: invisible pattern '+JSON.stringify(proof));
+      if (proof.workingStart.hash===proof.workingEnd.hash) throw new Error('conversation renderer: canvas pixels did not move');
     }
     if (screenshot) {
       const captured = await client.send('Page.captureScreenshot', { format: 'png', fromSurface: true, captureBeyondViewport: false });
       const { writeFileSync } = await import('node:fs');
       writeFileSync(screenshot, Buffer.from(captured.data, 'base64'), { flag: 'wx' });
+    }
+    if (mode === 'normal') {
+      await client.send('Emulation.setDeviceMetricsOverride',{width:1000,height:700,deviceScaleFactor:1,mobile:false});
+      await delay(250);
+      const resized=await client.send('Runtime.evaluate',{expression:'window.freecodeProof.sample()',returnByValue:true});
+      if(resized.result.value.width!==1000 || resized.result.value.height!==700) throw new Error('conversation renderer: canvas did not follow host resize '+JSON.stringify(resized.result.value));
+      proof.resized={width:resized.result.value.width,height:resized.result.value.height};
+      await client.send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
+    }
+    if (mode === 'normal') {
+      await client.send('Runtime.evaluate',{expression:'window.freecodeProof.gallery().then(stop=>{window.stopGallery=stop})',awaitPromise:true});
+      const gallery = await client.send('Runtime.evaluate',{expression:
+        'Array.from(document.querySelectorAll("canvas")).map(c=>{const d=c.getContext("2d").getImageData(0,0,c.width,c.height).data;let n=0;for(let i=3;i<d.length;i+=4)if(d[i])n++;return n})', returnByValue:true});
+      if (gallery.result.value.length!==9 || gallery.result.value.some(n=>n<10)) throw new Error('conversation renderer: some Hermes patterns are invisible: '+JSON.stringify(gallery.result.value));
+      if (evidenceDir) {
+        const capture=await client.send('Page.captureScreenshot',{format:'png',fromSurface:true});
+        const {writeFileSync}=await import('node:fs');
+        writeFileSync(join(evidenceDir,'hermes-nine-patterns.png'),Buffer.from(capture.data,'base64'),{flag:'wx'});
+      }
+      await client.send('Runtime.evaluate',{expression:'window.stopGallery()'});
+      const cleaned=await client.send('Runtime.evaluate',{expression:'document.querySelectorAll("canvas").length',returnByValue:true});
+      if(cleaned.result.value!==0)throw new Error('conversation renderer: leaked canvas after disposal');
+      proof.galleryColoredPixels=gallery.result.value;
+    }
+    if (evidenceDir) {
+      const { writeFileSync } = await import('node:fs');
+      writeFileSync(join(evidenceDir,'conversation-proof-'+mode+'.json'), JSON.stringify(proof,null,2), {flag:'wx'});
+      writeFileSync(join(evidenceDir,'conversation-preview-'+mode+'.html'),page,{flag:'wx'});
     }
     return { mode, bundle, proof, ...(screenshot ? { screenshot } : {}) };
   } finally {

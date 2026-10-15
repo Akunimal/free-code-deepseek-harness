@@ -40,7 +40,7 @@ RTK and Caveman are not enabled together by default: they may complement each ot
 
 **Status / Estado:** local candidate; unpublished / candidata local; sin publicar.
 
-1. **Gateway / Gateway** — vendored opencode2api v1.3.8 with manual model
+1. **Gateway / Gateway** — vendored opencode2api v1.4.0 with manual model
    persistence, transient probe recovery, stable identities and the fork's
    direct-first Tor policy.
 2. **Tor / Tor** — SAFECOOKIE ControlPort, readiness gated on bootstrap 100%
@@ -49,9 +49,11 @@ RTK and Caveman are not enabled together by default: they may complement each ot
    The Tor-unavailable trace found a disposable-NSIS-profile leak: Chromium's
    `--user-data-dir` did not redirect Electron's APPDATA-based `userData`.
    Smoke now isolates all user profile/temp roots; Tor assets are hash-verified.
-3. **Conversation / Conversación** — ambient backgrounds are visible in normal
-   and reduced-motion modes, and source, materialized, copied and packaged DSH
-   bundles are guarded against stale CSS.
+3. **Conversation / Conversación** — actual MIT Hermes Phoenix patterns now
+   follow live work at 4x idle speed. Isolated Chromium verifies the production
+   panel, pixels, resize and cleanup; installed alpha5 is unchanged. A fresh
+   runtime version and passing global client typecheck/release gate remain
+   prerequisites, not claims about the currently installed app.
 4. **Agent selector / Selector de agentes** — Gentle AI restored as an explicit
    opt-in Web mode; Standard remains the default.
 5. **Runtime integrity / Integridad runtime** — source now pins DSH alpha5 and

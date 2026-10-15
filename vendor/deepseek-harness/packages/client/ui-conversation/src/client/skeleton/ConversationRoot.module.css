@@ -8,68 +8,23 @@
   background: var(--dsw-alias-bg-base);
 }
 
-/* Decorative layers stay above the base paint but below conversation content
-   and hit targets. Pseudo-elements add no DOM or AT noise. */
-.root::before,
-.root::after {
-  content: '';
+/* Hermes particles: local canvas beneath the real header, transcript and composer. */
+.root > :not(.phoenixBackground) {
+  z-index: 1;
+}
+.phoenixBackground {
   position: absolute;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background-repeat: no-repeat;
+  overflow: hidden;
+  --phx-effect-color: #9cdef2;
 }
-
-.root > * {
-  z-index: 1;
+.phoenixBackground[data-reduced-motion='true'] {
+  background: radial-gradient(ellipse at 35% 25%, #9cdef21c, transparent 70%);
 }
-
-.root::before {
-  background: radial-gradient(
-    ellipse 76% 64% at 18% 25%,
-    rgba(65, 118, 230, .40) 0%,
-    transparent 72%
-  );
-  background: radial-gradient(
-    ellipse 76% 64% at 18% 25%,
-    color-mix(in srgb, var(--dsw-alias-state-business-primary, rgb(65, 118, 230)) 40%, transparent) 0%,
-    transparent 72%
-  );
-  opacity: .90;
-  animation: dsh-conversation-ambient-drift-a 10s ease-in-out infinite alternate;
-}
-
-.root::after {
-  background: radial-gradient(
-    ellipse 68% 74% at 82% 78%,
-    rgba(228, 237, 253, .30) 0%,
-    transparent 74%
-  );
-  background: radial-gradient(
-    ellipse 68% 74% at 82% 78%,
-    color-mix(in srgb, var(--dsw-alias-state-business-tertiary, rgb(228, 237, 253)) 30%, transparent) 0%,
-    transparent 74%
-  );
-  opacity: .85;
-  animation: dsh-conversation-ambient-drift-b 10s ease-in-out infinite alternate;
-}
-
-@keyframes dsh-conversation-ambient-drift-a {
-  from { transform: translate3d(-9%, -5%, 0) scale(1); }
-  to { transform: translate3d(9%, 5%, 0) scale(1.16); }
-}
-
-@keyframes dsh-conversation-ambient-drift-b {
-  from { transform: translate3d(8%, 6%, 0) scale(1.14); }
-  to { transform: translate3d(-8%, -6%, 0) scale(1); }
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .root::before,
-  .root::after {
-    animation: none;
-    transform: none;
-  }
+  .phoenixBackground canvas { display: none; }
 }
 
 /* 76px with its rule: the height of the Sidebar's tab strip and header row
