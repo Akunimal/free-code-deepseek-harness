@@ -75,6 +75,8 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
   const projections = new Map<SessionId, SnapshotStore<ModelSelectionProjection | undefined>>()
   // Whether the Host advertises available models for the current route.
   let routable = true
+  // Delays the client projection event independently of the successful RPC result.
+  let delayProjection = false
   let catalogFailure = false
   let groups = GROUPS
   let selectionFailure: RemoteError<'session/writer-held'> | undefined
@@ -102,7 +104,7 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
           ? {}
           : { reasoningEffort: payload.reasoningEffort },
       }
-      projections.get(payload.sessionId)?.set({ lastUsed: null, next: selected })
+      if (!delayProjection) projections.get(payload.sessionId)?.set({ lastUsed: null, next: selected })
       return Promise.resolve({ ok: true as const, value: { selected } })
     },
   }
@@ -208,6 +210,7 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
     setGroups: (next: typeof GROUPS) => { groups = next },
     setCatalogFailure: (next: boolean) => { catalogFailure = next },
     setRoutable: (next: boolean) => { routable = next },
+    delayProjection: (next: boolean) => { delayProjection = next },
     blockOf: (key: string) => blocks.get(sid(key))?.getSnapshot(),
     setExternalBlock: (key: string, block: { reason: string } | undefined) => { blockStoreFor(sid(key)).set(block) },
   }
@@ -533,6 +536,52 @@ describe('ui-model-selection dual entry', () => {
         .resolves.toMatchObject({ ok: true })
       expect(face.directory.getSnapshot()).toMatchObject({ current: { model: 'deepseek-v4-flash' }, routable: true })
       expect(b.blockOf('s1')).toBeUndefined()
+    } finally {
+      await b.ctx.fiber.dispose()
+    }
+  })
+
+  it('unblocks on a Host-confirmed listed model before the session projection event arrives', async () => {
+    const b = await bench('en')
+    try {
+      b.mint('s1')
+      const face = b.seat().inject!(sid('s1'))
+      const stale = { provider: 'deepseek-official', model: 'unlisted' }
+      b.setProjected(sid('s1'), { lastUsed: stale, next: stale })
+      await vi.waitFor(() => { expect(face.directory.getSnapshot()).toMatchObject({ status: 'ready', routable: false }) })
+      expect(b.blockOf('s1')).toEqual({ reason: unavailableReason })
+
+      b.delayProjection(true)
+      const accepted = { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
+      await expect(face.select(accepted)).resolves.toMatchObject({ ok: true })
+
+      expect(face.directory.getSnapshot()).toMatchObject({ current: accepted, routable: true, status: 'ready' })
+      expect(b.blockOf('s1')).toBeUndefined()
+
+      // A later, genuinely newer Host projection must supersede the local ack.
+      const external = { provider: 'deepseek-official', model: 'deepseek-v4-pro' }
+      b.setProjected(sid('s1'), { lastUsed: stale, next: external })
+      await vi.waitFor(() => { expect(face.directory.getSnapshot()).toMatchObject({ current: external, routable: true }) })
+      expect(b.blockOf('s1')).toBeUndefined()
+    } finally {
+      await b.ctx.fiber.dispose()
+    }
+  })
+
+  it('keeps the stale-model composer block when the Host rejects model selection', async () => {
+    const b = await bench('en')
+    try {
+      b.mint('s1')
+      const face = b.seat().inject!(sid('s1'))
+      const stale = { provider: 'deepseek-official', model: 'unlisted' }
+      b.setProjected(sid('s1'), { lastUsed: stale, next: stale })
+      await vi.waitFor(() => { expect(face.directory.getSnapshot()).toMatchObject({ status: 'ready', routable: false }) })
+      b.rejectSelection()
+
+      const rejected = await face.select({ provider: 'deepseek-official', model: 'deepseek-v4-flash' })
+      expect(rejected).toMatchObject({ ok: false })
+      expect(face.directory.getSnapshot()).toMatchObject({ current: stale, routable: false, status: 'error' })
+      expect(b.blockOf('s1')).toEqual({ reason: unavailableReason })
     } finally {
       await b.ctx.fiber.dispose()
     }
