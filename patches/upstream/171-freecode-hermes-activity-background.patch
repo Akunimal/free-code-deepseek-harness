@@ -7,11 +7,11 @@ index 674b644a9f..4a46d7dd58 100644
  import { ConversationWidthControls } from './ConversationWidthControls.tsx'
  import css from './ConversationRoot.module.css'
 +import { PhoenixBackground } from './PhoenixBackground.tsx'
- 
+
  const CONTENT_SLOTS = { widthControls: ConversationWidthControls }
- 
+
 @@ -44,6 +45,7 @@ export function ConversationMainPanel(props: ConversationSlotProps) {
- 
+
    return (
      <div className={css.root} data-phase={phase}>
 +      <PhoenixBackground working={session?.running === true} />
@@ -25,7 +25,7 @@ index ce60984dee..1beb31c932 100644
 @@ -8,68 +8,23 @@
    background: var(--dsw-alias-bg-base);
  }
- 
+
 -/* Decorative layers stay above the base paint but below conversation content
 -   and hit targets. Pseudo-elements add no DOM or AT noise. */
 -.root::before,
@@ -99,7 +99,7 @@ index ce60984dee..1beb31c932 100644
 -  }
 +  .phoenixBackground canvas { display: none; }
  }
- 
+
  /* 76px with its rule: the height of the Sidebar's tab strip and header row
 diff --git a/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/PhoenixBackground.tsx b/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/PhoenixBackground.tsx
 new file mode 100644
