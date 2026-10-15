@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { load as loadYaml } from 'js-yaml';
+import { readHarnessSettings } from '../src/main/harness-settings.js';
 import { refreshModels, ModelCatalog, shouldRetryModelRefresh } from '../src/main/model-refresher.js';
 
 const LB = 'http://127.0.0.1:41234';
@@ -130,7 +130,7 @@ describe('model-refresher', () => {
         expect.objectContaining({ id: 'verified', responds: true }),
         expect.objectContaining({ id: 'temporarily-offline', failureKind: 'transport' }),
       ]);
-      const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+      const settings = readHarnessSettings(home);
       expect(settings['llm-pi-ai'].providers['deepseek-free'].models.map((model: { id: string }) => model.id))
         .toEqual(['verified']);
     } finally {
@@ -163,7 +163,7 @@ describe('model-refresher', () => {
     expect(reasoner.responds).toBe(false);
 
     // settings.yaml syncs only responders, as schema-valid model objects.
-    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+    const settings = readHarnessSettings(home);
     expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([
       deepseekModel('deepseek-v3.2-free'),
       deepseekModel('deepseek-chat'),
@@ -172,7 +172,7 @@ describe('model-refresher', () => {
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
-  it('orders settings.yaml models by latency asc (fastest first = de-facto default)', async () => {
+  it('orders active-profile models by latency asc (fastest first = de-facto default)', async () => {
     mockFetch(['deepseek-chat', 'deepseek-reasoner', 'deepseek-v3.2-free'], {
       'deepseek-chat': 400,
       'deepseek-v3.2-free': 50,
@@ -180,7 +180,7 @@ describe('model-refresher', () => {
     });
     const { home, data } = tmpDirs();
     await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
-    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+    const settings = readHarnessSettings(home);
     // Upstream has no defaultModel key (schema = {providers}); the harness UI
     // preselects the first model in the list, so the fastest responder leads.
     expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([
@@ -192,7 +192,7 @@ describe('model-refresher', () => {
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
-  it('merges into settings.yaml without touching other user sections', async () => {
+  it('merges into the active profile without touching other user sections', async () => {
     mockFetch(['deepseek-chat', 'deepseek-v3.2-free'], { 'deepseek-v3.2-free': 50, 'deepseek-chat': 300 });
     const { home, data } = tmpDirs();
     // A user section (e.g. OmniRoute added via wizard) must survive the merge.
@@ -203,7 +203,7 @@ describe('model-refresher', () => {
       `llm-pi-ai:\n  providers:\n    omniroute:\n      displayName: OmniRoute\n      api: openai-completions\n      baseURL: http://127.0.0.1:8080/v1\n      models:\n        - id: route-model\n`,
     );
     await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
-    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+    const settings = readHarnessSettings(home);
     // User route untouched...
     expect(settings['llm-pi-ai'].providers['omniroute'].baseURL).toBe('http://127.0.0.1:8080/v1');
     // ...and deepseek-free was added with responders (objects, not strings).
@@ -218,7 +218,7 @@ describe('model-refresher', () => {
     mockFetchWithModels(['x-preview-f', 'deepseek-v3.2-free'], ['x-preview-f', 'deepseek-v3.2-free']);
     const { home, data } = tmpDirs();
     await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
-    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+    const settings = readHarnessSettings(home);
     expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([
       { id: 'x-preview-f', reasoningEfforts: false },
       deepseekModel('deepseek-v3.2-free'),
@@ -233,7 +233,7 @@ describe('model-refresher', () => {
     mkdirSync(home, { recursive: true });
     writeFileSync(join(home, 'settings.yaml'), 'llm-pi-ai:\n  providers:\n    deepseek-free:\n      models: []\n');
     await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
-    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+    const settings = readHarnessSettings(home);
     expect(settings['agent-default-model']).toEqual({ provider: 'deepseek-free', model: 'deepseek-v3.2-free' });
     rmSync(dirname(home), { recursive: true, force: true });
   });
@@ -242,7 +242,7 @@ describe('model-refresher', () => {
     mockFetchWithModels(['mimo-v2.5-pro'], ['mimo-v2.5-pro']);
     const { home, data } = tmpDirs();
     await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
-    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+    const settings = readHarnessSettings(home);
     expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([{
       id: 'mimo-v2.5-pro',
       reasoningEfforts: { off: null, high: 'high' },
@@ -255,7 +255,7 @@ describe('model-refresher', () => {
     mockFetchWithModels(['x-preview-f', 'deepseek-v3.2-free'], ['deepseek-v3.2-free']);
     const { home, data } = tmpDirs();
     await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
-    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+    const settings = readHarnessSettings(home);
     expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual(
       [deepseekModel('deepseek-v3.2-free')],
     );
@@ -286,7 +286,7 @@ describe('model-refresher', () => {
     try {
       await vi.waitFor(() => {
         expect(probeStarted).toBe(true);
-        const settings = loadYaml(readFile(join(home, 'settings.yaml'), 'utf8')) as any;
+        const settings = readHarnessSettings(home);
         expect(settings['llm-pi-ai'].providers['deepseek-free'].models)
           .toEqual([]);
         expect(settings['agent-default-model']).toEqual({ provider: 'deepseek-free', model: 'x-preview-f' });
@@ -296,7 +296,7 @@ describe('model-refresher', () => {
     }
     const catalog = await refresh;
     expect(catalog.providers['deepseek-free']!.models[0]).toMatchObject({ id: 'slow-supported-model', responds: true });
-    const settings = loadYaml(readFile(join(home, 'settings.yaml'), 'utf8')) as any;
+    const settings = readHarnessSettings(home);
     expect(settings['llm-pi-ai'].providers['deepseek-free'].models)
       .toEqual([{ id: 'slow-supported-model', reasoningEfforts: false }]);
     expect(settings['agent-default-model']).toEqual({ provider: 'deepseek-free', model: 'slow-supported-model' });
@@ -333,8 +333,8 @@ describe('model-refresher', () => {
       statusCode: 400,
     });
     expect(catalog.lastKnownGoodByProvider?.['deepseek-free']).toEqual([]);
-    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
-    expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([]);
+    const settings = readHarnessSettings(home);
+    expect(settings['llm-pi-ai'].providers['deepseek-free']).toBeUndefined();
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
@@ -407,14 +407,14 @@ describe('model-refresher', () => {
         expect.objectContaining({ id: 'will-be-rejected', responds: false, failureKind: 'http', statusCode: 400 }),
       ]);
       expect(degraded.lastKnownGoodByProvider?.['deepseek-free']).toEqual(['known-good']);
-      let settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+      let settings = readHarnessSettings(home);
       expect(settings['llm-pi-ai'].providers['deepseek-free'].models.map((model: { id: string }) => model.id))
         .toEqual(['known-good']);
       expect(settings['agent-default-model']).toEqual({ provider: 'deepseek-free', model: 'known-good' });
 
       const repeatedFailure = await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
       expect(repeatedFailure.lastKnownGoodByProvider?.['deepseek-free']).toEqual(['known-good']);
-      settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+      settings = readHarnessSettings(home);
       expect(settings['llm-pi-ai'].providers['deepseek-free'].models.map((model: { id: string }) => model.id))
         .toEqual(['known-good']);
 
@@ -427,7 +427,7 @@ describe('model-refresher', () => {
         expect.objectContaining({ id: 'will-be-rejected', responds: false, failureKind: 'http', statusCode: 400 }),
       ]);
       expect(recovered.lastKnownGoodByProvider?.['deepseek-free']).toEqual(['known-good', 'new-candidate']);
-      settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+      settings = readHarnessSettings(home);
       expect(settings['llm-pi-ai'].providers['deepseek-free'].models.map((model: { id: string }) => model.id))
         .toEqual(['known-good', 'new-candidate']);
     } finally {
@@ -454,7 +454,7 @@ describe('model-refresher', () => {
         },
       ],
     });
-    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+    const settings = readHarnessSettings(home);
     const p = settings['llm-pi-ai'].providers['opencode-free'];
     expect(p.api).toBe('openai-completions');
     expect(p.baseURL).toBe('http://127.0.0.1:45678/v1');
@@ -484,7 +484,7 @@ describe('model-refresher', () => {
         },
       ],
     });
-    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+    const settings = readHarnessSettings(home);
     // a-free advertised but 500: hidden. b-free answered 200: exposed.
     expect(settings['llm-pi-ai'].providers['opencode-free'].models).toEqual([
       { id: 'b-free', reasoningEfforts: false },
@@ -516,7 +516,7 @@ describe('model-refresher', () => {
         },
       ],
     });
-    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+    const settings = readHarnessSettings(home);
     // Zero responders: stale entries erased instead of kept as last-known-good.
     expect(settings['llm-pi-ai'].providers['opencode-free'].models).toEqual([]);
     rmSync(dirname(home), { recursive: true, force: true });
@@ -546,7 +546,7 @@ describe('model-refresher', () => {
       }),
     );
     await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
-    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+    const settings = readHarnessSettings(home);
     const models = settings['llm-pi-ai'].providers['deepseek-free'].models;
     expect(models).toContainEqual({ id: 'space-bunny-free', reasoningEfforts: { off: null, low: 'low', high: 'high' } });
     expect(models).toContainEqual({ id: 'jev-1.13-free', reasoningEfforts: false });
@@ -557,7 +557,7 @@ describe('model-refresher', () => {
     mockFetchWithModels(['space-bunny-free'], ['space-bunny-free']);
     const { home, data } = tmpDirs();
     await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
-    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+    const settings = readHarnessSettings(home);
     expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([
       { id: 'space-bunny-free', reasoningEfforts: false },
     ]);
@@ -576,11 +576,11 @@ describe('model-refresher', () => {
 
     const catalog = await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
     expect(catalog.availability).toBe('degraded');
-    const settings = loadYaml(readFileSync(join(home, 'settings.yaml'), 'utf8')) as any;
+    const settings = readHarnessSettings(home);
     // 0.9.1: stale entries are erased instead of kept as last-known-good,
     // so the selector never offers dead models. Bounded refresh retries
     // repopulate the lane on upstream recovery.
-    expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([]);
+    expect(settings['llm-pi-ai'].providers['deepseek-free']).toBeUndefined();
     rmSync(dirname(home), { recursive: true, force: true });
   });
 });

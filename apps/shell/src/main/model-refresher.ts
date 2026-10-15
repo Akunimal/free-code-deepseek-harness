@@ -1,11 +1,11 @@
-import { readFileSync, writeFileSync, mkdirSync, existsSync, renameSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { load as loadYaml, dump as dumpYaml } from 'js-yaml';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { compatForModel, reasoningEffortsForModelWithHint } from './reasoning-policy.js';
+import { readHarnessSettings, writeHarnessSettings } from './harness-settings.js';
 
 /**
  * Model refresher — probes OpenAI-compatible provider routes, persists a
- * catalog, and syncs responding models into settings.yaml (sorted by latency
+ * catalog, and syncs responding models into the active web profile (by latency
  * asc). The OpenCode Free pool remains the required primary route; optional
  * local providers can be refreshed without making the whole refresh fail.
  */
@@ -94,7 +94,7 @@ export interface RefresherConfig {
   /** A completed primary request failed; sync an empty primary while probing fallback. */
   primaryUnavailable?: boolean;
   lbBaseUrl: string; // http://127.0.0.1:<PUERTO_LB>
-  homeDir: string; // DSH_HOME (settings.yaml lives here)
+  homeDir: string; // DSH_HOME (profiles/web/cordis.patch.yml is watched by DSH)
   userDataDir: string; // model-catalog.json lives here
   authHeader?: string; // e.g. 'Bearer public'
   providers?: readonly ProviderRefreshTarget[];
@@ -121,6 +121,7 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
       // responders the synced list is erased (never stale/dead models in
       // the selector); bounded refresh retries repopulate it on recovery.
       strictResponders: true,
+      refreshBaseUrl: true,
     },
     ...(cfg.providers ?? []).filter((target) => target.provider !== FREE_PROVIDER),
   ];
@@ -191,10 +192,9 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
   mkdirSync(cfg.userDataDir, { recursive: true });
   writeFileSync(catalogPath, JSON.stringify(catalog, null, 2), 'utf8');
 
-  // Sync all configured targets in one YAML read/write so user sections and
+  // Sync all configured targets in one active-profile edit so user sections and
   // custom provider fields survive the refresh.
-  const settingsPath = join(cfg.homeDir, 'settings.yaml');
-  const settings = readSettings(settingsPath);
+  const settings = readHarnessSettings(cfg.homeDir);
   const section = settings['llm-pi-ai'] ?? (settings['llm-pi-ai'] = {});
   const providers = section.providers ?? (section.providers = {});
   for (const { target, entries } of results) {
@@ -210,7 +210,7 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
     // selection is no longer served. Existing Session history stays intact.
     settings['agent-default-model'] = { provider: FREE_PROVIDER, model: responders[0] };
   }
-  writeSettings(settingsPath, settings);
+  writeHarnessSettings(cfg.homeDir, settings);
 
   cfg.onUpdate?.(catalog);
   return catalog;
@@ -367,6 +367,7 @@ function syncProviderModels(
   reasoningHints: Map<string, boolean> | null = null,
 ): void {
   const provider = providers[target.provider] ?? (providers[target.provider] = {
+    ...(target.provider === FREE_PROVIDER ? { displayName: 'OpenCode Free' } : {}),
     api: 'openai-completions',
     baseURL: providerBaseUrl(target.baseUrl),
     ...(target.provider === FREE_PROVIDER || target.apiKeyEnv
@@ -462,22 +463,4 @@ function providerBaseUrl(baseUrl: string): string {
 
 function nowSeconds(): number {
   return Math.floor(Date.now() / 1000);
-}
-
-function readSettings(path: string): Record<string, any> {
-  if (!existsSync(path)) return {};
-  const raw = readFileSync(path, 'utf8');
-  if (!raw.trim()) return {};
-  const parsed = loadYaml(raw);
-  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-  return parsed as Record<string, any>;
-}
-
-function writeSettings(path: string, settings: Record<string, any>): void {
-  mkdirSync(dirname(path), { recursive: true });
-  const yaml = dumpYaml(settings, { noRefs: true, lineWidth: 120 });
-  // Atomic write: tmp + rename to prevent corruption on crash.
-  const tmp = `${path}.tmp`;
-  writeFileSync(tmp, yaml, 'utf8');
-  renameSync(tmp, path);
 }

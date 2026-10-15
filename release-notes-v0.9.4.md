@@ -25,6 +25,16 @@ That local-only alpha4 cache workaround did not satisfy the later alpha5 pin.
 
 ### What's new
 
+- **Active-profile model synchronization (V094-24).** The old shell wrote the
+  removed `settings.yaml` while the running Host kept a different profile,
+  stale model and old gateway port. Model updates now target the watched
+  `profiles/web/cordis.patch.yml`, preserve user routes/comments/inert YAML
+  expressions, and remove an empty managed route instead of submitting an
+  invalid empty model list. A real isolated DSH Host test verifies multiple
+  selectable models, route removal and recovery at a new port without restart.
+  This source correction is not yet in a newly built installer; live upstream
+  HTTP 403 compatibility and the actual Hermes visual reference remain separate
+  follow-on work, not proven by the old release gate.
 - **Browser-first system prompt.** For tasks needing web information, use the
   embedded `computer_use` browser before DeepSeek API `web_search`. API fallback
   is reserved for browser unavailability, blocked access or failed attempts,
@@ -113,6 +123,16 @@ La precarga local alpha4 fue un workaround y no satisface el pin alpha5 posterio
 
 ### Novedades
 
+- **Sincronización con el perfil activo (V094-24).** El shell escribía el
+  obsoleto `settings.yaml`, mientras el Host conservaba otro perfil, un modelo
+  viejo y el puerto anterior. Ahora actualiza `profiles/web/cordis.patch.yml`,
+  que DSH observa, preserva rutas/comentarios/expresiones YAML inertes y elimina
+  la ruta administrada si queda vacía, en lugar de enviar una lista inválida.
+  Una prueba con DSH real aislado verifica varios modelos seleccionables,
+  eliminación y recuperación con otro puerto sin reiniciar. Este arreglo de
+  fuente aún no está en un instalador nuevo; los HTTP 403 del upstream y los
+  fondos de referencia de Hermes siguen siendo trabajos separados, no quedan
+  demostrados por el gate anterior.
 - **Navegador embebido primero en el prompt del sistema.** Si la tarea necesita
   información web, usar `computer_use` antes de DeepSeek API `web_search`.
   El fallback queda para navegador ausente, acceso bloqueado o intentos fallidos,
