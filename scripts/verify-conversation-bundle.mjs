@@ -74,8 +74,30 @@ for (const pseudo of ['before', 'after']) {
     throw new Error(`ConversationRoot ::${pseudo} ambient wash is below the visible-alpha contract: ${bundle}`);
   }
 }
+
+const visibleMotion = (name, selector) => {
+  const declarations = ruleBody(`${rootSelector}:${selector}`);
+  const emittedName = `[\\w-]*${name}`;
+  const duration = declarations?.match(new RegExp(`animation:([\\d.]+)s[^}]*${emittedName}`))?.[1];
+  const keyframes = css.match(new RegExp(
+    `@keyframes ${emittedName}\\{(?:from|0%)\\{transform:translate\\((-?[\\d.]+)%,(-?[\\d.]+)%\\)scale\\(([\\d.]+)\\)\\}(?:to|100%)\\{transform:translate\\((-?[\\d.]+)%,(-?[\\d.]+)%\\)scale\\(([\\d.]+)\\)\\}\\}`,
+  ));
+  if (duration === undefined || keyframes === null) {
+    throw new Error(`ConversationRoot :${selector} is missing emitted keyframes or a bounded duration: ${bundle}`);
+  }
+  const xTravel = Math.abs(Number(keyframes[4]) - Number(keyframes[1]));
+  const yTravel = Math.abs(Number(keyframes[5]) - Number(keyframes[2]));
+  const scaleTravel = Math.abs(Number(keyframes[6]) - Number(keyframes[3]));
+  if (xTravel < 12 || yTravel < 6 || scaleTravel < 0.1 || Number(duration) > 30) {
+    throw new Error(`ConversationRoot :${selector} emitted motion is too subtle or slow: ${bundle}`);
+  }
+};
+visibleMotion('dsh-conversation-ambient-drift-a', 'before');
+visibleMotion('dsh-conversation-ambient-drift-b', 'after');
+
 const reducedMotion = css.match(/@media \(prefers-reduced-motion:reduce\)\{([^{}]*\{[^{}]*\}[^{}]*)\}/)?.[1];
-if (reducedMotion === undefined || !/animation:none/.test(reducedMotion) || /opacity:/.test(reducedMotion)) {
+if (reducedMotion === undefined || !/animation:none/.test(reducedMotion)
+  || !/transform:none/.test(reducedMotion) || /opacity:/.test(reducedMotion)) {
   throw new Error(`ConversationRoot reduced-motion CSS must disable animation without dimming the static wash: ${bundle}`);
 }
 console.log(`verify-conversation-bundle: visible ambient CSS and motion rules present in ${bundle}`);

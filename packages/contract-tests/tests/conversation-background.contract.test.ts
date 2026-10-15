@@ -41,6 +41,23 @@ function reducedMotionBlock(css: string): string {
   return cssBlock(css.slice(start), '@media (prefers-reduced-motion: reduce)');
 }
 
+function ambientMotion(css: string, name: string): { xTravel: number; yTravel: number; scaleTravel: number; duration: number } {
+  const keyframes = css.match(new RegExp(`@keyframes\\s+${name}\\s*\\{([^}]+\\}[^}]*)\\}`))?.[1];
+  if (keyframes === undefined) throw new Error(`missing ambient keyframes: ${name}`);
+  const from = keyframes.match(/from\s*\{[^}]*transform:\s*translate3d\((-?[\d.]+)%,\s*(-?[\d.]+)%,\s*0\)\s*scale\(([\d.]+)\)/);
+  const to = keyframes.match(/to\s*\{[^}]*transform:\s*translate3d\((-?[\d.]+)%,\s*(-?[\d.]+)%,\s*0\)\s*scale\(([\d.]+)\)/);
+  const duration = css.match(new RegExp(`animation:\\s*${name}\\s+([\\d.]+)s`))?.[1];
+  if (from === null || to === null || duration === undefined) {
+    throw new Error(`ambient animation must have transform endpoints and a duration: ${name}`);
+  }
+  return {
+    xTravel: Math.abs(Number(to[1]) - Number(from[1])),
+    yTravel: Math.abs(Number(to[2]) - Number(from[2])),
+    scaleTravel: Math.abs(Number(to[3]) - Number(from[3])),
+    duration: Number(duration),
+  };
+}
+
 describe('ConversationRoot ambient background visibility', () => {
   const css = readFileSync(CONVERSATION_CSS, 'utf8');
 
@@ -62,5 +79,15 @@ describe('ConversationRoot ambient background visibility', () => {
     expect(layers).toMatch(/z-index:\s*0/);
     expect(layers).toMatch(/pointer-events:\s*none/);
     expect(cssBlock(css, '.root > *')).toMatch(/z-index:\s*1/);
+  });
+
+  it('moves each ambient layer far enough and fast enough to be visibly dynamic', () => {
+    for (const name of ['dsh-conversation-ambient-drift-a', 'dsh-conversation-ambient-drift-b']) {
+      const motion = ambientMotion(css, name);
+      expect(motion.xTravel, `${name} horizontal drift`).toBeGreaterThanOrEqual(12);
+      expect(motion.yTravel, `${name} vertical drift`).toBeGreaterThanOrEqual(6);
+      expect(motion.scaleTravel, `${name} scale drift`).toBeGreaterThanOrEqual(0.1);
+      expect(motion.duration, `${name} period`).toBeLessThanOrEqual(30);
+    }
   });
 });

@@ -36,7 +36,7 @@
     transparent 72%
   );
   opacity: .90;
-  animation: dsh-conversation-ambient-drift-a 42s ease-in-out infinite alternate;
+  animation: dsh-conversation-ambient-drift-a 10s ease-in-out infinite alternate;
 }
 
 .root::after {
@@ -51,17 +51,17 @@
     transparent 74%
   );
   opacity: .85;
-  animation: dsh-conversation-ambient-drift-b 53s ease-in-out infinite alternate;
+  animation: dsh-conversation-ambient-drift-b 10s ease-in-out infinite alternate;
 }
 
 @keyframes dsh-conversation-ambient-drift-a {
-  from { transform: translate3d(-2%, -1%, 0) scale(1); }
-  to { transform: translate3d(2%, 1.5%, 0) scale(1.08); }
+  from { transform: translate3d(-9%, -5%, 0) scale(1); }
+  to { transform: translate3d(9%, 5%, 0) scale(1.16); }
 }
 
 @keyframes dsh-conversation-ambient-drift-b {
-  from { transform: translate3d(2%, 1.5%, 0) scale(1.06); }
-  to { transform: translate3d(-2%, -1%, 0) scale(1); }
+  from { transform: translate3d(8%, 6%, 0) scale(1.14); }
+  to { transform: translate3d(-8%, -6%, 0) scale(1); }
 }
 
 @media (prefers-reduced-motion: reduce) {
