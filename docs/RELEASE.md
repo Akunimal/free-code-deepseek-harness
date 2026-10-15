@@ -13,9 +13,10 @@ motion, visibility pause, resize and cleanup checks. Both strict compiler
 faces pass; workspace shell tests pass 346/346 and contracts 114 with 12
 configured skips. Live public completion remains unverified: two authorized
 connections were blocked by Windows before HTTP, and were not retried.
-Runtime build, exact staged visual proof and the final packaging gate are in
-progress. This is not publication or installation acceptance. For unpublished
-local testing, the distribution will include the matching runtime archive and
+The runtime build, exact staged visual proof and final packaging gate passed.
+Fresh setup and portable were generated and statically verified; neither was
+installed. This is not publication or live-provider acceptance. For unpublished
+local testing, the distribution includes the matching runtime archive and
 `Prepare-Local-Runtime.ps1`: default CHECK ONLY; explicit closed-app consent is
 required to prepare cache with backups. It never starts setup or FreeCode.
 No tag, upload, installed-cache mutation or active-process action is authorized.
@@ -136,12 +137,16 @@ installed closure enumerates version, architecture, source, license, hash and
 relative path in `runtime-deps.json`, verified by
 `verify-runtime-dependencies.mjs`.
 
-On any launch without a valid per-user cache, the packaged app downloads the
+For published v0.9.3, a launch without a valid per-user cache downloads the
 exact pinned DSH `0.2.1-alpha.2` Windows x64 runtime from the v0.9.2 release,
 verifies its published SHA-256 and Electron ABI, and caches it under
 `<userData>/harness-runtime`. Later starts can use this validated cache
 offline. That download requires network access; a download or compatibility
 failure must keep the supervisor stopped and offer Retry/Close.
+
+The v0.9.4 candidate instead requires alpha6, which is not published yet. Use
+the verified local runtime/preflight for testing; publish its exact archive and
+checksum before offering this setup as a clean-machine public release.
 
 ## Windows-only publication
 

@@ -13,9 +13,10 @@ motion, visibility pause, resize and cleanup checks. Both strict compiler
 faces pass; workspace shell tests pass 346/346 and contracts 114 with 12
 configured skips. Live public completion remains unverified: two authorized
 connections were blocked by Windows before HTTP, and were not retried.
-Runtime build, exact staged visual proof and the final packaging gate are in
-progress. This is not publication or installation acceptance. For unpublished
-local testing, the distribution will include the matching runtime archive and
+The runtime build, exact staged visual proof and final packaging gate passed.
+Fresh setup and portable were generated and statically verified; neither was
+installed. This is not publication or live-provider acceptance. For unpublished
+local testing, the distribution includes the matching runtime archive and
 `Prepare-Local-Runtime.ps1`: default CHECK ONLY; explicit closed-app consent is
 required to prepare cache with backups. It never starts setup or FreeCode.
 No tag, upload, installed-cache mutation or active-process action is authorized.
@@ -26,29 +27,25 @@ Releases are manual and target Windows x64. This policy describes the real
 desktop/runtime boundary used by v0.9.3; it does not authorize touching a
 maintainer's running FreeCode instance.
 
-The current source version is v0.9.4 candidate. The alpha5 candidate passed its
-earlier release gate, but V094-21 model/Tor source fixes were added afterward;
-that gate and its desktop artifacts are no longer current. Focused shell tests,
-typecheck and Go tests pass; the latest full shell suite had two readiness/timeouts,
-but both affected suites later passed in isolation (packaged Tor 1/1; DSH
-supervisor 5/5, with real CLI readiness in 80.10 s). A new release gate and
-setup/portable build are required
-before publication. The user tried the installed alpha5 candidate and reports
-only one model plus upstream/API-key, connection and protocol failures. The
-v0.9.3 assets and hashes below remain historical
-published evidence and must not be overwritten.
+The current source version is v0.9.4 candidate. The user tried the installed
+alpha5 candidate and reported only one model plus upstream/API-key, connection
+and protocol failures; those pre-fix artifacts are superseded. The new alpha6
+runtime, complete gate and static setup/portable verification now pass. Local
+installation/user acceptance and public-provider response remain unverified.
+The v0.9.3 assets and hashes below remain historical published evidence and must
+not be overwritten. Publication remains a separate user-authorized operation.
 
 The v0.9.4 candidate changes the DSH conversation background and browser-first
-system policy, therefore pins `0.2.1-alpha.5` in the tracked
+system policy, therefore pins `0.2.1-alpha.6` in the tracked
 `apps/shell/harness-runtime.json`. Its runtime was regenerated before packaging;
-stage-manifest gate rejects stale alpha2/alpha3/alpha4 stages. Existing runtime
-archives remain immutable. The alpha5 archive was regenerated locally and
-verified: `apps/shell/release/deepseek-harness-runtime-0.2.1-alpha.5-win32-x64.tar.gz`
-(421,377,684 bytes; SHA-256
-`26953ba93ab1daab8d837c2980f1f5f9c0a60f65677ac48fc973300f5b2229f2`). It is not
+stage-manifest gate rejects stale alpha2/alpha3/alpha4/alpha5 stages. Existing runtime
+archives remain immutable. The new alpha6 archive was generated locally and
+verified: `apps/shell/release/deepseek-harness-runtime-0.2.1-alpha.6-win32-x64.tar.gz`
+(421,412,565 bytes; SHA-256
+`a6279368c40050f6def20af2f6ee6c21007f78257b3a5b7176af4d8f72c20c43`). It is not
 published. The previous setup/portable were generated and statically verified,
 but predate V094-21 and are superseded. The old alpha4 local cache does not
-satisfy alpha5. Never describe an unuploaded archive as a downloadable release asset. OmniRoute has
+satisfy alpha6. Never describe an unuploaded archive as a downloadable release asset. OmniRoute has
 been removed: no fallback, download, server or detection endpoint is shipped.
 Only obsolete app-owned configuration and verified caches are retired at the
 next startup; unrelated providers and sessions are preserved.

@@ -13,9 +13,10 @@ motion, visibility pause, resize and cleanup checks. Both strict compiler
 faces pass; workspace shell tests pass 346/346 and contracts 114 with 12
 configured skips. Live public completion remains unverified: two authorized
 connections were blocked by Windows before HTTP, and were not retried.
-Runtime build, exact staged visual proof and the final packaging gate are in
-progress. This is not publication or installation acceptance. For unpublished
-local testing, the distribution will include the matching runtime archive and
+The runtime build, exact staged visual proof and final packaging gate passed.
+Fresh setup and portable were generated and statically verified; neither was
+installed. This is not publication or live-provider acceptance. For unpublished
+local testing, the distribution includes the matching runtime archive and
 `Prepare-Local-Runtime.ps1`: default CHECK ONLY; explicit closed-app consent is
 required to prepare cache with backups. It never starts setup or FreeCode.
 No tag, upload, installed-cache mutation or active-process action is authorized.
@@ -34,8 +35,9 @@ reducido, pausa al ocultar, resize y limpieza comprobados. Pasan ambos programas
 de tipado estricto, 346/346 pruebas shell y 114 contratos con 12 skips previstos.
 La respuesta pública real sigue sin verificarse: Windows bloqueó antes de HTTP
 las dos conexiones autorizadas y no se repitieron. Build runtime, evidencia
-visual del stage exacto y gate final de empaquetado están en curso. No equivale
-a publicación ni aceptación de instalación. La prueba local sin publicar tendrá
+visual del stage exacto y gate final de empaquetado pasaron. Se generaron y
+verificaron setup y portable nuevos, sin instalarlos. No equivale a publicar ni
+a validar el proveedor público. La prueba local sin publicar incluye
 el archivo runtime exacto y `Prepare-Local-Runtime.ps1`: por defecto CHECK ONLY;
 la precarga exige confirmación explícita de app cerrada y conserva backups.
 Nunca ejecuta setup ni FreeCode. No se autorizó tag, subida ni tocar caché o
@@ -98,10 +100,10 @@ RTK and Caveman are not enabled together by default: they may complement each ot
    prerequisites, not claims about the currently installed app.
 4. **Agent selector / Selector de agentes** — Gentle AI restored as an explicit
    opt-in Web mode; Standard remains the default.
-5. **Runtime integrity / Integridad runtime** — source now pins DSH alpha5 and
+5. **Runtime integrity / Integridad runtime** — source now pins DSH alpha6 and
    opencode2api version/SHA pins match the locally built artifacts; optional
-   PATH fallbacks do not fail the required-runtime check. The alpha5 archive and
-   checksum are locally generated/verified, not published; alpha4 cache and
+   PATH fallbacks do not fail the required-runtime check. The alpha6 archive and
+   checksum are locally generated/verified, not published; alpha5 cache and
    artifacts are superseded.
 6. **Model/Tor resilience / Resiliencia de modelos/Tor** — clear stale provider
    settings before DSH starts, use Muse Spark's minimum 16-token probe budget,
@@ -113,15 +115,14 @@ RTK and Caveman are not enabled together by default: they may complement each ot
    later alpha5 setup/portable and gate passed after local runtime precache. The
    user tried the installed alpha5 candidate and reports only one model and
    upstream/API-key, connection and protocol errors. Those pre-fix artifacts
-   are superseded. V094-21 focused shell tests passed 35/35, shell typecheck and
-   Go tests passed (43/43 across 13 packages); the latest full suite had packaged Tor startup (15 s)
-   and DSH readiness (120 s) timeouts. Both affected suites later passed in
-   isolation (Tor 1/1 in 1.58 s; supervisor 5/5, real DSH readiness in 80.10 s).
-   A fresh build and
-   full gate are pending in
-   `apps/shell/release-0.9.4-alpha6-20261015/`. The alpha5 runtime
-   remains unpublished; v0.9.3 is still latest. The running app was not
-   interrupted.
+   are superseded. The alpha6 build and full gate now pass: shell 346/346,
+   contracts 114 with 12 configured skips, vendor 354/354, strict Host+Client,
+   packaged render and 14/14 native addons. Fresh setup/portable and the exact
+   local runtime/preflight are in
+   `apps/shell/release-0.9.4-alpha6-20261015/`. Neither was installed. The alpha6
+   runtime remains unpublished; v0.9.3 is still latest. The running app was not
+   interrupted. Public-provider acceptance and clean published first launch
+   remain pending; local fixture success does not prove them.
 
 ## Completado / Completed
 

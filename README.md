@@ -13,9 +13,10 @@ motion, visibility pause, resize and cleanup checks. Both strict compiler
 faces pass; workspace shell tests pass 346/346 and contracts 114 with 12
 configured skips. Live public completion remains unverified: two authorized
 connections were blocked by Windows before HTTP, and were not retried.
-Runtime build, exact staged visual proof and the final packaging gate are in
-progress. This is not publication or installation acceptance. For unpublished
-local testing, the distribution will include the matching runtime archive and
+The runtime build, exact staged visual proof and final packaging gate passed.
+Fresh setup and portable were generated and statically verified; neither was
+installed. This is not publication or live-provider acceptance. For unpublished
+local testing, the distribution includes the matching runtime archive and
 `Prepare-Local-Runtime.ps1`: default CHECK ONLY; explicit closed-app consent is
 required to prepare cache with backups. It never starts setup or FreeCode.
 No tag, upload, installed-cache mutation or active-process action is authorized.

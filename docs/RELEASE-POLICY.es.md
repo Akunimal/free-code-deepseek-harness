@@ -15,8 +15,9 @@ reducido, pausa al ocultar, resize y limpieza comprobados. Pasan ambos programas
 de tipado estricto, 346/346 pruebas shell y 114 contratos con 12 skips previstos.
 La respuesta pública real sigue sin verificarse: Windows bloqueó antes de HTTP
 las dos conexiones autorizadas y no se repitieron. Build runtime, evidencia
-visual del stage exacto y gate final de empaquetado están en curso. No equivale
-a publicación ni aceptación de instalación. La prueba local sin publicar tendrá
+visual del stage exacto y gate final de empaquetado pasaron. Se generaron y
+verificaron setup y portable nuevos, sin instalarlos. No equivale a publicar ni
+a validar el proveedor público. La prueba local sin publicar incluye
 el archivo runtime exacto y `Prepare-Local-Runtime.ps1`: por defecto CHECK ONLY;
 la precarga exige confirmación explícita de app cerrada y conserva backups.
 Nunca ejecuta setup ni FreeCode. No se autorizó tag, subida ni tocar caché o
@@ -27,27 +28,24 @@ Las releases son manuales y tienen como target Windows x64. Esta política
 describe el límite real entre la app desktop y el runtime para v0.9.3; no
 autoriza a tocar una instancia de FreeCode que esté en ejecución.
 
-La versión actual de la fuente es candidata v0.9.4. La candidata alpha5 pasó su
-gate anterior, pero después se agregaron las correcciones de modelos/Tor V094-21;
-ese gate y sus artefactos desktop ya no son actuales. Las pruebas focalizadas
-shell, typecheck y Go pasan; la última suite shell completa tuvo dos timeouts,
-pero ambas pruebas pasaron luego aisladas (Tor 1/1; supervisor DSH 5/5, readiness
-real del CLI en 80,10 s). Hace falta repetir el gate y compilar setup/
-portable antes de publicar. El usuario probó la alpha5 instalada e informa que
-solo aparece un modelo y hay fallos de upstream/API key, conexión y protocolo.
-Los artefactos y hashes v0.9.3 que siguen abajo son
-evidencia histórica de la release publicada y no deben sobrescribirse.
+La versión actual de la fuente es candidata v0.9.4. El usuario probó la alpha5
+instalada e informó que solo aparece un modelo y hay fallos de conexión/protocolo;
+esos artefactos anteriores al fix están obsoletos. Ahora pasan el runtime alpha6,
+el gate completo y la verificación estática de setup/portable. Falta la aceptación
+local del usuario y la respuesta del proveedor público. Los artefactos y hashes
+v0.9.3 son evidencia histórica publicada y no deben sobrescribirse. Publicar sigue
+siendo una operación separada que requiere autorización del usuario.
 
 ## Contenido de la release y runtime fijado
 
 El candidato v0.9.4 cambia los fondos de DSH y prioriza el navegador en el prompt.
 Fija `0.2.1-alpha.6` en `apps/shell/harness-runtime.json`. El runtime se regeneró
 antes de empaquetar; el gate de stage rechaza stages obsoletos
-alpha2/alpha3/alpha4. Los archivos runtime existentes son inmutables. El tarball
-alpha5 ya se generó localmente y se verificó:
-`apps/shell/release/deepseek-harness-runtime-0.2.1-alpha.5-win32-x64.tar.gz`
-(421.377.684 bytes; SHA-256
-`26953ba93ab1daab8d837c2980f1f5f9c0a60f65677ac48fc973300f5b2229f2`). No está
+alpha2/alpha3/alpha4/alpha5. Los archivos runtime existentes son inmutables. El tarball
+alpha6 nuevo se generó localmente y se verificó:
+`apps/shell/release/deepseek-harness-runtime-0.2.1-alpha.6-win32-x64.tar.gz`
+(421.412.565 bytes; SHA-256
+`a6279368c40050f6def20af2f6ee6c21007f78257b3a5b7176af4d8f72c20c43`). No está
 publicado. El setup/portable anteriores se generaron y verificaron estáticamente,
 pero son previos a V094-21 y quedaron obsoletos. La caché local alpha4 no satisface
 el nuevo pin. Nunca

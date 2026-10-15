@@ -15,8 +15,9 @@ reducido, pausa al ocultar, resize y limpieza comprobados. Pasan ambos programas
 de tipado estricto, 346/346 pruebas shell y 114 contratos con 12 skips previstos.
 La respuesta pública real sigue sin verificarse: Windows bloqueó antes de HTTP
 las dos conexiones autorizadas y no se repitieron. Build runtime, evidencia
-visual del stage exacto y gate final de empaquetado están en curso. No equivale
-a publicación ni aceptación de instalación. La prueba local sin publicar tendrá
+visual del stage exacto y gate final de empaquetado pasaron. Se generaron y
+verificaron setup y portable nuevos, sin instalarlos. No equivale a publicar ni
+a validar el proveedor público. La prueba local sin publicar incluye
 el archivo runtime exacto y `Prepare-Local-Runtime.ps1`: por defecto CHECK ONLY;
 la precarga exige confirmación explícita de app cerrada y conserva backups.
 Nunca ejecuta setup ni FreeCode. No se autorizó tag, subida ni tocar caché o

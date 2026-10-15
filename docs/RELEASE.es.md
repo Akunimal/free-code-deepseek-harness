@@ -15,8 +15,9 @@ reducido, pausa al ocultar, resize y limpieza comprobados. Pasan ambos programas
 de tipado estricto, 346/346 pruebas shell y 114 contratos con 12 skips previstos.
 La respuesta pública real sigue sin verificarse: Windows bloqueó antes de HTTP
 las dos conexiones autorizadas y no se repitieron. Build runtime, evidencia
-visual del stage exacto y gate final de empaquetado están en curso. No equivale
-a publicación ni aceptación de instalación. La prueba local sin publicar tendrá
+visual del stage exacto y gate final de empaquetado pasaron. Se generaron y
+verificaron setup y portable nuevos, sin instalarlos. No equivale a publicar ni
+a validar el proveedor público. La prueba local sin publicar incluye
 el archivo runtime exacto y `Prepare-Local-Runtime.ps1`: por defecto CHECK ONLY;
 la precarga exige confirmación explícita de app cerrada y conserva backups.
 Nunca ejecuta setup ni FreeCode. No se autorizó tag, subida ni tocar caché o
@@ -137,12 +138,16 @@ arrancan deshabilitadas. El cierre instalado enumera versión, arquitectura,
 origen, licencia, hash y ruta relativa en `runtime-deps.json`, verificado por
 `verify-runtime-dependencies.mjs`.
 
-En cualquier inicio sin caché válida por usuario, la app descarga el runtime
+En v0.9.3 publicada, un inicio sin caché válida por usuario descarga el runtime
 DSH Windows x64 exacto fijado en `0.2.1-alpha.2` desde la release v0.9.2,
 verifica el SHA-256 publicado y la ABI de Electron, y lo guarda en
 `<userData>/harness-runtime`. Los inicios siguientes pueden usar esa caché
 validada sin conexión. Esa descarga requiere Internet; si falla la descarga o compatibilidad, el supervisor no
 debe iniciarse y se ofrecen Reintentar/Cerrar.
+
+La candidata v0.9.4 requiere alpha6, todavía sin publicar. Para probarla usá el
+runtime/preflight local verificado; publicá ese archivo exacto y su checksum
+antes de ofrecer el setup como release pública para una máquina limpia.
 
 ## Publicación sólo Windows
 

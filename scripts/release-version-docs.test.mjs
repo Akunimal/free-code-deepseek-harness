@@ -71,8 +71,8 @@ test('V094-21 candidate documentation supersedes the pre-fix installer and recor
   assert.match(spanish, /HTTP 400\/401\/403 ya no enfrían Direct\/Tor/i);
   assert.match(english, /Both now\s+pass in isolation[\s\S]{0,100}Tor 1\/1[\s\S]{0,140}supervisor 5\/5/i);
   assert.match(spanish, /Ambos\s+ahora pasan aislados[\s\S]{0,100}Tor 1\/1[\s\S]{0,140}supervisor 5\/5/i);
-  assert.match(english, /full release gate and fresh desktop build remain\s+pending/i);
-  assert.match(spanish, /gate completo y el nuevo build desktop siguen pendientes/i);
+  assert.match(english, /final packaging gate passed/i);
+  assert.match(spanish, /gate final de empaquetado pasaron/i);
 
   const pendingBuildDir = 'release-0.9.4-alpha6-20261015';
   const activeDocs = [
@@ -96,6 +96,7 @@ test('active bilingual candidate docs identify alpha6, the real Hermes patterns 
     assert.match(source, /Hermes/, file);
     assert.match(source, /cordis\.patch\.yml/, file);
     assert.match(source, /1\.4\.0/, file);
+    assert.doesNotMatch(source, /therefore pins `0\.2\.1-alpha\.5`|source now pins DSH alpha5/i, file);
   }
 });
 
@@ -164,8 +165,9 @@ test('release guides and known-issues ledger identify v0.9.3 as the supported ba
   assert.match(knownIssues, /v0\.9\.3 sólo se soporta Windows x64/i);
   assert.match(knownIssues, /KI-009.*resolved in v0\.9\.3/is);
   assert.match(knownIssues, /KI-009.*resuelto en v0\.9\.3/is);
-  assert.match(knownIssues, /KI-010.*published DSH alpha5 runtime asset/is);
-  assert.match(knownIssues, /KI-010.*requiere publicar el runtime DSH alpha5/is);
+  assert.match(knownIssues, /KI-010.*published DSH alpha6 runtime asset/is);
+  assert.match(knownIssues, /KI-010.*requiere publicar el runtime DSH alpha6/is);
+  assert.match(knownIssues, /Prepare-Local-Runtime\.ps1/);
   assert.match(knownIssues, /KI-009.*semantic.*tail/is);
   assert.match(knownIssues, /sufijo semántico puede ocultar historial válido/i);
   assert.match(knownIssues, /preserva los bytes originales raw\/Zstandard/i);

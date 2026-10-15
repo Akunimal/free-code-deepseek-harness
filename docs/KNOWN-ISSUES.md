@@ -152,31 +152,45 @@ preserva los bytes originales raw/Zstandard y rechaza abrir para escritura. No
 repara ni reconstruye el sufijo descartado; si se requiere recuperación manual,
 conservá intacto el archivo de sesión original.
 
-### KI-010 — v0.9.4 needs a published DSH alpha5 runtime asset / v0.9.4 requiere publicar el runtime DSH alpha5
+### KI-010 — v0.9.4 needs a published DSH alpha6 runtime asset / v0.9.4 requiere publicar el runtime DSH alpha6
 
 The desktop setup intentionally excludes the DSH runtime. First launch reuses a
 valid per-user cache or downloads an exact-version GitHub release asset. The
-current v0.9.4 source pins `0.2.1-alpha.5`; its runtime archive is generated and
-SHA-256-verified locally (`421,377,684` bytes;
-`26953ba93ab1daab8d837c2980f1f5f9c0a60f65677ac48fc973300f5b2229f2`) but is not
+current v0.9.4 source pins `0.2.1-alpha.6`; its runtime archive is generated and
+SHA-256-verified locally (`421,412,565` bytes;
+`a6279368c40050f6def20af2f6ee6c21007f78257b3a5b7176af4d8f72c20c43`) but is not
 published. A clean installation without that exact cached version cannot start
 DSH even when NSIS exits successfully. The old local alpha4 cache does not
-satisfy the alpha5 pin. The previous alpha4 setup failure and local seed are
-historical and do not prove startup with alpha5. Before publication, attach the
+satisfy the alpha6 pin. The previous alpha4 setup failure and local seed are
+historical and do not prove startup with alpha6. Before publication, attach the
 matching runtime archive and checksum to the intended fork release and verify a
 clean first launch.
 
 El setup desktop excluye intencionalmente el runtime DSH. El primer inicio
 reutiliza una caché válida por usuario o descarga un asset de release de versión
-exacta. La fuente actual de v0.9.4 fija `0.2.1-alpha.5`; su tarball ya se generó
-y verificó localmente (`421.377.684` bytes; SHA-256
-`26953ba93ab1daab8d837c2980f1f5f9c0a60f65677ac48fc973300f5b2229f2`), pero no
+exacta. La fuente actual de v0.9.4 fija `0.2.1-alpha.6`; su tarball ya se generó
+y verificó localmente (`421.412.565` bytes; SHA-256
+`a6279368c40050f6def20af2f6ee6c21007f78257b3a5b7176af4d8f72c20c43`), pero no
 está publicado. Una instalación limpia sin esa versión cacheada no puede
 iniciar DSH aunque NSIS termine correctamente. La caché alpha4 anterior no
-satisface el pin alpha5. El fallo y la precarga local de alpha4 son hechos
-históricos y no demuestran el inicio con alpha5. Antes de publicar, adjuntá el
+satisface el pin alpha6. El fallo y la precarga local de alpha4 son hechos
+históricos y no demuestran el inicio con alpha6. Antes de publicar, adjuntá el
 archivo runtime correspondiente y su checksum a la release correcta del fork y
 verificá un primer inicio limpio.
+
+Local unpublished testing now includes the exact archive and `Prepare-Local-Runtime.ps1`.
+Its default CHECK ONLY was executed successfully without cache changes. The explicit
+preparation switch is permitted only after closing FreeCode and retains backups;
+it never runs setup or the app. The candidate full gate and static setup/portable
+checks pass; first launch against a published alpha6 asset and public-provider
+completion remain unverified. Do not mark this issue closed merely from mocks.
+
+La prueba local sin publicar incluye el archivo exacto y `Prepare-Local-Runtime.ps1`.
+Su modo CHECK ONLY se ejecutó correctamente sin modificar caché. La precarga
+explícita exige cerrar FreeCode y conserva backups; nunca ejecuta setup ni app.
+Pasan el gate completo y la validación estática de setup/portable; siguen pendientes
+el primer inicio con alpha6 publicado y la respuesta del proveedor público.
+No cierres este issue solo por pasar mocks.
 
 ## Issues resueltos / Resolved historical issues
 

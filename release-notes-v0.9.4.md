@@ -15,9 +15,10 @@ motion, visibility pause, resize and cleanup checks. Both strict compiler
 faces pass; workspace shell tests pass 346/346 and contracts 114 with 12
 configured skips. Live public completion remains unverified: two authorized
 connections were blocked by Windows before HTTP, and were not retried.
-Runtime build, exact staged visual proof and the final packaging gate are in
-progress. This is not publication or installation acceptance. For unpublished
-local testing, the distribution will include the matching runtime archive and
+The runtime build, exact staged visual proof and final packaging gate passed.
+Fresh setup and portable were generated and statically verified; neither was
+installed. This is not publication or live-provider acceptance. For unpublished
+local testing, the distribution includes the matching runtime archive and
 `Prepare-Local-Runtime.ps1`: default CHECK ONLY; explicit closed-app consent is
 required to prepare cache with backups. It never starts setup or FreeCode.
 No tag, upload, installed-cache mutation or active-process action is authorized.
@@ -84,7 +85,7 @@ That local-only alpha4 cache workaround did not satisfy the later alpha5 pin.
   embedded `computer_use` browser before DeepSeek API `web_search`. API fallback
   is reserved for browser unavailability, blocked access or failed attempts,
   with the limitation disclosed. Tool scopes and user permissions remain
-  respected. DSH `0.2.1-alpha.5` is locally rebuilt and its archive, SHA-256,
+  respected. DSH `0.2.1-alpha.6` is locally rebuilt and its archive, SHA-256,
   Electron ABI and Node engine are verified; it is not published remotely yet.
 - **OmniRoute removed.** No optional runtime download, automatic fallback,
   server or detector remains. Next-start migration retires only FreeCode-owned
@@ -119,8 +120,8 @@ That local-only alpha4 cache workaround did not satisfy the later alpha5 pin.
   APPDATA, LOCALAPPDATA, USERPROFILE, HOME, TEMP and TMP into its own test tree.
 - **Background packaging guards.** Materialized/copied runtime and desktop
   packaging checks now require Hermes patterns plus actual live-turn wiring;
-  the old two-gradient fixture is rejected. Staged alpha5 is intentionally old,
-  so it cannot satisfy the new gate until a fresh runtime version is built.
+  the old two-gradient fixture is rejected. Alpha5 is rejected; the
+  fresh alpha6 runtime now passes the actual rendered-bundle gate.
 - **Runtime pins stay aligned.** The package step refreshes version/SHA-256 only
   for locally built opencode2api and DSH artifacts, leaves external Tor pins
   explicit, and treats absent optional PATH-fallback tools as optional.
@@ -157,8 +158,9 @@ reducido, pausa al ocultar, resize y limpieza comprobados. Pasan ambos programas
 de tipado estricto, 346/346 pruebas shell y 114 contratos con 12 skips previstos.
 La respuesta pública real sigue sin verificarse: Windows bloqueó antes de HTTP
 las dos conexiones autorizadas y no se repitieron. Build runtime, evidencia
-visual del stage exacto y gate final de empaquetado están en curso. No equivale
-a publicación ni aceptación de instalación. La prueba local sin publicar tendrá
+visual del stage exacto y gate final de empaquetado pasaron. Se generaron y
+verificaron setup y portable nuevos, sin instalarlos. No equivale a publicar ni
+a validar el proveedor público. La prueba local sin publicar incluye
 el archivo runtime exacto y `Prepare-Local-Runtime.ps1`: por defecto CHECK ONLY;
 la precarga exige confirmación explícita de app cerrada y conserva backups.
 Nunca ejecuta setup ni FreeCode. No se autorizó tag, subida ni tocar caché o
@@ -225,7 +227,7 @@ La precarga local alpha4 fue un workaround y no satisface el pin alpha5 posterio
   información web, usar `computer_use` antes de DeepSeek API `web_search`.
   El fallback queda para navegador ausente, acceso bloqueado o intentos fallidos,
   informando la limitación. Se respetan scopes y permisos del usuario. DSH
-  `0.2.1-alpha.5` se recompiló localmente y se verificaron el archivo, SHA-256,
+  `0.2.1-alpha.6` se recompiló localmente y se verificaron el archivo, SHA-256,
   ABI de Electron y versión de Node; todavía no está publicado.
 - **OmniRoute retirado.** Sin descarga opcional, fallback automático, servidor
   ni detector. La migración del próximo inicio retira solo la configuración
@@ -287,3 +289,39 @@ del CLI en 80,10 s). El gate completo y el nuevo build desktop siguen pendientes
 el setup/portable alpha5 anterior quedó obsoleto y ningún instalador actual trae
 V094-21. No se interrumpió la instancia FreeCode activa. v0.9.4 no tiene tag ni
 release pública.
+
+## Verified local artifacts / Artefactos locales verificados — 2026-10-15
+
+Not installed or published / No instalados ni publicados.
+Output / Salida: `apps/shell/release-0.9.4-alpha6-20261015/`.
+
+| Artifact / Artefacto | Bytes | SHA-256 |
+|---|---:|---|
+| Setup 0.9.4 | 178751149 | `003383bea661a3036e8f2bd32abde611b6eb513d24c184a603a448804cd877a7` |
+| Portable 0.9.4 | 178376011 | `58c797fe77ab2711bd242ec121446d3f94394ddaba647bf583de189e589de838` |
+| DSH 0.2.1-alpha.6 | 421412565 | `a6279368c40050f6def20af2f6ee6c21007f78257b3a5b7176af4d8f72c20c43` |
+
+The full non-interactive gate passed: shell 346/346, contract tests 114 passed
+with 12 configured skips, vendor regressions 354/354, strict Host+Client,
+14/14 native addons and real hidden DSH/MCP/loopback smoke. Go: 47 passed,
+one opt-in public test skipped, vet clean. No additional public request was made.
+
+Pasó el gate completo no interactivo: shell 346/346, 114 contratos con 12 skips
+previstos, vendor 354/354, Host+Client estricto, 14/14 addons nativos y smoke real
+DSH/MCP/proveedor loopback. Go: 47 aprobados, una prueba pública optativa omitida,
+vet limpio. No se hicieron más consultas públicas.
+
+For local testing before publishing alpha6, run `Prepare-Local-Runtime.ps1`
+(default CHECK ONLY). Cache preparation needs `-PrepareRuntime -FreeCodeIsClosed`
+after closing FreeCode. It retains backups and never runs setup or the app.
+Do not run the standalone setup on a clean machine without that exact runtime.
+
+Para probar sin publicar alpha6, usá `Prepare-Local-Runtime.ps1` (por defecto,
+CHECK ONLY). La precarga exige `-PrepareRuntime -FreeCodeIsClosed` después de
+cerrar FreeCode. Conserva backups; nunca ejecuta setup ni la app. No ejecutes
+el setup solo en una máquina limpia sin ese runtime exacto.
+
+Evidence / Evidencia: `evidence/`, `verification-receipt.json` and
+`local-candidate.json` in the output directory. Source and materialized
+conversation bundles match SHA-256
+`b9de45b135f7b015250bd2d99d78f6384e572f22fd109fcc2ee9d00c33e45e7c`.
