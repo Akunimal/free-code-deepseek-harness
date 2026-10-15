@@ -82,6 +82,7 @@ function buildConfig(port: number, apiKey: string, proxies: string[] = ['direct'
       proxyfile: '',
       upstream: {
         zen: 'https://opencode.ai/zen',
+        anonymous: 'https://opencode.ai/inference',
         go: 'https://opencode.ai/zen/go',
       },
       retry: { max_attempts: 3, timeout_seconds: 300 },

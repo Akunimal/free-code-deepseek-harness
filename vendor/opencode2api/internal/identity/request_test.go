@@ -26,7 +26,7 @@ func TestDeriveRequestIDsUsesStableCanonicalSessionForForeignIdentity(t *testing
 }
 
 func TestDeriveRequestIDsPreservesCanonicalOpenCodeSession(t *testing.T) {
-	want := "ses_0123456789ababcdefghijklmn"
+	want := "ses_012345678ffeabcdefghijklmn"
 	request := httptest.NewRequest("POST", "/v1/responses", nil)
 	request.Header.Set("x-opencode-session", want)
 

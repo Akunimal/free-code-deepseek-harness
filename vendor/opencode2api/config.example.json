@@ -8,7 +8,8 @@
   "proxyfile": "",
   "upstream": {
     "zen": "https://opencode.ai/zen",
-    "go": "https://opencode.ai/zen/go"
+    "go": "https://opencode.ai/zen/go",
+    "anonymous": "https://opencode.ai/inference"
   },
   "retry": {
     "max_attempts": 3,
@@ -16,7 +17,8 @@
   },
   "models": {
     "refresh_seconds": 300,
-    "protocols": {}
+    "protocols": {},
+    "free_only": false
   },
   "performance": {
     "max_idle_conns": 2048,

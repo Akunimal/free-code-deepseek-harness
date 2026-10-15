@@ -7,10 +7,10 @@ unpublished candidate; v0.9.3 remains the latest published Windows x64 release.
 
 ### Reliability / Confiabilidad
 
-- Updated vendored opencode2api to v1.3.8 with persistent manual model choice,
+- Updated vendored opencode2api to v1.4.0 with persistent manual model choice,
   transient-probe recovery, and stable request/session identity contracts. The
   FreeCode direct-first then Tor-on-non-2xx policy remains covered by tests. /
-  opencode2api vendorizado actualizado a v1.3.8, con selección manual
+  opencode2api vendorizado actualizado a v1.4.0, con selección manual
   persistente, recuperación ante sondeos transitorios e identidades estables
   de request/sesión. Los tests protegen la política Direct primero y Tor solo
   tras no-2xx.

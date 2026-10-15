@@ -33,11 +33,14 @@ function paths(root) {
 // Build completion only; never called implicitly from prepackage verification.
 export function stageSidecar(root) {
   const {source,staged}=paths(root);
-  const receipt={schemaVersion:1,version:readFileSync(join(root,'vendor/opencode2api/UPSTREAM_VERSION'),'utf8').trim(),sourceSha256:inputs(root),binarySha256:hash(readFileSync(join(source,binary)))};
+  const license = join(root,'vendor/opencode2api/LICENSE');
+  const receipt={schemaVersion:1,version:readFileSync(join(root,'vendor/opencode2api/UPSTREAM_VERSION'),'utf8').trim(),sourceSha256:inputs(root),binarySha256:hash(readFileSync(join(source,binary))),licenseSha256:hash(readFileSync(license))};
   mkdirSync(staged,{recursive:true});
   writeFileSync(join(source,receiptName),JSON.stringify(receipt,null,2)+'\n');
   copyFileSync(join(source,binary),join(staged,binary));
   copyFileSync(join(source,receiptName),join(staged,receiptName));
+  copyFileSync(license,join(source,'LICENSE'));
+  copyFileSync(license,join(staged,'LICENSE'));
 }
 
 export function verifyStagedSidecar(root) {
@@ -45,6 +48,8 @@ export function verifyStagedSidecar(root) {
   const receipt=JSON.parse(readFileSync(join(staged,receiptName),'utf8'));
   if (receipt.schemaVersion!==1 || receipt.version!==readFileSync(join(root,'vendor/opencode2api/UPSTREAM_VERSION'),'utf8').trim() || receipt.sourceSha256!==inputs(root)) throw new Error('opencode2api source fingerprint changed; rebuild sidecar before packaging');
   if (receipt.binarySha256!==hash(readFileSync(join(source,binary))) || receipt.binarySha256!==hash(readFileSync(join(staged,binary)))) throw new Error('opencode2api staged binary is stale; rebuild/stage sidecar');
+  if (receipt.licenseSha256!==hash(readFileSync(join(root,'vendor/opencode2api/LICENSE')))
+    || receipt.licenseSha256!==hash(readFileSync(join(staged,'LICENSE')))) throw new Error('opencode2api staged license is missing or stale; rebuild/stage sidecar');
   return true;
 }
 

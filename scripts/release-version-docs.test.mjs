@@ -41,7 +41,7 @@ test('bilingual 0.9.4 notes describe the candidate without claiming publication'
   assert.match(notes, /^## Español$/m);
   assert.match(notes, /candidate; not yet published/i);
   assert.match(notes, /candidata; todavía no publicada/i);
-  assert.match(notes, /opencode2api v1\.3\.8/i);
+  assert.match(notes, /opencode2api v1\.4\.0/i);
   assert.match(notes, /SAFECOOKIE[\s\S]*bootstrap/i);
   assert.match(english, /Gentle AI[\s\S]*Standard remains the default/i);
   assert.match(spanish, /Gentle AI[\s\S]*Standard sigue siendo el modo predeterminado/i);

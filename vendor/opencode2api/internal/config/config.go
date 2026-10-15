@@ -54,6 +54,10 @@ type ReasoningConfig struct {
 type UpstreamConfig struct {
 	Zen string `json:"zen"`
 	Go  string `json:"go"`
+	// Anonymous is the base URL used by the keyless free-tier lane. Upstream
+	// moved keyless inference off /zen onto its own host, so the anonymous lane
+	// no longer shares the Zen base with the keyed lanes.
+	Anonymous string `json:"anonymous"`
 }
 
 type RetryConfig struct {
@@ -64,6 +68,9 @@ type RetryConfig struct {
 type ModelsConfig struct {
 	RefreshSeconds int               `json:"refresh_seconds"`
 	Protocols      map[string]string `json:"protocols"`
+	// FreeOnly limits discovery and routing to free models, even when Zen or
+	// Go keys could serve paid ones. Free models may still fall back to keys.
+	FreeOnly bool `json:"free_only"`
 }
 
 type LoggingConfig struct {
@@ -98,14 +105,16 @@ type PerformanceConfig struct {
 // AttemptTimeout bounds how long a single upstream attempt may wait for
 // response headers before it is abandoned and the next node is tried. Values
 // <= 0 keep the historical behavior of using the request-level retry timeout,
-// so existing configs are unaffected. The result never exceeds requestTimeout,
-// and only the header wait is bounded: an established stream keeps flowing
-// under the request-level timeout.
+// so existing configs are unaffected. The result never exceeds requestTimeout.
+// It bounds the whole attempt up to the response being released (dial, request
+// write, headers and, when enabled, the first SSE event); an established
+// stream keeps flowing under the request-level timeout.
 //
-// The bound is installed on the shared transports, so it covers every attempt
-// in both the anonymous and the authenticated loops. Without it, one hung exit
-// can consume the entire request budget by itself, and the attempts that follow
-// are fired against an already-expired context.
+// The bound is installed on the shared transports as the header wait and on
+// each attempt's context, so it covers every attempt in both the anonymous and
+// the authenticated loops. Without it, one hung exit can consume the entire
+// request budget by itself, and the attempts that follow are fired against an
+// already-expired context.
 func (cfg PerformanceConfig) AttemptTimeout(requestTimeout time.Duration) time.Duration {
 	if cfg.AttemptTimeoutSeconds > 0 {
 		attempt := time.Duration(cfg.AttemptTimeoutSeconds) * time.Second
@@ -128,7 +137,7 @@ func Load(path string) (Config, error) {
 	}
 	cfg := Config{
 		Listen:      "127.0.0.1:8080",
-		Upstream:    UpstreamConfig{Zen: "https://opencode.ai/zen", Go: "https://opencode.ai/zen/go"},
+		Upstream:    UpstreamConfig{Zen: "https://opencode.ai/zen", Go: "https://opencode.ai/zen/go", Anonymous: "https://opencode.ai/inference"},
 		Retry:       RetryConfig{MaxAttempts: 3, TimeoutSeconds: 300},
 		Models:      ModelsConfig{RefreshSeconds: 300, Protocols: map[string]string{}},
 		Performance: PerformanceConfig{MaxIdleConns: 2048, MaxIdleConnsPerHost: 256, MaxConnsPerHost: 0, IdleConnTimeoutSeconds: 120, ConnectTimeoutSeconds: 5, FailureCooldownSeconds: 15},
@@ -169,7 +178,11 @@ func Normalize(path string, cfg Config) (Config, error) {
 	}
 	cfg.Upstream.Zen = strings.TrimSpace(cfg.Upstream.Zen)
 	cfg.Upstream.Go = strings.TrimSpace(cfg.Upstream.Go)
-	for name, raw := range map[string]string{"upstream.zen": cfg.Upstream.Zen, "upstream.go": cfg.Upstream.Go} {
+	cfg.Upstream.Anonymous = strings.TrimSpace(cfg.Upstream.Anonymous)
+	if cfg.Upstream.Anonymous == "" {
+		cfg.Upstream.Anonymous = "https://opencode.ai/inference"
+	}
+	for name, raw := range map[string]string{"upstream.zen": cfg.Upstream.Zen, "upstream.go": cfg.Upstream.Go, "upstream.anonymous": cfg.Upstream.Anonymous} {
 		u, err := url.Parse(strings.TrimSpace(raw))
 		if err != nil || u.Host == "" || (strings.ToLower(u.Scheme) != "http" && strings.ToLower(u.Scheme) != "https") {
 			return Config{}, fmt.Errorf("%s must be an http or https URL", name)

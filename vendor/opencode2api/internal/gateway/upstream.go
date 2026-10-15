@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	_ "embed"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -13,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"opencode2api/internal/config"
@@ -268,10 +270,10 @@ func (g *Gateway) doAnonymousUpstream(ctx context.Context, route models.Route, b
 		return nil, errors.New("no prepared Zen request body"), 0
 	}
 	// The anonymous free tier only serves agent-shaped streaming requests
-	// (anything else is rejected with 403 FreeTierError). Normalize the
-	// wire body here; the gateway collapses the stream back when the
-	// downstream client asked for a plain JSON reply. Key tiers keep their
-	// original bodies.
+	// carrying the official core tool definitions (anything else is rejected
+	// with 403 FreeTierError). Normalize the wire body here; the gateway
+	// collapses the stream back when the downstream client asked for a plain
+	// JSON reply. Key tiers keep their original bodies.
 	body = prepareAnonymousBody(body, route.ProtocolFor(config.TierZen))
 	for attempts < limit {
 		if ctx.Err() != nil {
@@ -296,13 +298,13 @@ func (g *Gateway) doAnonymousUpstream(ctx context.Context, route models.Route, b
 			httpx.DrainAndClose(lastResponse.Body)
 			lastResponse = nil
 		}
-		req, err := newUpstreamRequest(ctx, g.cfg.Upstream.Zen, route.Protocol, body, ids, anonymousZenKey)
+		req, err := newUpstreamRequest(ctx, g.cfg.Upstream.Anonymous, route.Protocol, body, ids, anonymousZenKey)
 		if err != nil {
 			return nil, err, attempts
 		}
 		setRequestCredential(ctx, config.TierZen, "anonymous", "anonymous", true, node.proxy)
 		started := time.Now()
-		resp, err := doInferenceAttempt(node.proxy.client, req, time.Duration(g.cfg.Performance.FirstEventTimeoutSeconds)*time.Second)
+		resp, err := doInferenceAttempt(node.proxy.client, req, time.Duration(g.cfg.Performance.FirstEventTimeoutSeconds)*time.Second, g.attemptTimeout)
 		duration := time.Since(started)
 		if ctx.Err() != nil {
 			// The parent budget expired while this attempt was in flight. Its
@@ -338,17 +340,58 @@ func (g *Gateway) doAnonymousUpstream(ctx context.Context, route models.Route, b
 }
 
 // anonymousCoreTools are the tool names the anonymous free tier expects on
-// an agent-shaped request. Requests without them are rejected with 403
-// FreeTierError. Only the names matter; the gateway synthesizes minimal
-// definitions for whichever ones the downstream client did not declare.
-var anonymousCoreTools = []string{"bash", "edit", "glob", "grep", "read"}
+// an agent-shaped request. Requests without a shell tool and a read tool are
+// rejected with 403 FreeTierError.
+//
+// "shell" is the name OpenCode 2.x ships; the pre-2.x "bash" spelling is
+// deliberately not injected because the free tier validates the definition of
+// every tool it recognises, and a "bash" definition the gateway synthesises
+// does not match the one upstream expects. Since 2026-10-14 name presence is
+// not enough either: the upstream compares each recognised tool's description
+// and parameter schema against the official CLI's definitions byte-for-byte
+// (minimal stand-ins 403), which is why the genuine definitions below are
+// embedded. Tool order is irrelevant and extra client tools are allowed.
+var anonymousCoreTools = []string{"shell", "edit", "glob", "grep", "read"}
+
+// opencodeToolsJSON holds the genuine OpenCode tool definitions (description
+// and JSON schema) captured from the official client. The free tier checks the
+// definition of every tool whose name it recognises, so a synthesised stub —
+// even one carrying the right name — is rejected with 403 FreeTierError. The
+// gateway therefore ships the real definitions and uses them both for the tools
+// it injects and for any same-named tool the downstream client declared.
+//
+//go:embed opencode_tools.json
+var opencodeToolsJSON []byte
+
+type opencodeToolDefinition struct {
+	Description string         `json:"description"`
+	Parameters  map[string]any `json:"parameters"`
+}
+
+var (
+	opencodeToolsOnce sync.Once
+	opencodeTools     map[string]opencodeToolDefinition
+)
+
+// knownOpencodeTool returns the genuine definition for an OpenCode tool name.
+func knownOpencodeTool(name string) (opencodeToolDefinition, bool) {
+	opencodeToolsOnce.Do(func() {
+		definitions := map[string]opencodeToolDefinition{}
+		if err := json.Unmarshal(opencodeToolsJSON, &definitions); err != nil {
+			definitions = map[string]opencodeToolDefinition{}
+		}
+		opencodeTools = definitions
+	})
+	definition, ok := opencodeTools[name]
+	return definition, ok
+}
 
 // prepareAnonymousBody returns a copy of body normalized for the anonymous
-// free tier: streaming enabled plus the core agent tools present. Bodies
-// that already satisfy both (or are not JSON objects) are returned
-// unchanged. System One payloads are decision requests, not agent traffic, so
-// they are forwarded verbatim; injecting streaming or tool definitions would
-// make the upstream reject them.
+// free tier: streaming enabled plus the core agent tools present with genuine
+// definitions. Bodies that already satisfy all of that (or are not JSON
+// objects) are returned unchanged. System One payloads are decision requests,
+// not agent traffic, so they are forwarded verbatim; injecting streaming or
+// tool definitions would make the upstream reject them.
 func prepareAnonymousBody(body []byte, protocol wire.Protocol) []byte {
 	if protocol == wire.SystemOne {
 		return body
@@ -398,10 +441,11 @@ func ensureAnonymousChatUsage(payload map[string]any, protocol wire.Protocol) bo
 	return true
 }
 
-// ensureAnonymousTools appends minimal definitions for any missing core
-// tool so the request reads as an agent session upstream. It reports
-// whether the payload changed. Tools the client already declared are left
-// untouched.
+// ensureAnonymousTools makes the tool list read as an agent session: every
+// recognised OpenCode tool carries its genuine definition, and the missing
+// core tools are appended. It reports whether the payload changed. Tools whose
+// names upstream does not recognise are left exactly as the client declared
+// them, so downstream function calling keeps working.
 func ensureAnonymousTools(payload map[string]any, protocol wire.Protocol) bool {
 	raw, exists := payload["tools"]
 	if !exists {
@@ -412,10 +456,20 @@ func ensureAnonymousTools(payload map[string]any, protocol wire.Protocol) bool {
 	if !ok {
 		return false
 	}
+	changed := false
 	present := make(map[string]bool, len(items))
-	for _, item := range items {
-		if name := anonymousToolName(protocol, item); name != "" {
-			present[name] = true
+	for index, item := range items {
+		name := anonymousToolName(protocol, item)
+		if name == "" {
+			continue
+		}
+		present[name] = true
+		// A declared definition for a recognised tool name is replaced with the
+		// genuine one: the free tier rejects a stub, and a client that happens to
+		// use the same name with its own schema would otherwise fail the request.
+		if _, known := knownOpencodeTool(name); known {
+			items[index] = anonymousTool(protocol, name)
+			changed = true
 		}
 	}
 	missing := make([]string, 0, len(anonymousCoreTools))
@@ -424,10 +478,14 @@ func ensureAnonymousTools(payload map[string]any, protocol wire.Protocol) bool {
 			missing = append(missing, name)
 		}
 	}
-	if len(missing) == 0 {
+	if len(missing) > 0 {
+		items = append(items, anonymousToolset(protocol, missing)...)
+		changed = true
+	}
+	if !changed {
 		return false
 	}
-	payload["tools"] = append(items, anonymousToolset(protocol, missing)...)
+	payload["tools"] = items
 	return true
 }
 
@@ -442,20 +500,34 @@ func anonymousToolName(protocol wire.Protocol, item any) string {
 	return jsonutil.StringAt(entry, "name")
 }
 
+// anonymousToolset returns the official wire-shaped definitions for the
+// given tool names (all core tools when names is nil).
 func anonymousToolset(protocol wire.Protocol, names []string) []any {
 	if names == nil {
 		names = anonymousCoreTools
 	}
 	tools := make([]any, 0, len(names))
 	for _, name := range names {
-		tools = append(tools, anonymousTool(protocol, name))
+		if tool := anonymousTool(protocol, name); tool != nil {
+			tools = append(tools, tool)
+		}
 	}
 	return tools
 }
 
+// anonymousTool renders one core tool in the shape the given protocol expects,
+// using the genuine OpenCode definition whenever one is known. SystemOne
+// payloads never reach this path (prepareAnonymousBody forwards them
+// verbatim), so it falls back to the Chat shape.
 func anonymousTool(protocol wire.Protocol, name string) map[string]any {
 	description := "Agent tool " + name
 	parameters := map[string]any{"type": "object", "properties": map[string]any{}}
+	if definition, ok := knownOpencodeTool(name); ok {
+		description = definition.Description
+		if definition.Parameters != nil {
+			parameters = definition.Parameters
+		}
+	}
 	switch protocol {
 	case wire.Chat:
 		return map[string]any{
@@ -578,7 +650,7 @@ func (g *Gateway) doSelectedKeyUpstream(ctx context.Context, route models.Route,
 		return nil, err, 0
 	}
 	started := time.Now()
-	resp, err := doInferenceAttempt(proxy.client, req, time.Duration(g.cfg.Performance.FirstEventTimeoutSeconds)*time.Second)
+	resp, err := doInferenceAttempt(proxy.client, req, time.Duration(g.cfg.Performance.FirstEventTimeoutSeconds)*time.Second, g.attemptTimeout)
 	duration := time.Since(started)
 	g.recordUpstreamAttempt(ctx, route, ids, attemptOffset+1, keyID, "key", false, proxy, resp, err, duration)
 	if err != nil {
@@ -647,7 +719,7 @@ func (g *Gateway) doKeyUpstream(ctx context.Context, route models.Route, bodies 
 		keyID := config.KeyDisplayID(node.key)
 		setRequestCredential(ctx, route.Tier, keyID, "key", false, proxy)
 		attemptStarted := time.Now()
-		resp, err := doInferenceAttempt(proxy.client, req, time.Duration(g.cfg.Performance.FirstEventTimeoutSeconds)*time.Second)
+		resp, err := doInferenceAttempt(proxy.client, req, time.Duration(g.cfg.Performance.FirstEventTimeoutSeconds)*time.Second, g.attemptTimeout)
 		attemptDuration := time.Since(attemptStarted)
 		if ctx.Err() != nil {
 			// The request budget expired while this attempt was in flight. A
@@ -771,11 +843,7 @@ func (g *Gateway) recordUpstreamAttempt(ctx context.Context, route models.Route,
 		}
 		leg := label + ":"
 		if err != nil {
-			if errors.Is(err, context.DeadlineExceeded) {
-				leg += "timeout"
-			} else {
-				leg += "transport"
-			}
+			leg += classifyAttemptError(err)
 		} else {
 			leg += strconv.Itoa(status)
 		}
@@ -804,16 +872,26 @@ func newUpstreamRequest(ctx context.Context, baseURL string, protocol wire.Proto
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json, text/event-stream")
+	// Upstream fingerprints the client on every tier: it wants the OpenCode
+	// User-Agent shape, x-opencode-session-id, and a bare 40-character hex
+	// x-opencode-project, and it rejects the gateway's own x-opencode-request
+	// header. Dropping or changing any one of them turns the request into a 403
+	// FreeTierError, so the client's header set is mirrored exactly.
 	req.Header.Set("User-Agent", httpx.UserAgent())
 	req.Header.Set("x-opencode-client", "cli")
+	// The free tier requires both session headers to carry the same
+	// descending-encoded id. The x-opencode-request correlation header and
+	// canonical prj_* project ids are rejected with 403 since 2026-10-14, so
+	// neither is forwarded; tracing stays local to this gateway.
 	req.Header.Set("x-opencode-session", ids.Session)
-	// OpenCode 1.18.x sends these correlation headers to preserve provider-side
-	// prompt/session affinity. Keep the legacy x-opencode-session header too so
-	// older Zen deployments continue to recognize the request.
+	req.Header.Set("x-opencode-session-id", ids.Session)
 	req.Header.Set("x-session-affinity", ids.Session)
 	req.Header.Set("X-Session-Id", ids.Session)
-	req.Header.Set("x-opencode-request", ids.Request)
-	req.Header.Set("x-opencode-project", ids.Project)
+	// A canonical prj_* project id is rejected with 403 since 2026-10-14; the
+	// client's own bare 40-hex shape (or any non-canonical value, e.g.
+	// "global") passes. Hash the local project signal into the accepted shape
+	// so one conversation stays pinned to one upstream project.
+	req.Header.Set("x-opencode-project", clientProjectID(ids.Project))
 	if ids.ParentSession != "" {
 		req.Header.Set("x-parent-session-id", ids.ParentSession)
 	}
@@ -822,9 +900,21 @@ func newUpstreamRequest(ctx context.Context, baseURL string, protocol wire.Proto
 		req.Header.Set("anthropic-version", "2023-06-01")
 		req.Header.Set("anthropic-beta", "interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14")
 	} else {
+		// The anonymous credential is the literal token "public". The 2026-10-14
+		// gate rejects keyless requests (an absent header used to pass) and is
+		// case-sensitive: "Bearer PUBLIC" 401s.
 		req.Header.Set("Authorization", "Bearer "+key)
 	}
 	return req, nil
+}
+
+// clientProjectID renders the project header the way the client does: a bare
+// 40-character lowercase hex id rather than the gateway's "prj_" prefixed
+// stable id. The value itself is not checked upstream, only its shape, but
+// hashing keeps one conversation pinned to one project.
+func clientProjectID(project string) string {
+	sum := sha256.Sum256([]byte("opencode-project\x00" + project))
+	return hex.EncodeToString(sum[:20])
 }
 
 func isNonRetryableClientResponse(resp *http.Response, err error) bool {

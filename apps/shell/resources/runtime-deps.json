@@ -11,11 +11,11 @@
     {
       "id": "opencode2api",
       "name": "opencode2api",
-      "version": "1.3.8",
+      "version": "1.4.0",
       "arch": "win-x64",
       "source": "jasonxu114514/opencode2api",
-      "license": "Unspecified (no license declared upstream; see vendor/opencode2api/LICENSE placeholder)",
-      "sha256": "bd275f5a3839a635c5ff337730abdeadd9ebfc8ae6012622aa49138db0a99f7b",
+      "license": "GPL-3.0-or-later",
+      "sha256": "88d2aceca6e54103591aa62b4cf3192da68caf0b3b35beff0c29de09fef6859d",
       "path": "opencode2api/opencode2api-win-x64.exe",
       "launch": {
         "type": "exec",

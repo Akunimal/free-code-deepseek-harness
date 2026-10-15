@@ -198,6 +198,8 @@ Allowed protocol values are `chat`, `responses`, and `anthropic`. Models using u
 
 Cost, deprecation, and model limits come from the official [OpenCode metadata endpoint](https://models.opencode.ai/api.json), refreshed every 24 hours. OpenCode's capability catalog remains authoritative for context and token limits; metadata `limit.context`, `limit.input`, and `limit.output` fill fields missing from that catalog. These limits are exposed by `/v1/models` as `context_window`/`context_length`, `max_input`, and `max_output` for discovery clients such as CLIProxyAPI and Pi. Metadata requests use a 30-second timeout per HTTP client. Refresh failures retain existing data.
 
+Each `/v1/models` entry also carries `cost` (USD per million tokens: `input`, `output`, `cache_read`, `cache_write`, plus OpenClaw's `cacheRead`/`cacheWrite`) when the metadata states a price. Reasoning models list their levels in `reasoning_efforts` and in OpenClaw's `compat.supportedReasoningEfforts`: `minimal` through `max`, capped at the probed ceiling when the model's effort is `auto`. A forced or probed level is reported as `default_reasoning_effort`. Cache prices appear after the next metadata refresh.
+
 ### Anonymous access and fallback
 
 With `anonymous: true`, either condition makes a model eligible for the anonymous Zen lane:
@@ -219,6 +221,8 @@ Requests are encoded for each tier's own protocol. With `performance.first_event
 
 When only anonymous access is configured, `/v1/models` exposes only models eligible for that lane.
 
+Free models never need a Zen key: with `anonymous: true` they are served by the public lane, and a configured key is only their fallback. To keep keys but expose free models only, set `models.free_only: true`. Paid models then disappear from `/v1/models`, direct requests for them are rejected, and rotation aliases keep only free members; free models may still fall back to the configured keys.
+
 ### Free model availability
 
 The gateway probes models whose IDs contain `free` (case-insensitive), or whose metadata reports zero input/output cost without deprecation, with a short request using its native protocol. It tries the enabled anonymous lane first and then one configured Zen Key. A valid completed response on either lane keeps the model enabled; the model is disabled in discovery and routing only when every attempted lane explicitly reports that the model does not exist or has been retired. Authentication errors, rate limits, timeouts, transport errors, 5xx responses, and malformed replies are inconclusive: they do not create a new disable, and are checked again in one hour. Probe traffic does not alter production key/proxy cooldowns or request statistics. It still reaches the upstream and may consume its free allowance.
@@ -235,7 +239,7 @@ Administration endpoints (login required; writes also require CSRF): `GET /api/m
 
 ### Sessions and proxies
 
-Keys are initially spread across proxies. Real traffic can trigger proxy checks, key rebinding, and cooldowns. Unhealthy remote proxies are rechecked every 15 minutes against Cloudflare trace; loopback SOCKS proxies are checked every 10 seconds with a local SOCKS5 greeting so a recovered Tor daemon can rejoin promptly without extra external probes.
+Keys are initially spread across proxies. Real traffic can trigger proxy checks, key rebinding, and cooldowns. Unhealthy proxies are rechecked every 15 minutes against Cloudflare trace.
 
 A stable session hash selects the preferred key or anonymous proxy. Send an explicit `x-session-id` to separate independent conversations. The gateway also accepts `x-opencode-session`, `x-session-affinity`, `conversation-id`, `conversation_id`, and `metadata.session_id`.
 
@@ -256,12 +260,13 @@ See [config.example.json](config.example.json) for a complete starting configura
 | `zen_keys`, `go_keys`       | At least one upstream key is required unless anonymous access is enabled.   |
 | `anonymous`                 | `false`.                                                                    |
 | `prefer`                    | `go`; accepts `go` or `zen`.                                                |
-| `upstream.zen`              | `https://opencode.ai/zen`.                                                  |
+| `upstream.zen`              | `https://opencode.ai/inference/openai`.                                                  |
 | `upstream.go`               | `https://opencode.ai/zen/go`.                                               |
 | `proxies`                   | Falls back to `["direct"]` when both proxy sources are empty.               |
 | `proxyfile`                 | Optional; relative paths resolve beside the configuration file.             |
 | `models.refresh_seconds`    | `300`; minimum 1.                                                           |
 | `models.protocols`          | `{}`; per-model native protocol overrides.                                  |
+| `models.free_only`          | `false`; expose and route only free models, even with Zen or Go keys.       |
 | `reasoning.effort`          | Empty (off); `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, or `none`. |
 | `reasoning.effort_by_model` | `{}`; per-model overrides of `reasoning.effort`.                            |
 
@@ -317,7 +322,7 @@ Comment markers are `#`, `;`, and `//` at the start of a line or after whitespac
 | --------------------------------------- | ------- | ------------------------------------------------------ |
 | `retry.max_attempts`                    | `3`     | Attempts per authenticated tier, including the first.  |
 | `retry.timeout_seconds`                 | `300`   | Total inference timeout, including stream consumption. |
-| `performance.attempt_timeout_seconds`   | `0`     | Header wait per attempt; 0 uses the request timeout.   |
+| `performance.attempt_timeout_seconds`   | `0`     | Whole-attempt bound; 0 uses the request timeout.       |
 | `performance.connect_timeout_seconds`   | `5`     | Connection establishment timeout.                      |
 | `performance.failure_cooldown_seconds`  | `15`    | Base failure cooldown.                                 |
 | `performance.max_idle_conns`            | `2048`  | Idle connection limit per proxy transport.             |
@@ -393,7 +398,7 @@ Request outcomes describe the completed inference. A failed SSE response or trun
 
 Upstream **attempt** records measure the HTTP exchange through receipt of response headers. Their success and latency are separate from completion of the full JSON body or stream.
 
-Token statistics use reported usage only. Input tokens include cache reads and writes; cached tokens separately count cache reads. Missing usage is not estimated, and coverage shows how many routed inference requests reported usage.
+Token statistics use reported usage only. Input tokens include cache reads and writes; cached tokens separately count cache reads. Missing usage is not estimated, and coverage shows how many routed inference requests reported usage. `usage.server_keys` splits requests and tokens by the local server key the caller authenticated with (its fingerprint, as shown in `/api/api-keys`); Playground traffic is counted under `playground`.
 
 | Data                                                      | Storage / retention                                                                          |
 | --------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
@@ -458,16 +463,13 @@ go build -o opencode2api ./cmd/opencode2api
 
 For local development, start the service with `go run ./cmd/opencode2api -config config.json`. Release builds still inject the version with `-ldflags "-X main.version=vX.Y.Z"`.
 
-Node.js is only needed for development formatting and JavaScript syntax checks:
+Node.js is only needed for the WebUI JavaScript syntax check:
 
 ```bash
-npm ci --ignore-scripts
-npm run format
-npm run format:check
-npm run check:web
+node --check webui/app.js
 ```
 
-`.editorconfig`, `.gitattributes`, Go formatting, and pinned Prettier settings standardize the source. CI runs `go vet` and builds with Go 1.24 and stable Go on Linux/Windows, plus formatting, WebUI syntax, and entrypoint shell syntax checks. Release archives include both READMEs.
+`.editorconfig`, `.gitattributes`, and Go formatting standardize the source. CI runs `go vet` and builds with Go 1.24 and stable Go on Linux/Windows, plus Go formatting, WebUI syntax, and entrypoint shell syntax checks. Release archives include both READMEs.
 
 ## Troubleshooting
 
@@ -499,3 +501,11 @@ Observations are persisted by upstream URL, model and native protocol, displayed
 SPDX-License-Identifier: GPL-3.0-or-later
 
 This project is free software: you may redistribute and modify it under the GNU General Public License as published by the Free Software Foundation, either version 3 or (at your option) any later version. It is distributed without any warranty. See [LICENSE](LICENSE) for the full terms.
+
+## FreeCode fork overlay
+
+Vendored stable v1.4.0, with direct-first routing, transport-only route cooldown,
+loopback SOCKS health checks, supported-protocol catalog filtering and downstream
+tool-name normalization. The anonymous endpoint remains the tagged upstream
+default (https://opencode.ai/inference); its public network completion is not
+verified in the local Windows environment (socket access denied).

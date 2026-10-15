@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # Builds opencode2api standalone binaries for all release platforms.
 # Source of truth: vendor/opencode2api at the upstream version recorded in
-# UPSTREAM_VERSION. The v1.3.8 update preserves canonical ses_ sessions,
-# improves free-model availability probing/manual selection, and includes
-# the current OpenCode request contract. Older FreeCode patches for the
+# UPSTREAM_VERSION. The v1.4.0 update separates anonymous inference from
+# catalog discovery and updates session/request and probe compatibility. Older FreeCode patches for the
 # retired pre-v1 fork remain obsolete: v1.3.2+ binds loopback via config
 # `listen`, and its pricing/name-based fallback subsumes public-model fallback.
 #

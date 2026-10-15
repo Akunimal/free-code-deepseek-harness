@@ -13,7 +13,7 @@ servidores MCP y llamadas al modelo.
 Versión de la fuente: 0.9.4 (candidata, todavía no publicada); última release publicada: v0.9.3 (Windows x64).
 
 Las [notas candidatas de v0.9.4](release-notes-v0.9.4.md) cubren opencode2api
-v1.3.8, resiliencia Tor, fondos empaquetados, Gentle AI optativo y las
+v1.4.0, resiliencia Tor, fondos empaquetados, Gentle AI optativo y las
 correcciones de modelos/Tor V094-21. El build desktop alpha5 anterior pasó su
 gate, pero es previo a V094-21 y quedó obsoleto. El usuario probó esa candidata
 instalada e informó que aparece un solo modelo y hay errores de upstream/API key,

@@ -35,21 +35,25 @@ test('sidecar build materializes its current fork overlay before compilation', (
   assert.ok(build.indexOf('apply-opencode2api-patches.mjs') < build.indexOf('build_target windows'));
 });
 
-test('the actual pash overlay replays on tracked upstream files without direct vendor commits', () => {
+test('the actual pash overlay round-trips the current source and remains idempotent', () => {
   const root = mkdtempSync(join(tmpdir(), 'freecode-sidecar-replay-'));
   const repository = new URL('..', import.meta.url);
   try {
     const patch = new URL('../patches/opencode2api-pash-tool-name.patch', import.meta.url);
-    for (const name of ['gateway.go', 'rotation.go']) {
-      const relative = 'vendor/opencode2api/internal/gateway/' + name;
-      const original = spawnSync('git', ['show', 'HEAD:' + relative], {
-        cwd: repository, encoding: 'utf8', windowsHide: true,
-      });
-      assert.equal(original.status, 0, original.stderr);
-      mkdirSync(join(root, 'vendor/opencode2api/internal/gateway'), { recursive: true });
-      writeFileSync(join(root, relative), original.stdout);
+    const content = readFileSync(patch, 'utf8');
+    const paths = [...content.matchAll(/^\+\+\+ b\/(.+)$/gm)].map(match => match[1]);
+    for (const relative of paths) {
+      const destination = join(root, relative);
+      mkdirSync(join(destination, '..'), {recursive: true});
+      // The real checkout has vendor text normalization attributes. Mirror its
+      // LF comparison form in this fixture, including on Windows checkout CRLF.
+      writeFileSync(destination, readFileSync(new URL(relative, repository), 'utf8').replaceAll('\r\n', '\n'));
     }
     assert.equal(spawnSync('git', ['init', '--quiet'], { cwd: root, windowsHide: true }).status, 0);
+    // HEAD may already contain the overlay. Reverse its complete working-tree
+    // boundary in this disposable fixture rather than assuming HEAD is pristine.
+    const reverse = spawnSync('git', ['-c', 'core.autocrlf=false', 'apply', '--reverse', fileURLToPath(patch)], {cwd: root, encoding: 'utf8', windowsHide: true});
+    assert.equal(reverse.status, 0, reverse.stderr);
     assert.equal(applyOpencodePatches(root, [fileURLToPath(patch)])[0], 'applied');
     assert.equal(applyOpencodePatches(root, [fileURLToPath(patch)])[0], 'already applied');
     assert.match(readFileSync(join(root, 'vendor/opencode2api/internal/protocol/freecode_tool_name.go'), 'utf8'), /func NewToolNameRepair/);

@@ -16,7 +16,7 @@ These alpha5 desktop artifacts predate V094-21 and are superseded; do not use
 them to validate or publish this source. The alpha5 DSH archive is locally
 verified but unpublished, so clean installations still require a matching
 release asset. A fresh desktop build and release gate are pending in
-`apps/shell/release-0.9.4-model-resilience-20261015/`; neither has been run yet.
+`apps/shell/release-0.9.4-model-resilience-20261015/`; both ran, but the user rejected the model and background behavior. They are also superseded by V094-24/25/26.
 The v0.9.4 candidate remains unpublished.
 
 Historical runtime note: the earlier alpha4 setup's first launch reported
@@ -24,6 +24,16 @@ Historical runtime note: the earlier alpha4 setup's first launch reported
 That local-only alpha4 cache workaround did not satisfy the later alpha5 pin.
 
 ### What's new
+
+- **Current upstream compatibility (V094-25).** Stable opencode2api v1.4.0 is
+  imported with FreeCode routing/tool overlays retained. Anonymous inference
+  and catalog discovery now have separate origins; public session/request
+  compatibility follows the tagged source. Go and isolated gateway fixtures
+  validate multiple completions. Two authorized live checks were blocked by
+  Windows socket access permissions before connecting, so public completion
+  is not verified. No additional live request was made. GPL-3.0-or-later license
+  text is staged with the sidecar. No new installer has been generated.
+
 
 - **Active-profile model synchronization (V094-24).** The old shell wrote the
   removed `settings.yaml` while the running Host kept a different profile,
@@ -48,7 +58,7 @@ That local-only alpha4 cache workaround did not satisfy the later alpha5 pin.
   only when the original client declares unambiguous, permitted `bash`.
   Stream fragments, tool IDs and arguments are preserved; no fuzzy correction,
   permission bypass or request replay. Packaging rejects stale sidecar builds.
-- **opencode2api v1.3.8** replaces v1.3.5. Manual model selection survives
+- **opencode2api v1.4.0** replaces v1.3.5. Manual model selection survives
   refreshes, temporary probe failures recover, and canonical/stable request and
   session identities are preserved. FreeCode's anonymous lane still tries
   Direct first and advances to Tor only after a non-2xx response in the same request.
@@ -114,7 +124,7 @@ V094-21 y quedaron obsoletos; no los uses para validar ni publicar esta fuente.
 El archivo DSH alpha5 está verificado localmente, pero no publicado: una
 instalación limpia todavía necesita el asset de release correspondiente. Falta
 un nuevo build desktop y gate completo en
-`apps/shell/release-0.9.4-model-resilience-20261015/`; todavía no se ejecutaron.
+`apps/shell/release-0.9.4-model-resilience-20261015/`; ambos se ejecutaron, pero el usuario rechazó el catálogo y los fondos. También quedan obsoletos frente a V094-24/25/26.
 v0.9.4 continúa sin publicarse.
 
 Nota histórica del runtime: el primer arranque del setup alpha4 anterior informó
@@ -122,6 +132,16 @@ Nota histórica del runtime: el primer arranque del setup alpha4 anterior inform
 La precarga local alpha4 fue un workaround y no satisface el pin alpha5 posterior.
 
 ### Novedades
+
+- **Compatibilidad upstream actual (V094-25).** Se incorpora opencode2api
+  estable v1.4.0 conservando routing y correcciones de herramientas del fork.
+  Se separan los orígenes de inferencia anónima y catálogo, con el contrato de
+  sesión/request de la versión etiquetada. Go y fixtures aislados verifican
+  varias respuestas. Windows bloqueó las dos pruebas públicas autorizadas
+  antes de conectar por permisos de socket: la respuesta pública no quedó
+  verificada y no se hicieron más intentos. Se distribuye la licencia
+  GPL-3.0-or-later junto al sidecar. No se generó otro instalador.
+
 
 - **Sincronización con el perfil activo (V094-24).** El shell escribía el
   obsoleto `settings.yaml`, mientras el Host conservaba otro perfil, un modelo
@@ -146,7 +166,7 @@ La precarga local alpha4 fue un workaround y no satisface el pin alpha5 posterio
   nombre exacto a `bash` si el cliente original declara `bash` permitido y sin
   ambigüedad. Conserva fragmentos, IDs y argumentos; sin corrección aproximada,
   salto de permisos ni repetición del request. El empaquetado rechaza binarios viejos.
-- **opencode2api v1.3.8** reemplaza v1.3.5. La selección manual persiste al
+- **opencode2api v1.4.0** reemplaza v1.3.5. La selección manual persiste al
   actualizar; se recupera de sondeos temporalmente fallidos y conserva
   identidades canónicas/estables de requests y sesiones. El lane anónimo de
   FreeCode sigue intentando Direct primero y pasa a Tor solo tras no-2xx en el

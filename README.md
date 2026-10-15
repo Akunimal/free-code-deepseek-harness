@@ -12,7 +12,7 @@ calls.
 
 Source version: 0.9.4 (candidate, not published); latest published release: v0.9.3 (Windows x64).
 
-The [v0.9.4 candidate notes](release-notes-v0.9.4.md) cover opencode2api v1.3.8,
+The [v0.9.4 candidate notes](release-notes-v0.9.4.md) cover opencode2api v1.4.0,
 Tor diagnostics/recovery, packaged backgrounds, restored opt-in Gentle AI, and
 the V094-21 model/Tor fixes. The previous alpha5 desktop build passed its gate,
 but predates V094-21 and is superseded. The user tried that installed candidate
