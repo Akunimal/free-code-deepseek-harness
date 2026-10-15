@@ -93,6 +93,7 @@ export class ModelDirectoryResolver extends Service {
     const blocks = this.ctx.conversation.blocks
     const blockStore = blocks.storeFor(sessionId)
     let ownedBlock: ComposerBlock | undefined
+    let ownedReasonKey: ModelKey | undefined
     const syncComposerBlock = (): void => {
       // These model RPCs and the composer block belong only to ordinary
       // sessions, not addressed subagent views.
@@ -118,9 +119,11 @@ export class ModelDirectoryResolver extends Service {
       if (reason === null) {
         if (ownedBlock !== undefined && currentBlock === ownedBlock) {
           ownedBlock = undefined
+          ownedReasonKey = undefined
           blocks.set(sessionId, undefined)
         } else if (currentBlock !== ownedBlock) {
           ownedBlock = undefined
+          ownedReasonKey = undefined
         }
         return
       }
@@ -129,10 +132,14 @@ export class ModelDirectoryResolver extends Service {
         // Another feature owns the more specific block; never clear or
         // overwrite it. The block-store subscription retries when it changes.
         ownedBlock = undefined
+        ownedReasonKey = undefined
         return
       }
-      if (currentBlock?.reason === reason) return
-      ownedBlock = { reason: this.ctx.locale.bind('model')(reason) }
+      const localizedReason = this.ctx.locale.bind('model')(reason)
+      if (currentBlock === ownedBlock && ownedBlock !== undefined
+        && ownedReasonKey === reason && ownedBlock.reason === localizedReason) return
+      ownedReasonKey = reason
+      ownedBlock = { reason: localizedReason }
       blocks.set(sessionId, ownedBlock)
     }
     const unsubscribeDirectory = directory.store.subscribe(syncComposerBlock)

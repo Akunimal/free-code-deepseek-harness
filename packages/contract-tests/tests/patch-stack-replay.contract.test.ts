@@ -56,6 +56,8 @@ describe('stack-aware patch replay', () => {
     const manifest = JSON.parse(readFileSync(join(patchDir, 'upstream-patches.json'), 'utf8'));
     expect(manifest.patches.find((entry: { file: string }) => entry.file === '174-freecode-model-route-selection-ack.patch'))
       .toMatchObject({ order: 174 });
+    expect(manifest.patches.find((entry: { file: string }) => entry.file === '175-freecode-model-block-reentrancy-guard.patch'))
+      .toMatchObject({ order: 175 });
     const result = verifyOverlappingAppliedPatches({
       root,
       patchDir,

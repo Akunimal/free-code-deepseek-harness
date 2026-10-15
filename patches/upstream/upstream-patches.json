@@ -367,6 +367,18 @@
         "packages/contract-tests/tests/patch-stack-replay.contract.test.ts"
       ],
       "vendorOnly": true
+    },
+    {
+      "file": "175-freecode-model-block-reentrancy-guard.patch",
+      "order": 175,
+      "owner": "freecode",
+      "description": "Prevent localized composer-block notifications from recursively rewriting their own snapshot store",
+      "seam": "packages/client/ui-model-selection/src/client/service.ts",
+      "contractTests": [
+        "packages/client/ui-model-selection/tests/browser-plugin.client.spec.ts",
+        "packages/contract-tests/tests/patch-stack-replay.contract.test.ts"
+      ],
+      "vendorOnly": true
     }
   ]
 }

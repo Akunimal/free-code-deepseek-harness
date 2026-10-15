@@ -521,6 +521,26 @@ describe('ui-model-selection dual entry', () => {
     expect(b.calls.select).toBe(0)
   })
 
+  it('does not recursively rewrite a localized composer block from its store subscriber', async () => {
+    const subscriberError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const b = await bench('en')
+    try {
+      b.mint('s1')
+      const face = b.seat().inject!(sid('s1'))
+      const stale = { provider: 'deepseek-official', model: 'unlisted' }
+      b.setProjected(sid('s1'), { lastUsed: stale, next: stale })
+
+      await vi.waitFor(() => {
+        expect(face.directory.getSnapshot()).toMatchObject({ status: 'ready', routable: false })
+        expect(b.blockOf('s1')).toEqual({ reason: unavailableReason })
+      })
+      expect(subscriberError).not.toHaveBeenCalledWith('[client-store] subscriber failed:', expect.anything())
+    } finally {
+      await b.ctx.fiber.dispose()
+      subscriberError.mockRestore()
+    }
+  })
+
   it('clears the stale-model composer block only after an explicit listed-model selection', async () => {
     const b = await bench('en')
     try {

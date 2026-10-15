@@ -1,0 +1,72 @@
+diff --git a/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/service.ts b/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/service.ts
+index 77125f63b4ca66da270d217427c52722ddf54eba..caeaa61fa94e15c2f4bf7847f9b943d4648182f1 100644
+--- a/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/service.ts
++++ b/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/service.ts
+@@ -93,6 +93,7 @@ export class ModelDirectoryResolver extends Service {
+     const blocks = this.ctx.conversation.blocks
+     const blockStore = blocks.storeFor(sessionId)
+     let ownedBlock: ComposerBlock | undefined
++    let ownedReasonKey: ModelKey | undefined
+     const syncComposerBlock = (): void => {
+       // These model RPCs and the composer block belong only to ordinary
+       // sessions, not addressed subagent views.
+@@ -118,9 +119,11 @@ export class ModelDirectoryResolver extends Service {
+       if (reason === null) {
+         if (ownedBlock !== undefined && currentBlock === ownedBlock) {
+           ownedBlock = undefined
++          ownedReasonKey = undefined
+           blocks.set(sessionId, undefined)
+         } else if (currentBlock !== ownedBlock) {
+           ownedBlock = undefined
++          ownedReasonKey = undefined
+         }
+         return
+       }
+@@ -129,10 +132,14 @@ export class ModelDirectoryResolver extends Service {
+         // Another feature owns the more specific block; never clear or
+         // overwrite it. The block-store subscription retries when it changes.
+         ownedBlock = undefined
++        ownedReasonKey = undefined
+         return
+       }
+-      if (currentBlock?.reason === reason) return
+-      ownedBlock = { reason: this.ctx.locale.bind('model')(reason) }
++      const localizedReason = this.ctx.locale.bind('model')(reason)
++      if (currentBlock === ownedBlock && ownedBlock !== undefined
++        && ownedReasonKey === reason && ownedBlock.reason === localizedReason) return
++      ownedReasonKey = reason
++      ownedBlock = { reason: localizedReason }
+       blocks.set(sessionId, ownedBlock)
+     }
+     const unsubscribeDirectory = directory.store.subscribe(syncComposerBlock)
+diff --git a/vendor/deepseek-harness/packages/client/ui-model-selection/tests/browser-plugin.client.spec.ts b/vendor/deepseek-harness/packages/client/ui-model-selection/tests/browser-plugin.client.spec.ts
+index 6ccff9a9c6ba17e62500e1b904ef7132303e08e1..1cee87364eca8ebe3ca7d0e721d6886a02236b96 100644
+--- a/vendor/deepseek-harness/packages/client/ui-model-selection/tests/browser-plugin.client.spec.ts
++++ b/vendor/deepseek-harness/packages/client/ui-model-selection/tests/browser-plugin.client.spec.ts
+@@ -521,6 +521,26 @@ describe('ui-model-selection dual entry', () => {
+     expect(b.calls.select).toBe(0)
+   })
+ 
++  it('does not recursively rewrite a localized composer block from its store subscriber', async () => {
++    const subscriberError = vi.spyOn(console, 'error').mockImplementation(() => {})
++    const b = await bench('en')
++    try {
++      b.mint('s1')
++      const face = b.seat().inject!(sid('s1'))
++      const stale = { provider: 'deepseek-official', model: 'unlisted' }
++      b.setProjected(sid('s1'), { lastUsed: stale, next: stale })
++
++      await vi.waitFor(() => {
++        expect(face.directory.getSnapshot()).toMatchObject({ status: 'ready', routable: false })
++        expect(b.blockOf('s1')).toEqual({ reason: unavailableReason })
++      })
++      expect(subscriberError).not.toHaveBeenCalledWith('[client-store] subscriber failed:', expect.anything())
++    } finally {
++      await b.ctx.fiber.dispose()
++      subscriberError.mockRestore()
++    }
++  })
++
+   it('clears the stale-model composer block only after an explicit listed-model selection', async () => {
+     const b = await bench('en')
+     try {
