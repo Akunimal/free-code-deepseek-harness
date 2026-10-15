@@ -191,6 +191,48 @@ function patchInstallSection() {
   console.log('[patch-nsis] installSection.nsh patched — skip stale old uninstaller and clean payload before extraction');
 }
 
+function guardStrContainsInclude(content) {
+  const newline = content.includes('\r\n') ? '\r\n' : '\n';
+  const guardedInclude = [
+    '!ifndef BUILD_UNINSTALLER',
+    '!include "StrContains.nsh"',
+    '!endif',
+  ].join(newline);
+  const guardedPattern = /^[ \t]*!ifndef BUILD_UNINSTALLER[ \t]*\r?\n[ \t]*!include "StrContains\.nsh"[ \t]*\r?\n[ \t]*!endif[ \t]*$/m;
+  if (guardedPattern.test(content)) return content;
+
+  const includePattern = /^([ \t]*)!include "StrContains\.nsh"[ \t]*$/m;
+  if (includePattern.test(content)) {
+    return content.replace(includePattern, (_line, indent) => [
+      `${indent}!ifndef BUILD_UNINSTALLER`,
+      `${indent}!include "StrContains.nsh"`,
+      `${indent}!endif`,
+    ].join(newline));
+  }
+
+  const anchor = '!include "common.nsh"';
+  if (!content.includes(anchor)) {
+    throw new Error('[patch-nsis] installer.nsi changed; common.nsh include was not found');
+  }
+  return content.replace(anchor, `${anchor}${newline}${guardedInclude}`);
+}
+
+function patchStrContainsInclude() {
+  const installerPath = findNsisTemplate('installer.nsi');
+  if (!installerPath) {
+    throw new Error('[patch-nsis] installer.nsi not found — refusing an installer without smoke-path protection');
+  }
+
+  const current = fs.readFileSync(installerPath, 'utf8');
+  const guarded = guardStrContainsInclude(current);
+  if (guarded === current) return;
+
+  fs.writeFileSync(installerPath, guarded, 'utf8');
+  console.log('[patch-nsis] installer.nsi gates StrContains to normal installer builds');
+}
+
+module.exports.guardStrContainsInclude = guardStrContainsInclude;
+
 function patchInstDirSanitize() {
   const installSectionPath = findNsisTemplate('installSection.nsh');
   if (!installSectionPath) {
@@ -198,16 +240,25 @@ function patchInstDirSanitize() {
   }
 
   let content = fs.readFileSync(installSectionPath, 'utf8');
-  if (content.includes('_freecodeInstDirBad')) {
-    console.log('[patch-nsis] installSection.nsh already sanitizes $INSTDIR');
+  const patchMarker = '; PATCHED (FreeCode): reject stale smoke install paths before accepting an absolute $INSTDIR.';
+  const runtimeSmokeTargetRead = 'ReadEnvStr $R4 "FREECODE_NSIS_SMOKE_INSTALL_DIR"';
+  if (content.includes(patchMarker) && content.includes(runtimeSmokeTargetRead) &&
+      !content.includes('$%FREECODE_NSIS_SMOKE_INSTALL_DIR%')) {
+    console.log('[patch-nsis] installSection.nsh already rejects stale NSIS smoke targets');
     return;
+  }
+  if (content.includes(patchMarker) &&
+      (!content.includes('StrContains') || !content.includes('FREECODE_NSIS_SMOKE_INSTALL_DIR'))) {
+    throw new Error('[patch-nsis] installSection.nsh has an incomplete smoke-target guard');
   }
 
   // $INSTDIR arrives from /D or from the InstallLocation registry value.
   // A stale drive-relative value (e.g. `D:dir` from an interrupted run)
   // makes the whole install silently land nowhere with exit code 0.
-  // Reset non-absolute paths to the default BEFORE $appExe is derived and
-  // the payload is extracted. Legit absolute /D paths pass untouched.
+  // Reset persisted smoke-test targets unless this exact path is being used
+  // by the isolated smoke runner. Reset non-absolute paths to the default
+  // BEFORE $appExe is derived and the payload is extracted. Other absolute
+  // /D paths remain valid.
   // (A customInit macro cannot do this: installer.nsi evaluates
   // `!ifmacrodef customInit` before this file is ever parsed.)
   const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
@@ -215,11 +266,19 @@ function patchInstDirSanitize() {
     .map((ch) => `  StrCmp $R9 "${ch}" _freecodeInstDirOk`)
     .join('\n');
   const block = [
-    '  ; PATCHED (FreeCode): reset non-absolute $INSTDIR to the default.',
+    `  ${patchMarker}`,
     '  Push $R9',
     '  Push $R8',
     '  Push $R7',
     '  Push $R6',
+    '  Push $R5',
+    '  Push $R4',
+    '  ${StrContains} $R5 "freecode-nsis-smoke-" "$INSTDIR"',
+    '  StrCmp $R5 "" _freecodeInstDirCheckAbsolute',
+    `  ${runtimeSmokeTargetRead}`,
+    '  StrCmp $R4 "$INSTDIR" _freecodeInstDirCheckAbsolute',
+    '  Goto _freecodeInstDirBad',
+    '  _freecodeInstDirCheckAbsolute:',
     '  StrCpy $R9 $INSTDIR 1',
     '  StrCpy $R8 $INSTDIR 1 1',
     '  StrCpy $R7 $INSTDIR 1 2',
@@ -237,6 +296,8 @@ function patchInstDirSanitize() {
     '  _freecodeInstDirBad:',
     '  StrCpy $INSTDIR "$LocalAppData\\Programs\\${APP_FILENAME}"',
     '  _freecodeInstDirOk:',
+    '  Pop $R4',
+    '  Pop $R5',
     '  Pop $R6',
     '  Pop $R7',
     '  Pop $R8',
@@ -247,9 +308,27 @@ function patchInstDirSanitize() {
   if (!content.includes(anchor)) {
     throw new Error('[patch-nsis] installSection.nsh changed; $appExe anchor was not found');
   }
-  content = content.replace(anchor, block + '\n' + anchor);
+  const oldPatchMarker = '  ; PATCHED (FreeCode): reset non-absolute $INSTDIR to the default.';
+  const oldPatchStart = content.indexOf(oldPatchMarker);
+  const smokePatchStart = content.indexOf(patchMarker);
+  if (smokePatchStart >= 0) {
+    const lineStart = content.lastIndexOf('\n', smokePatchStart) + 1;
+    const registerRestore = content.indexOf('  Pop $R9', smokePatchStart);
+    if (registerRestore < 0) throw new Error('[patch-nsis] existing smoke-target guard is incomplete; refusing to guess replacement range');
+    const lineEnd = content.indexOf('\n', registerRestore);
+    const end = lineEnd < 0 ? content.length : lineEnd + 1;
+    content = content.slice(0, lineStart) + block + '\n' + content.slice(end);
+  } else if (oldPatchStart >= 0) {
+    const anchorIndex = content.indexOf(anchor, oldPatchStart);
+    if (anchorIndex < 0) throw new Error('[patch-nsis] old $INSTDIR guard is incomplete; refusing to guess replacement range');
+    content = content.slice(0, oldPatchStart) + block + '\n' + content.slice(anchorIndex);
+  } else if (content.includes('_freecodeInstDirBad')) {
+    throw new Error('[patch-nsis] unrecognized existing $INSTDIR guard; refusing a partial sanitizer');
+  } else {
+    content = content.replace(anchor, block + '\n' + anchor);
+  }
   fs.writeFileSync(installSectionPath, content, 'utf8');
-  console.log('[patch-nsis] installSection.nsh patched — non-absolute $INSTDIR resets to default');
+  console.log('[patch-nsis] installSection.nsh patched — stale smoke and non-absolute targets reset to default');
 }
 
 function patchExtractAppPackage() {
@@ -264,6 +343,7 @@ module.exports.default = async function (context) {
 
   patchMultiUser();
   patchAppRunningCheck();
+  patchStrContainsInclude();
   patchInstallSection();
   patchInstDirSanitize();
   removeUnusedUninstallResultHelper();

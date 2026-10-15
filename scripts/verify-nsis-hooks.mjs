@@ -74,6 +74,16 @@ if (!patchHook.includes('patchInstDirSanitize') || !patchHook.includes('_freecod
   console.error('verify-nsis-hooks: $INSTDIR sanitize routine missing from patch-nsis.cjs.');
   process.exit(1);
 }
+const nsisSmokeRunner = readFileSync(resolve(REPO_ROOT, 'scripts/verify-nsis-install-layout.mjs'), 'utf8');
+if (!patchHook.includes('patchStrContainsInclude') || !patchHook.includes('StrContains') ||
+    !patchHook.includes('guardStrContainsInclude') || !patchHook.includes('!ifndef BUILD_UNINSTALLER') ||
+    !patchHook.includes('freecode-nsis-smoke-') || !patchHook.includes('FREECODE_NSIS_SMOKE_INSTALL_DIR') ||
+    !patchHook.includes('ReadEnvStr $R4 "FREECODE_NSIS_SMOKE_INSTALL_DIR"') ||
+    patchHook.includes('StrCmp $%FREECODE_NSIS_SMOKE_INSTALL_DIR%') ||
+    !nsisSmokeRunner.includes('FREECODE_NSIS_SMOKE_INSTALL_DIR: installDir')) {
+  console.error('verify-nsis-hooks: reserved smoke InstallLocations must be guarded only for the exact smoke child, and StrContains must not compile into the uninstaller.');
+  process.exit(1);
+}
 if (/taskkill(?:\.exe)?\s+\/F\s+\/IM\b/i.test(source) || !source.includes('FREECODE_NSIS_TARGET_EXE') || !source.includes('ExecutablePath')) {
   console.error('verify-nsis-hooks: process shutdown must target only the exact executable path under the current $INSTDIR.');
   process.exit(1);

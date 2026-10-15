@@ -92,6 +92,10 @@ try {
   // /S = silent, /D=<path> = install dir (must be last arg, no quotes).
   const install = spawnSync(setup, ['/S', `/D=${installDir}`], {
     windowsHide: true,
+    // The packaged installer rejects persisted `freecode-nsis-smoke-*`
+    // InstallLocation values unless this exact child target is authorized.
+    // Keep the exception scoped to this installer process only.
+    env: { ...process.env, FREECODE_NSIS_SMOKE_INSTALL_DIR: installDir },
     // Keep installer and first-run runtime download budgets separate. DSH is
     // no longer part of this setup's extraction workload.
     timeout: INSTALL_TIMEOUT_MS,
