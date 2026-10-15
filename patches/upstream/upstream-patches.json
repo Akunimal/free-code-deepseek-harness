@@ -330,6 +330,20 @@
         "apps/shell/tests/conversation-background.test.ts"
       ],
       "vendorOnly": true
+    },
+    {
+      "file": "172-freecode-client-host-contracts.patch",
+      "order": 172,
+      "owner": "freecode",
+      "description": "Separate browser recovery metadata and Host fixtures, preserve strict locale and Hermes indexed-access contracts",
+      "seam": "packages/api/session-controller + packages/client + packages/session/session-persistence + native tool adapters",
+      "contractTests": [
+        "scripts/vendor-client-contracts.test.mjs",
+        "packages/client/ui-tool/tests/details-models.client.spec.ts",
+        "packages/client/ui-tool/tests/spill-policy-terminal.client.spec.ts",
+        "packages/client/locale/tests/locale.client.spec.ts"
+      ],
+      "vendorOnly": true
     }
   ]
 }

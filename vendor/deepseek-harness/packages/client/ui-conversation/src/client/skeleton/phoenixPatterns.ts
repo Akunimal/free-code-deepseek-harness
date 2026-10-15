@@ -54,7 +54,7 @@ let _lastPattern: string = "";
 /** Random pattern, never the same twice in a row (mirrors PPC behavior). */
 export function pickPhoenixPattern(): PhoenixPattern {
   const pool = PHOENIX_PATTERNS.filter((p) => p !== _lastPattern);
-  const p = pool[Math.floor(Math.random() * pool.length)];
+  const p = pool[Math.floor(Math.random() * pool.length)] ?? PHOENIX_PATTERNS[0];
   _lastPattern = p;
   return p;
 }
@@ -73,12 +73,15 @@ function parseColor(c: string): { r: number; g: number; b: number } | null {
   const hex = c.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
   if (hex) {
     let h = hex[1];
+    if (h === undefined) return null;
     if (h.length === 3) h = h.split("").map((x) => x + x).join("");
     const n = parseInt(h, 16);
     return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
   }
   const rgb = c.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/);
-  if (rgb) return { r: +rgb[1], g: +rgb[2], b: +rgb[3] };
+  if (rgb?.[1] !== undefined && rgb[2] !== undefined && rgb[3] !== undefined) {
+    return { r: +rgb[1], g: +rgb[2], b: +rgb[3] };
+  }
   return null;
 }
 
@@ -181,6 +184,7 @@ function startSynapse(host: HTMLElement): Cleanup {
     }
     for (let i = pulses.length - 1; i >= 0; i--) {
       const p = pulses[i];
+      if (p === undefined) continue;
       p.x += p.dx;
       p.y += p.dy;
       if (p.x > W + TRAIL || p.y > H + TRAIL) {
@@ -224,6 +228,7 @@ function startRain(host: HTMLElement): Cleanup {
     }
     for (let i = drops.length - 1; i >= 0; i--) {
       const d = drops[i];
+      if (d === undefined) continue;
       d.y += d.speed;
       if (d.y > H + d.len) {
         drops.splice(i, 1);
@@ -282,14 +287,17 @@ function startConstellations(host: HTMLElement): Cleanup {
     ctx.lineWidth = 0.5;
     for (let i = 0; i < stars.length; i++) {
       for (let j = i + 1; j < stars.length; j++) {
-        const dx = stars[i].x - stars[j].x;
-        const dy = stars[i].y - stars[j].y;
+        const first = stars[i];
+        const second = stars[j];
+        if (first === undefined || second === undefined) continue;
+        const dx = first.x - second.x;
+        const dy = first.y - second.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist < CONNECT) {
           ctx.globalAlpha = (1 - dist / CONNECT) * 0.15;
           ctx.beginPath();
-          ctx.moveTo(stars[i].x, stars[i].y);
-          ctx.lineTo(stars[j].x, stars[j].y);
+          ctx.moveTo(first.x, first.y);
+          ctx.lineTo(second.x, second.y);
           ctx.stroke();
         }
       }
@@ -494,6 +502,7 @@ function startEmbers(host: HTMLElement): Cleanup {
     const color = cssColor();
     for (let i = embers.length - 1; i >= 0; i--) {
       const e = embers[i];
+      if (e === undefined) continue;
       e.wobble += 0.03;
       e.x += e.vx + Math.sin(e.wobble) * 0.5;
       e.y += e.vy;

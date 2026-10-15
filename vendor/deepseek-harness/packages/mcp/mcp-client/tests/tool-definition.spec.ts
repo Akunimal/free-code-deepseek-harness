@@ -22,7 +22,7 @@ describe('MCP result callback adaptation', () => {
         structuredContent: { window: 7 },
       }))
       ctx.tools.register(createMcpToolDefinition(ctx, {
-        name: 'native_window', rawName: 'window', description: 'Read the selected window.',
+        name: 'native_window', rawName: 'window', serverName: 'native-fixture', description: 'Read the selected window.',
         inputSchema: { type: 'object', properties: { window: { type: 'integer' } } },
         outputSchema: { type: 'object', properties: { window: { type: 'integer' } }, required: ['window'] },
         call,
@@ -49,7 +49,7 @@ describe('MCP result callback adaptation', () => {
         await ctx.plugin(SystemPrompt)
         await ctx.plugin(ToolRuntime)
         ctx.tools.register(createMcpToolDefinition(ctx, {
-          name: 'invalid_result', rawName: 'invalid', description: 'External result fixture.',
+          name: 'invalid_result', rawName: 'invalid', serverName: 'invalid-fixture', description: 'External result fixture.',
           inputSchema: { type: 'object' }, call: async () => invalid,
         }))
         const result = await ctx.tools.execute({

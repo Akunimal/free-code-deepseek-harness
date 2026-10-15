@@ -20,7 +20,7 @@ import type {
   SessionPageRequest,
   SessionProjectionBaseline,
 } from '../types.ts'
-import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence'
+import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence/recovery'
 import {
   historyEntries,
   historyRecordFirstSeq,

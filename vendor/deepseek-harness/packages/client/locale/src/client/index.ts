@@ -387,7 +387,14 @@ export class LocaleRuntime {
    * @param dicts - complete dictionaries keyed by built-in locale id.
    * @returns disposer removing every locale registered by this call (idempotent).
    */
-  register<N extends Extract<keyof LocaleNamespaceMap, string>>(ns: N, dicts: Record<BuiltInLocaleId, LocaleDictOf<N>>): () => void
+  // Upstream plugins own complete en/zh dictionaries. Additional built-in
+  // packs are optional: the runtime already falls back to en when absent.
+  // A provided pack must still contain the complete namespace vocabulary.
+  register<N extends Extract<keyof LocaleNamespaceMap, string>>(
+    ns: N,
+    dicts: Record<'en' | 'zh', LocaleDictOf<N>>
+      & Partial<Record<Exclude<BuiltInLocaleId, 'en' | 'zh'>, LocaleDictOf<N>>>,
+  ): () => void
   /**
    * Single-locale untyped form for language-pack contributions and namespaces
    * outside the merge table.

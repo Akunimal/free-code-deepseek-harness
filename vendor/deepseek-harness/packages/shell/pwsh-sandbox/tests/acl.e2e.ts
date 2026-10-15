@@ -7,7 +7,6 @@
  * writes, and the partial-enforcement/denial facts ride the settled result.
  */
 
-import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'

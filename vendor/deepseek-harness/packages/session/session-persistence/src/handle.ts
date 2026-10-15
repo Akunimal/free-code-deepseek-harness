@@ -5,6 +5,8 @@
  */
 
 import type { SessionEvent, SessionHeader, SessionId, SessionLogOffset, SessionSeedEventState } from '@deepseek-ai/dsh-session'
+import type { SessionHandleReadRecovery } from './recovery.ts'
+export type { SessionHandleReadRecovery } from './recovery.ts'
 
 /**
  * Log access granted by an open. `write` is read-write: the session's single
@@ -17,18 +19,6 @@ export type SessionAccess = 'read' | 'write'
 export interface SessionHandleReadOptions {
   /** Optional cancellation for backend read work. */
   readonly signal?: AbortSignal
-}
-
-/** Read-only recovery details for a syntactically readable but semantically invalid suffix. */
-export interface SessionHandleReadRecovery {
-  /** Recovery never rewrites the original artifact. */
-  readonly kind: 'invalid-tail'
-  /** First event omitted from the returned contiguous prefix. */
-  readonly firstInvalidSeq: number
-  /** Complete event rows omitted from the returned suffix. */
-  readonly discardedEvents: number
-  /** Bounded released-format diagnostic for logs and UI surfaces. */
-  readonly reason: string
 }
 
 /** One persistence event slice returned by {@link SessionHandle.read}. */

@@ -315,8 +315,8 @@ describe('LocalSubprocessRuntime', () => {
       write: () => {},
       kill: () => { exitListener?.({ exitCode: 0 }) },
     }
-    mockNodePtyForIsolatedRuntime((_file, _args, options) => {
-      receivedOptions = options as Record<string, unknown>
+    mockNodePtyForIsolatedRuntime((_file: string, _args: string[], options: Record<string, unknown>) => {
+      receivedOptions = options
       return terminal
     })
     vi.resetModules()

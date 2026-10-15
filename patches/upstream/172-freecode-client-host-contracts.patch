@@ -1,0 +1,1131 @@
+diff --git a/vendor/deepseek-harness/packages/api/session-controller/src/client/contract/snapshot.ts b/vendor/deepseek-harness/packages/api/session-controller/src/client/contract/snapshot.ts
+index fa5d3579c8..d4954aaecd 100644
+--- a/vendor/deepseek-harness/packages/api/session-controller/src/client/contract/snapshot.ts
++++ b/vendor/deepseek-harness/packages/api/session-controller/src/client/contract/snapshot.ts
+@@ -4,7 +4,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
+ import type { SubagentAddress } from '@deepseek-ai/dsh-subagent/client'
+ import type { RemoteFailure } from '@deepseek-ai/dsh-typert-protocol'
+ import type { SessionRequestId } from '../../types.ts'
+-import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence'
++import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence/recovery'
+
+ /** One image displayed by a local submission echo before durable admission. */
+ export interface PendingSubmissionImage {
+diff --git a/vendor/deepseek-harness/packages/api/session-controller/src/client/sessions/session.ts b/vendor/deepseek-harness/packages/api/session-controller/src/client/sessions/session.ts
+index 406f7a31a0..b514b22e21 100644
+--- a/vendor/deepseek-harness/packages/api/session-controller/src/client/sessions/session.ts
++++ b/vendor/deepseek-harness/packages/api/session-controller/src/client/sessions/session.ts
+@@ -33,7 +33,7 @@ import { isRemoteFailure } from '@deepseek-ai/dsh-api-gateway/client'
+ import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
+ import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
+ import type { SessionRemotes } from './remotes.ts'
+-import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence'
++import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence/recovery'
+ import { ProjectionValueStore } from './projection-store.ts'
+ import type { ProjectionsBaseline } from './projection-store.ts'
+ import { resolvedClientTimeZone } from '../time-zone.ts'
+diff --git a/vendor/deepseek-harness/packages/api/session-controller/src/client/transport.ts b/vendor/deepseek-harness/packages/api/session-controller/src/client/transport.ts
+index 4229f9a3df..9e831961aa 100644
+--- a/vendor/deepseek-harness/packages/api/session-controller/src/client/transport.ts
++++ b/vendor/deepseek-harness/packages/api/session-controller/src/client/transport.ts
+@@ -20,7 +20,7 @@ import type {
+   SessionPageRequest,
+   SessionProjectionBaseline,
+ } from '../types.ts'
+-import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence'
++import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence/recovery'
+ import {
+   historyEntries,
+   historyRecordFirstSeq,
+diff --git a/vendor/deepseek-harness/packages/api/session-controller/src/types.ts b/vendor/deepseek-harness/packages/api/session-controller/src/types.ts
+index a671d861ff..5061938afb 100644
+--- a/vendor/deepseek-harness/packages/api/session-controller/src/types.ts
++++ b/vendor/deepseek-harness/packages/api/session-controller/src/types.ts
+@@ -11,7 +11,7 @@ import type { SessionId, SessionSeqCursor } from '@deepseek-ai/dsh-session/types
+ import type { SessionProjectionMap } from '@deepseek-ai/dsh-session-projection/types'
+ import type { JsonValue } from '@deepseek-ai/dsh-util-values'
+ import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
+-import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence'
++import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence/recovery'
+
+ declare module '@deepseek-ai/dsh-session-projection/types' {
+   interface SessionProjectionStateMap {
+diff --git a/vendor/deepseek-harness/packages/api/session-controller/tests/assistant-stream.client.spec.ts b/vendor/deepseek-harness/packages/api/session-controller/tests/assistant-stream.client.spec.ts
+index df7fc01993..7bef81979b 100644
+--- a/vendor/deepseek-harness/packages/api/session-controller/tests/assistant-stream.client.spec.ts
++++ b/vendor/deepseek-harness/packages/api/session-controller/tests/assistant-stream.client.spec.ts
+@@ -1,6 +1,6 @@
+ import { describe, expect, it } from 'vitest'
+ import { LlmAttemptId, createAssistantMessage } from '@deepseek-ai/dsh-llm'
+-import { SessionSeq, type SessionEvent } from '@deepseek-ai/dsh-session'
++import { SessionSeq, type SessionEvent } from '@deepseek-ai/dsh-session/types'
+ import type {
+   SessionAssistantStreamBaseline,
+   SessionAssistantStreamFrame,
+diff --git a/vendor/deepseek-harness/packages/api/session-controller/tests/remote/session.client.ts b/vendor/deepseek-harness/packages/api/session-controller/tests/remote/session.client.ts
+index 6e016fcf84..8a4cec083b 100644
+--- a/vendor/deepseek-harness/packages/api/session-controller/tests/remote/session.client.ts
++++ b/vendor/deepseek-harness/packages/api/session-controller/tests/remote/session.client.ts
+@@ -9,7 +9,7 @@
+ import { AttachmentId, type FileAttachmentRef, type ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
+ import { ok, type RemoteMock, type RemoteTable, type StreamScript, type UnaryRuleFn } from '@deepseek-ai/dsh-remote-mock'
+ import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
+-import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence'
++import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence/recovery'
+ import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
+ import type {
+   SessionAssistantStreamBaseline, SessionFollowFrame, SessionFollowRequest,
+diff --git a/vendor/deepseek-harness/packages/api/session-controller/tests/session-history-journal.host.spec.ts b/vendor/deepseek-harness/packages/api/session-controller/tests/session-history-journal.host.spec.ts
+index d5431d9b5d..2b58d9fcdb 100644
+--- a/vendor/deepseek-harness/packages/api/session-controller/tests/session-history-journal.host.spec.ts
++++ b/vendor/deepseek-harness/packages/api/session-controller/tests/session-history-journal.host.spec.ts
+@@ -6,7 +6,7 @@ import AgentRegistry, { type Agent, type AssistantStreamFrame } from '@deepseek-
+ import SessionStore, { SESSION_FORMAT_VERSION, SessionId } from '@deepseek-ai/dsh-session'
+ import { LlmAttemptId, ToolCallId, createMessage, createToolResultMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
+ import type { MessageSource } from '@deepseek-ai/dsh-llm'
+-import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
++import type { Session, SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
+ import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence'
+ import { SessionHistoryController } from '@deepseek-ai/dsh-api-session-controller/src/history.ts'
+ import type { SessionFollowFrame, SessionPage, SessionWireEvent } from '@deepseek-ai/dsh-api-session-controller/types'
+@@ -109,7 +109,7 @@ describe('Session history raw journal', () => {
+     fixture.append('turn/start', { turn: 1 })
+     appendUserText(fixture, 'retained prefix')
+     const events = fixture.snapshotEvents()
+-    const meta = {
++    const meta: SessionHeader = {
+       ...fixture.header,
+       id: SessionId('cold-recovered-prefix'),
+       version: SESSION_FORMAT_VERSION,
+@@ -143,9 +143,9 @@ describe('Session history raw journal', () => {
+         recovery,
+       })
+       if (opening.value?.type !== 'snapshot') throw new Error('recovered history did not open with a snapshot')
+-      expect(opening.value.records.map(record => record.event.type))
++      expect(opening.value.records.map((record: SessionPage['records'][number]) => record.event.type))
+         .toEqual(['turn/start', 'user/message', 'turn/end'])
+-      expect(opening.value.records.slice(0, 2).map(record => record.event.seq)).toEqual([0, 1])
++      expect(opening.value.records.slice(0, 2).map((record: SessionPage['records'][number]) => record.event.seq)).toEqual([0, 1])
+       const follows = iterator.next()
+       await Promise.resolve()
+       expect(promote).not.toHaveBeenCalled()
+diff --git a/vendor/deepseek-harness/packages/client/locale/src/client/index.ts b/vendor/deepseek-harness/packages/client/locale/src/client/index.ts
+index f2b4928f5c..49f12960fe 100644
+--- a/vendor/deepseek-harness/packages/client/locale/src/client/index.ts
++++ b/vendor/deepseek-harness/packages/client/locale/src/client/index.ts
+@@ -387,7 +387,14 @@ export class LocaleRuntime {
+    * @param dicts - complete dictionaries keyed by built-in locale id.
+    * @returns disposer removing every locale registered by this call (idempotent).
+    */
+-  register<N extends Extract<keyof LocaleNamespaceMap, string>>(ns: N, dicts: Record<BuiltInLocaleId, LocaleDictOf<N>>): () => void
++  // Upstream plugins own complete en/zh dictionaries. Additional built-in
++  // packs are optional: the runtime already falls back to en when absent.
++  // A provided pack must still contain the complete namespace vocabulary.
++  register<N extends Extract<keyof LocaleNamespaceMap, string>>(
++    ns: N,
++    dicts: Record<'en' | 'zh', LocaleDictOf<N>>
++      & Partial<Record<Exclude<BuiltInLocaleId, 'en' | 'zh'>, LocaleDictOf<N>>>,
++  ): () => void
+   /**
+    * Single-locale untyped form for language-pack contributions and namespaces
+    * outside the merge table.
+diff --git a/vendor/deepseek-harness/packages/client/locale/src/locales/es.ts b/vendor/deepseek-harness/packages/client/locale/src/locales/es.ts
+index 1ab78f5d23..cb27d1ce76 100644
+--- a/vendor/deepseek-harness/packages/client/locale/src/locales/es.ts
++++ b/vendor/deepseek-harness/packages/client/locale/src/locales/es.ts
+@@ -7,6 +7,9 @@ export const es = {
+   'close': 'Cerrar',
+   'copy': 'Copiar',
+   'copied': 'Copiado',
++  'codeBlock.title': 'Bloque de código',
++  'codeBlock.wrap': 'Ajustar líneas',
++  'codeBlock.unwrap': 'No ajustar líneas',
+   'copy.failed': 'Error al copiar',
+   'copy.value': 'Copiar valor',
+   'copy.json': 'Copiar JSON',
+@@ -31,11 +34,10 @@ export const es = {
+   'expand': 'Expandir',
+   'back': 'Atrás',
+   'brand.localBuild': 'DSH Construcción Local',
++  'workspace.defaultName': 'Espacio de trabajo predeterminado',
+   'unknown': 'Desconocido',
+   'none': 'Ninguno',
+   'truncated': 'Truncado',
+-  'json.collapseNode': 'Contraer nodo JSON',
+-  'json.expandNode': 'Expandir nodo JSON',
+   'json.label': 'JSON',
+   'markdown.footnotes': 'Notas al pie',
+   'markdown.truncatedCharacters': '… truncado en {total} caracteres',
+diff --git a/vendor/deepseek-harness/packages/client/locale/tests/locale.client.spec.ts b/vendor/deepseek-harness/packages/client/locale/tests/locale.client.spec.ts
+index 62926bb2f9..1fb83d3ee2 100644
+--- a/vendor/deepseek-harness/packages/client/locale/tests/locale.client.spec.ts
++++ b/vendor/deepseek-harness/packages/client/locale/tests/locale.client.spec.ts
+@@ -50,6 +50,13 @@ describe('LocaleRuntime', () => {
+     expect(t('missing.key')).toBe('missing.key')
+   })
+
++  it('uses English when a plugin has no Spanish dictionary', () => {
++    const { svc } = make()
++    svc.register('ns', 'en', { hello: 'English fallback' })
++    svc.setLocale('es')
++    expect(svc.bind('ns')('hello')).toBe('English fallback')
++  })
++
+   it('falls through to the common vocabulary after the namespace misses (production keys)', () => {
+     const { svc } = make()
+     // The shipped common pair is registered by apply; the bench registers it
+@@ -197,7 +204,7 @@ describe('LocaleRuntime', () => {
+
+     dispose()
+     expect(svc.getLocale().active).toBe('zh')
+-    expect(svc.getLocale().locales.map(locale => locale.id)).toEqual(['zh', 'en'])
++    expect(svc.getLocale().locales.map(locale => locale.id)).toEqual(['zh', 'en', 'es'])
+     expect(svc.bind('ns')('hello')).toBe('Hello')
+     const revision = svc.getLocale().revision
+     dispose()
+@@ -273,7 +280,7 @@ describe('LocaleRuntime', () => {
+       .toThrow('locale fallback "fr" is not registered')
+     expect(() => svc.addLanguage({ id: 'fr', label: 'Français', fallback: 'fr-CA' }))
+       .toThrow('fallback cycle')
+-    expect(svc.getLocale().locales.map(locale => locale.id)).toEqual(['zh', 'en', 'fr-CA'])
++    expect(svc.getLocale().locales.map(locale => locale.id)).toEqual(['zh', 'en', 'es', 'fr-CA'])
+   })
+
+   it('adopts a saved external locale when its definition registers later', () => {
+@@ -388,11 +395,12 @@ describe('LocaleRuntime', () => {
+     expect(svc.bind('ns2')('onlyZh')).toBe('onlyZh')
+   })
+
+-  it('starts with exactly the two shipped locales and their fallback relation', () => {
++  it('starts with the three shipped locales and English fallback', () => {
+     const { svc } = make()
+     expect(svc.getLocale().locales).toEqual([
+       { id: 'zh', label: '中文', fallback: 'en' },
+       { id: 'en', label: 'English' },
++      { id: 'es', label: 'Español' },
+     ])
+   })
+ })
+diff --git a/vendor/deepseek-harness/packages/client/ui-agent-preset/tests/apply.client.spec.ts b/vendor/deepseek-harness/packages/client/ui-agent-preset/tests/apply.client.spec.ts
+index 459c4db863..cfaa8c4634 100644
+--- a/vendor/deepseek-harness/packages/client/ui-agent-preset/tests/apply.client.spec.ts
++++ b/vendor/deepseek-harness/packages/client/ui-agent-preset/tests/apply.client.spec.ts
+@@ -12,7 +12,7 @@ import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
+ import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
+ import { createSnapshotStore, type ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
+ import { RemoteError, TestRemote } from '@deepseek-ai/dsh-client-test-runtime'
+-import { SessionId } from '@deepseek-ai/dsh-session'
++import { SessionId } from '@deepseek-ai/dsh-session/types'
+ import { apply as settingsApply, inject as settingsInject } from '@deepseek-ai/dsh-client-ui-settings/client'
+ import { apply, inject } from '@deepseek-ai/dsh-client-ui-agent-preset/client'
+ import { AgentPresetLabel } from '../src/client/AgentPresetLabel.tsx'
+@@ -24,7 +24,6 @@ import type { AgentPresetSeatInjected } from '../src/client/AgentPresetSeat.tsx'
+ import { AgentPresetSeatController } from '../src/client/seat-store.ts'
+ import { CreatePluginMenuItem, type CreatePluginMenuItemInjected } from '../src/client/CreatePluginMenuItem.tsx'
+ import { AgentPresetSectionController } from '../src/client/section-store.ts'
+-import { apply as hostApply } from '../src/index.ts'
+ import type { AgentPresetRow } from '@deepseek-ai/dsh-agent-preset-registry/types'
+
+ // These specs assert the shipped Chinese copy. The lane has no jsdom `window`,
+@@ -337,10 +336,6 @@ describe('ui-agent-preset apply', () => {
+     },
+   )
+
+-  it('keeps the host Loader entry inert', () => {
+-    expect(hostApply).not.toThrow()
+-  })
+-
+   it('declares the services it uses', () => {
+     expect(inject).toEqual([
+       'slots', 'sessions', 'locale', 'remote', 'remote.agentPresets', 'remote.settings', 'configForms',
+diff --git a/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/phoenixPatterns.ts b/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/phoenixPatterns.ts
+index 92415ed74f..0273fae795 100644
+--- a/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/phoenixPatterns.ts
++++ b/vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/phoenixPatterns.ts
+@@ -54,7 +54,7 @@ let _lastPattern: string = "";
+ /** Random pattern, never the same twice in a row (mirrors PPC behavior). */
+ export function pickPhoenixPattern(): PhoenixPattern {
+   const pool = PHOENIX_PATTERNS.filter((p) => p !== _lastPattern);
+-  const p = pool[Math.floor(Math.random() * pool.length)];
++  const p = pool[Math.floor(Math.random() * pool.length)] ?? PHOENIX_PATTERNS[0];
+   _lastPattern = p;
+   return p;
+ }
+@@ -73,12 +73,15 @@ function parseColor(c: string): { r: number; g: number; b: number } | null {
+   const hex = c.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+   if (hex) {
+     let h = hex[1];
++    if (h === undefined) return null;
+     if (h.length === 3) h = h.split("").map((x) => x + x).join("");
+     const n = parseInt(h, 16);
+     return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+   }
+   const rgb = c.match(/rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/);
+-  if (rgb) return { r: +rgb[1], g: +rgb[2], b: +rgb[3] };
++  if (rgb?.[1] !== undefined && rgb[2] !== undefined && rgb[3] !== undefined) {
++    return { r: +rgb[1], g: +rgb[2], b: +rgb[3] };
++  }
+   return null;
+ }
+
+@@ -181,6 +184,7 @@ function startSynapse(host: HTMLElement): Cleanup {
+     }
+     for (let i = pulses.length - 1; i >= 0; i--) {
+       const p = pulses[i];
++      if (p === undefined) continue;
+       p.x += p.dx;
+       p.y += p.dy;
+       if (p.x > W + TRAIL || p.y > H + TRAIL) {
+@@ -224,6 +228,7 @@ function startRain(host: HTMLElement): Cleanup {
+     }
+     for (let i = drops.length - 1; i >= 0; i--) {
+       const d = drops[i];
++      if (d === undefined) continue;
+       d.y += d.speed;
+       if (d.y > H + d.len) {
+         drops.splice(i, 1);
+@@ -282,14 +287,17 @@ function startConstellations(host: HTMLElement): Cleanup {
+     ctx.lineWidth = 0.5;
+     for (let i = 0; i < stars.length; i++) {
+       for (let j = i + 1; j < stars.length; j++) {
+-        const dx = stars[i].x - stars[j].x;
+-        const dy = stars[i].y - stars[j].y;
++        const first = stars[i];
++        const second = stars[j];
++        if (first === undefined || second === undefined) continue;
++        const dx = first.x - second.x;
++        const dy = first.y - second.y;
+         const dist = Math.sqrt(dx * dx + dy * dy);
+         if (dist < CONNECT) {
+           ctx.globalAlpha = (1 - dist / CONNECT) * 0.15;
+           ctx.beginPath();
+-          ctx.moveTo(stars[i].x, stars[i].y);
+-          ctx.lineTo(stars[j].x, stars[j].y);
++          ctx.moveTo(first.x, first.y);
++          ctx.lineTo(second.x, second.y);
+           ctx.stroke();
+         }
+       }
+@@ -494,6 +502,7 @@ function startEmbers(host: HTMLElement): Cleanup {
+     const color = cssColor();
+     for (let i = embers.length - 1; i >= 0; i--) {
+       const e = embers[i];
++      if (e === undefined) continue;
+       e.wobble += 0.03;
+       e.x += e.vx + Math.sin(e.wobble) * 0.5;
+       e.y += e.vy;
+diff --git a/vendor/deepseek-harness/packages/client/ui-schedule/src/client/index.ts b/vendor/deepseek-harness/packages/client/ui-schedule/src/client/index.ts
+index 2b81af49fa..fbed317578 100644
+--- a/vendor/deepseek-harness/packages/client/ui-schedule/src/client/index.ts
++++ b/vendor/deepseek-harness/packages/client/ui-schedule/src/client/index.ts
+@@ -87,7 +87,9 @@ export const inject = [
+  */
+ export function apply(ctx: ClientContext): void {
+   ctx.effect(() => ctx.locale.register(NS, { zh, en, es }), 'ui-schedule: dictionaries')
+-  ctx.effect(() => ctx.locale.register(MANAGER_NS, { zh: managerZh, en: managerEn, es }), 'ui-schedule: manager dictionaries')
++  // The manager owns a larger vocabulary than the compact catalog. Retain
++  // existing Spanish copy and fall back to English for new manager-only keys.
++  ctx.effect(() => ctx.locale.register(MANAGER_NS, { zh: managerZh, en: managerEn, es: { ...managerEn, ...es } }), 'ui-schedule: manager dictionaries')
+   const t = ctx.locale.bind(MANAGER_NS)
+   const manager: CatalogInjected<ScheduleCatalogEntry> = createCatalogSource<ScheduleCatalogEntry>({
+     list: () => ctx.remote.schedule.catalog(),
+diff --git a/vendor/deepseek-harness/packages/client/ui-tool/tests/details-models.client.spec.ts b/vendor/deepseek-harness/packages/client/ui-tool/tests/details-models.client.spec.ts
+index 9642bd55f7..9c7cf278dd 100644
+--- a/vendor/deepseek-harness/packages/client/ui-tool/tests/details-models.client.spec.ts
++++ b/vendor/deepseek-harness/packages/client/ui-tool/tests/details-models.client.spec.ts
+@@ -1,19 +1,24 @@
+ // @vitest-environment jsdom
+ /** Detail adapters accept the exact recorded result text and retain safe fallback paths. */
+-import { describe, expect, it } from 'vitest'
++import { beforeAll, describe, expect, it } from 'vitest'
+ import type { ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
+ import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
+ import { en, zh } from '@deepseek-ai/dsh-client-ui-conversation/src/client/locales.ts'
+ import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
+ import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
+-import { statusLine } from '@deepseek-ai/dsh-tool-jobs/src/render.ts'
+-import { presentation } from '@deepseek-ai/dsh-tool-session-query/src/presentation.ts'
+-import { renderList, renderRead, renderSpawn } from '@deepseek-ai/dsh-tool-terminal/src/render.ts'
+ import { formatSpillNotice } from '@deepseek-ai/dsh-spill-policy/notice'
+ import { detailBadge, detailJson, detailList, detailRecord, inspectionItems, nonempty } from '../src/client/tool/models/detail-model-shared.ts'
+ import { detailsCardModel } from '../src/client/tool/models/details-card-model.ts'
+-import { SpillLocator } from '@deepseek-ai/dsh-spill'
++import { SpillLocator } from '../../../spill/spill/src/types.ts'
+ import { PartialArguments } from '@deepseek-ai/dsh-util-values'
++import type { DetailsProducerFixture, DetailsProducerOutput } from './details-models.contract.ts'
++
++const producerModule = './details-models.host-fixture.ts'
++let produced: DetailsProducerOutput
++beforeAll(async () => {
++  const host = await import(producerModule) as DetailsProducerFixture
++  produced = host.produceDetails()
++})
+
+ const t = makeTranslate(en, commonEn)
+
+@@ -70,12 +75,8 @@ describe('control detail adapters', () => {
+     expect(details('list_agents', '(no subagents)')?.empty).toBe('No results')
+     expect(details('job_list', 'j1 [bash] running — Build')?.items[0]?.fields).toContainEqual({ label: 'Type', value: 'bash' })
+     expect(details('job_list', '(no background jobs)')?.empty).toBe('No results')
+-    expect(details('terminal_list', renderList([], 1000))?.empty).toBe('No results')
+-    const terminals = [
+-      { sessionId: 'pty-1' as never, type: 'shell', status: { kind: 'running' as const } },
+-      { sessionId: 'pty-2' as never, name: 'done', type: 'shell', pid: 4, status: { kind: 'exited' as const, exitCode: 2, signal: null } },
+-    ]
+-    expect(details('terminal_list', renderList(terminals, 1000))?.items).toHaveLength(2)
++    expect(details('terminal_list', produced.terminalsEmpty)?.empty).toBe('No results')
++    expect(details('terminal_list', produced.terminals)?.items).toHaveLength(2)
+     const locations = details('lsp', 'src/a.ts:2:3\nhttps://example.test/a.ts:4:5\nuntitled:Untitled-1:6:7\nC:\\src\\a.ts:8:9\nD:/lib/a.ts:10:11', { file_path: 'src/main.ts', line: 2, character: 3, operation: 'findReferences' })?.items
+     expect(locations?.map(item => item.location)).toEqual([
+       { path: 'src/a.ts', line: 2 }, undefined, undefined, { path: 'C:\\src\\a.ts', line: 8 }, { path: 'D:/lib/a.ts', line: 10 },
+@@ -98,15 +99,13 @@ describe('control detail adapters', () => {
+     expect(details('list_subagent_models', 'deepseek-chat — Fast\nunknown', { model: 'deepseek-chat' })?.items).toHaveLength(2)
+     expect(details('job_kill', 'requested cancellation of job j1', { job_id: 'j1', reason: 'stop' })?.summary).toContain('Cancellation requested')
+     expect(details('job_kill', 'job j1 had already finished completed', { job_id: 'j1' })?.summary).toContain('Already finished')
+-    const spawnText = renderSpawn({ sessionId: 'pty-1', type: 'shell', status: { kind: 'running' }, motd: 'ready' }, 1000)
+-    expect(details('terminal_open', spawnText)?.items[0]?.code?.text).toBe('ready')
+-    const readText = renderRead({ text: 'line', totalLines: 2, lineBegin: 0, lineEnd: 1, truncated: true }, 1000)
+-    expect(details('terminal_read', readText, { sessionId: 'pty-1' })?.items[0]?.description).toBe('Output truncated')
++    expect(details('terminal_open', produced.spawn)?.items[0]?.code?.text).toBe('ready')
++    expect(details('terminal_read', produced.read, { sessionId: 'pty-1' })?.items[0]?.description).toBe('Output truncated')
+     expect(details('terminal_signal', 'delivered SIGINT to foreground process group 12', { sessionId: 'pty-1' })?.items[0]?.fields).toContainEqual({ label: 'Process group', value: '12' })
+     expect(details('terminal_close', 'closed terminal session pty-1', { sessionId: 'pty-1' })?.summary).toContain('Closed')
+     expect(details('terminal_close', 'terminal session pty-1 was already closing', { sessionId: 'pty-1' })?.summary).toContain('Closing')
+-    expect(details('job_output', `hello\n[output truncated]\n${statusLine({ status: 'completed' })}`, { job_id: 'j1' })?.items[0]).toMatchObject({ code: { text: 'hello' }, description: 'Output truncated' })
+-    expect(details('job_output', `hello\n${statusLine({ status: 'completed', detail: 'exit code: 0' })}`, { job_id: 'j1' })?.items[0]?.description).toBe('exit code: 0')
++    expect(details('job_output', `hello\n[output truncated]\n${produced.jobCompleted}`, { job_id: 'j1' })?.items[0]).toMatchObject({ code: { text: 'hello' }, description: 'Output truncated' })
++    expect(details('job_output', `hello\n${produced.jobExit}`, { job_id: 'j1' })?.items[0]?.description).toBe('exit code: 0')
+     expect(details('unknown', 'x')).toBeNull()
+     expect(details('team_task_list', '{"tasks":[],"nextCursor":"bad"}')).toBeNull()
+     expect(details('terminal_read', 'bad', { sessionId: 'pty-1' })).toBeNull()
+@@ -118,10 +117,6 @@ describe('control detail adapters', () => {
+ })
+
+ describe('inspection detail adapters', () => {
+-  const sessionRecord = (id: string, live: boolean, persisted: boolean) => ({
+-    header: { id: id as never, createdAt: 1_000, parentSession: undefined }, live, persisted,
+-  })
+-
+   it('accepts Cordis, workflow, and Ralph producer results', () => {
+     expect(details('cordis_inspect_list', '{"providers":[{"name":"Service","status":"ready"}]}')?.summary).toBe('1 inspect providers')
+     expect(details('cordis_inspect_query', '{"provider":"Service","method":"get","data":{"value":1}}')?.summary).toBe('Service.get')
+@@ -136,48 +131,17 @@ describe('inspection detail adapters', () => {
+   })
+
+   it('uses the session-query producer presentation for searches, reads, and traces', () => {
+-    const session = sessionRecord('s1', true, true)
+-    const hit = { ...session, bestMatch: { sessionId: 's1' as never, seq: 2, type: 'user/message', time: 2_000, surface: 'current', snippet: 'needle' } }
+-    const title = { text: 'Session one' }
+-    const titles = new Map([
+-      ['s1' as never, title], ['s2' as never, { text: 'Child' }], ['s3' as never, { text: 'Grandchild' }],
+-    ]) as Parameters<typeof presentation.formatSessionSearch>[1]
+-    const sessionSearch = presentation.formatSessionSearch({ items: [hit as never], capped: true }, titles, new Set())
+-    expect(details('session_search', sessionSearch)?.items[0]).toMatchObject({ title: 'Session one', subtitle: 's1', description: 'needle' })
+-    const eventSearch = presentation.formatEventSearch(
+-      's1' as never, title,
+-      { items: [{ sessionId: 's1' as never, seq: 2 as never, type: 'tool/call', time: 2_000, surface: 'current', snippet: 'needle' }], capped: false },
+-    )
+-    expect(details('session_event_search', eventSearch)?.items[0]?.title).toBe('needle')
+-    const trace = presentation.formatSessionTrace(
+-      { target: session as never, ancestors: [], descendants: [], complete: true, root: session as never } as never,
+-      [], false, [{ record: sessionRecord('s2', true, true) as never, descendants: [{ record: sessionRecord('s3', true, true) as never, descendants: [] }] }], titles,
+-    )
+-    const traceItems = details('session_trace', trace)?.items
++    expect(details('session_search', produced.sessionSearch)?.items[0]).toMatchObject({ title: 'Session one', subtitle: 's1', description: 'needle' })
++    expect(details('session_event_search', produced.eventSearch)?.items[0]?.title).toBe('needle')
++    const traceItems = details('session_trace', produced.trace)?.items
+     expect(traceItems).toHaveLength(3)
+     expect(traceItems?.[0]).toMatchObject({ title: 'Session one', subtitle: 's1' })
+     expect(traceItems?.[2]?.lines).toEqual([
+       's2 — Child | 1970-01-01T00:00:01.000Z | live, persisted',
+       '  s3 — Grandchild | 1970-01-01T00:00:01.000Z | live, persisted',
+     ])
+-    const eventTrace = presentation.formatEventTrace(
+-      's1' as never, title,
+-      {
+-        session: { id: 's1' as never, createdAt: 1_000 } as never,
+-        target: { sessionId: 's1' as never, seq: 2 as never, type: 'tool/call', time: 2_000, surface: 'current' },
+-        replacementChain: [], replacedEventSeqs: [], sourceEventSeqs: [], derivedEventSeqs: [],
+-      },
+-    )
+-    expect(details('session_event_trace', eventTrace)?.items[0]?.fields).toContainEqual({ label: 'Target event', value: 'seq 2 | tool/call | current | 1970-01-01T00:00:02.000Z' })
+-    const event = { seq: 2, time: 2_000, type: 'tool/call', data: { name: 'x' } }
+-    const eventRead = presentation.formatEventRead(
+-      's1' as never, title,
+-      {
+-        session: {} as never, inheritedEventCount: 0 as never, target: event as never,
+-        events: [event as never], startSeq: 2 as never, endSeq: 2 as never,
+-      },
+-    )
+-    expect(details('session_event_read', eventRead)?.items[0]?.title).toBe('tool/call')
++    expect(details('session_event_trace', produced.eventTrace)?.items[0]?.fields).toContainEqual({ label: 'Target event', value: 'seq 2 | tool/call | current | 1970-01-01T00:00:02.000Z' })
++    expect(details('session_event_read', produced.eventRead)?.items[0]?.title).toBe('tool/call')
+     expect(details('session_search', 'No prior session matches found.')?.summary).toBe('0 matches')
+     expect(details('session_event_search', 'Session s1 — Session one\n\nNo prior event matches found.')?.summary).toBe('0 matches')
+   })
+diff --git a/vendor/deepseek-harness/packages/client/ui-tool/tests/spill-policy-terminal.client.spec.ts b/vendor/deepseek-harness/packages/client/ui-tool/tests/spill-policy-terminal.client.spec.ts
+index 149bbfc4ab..290cd36e3c 100644
+--- a/vendor/deepseek-harness/packages/client/ui-tool/tests/spill-policy-terminal.client.spec.ts
++++ b/vendor/deepseek-harness/packages/client/ui-tool/tests/spill-policy-terminal.client.spec.ts
+@@ -1,121 +1,19 @@
+-/** Producer-to-UI regression for shell results bounded by the real spill policy. */
+-import { Context } from '@deepseek-ai/cordis'
+-import type { Agent } from '@deepseek-ai/dsh-agent'
+-import type { ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
+-import { PtcRuntime } from '@deepseek-ai/dsh-ptc-runtime'
+-import type { PtcRunRequest, PtcRunSpec, PtcRunResult } from '@deepseek-ai/dsh-ptc-runtime'
++/** Producer-to-UI regression: Host and Client have separate typed Contexts. */
++import { describe, expect, it } from 'vitest'
+ import { estimateContent } from '@deepseek-ai/dsh-token-meter/estimate'
+-import { ToolCallId } from '@deepseek-ai/dsh-llm'
+-import { Session, SessionId } from '@deepseek-ai/dsh-session'
+-import { SpillLocator, SpillStore, type SaveTextSpill, type SpillRef } from '@deepseek-ai/dsh-spill'
+-import * as SpillPolicy from '@deepseek-ai/dsh-spill-policy'
++import { SpillLocator } from '../../../spill/spill/src/types.ts'
+ import { formatSpillNotice } from '@deepseek-ai/dsh-spill-policy/notice'
+-import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+-import ToolRuntime, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
+-import { PartialArguments } from '@deepseek-ai/dsh-util-values'
+-import { describe, expect, it } from 'vitest'
++import type { SpillTerminalFixture } from './spill-policy-terminal.contract.ts'
+ import { isSpilledShellCall, terminalCardModel } from '../src/client/tool/models/terminal-card-model.ts'
+
+-const spillReference = {
+-  locator: SpillLocator('/spill/shell.txt'),
+-  retrievalHint: 'Read the saved text.',
+-}
+-
+-class MemorySpillStore extends SpillStore {
+-  readonly saves: { input: SaveTextSpill; bytes: Buffer }[] = []
+-
+-  async saveText(input: SaveTextSpill): Promise<SpillRef> {
+-    const bytes = Buffer.from(input.content, 'utf8')
+-    this.saves.push({ input, bytes })
+-    return {
+-      ...spillReference,
+-      bytes: bytes.length,
+-    }
+-  }
+-}
+-
+-const shellArgs = { command: 'fixture-output', description: 'Return shell output fixture' }
+-
+-async function executeShell(text: string, nested: boolean, name = 'bash', maxInlineTokens = 256) {
+-  const ctx = new Context()
+-  try {
+-    await ctx.plugin(SystemPrompt)
+-    await ctx.plugin(ToolRuntime, { mode: 'both' })
+-    await ctx.plugin(MemorySpillStore)
+-    await ctx.plugin(SpillPolicy, { maxInlineTokens })
+-    if (nested) {
+-      // The real registry and spill policy own nested output; evaluator execution has its own process suite.
+-      class BindingRuntime extends PtcRuntime {
+-        readonly language = 'typescript'
+-        readonly isolation = 'fixture'
+-        resolve(request: PtcRunRequest): PtcRunSpec {
+-          return { ...request, cwd: process.cwd(), timeoutMs: 120_000 }
+-        }
+-        async run(spec: PtcRunSpec): Promise<PtcRunResult> {
+-          const tool = spec.bindings.find(binding => binding.global === 'tools')?.functions[name]
+-          if (tool === undefined) throw new Error('missing fixture binding')
+-          const blocks = await tool(shellArgs)
+-          expect(blocks).toEqual([{ type: 'text', text }])
+-          return { logs: [], value: true }
+-        }
+-      }
+-      await ctx.plugin(BindingRuntime)
+-    }
+-    ctx.effect(() => ctx.tools.register(defineContentToolFixture({
+-      name,
+-      description: 'Return deterministic shell text without spawning a process.',
+-      parameters: {
+-        command: { type: 'string', required: true },
+-        description: { type: 'string', required: true },
+-      },
+-      async execute() { return [{ type: 'text', text }] },
+-    })))
+-    const session = Session.create(SessionId('spill-terminal'))
+-    // The tool pipeline reads only the owner session; no agent loop runs here.
+-    const agent = { session } as Agent
+-    const callId = ToolCallId('shell-call')
+-    const result = await ctx.tools.execute({
+-      callId,
+-      agent,
+-      signal: new AbortController().signal,
+-      name: nested ? 'run_code' : name,
+-      arguments: nested ? {
+-        code: `const blocks = await tools.${name}(${JSON.stringify(shellArgs)}); return blocks[0].text === ${JSON.stringify(text)};`,
+-        description: 'Dispatch shell fixture through the tool pipeline',
+-      } : shellArgs,
+-    })
+-    expect(result.isError).toBe(false)
+-    if (result.isError) throw new Error('shell fixture execution failed')
+-
+-    let block: ToolResultNode
+-    if (nested) {
+-      expect(result.value).toMatchObject({ result: true })
+-      const dispatches = session.snapshotEvents().filter(event => event.type === 'tool/ptc-dispatch')
+-      expect(dispatches).toHaveLength(1)
+-      const event = dispatches[0]!
+-      block = {
+-        kind: 'tool-result', seq: event.seq, time: event.time, callTime: null,
+-        callId: event.data.subCallId, parentCallId: event.data.parentCallId,
+-        name: event.data.name, args: PartialArguments.fromText(JSON.stringify(event.data.arguments)),
+-        call: { name: event.data.name, argsRaw: JSON.stringify(event.data.arguments) },
+-        content: event.data.content, isError: event.data.isError, subCalls: [],
+-      }
+-    } else {
+-      expect(result.value).toEqual([{ type: 'text', text }])
+-      block = {
+-        kind: 'tool-result', seq: 1, time: 1, callTime: null, callId,
+-        name, args: PartialArguments.fromText(JSON.stringify(shellArgs)),
+-        call: { name, argsRaw: JSON.stringify(shellArgs) },
+-        content: result.content, isError: result.isError, subCalls: [],
+-      }
+-    }
+-    expect(block.isError).toBe(false)
+-    const saves = (ctx.spillStore as MemorySpillStore).saves
+-    return { block, saves }
+-  } finally {
+-    await ctx.fiber.dispose()
+-  }
+-}
++const spillReference = { locator: SpillLocator('/spill/shell.txt'), retrievalHint: 'Read the saved text.' }
++// The producer is independently checked by the Host aggregate. Runtime import
++// keeps its Host Context merge out of this Client program; the shared structural
++// contract is checked by both sides (no untyped fixture results).
++const producerModule = './spill-policy-terminal.host-fixture.ts'
++const producer = import(producerModule) as Promise<SpillTerminalFixture>
++const executeShell: SpillTerminalFixture['executeShell'] = async (...args) =>
++  (await producer).executeShell(...args)
+
+ describe.each([
+   { location: 'root', nested: false },
+diff --git a/vendor/deepseek-harness/packages/client/ui-user-questions/tests/question-reply.client.spec.ts b/vendor/deepseek-harness/packages/client/ui-user-questions/tests/question-reply.client.spec.ts
+index f7570515d4..5efc4a84af 100644
+--- a/vendor/deepseek-harness/packages/client/ui-user-questions/tests/question-reply.client.spec.ts
++++ b/vendor/deepseek-harness/packages/client/ui-user-questions/tests/question-reply.client.spec.ts
+@@ -1,7 +1,7 @@
+ /** Late-reply conversation node: source matching and payload projection. */
+ import { describe, expect, it } from 'vitest'
+ import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
+-import { SessionSeq } from '@deepseek-ai/dsh-session'
++import { SessionSeq } from '@deepseek-ai/dsh-session/types'
+ import { messageDefinition } from '../../ui-chat/src/client/conversation-nodes/message.ts'
+ import { en } from '../src/client/locales.ts'
+ import type { QuestionReplyData } from '../src/client/question-reply.ts'
+diff --git a/vendor/deepseek-harness/packages/experimental/browser-use-stagehand-native/src/index.ts b/vendor/deepseek-harness/packages/experimental/browser-use-stagehand-native/src/index.ts
+index 4709839b71..6de123c4fe 100644
+--- a/vendor/deepseek-harness/packages/experimental/browser-use-stagehand-native/src/index.ts
++++ b/vendor/deepseek-harness/packages/experimental/browser-use-stagehand-native/src/index.ts
+@@ -179,6 +179,7 @@ function mountTools(ctx: Context, resources: SessionResources<BrowserResource>):
+     ctx.tools.register(createMcpToolDefinition(ctx, {
+       name: toolName,
+       rawName: method,
++      serverName: 'stagehand-native',
+       description: descriptions[method],
+       inputSchema: { ...z.record(z.string(), z.json()).parse(z.toJSONSchema(browserInputs[method])), type: 'object' },
+       async call(args) {
+diff --git a/vendor/deepseek-harness/packages/experimental/computer-use-cua-driver-native/src/index.ts b/vendor/deepseek-harness/packages/experimental/computer-use-cua-driver-native/src/index.ts
+index 539f170fec..d860fb86c5 100644
+--- a/vendor/deepseek-harness/packages/experimental/computer-use-cua-driver-native/src/index.ts
++++ b/vendor/deepseek-harness/packages/experimental/computer-use-cua-driver-native/src/index.ts
+@@ -103,6 +103,7 @@ export async function apply(ctx: Context): Promise<void> {
+       const definition = createMcpToolDefinition(inner, {
+         name: publicName,
+         rawName: tool.name,
++        serverName: 'cua-driver-native',
+         description: tool.description ?? '',
+         inputSchema: tool.inputSchema,
+         outputSchema: tool.outputSchema,
+diff --git a/vendor/deepseek-harness/packages/llm/llm/tests/content.spec.ts b/vendor/deepseek-harness/packages/llm/llm/tests/content.spec.ts
+index 6d4b737f16..9d9ef044ae 100644
+--- a/vendor/deepseek-harness/packages/llm/llm/tests/content.spec.ts
++++ b/vendor/deepseek-harness/packages/llm/llm/tests/content.spec.ts
+@@ -345,7 +345,7 @@ describe('projectImagesForTextModelWithOcr', () => {
+     }
+   })
+
+-  it('replaces direct and nested images with bounded OCR text and caches an attachment', async () => {
++  it('replaces user and tool images with bounded OCR text and caches an attachment', async () => {
+     const dir = await mkdtemp(join(tmpdir(), 'dsh-content-ocr-'))
+     const path = join(dir, 'sample.png')
+     await writeFile(path, Buffer.from('fixture image bytes'))
+@@ -356,27 +356,19 @@ describe('projectImagesForTextModelWithOcr', () => {
+     })
+     try {
+       const shared = image(3)
+-      const messages = [createUserMessage({
+-        content: [shared, {
+-          type: 'tool-result',
+-          toolCallId: ToolCallId('nested-ocr'),
+-          content: [shared],
+-        }],
+-        source,
+-      })]
++      const messages = [
++        createUserMessage({ content: [shared], source }),
++        createToolResultMessage({ callId: ToolCallId('nested-ocr'), content: [shared], isError: false }),
++      ]
+       const projected = await projectImagesForTextModelWithOcr(
+         messages,
+         () => ({ readonlyPath: path }),
+       )
+       expect(runs).toBe(1)
+-      expect(projected[0]?.content).toEqual([
++      for (const message of projected) expect(message.content).toEqual([
+         { type: 'text', text: '[OCR text for attached image]\nrecognized text' },
+-        {
+-          type: 'tool-result',
+-          toolCallId: ToolCallId('nested-ocr'),
+-          content: [{ type: 'text', text: '[OCR text for attached image]\nrecognized text' }],
+-        },
+       ])
++      expect(projected).toHaveLength(2)
+       expect(messages[0]?.content[0]).toStrictEqual(shared)
+     } finally {
+       restore()
+diff --git a/vendor/deepseek-harness/packages/mcp/mcp-client/tests/project-activation.spec.ts b/vendor/deepseek-harness/packages/mcp/mcp-client/tests/project-activation.spec.ts
+index f3d843e1d8..7ac25f8059 100644
+--- a/vendor/deepseek-harness/packages/mcp/mcp-client/tests/project-activation.spec.ts
++++ b/vendor/deepseek-harness/packages/mcp/mcp-client/tests/project-activation.spec.ts
+@@ -97,7 +97,7 @@ describe('project activation', () => {
+     expect(call).not.toHaveBeenCalled()
+     expect(state.activeProject).toBeUndefined()
+
+-    activate.mockResolvedValueOnce({ content: [] })
++    activate.mockResolvedValueOnce({ isError: false, content: [] })
+     await withProjectActivation<Result, Execution>({ ...params, execution: { id: 'retry', signal: new AbortController().signal } })
+     expect(activate).toHaveBeenCalledTimes(2)
+     expect(call).toHaveBeenCalledTimes(1)
+diff --git a/vendor/deepseek-harness/packages/mcp/mcp-client/tests/tool-definition.spec.ts b/vendor/deepseek-harness/packages/mcp/mcp-client/tests/tool-definition.spec.ts
+index 3e99736401..beabbc4b37 100644
+--- a/vendor/deepseek-harness/packages/mcp/mcp-client/tests/tool-definition.spec.ts
++++ b/vendor/deepseek-harness/packages/mcp/mcp-client/tests/tool-definition.spec.ts
+@@ -22,7 +22,7 @@ describe('MCP result callback adaptation', () => {
+         structuredContent: { window: 7 },
+       }))
+       ctx.tools.register(createMcpToolDefinition(ctx, {
+-        name: 'native_window', rawName: 'window', description: 'Read the selected window.',
++        name: 'native_window', rawName: 'window', serverName: 'native-fixture', description: 'Read the selected window.',
+         inputSchema: { type: 'object', properties: { window: { type: 'integer' } } },
+         outputSchema: { type: 'object', properties: { window: { type: 'integer' } }, required: ['window'] },
+         call,
+@@ -49,7 +49,7 @@ describe('MCP result callback adaptation', () => {
+         await ctx.plugin(SystemPrompt)
+         await ctx.plugin(ToolRuntime)
+         ctx.tools.register(createMcpToolDefinition(ctx, {
+-          name: 'invalid_result', rawName: 'invalid', description: 'External result fixture.',
++          name: 'invalid_result', rawName: 'invalid', serverName: 'invalid-fixture', description: 'External result fixture.',
+           inputSchema: { type: 'object' }, call: async () => invalid,
+         }))
+         const result = await ctx.tools.execute({
+diff --git a/vendor/deepseek-harness/packages/session/session-persistence/package.json b/vendor/deepseek-harness/packages/session/session-persistence/package.json
+index 6b9647575c..c9cca181b2 100644
+--- a/vendor/deepseek-harness/packages/session/session-persistence/package.json
++++ b/vendor/deepseek-harness/packages/session/session-persistence/package.json
+@@ -18,11 +18,16 @@
+       "types": "./lib/types/index.d.ts",
+       "default": "./lib/index.js"
+     },
++    "./recovery": {
++      "types": "./lib/types/recovery.d.ts",
++      "default": "./lib/recovery.js"
++    },
+     "./src/*": "./src/*",
+     "./package.json": "./package.json"
+   },
+   "files": [
+     "lib/index.js",
++    "lib/recovery.js",
+     "lib/types/**/*.d.ts"
+   ],
+   "license": "MIT",
+diff --git a/vendor/deepseek-harness/packages/session/session-persistence/src/handle.ts b/vendor/deepseek-harness/packages/session/session-persistence/src/handle.ts
+index ae32ea840d..ed71d6140a 100644
+--- a/vendor/deepseek-harness/packages/session/session-persistence/src/handle.ts
++++ b/vendor/deepseek-harness/packages/session/session-persistence/src/handle.ts
+@@ -5,6 +5,8 @@
+  */
+
+ import type { SessionEvent, SessionHeader, SessionId, SessionLogOffset, SessionSeedEventState } from '@deepseek-ai/dsh-session'
++import type { SessionHandleReadRecovery } from './recovery.ts'
++export type { SessionHandleReadRecovery } from './recovery.ts'
+
+ /**
+  * Log access granted by an open. `write` is read-write: the session's single
+@@ -19,18 +21,6 @@ export interface SessionHandleReadOptions {
+   readonly signal?: AbortSignal
+ }
+
+-/** Read-only recovery details for a syntactically readable but semantically invalid suffix. */
+-export interface SessionHandleReadRecovery {
+-  /** Recovery never rewrites the original artifact. */
+-  readonly kind: 'invalid-tail'
+-  /** First event omitted from the returned contiguous prefix. */
+-  readonly firstInvalidSeq: number
+-  /** Complete event rows omitted from the returned suffix. */
+-  readonly discardedEvents: number
+-  /** Bounded released-format diagnostic for logs and UI surfaces. */
+-  readonly reason: string
+-}
+-
+ /** One persistence event slice returned by {@link SessionHandle.read}. */
+ export interface SessionHandleReadResult {
+   /**
+diff --git a/vendor/deepseek-harness/packages/shell/pwsh-sandbox/tests/acl.e2e.ts b/vendor/deepseek-harness/packages/shell/pwsh-sandbox/tests/acl.e2e.ts
+index 27f157f9bc..040c19246e 100644
+--- a/vendor/deepseek-harness/packages/shell/pwsh-sandbox/tests/acl.e2e.ts
++++ b/vendor/deepseek-harness/packages/shell/pwsh-sandbox/tests/acl.e2e.ts
+@@ -7,7 +7,6 @@
+  * writes, and the partial-enforcement/denial facts ride the settled result.
+  */
+
+-import { spawnSync } from 'node:child_process'
+ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+ import { homedir, tmpdir } from 'node:os'
+ import { join } from 'node:path'
+diff --git a/vendor/deepseek-harness/packages/spill/spill-policy/tests/multimodal-recovery.spec.ts b/vendor/deepseek-harness/packages/spill/spill-policy/tests/multimodal-recovery.spec.ts
+index 62cc4119b4..c48325704f 100644
+--- a/vendor/deepseek-harness/packages/spill/spill-policy/tests/multimodal-recovery.spec.ts
++++ b/vendor/deepseek-harness/packages/spill/spill-policy/tests/multimodal-recovery.spec.ts
+@@ -88,7 +88,7 @@ async function setup() {
+   for (const [name, content] of Object.entries(originals)) {
+     ctx.tools.register({
+       ...createMcpToolDefinition(ctx, {
+-        name, rawName: name, description: 'Return a fixed text and image sequence.', inputSchema: { type: 'object' },
++        name, rawName: name, serverName: 'recovery-fixture', description: 'Return a fixed text and image sequence.', inputSchema: { type: 'object' },
+         call: async () => { await gates.get(name)?.(); return { content } },
+       }),
+       isConcurrencySafe: () => true,
+diff --git a/vendor/deepseek-harness/packages/spill/spill-policy/tests/multimodal.spec.ts b/vendor/deepseek-harness/packages/spill/spill-policy/tests/multimodal.spec.ts
+index f75d26ddb1..fabd450c04 100644
+--- a/vendor/deepseek-harness/packages/spill/spill-policy/tests/multimodal.spec.ts
++++ b/vendor/deepseek-harness/packages/spill/spill-policy/tests/multimodal.spec.ts
+@@ -76,7 +76,7 @@ async function setup(content: JsonValue[], maxInlineTokens: number) {
+   ctx.llm.registerAdapter(['vision'], new VisionAdapter())
+   await ctx.plugin(SpillPolicy, { maxInlineTokens })
+   ctx.tools.register(createMcpToolDefinition(ctx, {
+-    name: 'inspect', rawName: 'inspect', description: 'Return text and screenshots',
++    name: 'inspect', rawName: 'inspect', serverName: 'spill-fixture', description: 'Return text and screenshots',
+     inputSchema: { type: 'object' }, call: async () => ({ content }),
+   }))
+   const session = Session.create(SessionId('mixed-spill'))
+diff --git a/vendor/deepseek-harness/packages/subprocess/subprocess-local/tests/local.spec.ts b/vendor/deepseek-harness/packages/subprocess/subprocess-local/tests/local.spec.ts
+index 2f012aee19..2d2e497f4d 100644
+--- a/vendor/deepseek-harness/packages/subprocess/subprocess-local/tests/local.spec.ts
++++ b/vendor/deepseek-harness/packages/subprocess/subprocess-local/tests/local.spec.ts
+@@ -315,8 +315,8 @@ describe('LocalSubprocessRuntime', () => {
+       write: () => {},
+       kill: () => { exitListener?.({ exitCode: 0 }) },
+     }
+-    mockNodePtyForIsolatedRuntime((_file, _args, options) => {
+-      receivedOptions = options as Record<string, unknown>
++    mockNodePtyForIsolatedRuntime((_file: string, _args: string[], options: Record<string, unknown>) => {
++      receivedOptions = options
+       return terminal
+     })
+     vi.resetModules()
+diff --git a/vendor/deepseek-harness/tsconfig.client.json b/vendor/deepseek-harness/tsconfig.client.json
+index 53a7c72cc2..bb03f85e12 100644
+--- a/vendor/deepseek-harness/tsconfig.client.json
++++ b/vendor/deepseek-harness/tsconfig.client.json
+@@ -47,7 +47,10 @@
+   // belongs to the host aggregate, which excludes this program's `*.client.*`
+   // in turn. `exclude` wins over `include`, so the test glob above stays broad.
+   "exclude": [
+-    "packages/client/*/tests/**/*.host.spec.ts"
++    "packages/client/*/tests/**/*.host.spec.ts",
++    // Real Host producers behind a pure value contract are checked by the
++    // Host aggregate; loading them here would merge incompatible services.
++    "packages/client/*/tests/**/*.host-fixture.ts"
+   ],
+   "references": [
+     { "path": "./packages/client/product-analytics/tsconfig.client.json" },
+diff --git a/vendor/deepseek-harness/tsconfig.host.json b/vendor/deepseek-harness/tsconfig.host.json
+index f61cdcfd0e..bb6aaf7773 100644
+--- a/vendor/deepseek-harness/tsconfig.host.json
++++ b/vendor/deepseek-harness/tsconfig.host.json
+@@ -211,6 +211,7 @@
+     "scripts/client-bundle-purity.spec.ts"
+   ],
+   "references": [
++    { "path": "./packages/client/ui-agent-preset/tsconfig.host.json" },
+     { "path": "./packages/client/product-analytics/tsconfig.host.json" },
+     { "path": "./packages/telemetry/otel" },
+     { "path": "./packages/experimental/speech-to-text" },
+diff --git a/vendor/deepseek-harness/packages/client/ui-agent-preset/tests/entry.host.spec.ts b/vendor/deepseek-harness/packages/client/ui-agent-preset/tests/entry.host.spec.ts
+new file mode 100644
+index 0000000000..03e3430cb6
+--- /dev/null
++++ b/vendor/deepseek-harness/packages/client/ui-agent-preset/tests/entry.host.spec.ts
+@@ -0,0 +1,6 @@
++import { expect, it } from 'vitest'
++import { apply } from '../src/index.ts'
++
++it('keeps the host Loader entry inert', () => {
++  expect(apply).not.toThrow()
++})
+diff --git a/vendor/deepseek-harness/packages/client/ui-agent-preset/tsconfig.host.json b/vendor/deepseek-harness/packages/client/ui-agent-preset/tsconfig.host.json
+new file mode 100644
+index 0000000000..b98164619d
+--- /dev/null
++++ b/vendor/deepseek-harness/packages/client/ui-agent-preset/tsconfig.host.json
+@@ -0,0 +1,9 @@
++{
++  "extends": "../../../tsconfig.base.json",
++  "compilerOptions": {
++    "rootDir": "src",
++    "outDir": "lib/types",
++    "tsBuildInfoFile": "lib/tsconfig.host.tsbuildinfo"
++  },
++  "include": ["src/index.ts"]
++}
+diff --git a/vendor/deepseek-harness/packages/client/ui-tool/tests/details-models.contract.ts b/vendor/deepseek-harness/packages/client/ui-tool/tests/details-models.contract.ts
+new file mode 100644
+index 0000000000..e9f73f2dd1
+--- /dev/null
++++ b/vendor/deepseek-harness/packages/client/ui-tool/tests/details-models.contract.ts
+@@ -0,0 +1,18 @@
++/** Only recorded text crosses the Host producer / Client adapter test boundary. */
++export interface DetailsProducerOutput {
++  terminalsEmpty: string
++  terminals: string
++  spawn: string
++  read: string
++  jobCompleted: string
++  jobExit: string
++  sessionSearch: string
++  eventSearch: string
++  trace: string
++  eventTrace: string
++  eventRead: string
++}
++
++export interface DetailsProducerFixture {
++  produceDetails(): DetailsProducerOutput
++}
+diff --git a/vendor/deepseek-harness/packages/client/ui-tool/tests/details-models.host-fixture.ts b/vendor/deepseek-harness/packages/client/ui-tool/tests/details-models.host-fixture.ts
+new file mode 100644
+index 0000000000..0f48638c76
+--- /dev/null
++++ b/vendor/deepseek-harness/packages/client/ui-tool/tests/details-models.host-fixture.ts
+@@ -0,0 +1,47 @@
++/** Real Host formatters; independently typechecked by the Host aggregate. */
++import { statusLine } from '@deepseek-ai/dsh-tool-jobs/src/render.ts'
++import { presentation } from '@deepseek-ai/dsh-tool-session-query/src/presentation.ts'
++import { renderList, renderRead, renderSpawn } from '@deepseek-ai/dsh-tool-terminal/src/render.ts'
++import type { DetailsProducerFixture } from './details-models.contract.ts'
++
++export const produceDetails: DetailsProducerFixture['produceDetails'] = () => {
++  const terminals = [
++    { sessionId: 'pty-1' as never, type: 'shell', status: { kind: 'running' as const } },
++    { sessionId: 'pty-2' as never, name: 'done', type: 'shell', pid: 4, status: { kind: 'exited' as const, exitCode: 2, signal: null } },
++  ]
++  const sessionRecord = (id: string, live: boolean, persisted: boolean) => ({
++    header: { id: id as never, createdAt: 1_000, parentSession: undefined }, live, persisted,
++  })
++  const session = sessionRecord('s1', true, true)
++  const hit = { ...session, bestMatch: { sessionId: 's1' as never, seq: 2, type: 'user/message', time: 2_000, surface: 'current', snippet: 'needle' } }
++  const title = { text: 'Session one' }
++  const titles = new Map([
++    ['s1' as never, title], ['s2' as never, { text: 'Child' }], ['s3' as never, { text: 'Grandchild' }],
++  ]) as Parameters<typeof presentation.formatSessionSearch>[1]
++  const event = { seq: 2, time: 2_000, type: 'tool/call', data: { name: 'x' } }
++  return {
++    terminalsEmpty: renderList([], 1000),
++    terminals: renderList(terminals, 1000),
++    spawn: renderSpawn({ sessionId: 'pty-1', type: 'shell', status: { kind: 'running' }, motd: 'ready' }, 1000),
++    read: renderRead({ text: 'line', totalLines: 2, lineBegin: 0, lineEnd: 1, truncated: true }, 1000),
++    jobCompleted: statusLine({ status: 'completed' }),
++    jobExit: statusLine({ status: 'completed', detail: 'exit code: 0' }),
++    sessionSearch: presentation.formatSessionSearch({ items: [hit as never], capped: true }, titles, new Set()),
++    eventSearch: presentation.formatEventSearch('s1' as never, title, {
++      items: [{ sessionId: 's1' as never, seq: 2 as never, type: 'tool/call', time: 2_000, surface: 'current', snippet: 'needle' }], capped: false,
++    }),
++    trace: presentation.formatSessionTrace(
++      { target: session as never, ancestors: [], descendants: [], complete: true, root: session as never } as never,
++      [], false, [{ record: sessionRecord('s2', true, true) as never, descendants: [{ record: sessionRecord('s3', true, true) as never, descendants: [] }] }], titles,
++    ),
++    eventTrace: presentation.formatEventTrace('s1' as never, title, {
++      session: { id: 's1' as never, createdAt: 1_000 } as never,
++      target: { sessionId: 's1' as never, seq: 2 as never, type: 'tool/call', time: 2_000, surface: 'current' },
++      replacementChain: [], replacedEventSeqs: [], sourceEventSeqs: [], derivedEventSeqs: [],
++    }),
++    eventRead: presentation.formatEventRead('s1' as never, title, {
++      session: {} as never, inheritedEventCount: 0 as never, target: event as never,
++      events: [event as never], startSeq: 2 as never, endSeq: 2 as never,
++    }),
++  }
++}
+diff --git a/vendor/deepseek-harness/packages/client/ui-tool/tests/spill-policy-terminal.contract.ts b/vendor/deepseek-harness/packages/client/ui-tool/tests/spill-policy-terminal.contract.ts
+new file mode 100644
+index 0000000000..7bd47e31ff
+--- /dev/null
++++ b/vendor/deepseek-harness/packages/client/ui-tool/tests/spill-policy-terminal.contract.ts
+@@ -0,0 +1,26 @@
++import type { ContentBlock } from '@deepseek-ai/dsh-llm'
++import type { PartialArguments } from '@deepseek-ai/dsh-util-values'
++
++/** Structural wire value; the Client checks it against its actual card input. */
++export interface SpillTerminalBlock {
++  kind: 'tool-result'
++  seq: number
++  time: number
++  callTime: number | null
++  callId: string
++  parentCallId?: string
++  name: string
++  args: PartialArguments
++  call: { name: string; argsRaw: string }
++  content: readonly ContentBlock[]
++  isError: boolean
++  subCalls: readonly never[]
++}
++
++/** Pure value boundary shared by independently typechecked Host/Client tests. */
++export interface SpillTerminalFixture {
++  executeShell(text: string, nested: boolean, name?: string, maxInlineTokens?: number): Promise<{
++    block: SpillTerminalBlock
++    saves: { input: unknown; bytes: Buffer }[]
++  }>
++}
+diff --git a/vendor/deepseek-harness/packages/client/ui-tool/tests/spill-policy-terminal.host-fixture.ts b/vendor/deepseek-harness/packages/client/ui-tool/tests/spill-policy-terminal.host-fixture.ts
+new file mode 100644
+index 0000000000..2e318c8047
+--- /dev/null
++++ b/vendor/deepseek-harness/packages/client/ui-tool/tests/spill-policy-terminal.host-fixture.ts
+@@ -0,0 +1,116 @@
++/** Host-only producer, typechecked separately from Client Context services. */
++import { Context } from '@deepseek-ai/cordis'
++import type { Agent } from '@deepseek-ai/dsh-agent'
++import type { SpillTerminalBlock, SpillTerminalFixture } from './spill-policy-terminal.contract.ts'
++import { PtcRuntime } from '@deepseek-ai/dsh-ptc-runtime'
++import type { PtcRunRequest, PtcRunSpec, PtcRunResult } from '@deepseek-ai/dsh-ptc-runtime'
++import { ToolCallId } from '@deepseek-ai/dsh-llm'
++import { Session, SessionId } from '@deepseek-ai/dsh-session'
++import { SpillLocator, SpillStore, type SaveTextSpill, type SpillRef } from '@deepseek-ai/dsh-spill'
++import * as SpillPolicy from '@deepseek-ai/dsh-spill-policy'
++import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
++import ToolRuntime, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
++import { PartialArguments } from '@deepseek-ai/dsh-util-values'
++import { expect } from 'vitest'
++
++const spillReference = {
++  locator: SpillLocator('/spill/shell.txt'),
++  retrievalHint: 'Read the saved text.',
++}
++
++class MemorySpillStore extends SpillStore {
++  readonly saves: { input: SaveTextSpill; bytes: Buffer }[] = []
++
++  async saveText(input: SaveTextSpill): Promise<SpillRef> {
++    const bytes = Buffer.from(input.content, 'utf8')
++    this.saves.push({ input, bytes })
++    return {
++      ...spillReference,
++      bytes: bytes.length,
++    }
++  }
++}
++
++const shellArgs = { command: 'fixture-output', description: 'Return shell output fixture' }
++
++export const executeShell: SpillTerminalFixture['executeShell'] = async (text, nested, name = 'bash', maxInlineTokens = 256) => {
++  const ctx = new Context()
++  try {
++    await ctx.plugin(SystemPrompt)
++    await ctx.plugin(ToolRuntime, { mode: 'both' })
++    await ctx.plugin(MemorySpillStore)
++    await ctx.plugin(SpillPolicy, { maxInlineTokens })
++    if (nested) {
++      // The real registry and spill policy own nested output; evaluator execution has its own process suite.
++      class BindingRuntime extends PtcRuntime {
++        readonly language = 'typescript'
++        readonly isolation = 'fixture'
++        resolve(request: PtcRunRequest): PtcRunSpec {
++          return { ...request, cwd: process.cwd(), timeoutMs: 120_000 }
++        }
++        async run(spec: PtcRunSpec): Promise<PtcRunResult> {
++          const tool = spec.bindings.find(binding => binding.global === 'tools')?.functions[name]
++          if (tool === undefined) throw new Error('missing fixture binding')
++          const blocks = await tool(shellArgs)
++          expect(blocks).toEqual([{ type: 'text', text }])
++          return { logs: [], value: true }
++        }
++      }
++      await ctx.plugin(BindingRuntime)
++    }
++    ctx.effect(() => ctx.tools.register(defineContentToolFixture({
++      name,
++      description: 'Return deterministic shell text without spawning a process.',
++      parameters: {
++        command: { type: 'string', required: true },
++        description: { type: 'string', required: true },
++      },
++      async execute() { return [{ type: 'text', text }] },
++    })))
++    const session = Session.create(SessionId('spill-terminal'))
++    // The tool pipeline reads only the owner session; no agent loop runs here.
++    const agent = { session } as Agent
++    const callId = ToolCallId('shell-call')
++    const result = await ctx.tools.execute({
++      callId,
++      agent,
++      signal: new AbortController().signal,
++      name: nested ? 'run_code' : name,
++      arguments: nested ? {
++        code: `const blocks = await tools.${name}(${JSON.stringify(shellArgs)}); return blocks[0].text === ${JSON.stringify(text)};`,
++        description: 'Dispatch shell fixture through the tool pipeline',
++      } : shellArgs,
++    })
++    expect(result.isError).toBe(false)
++    if (result.isError) throw new Error('shell fixture execution failed')
++
++    let block: SpillTerminalBlock
++    if (nested) {
++      expect(result.value).toMatchObject({ result: true })
++      const dispatches = session.snapshotEvents().filter(event => event.type === 'tool/ptc-dispatch')
++      expect(dispatches).toHaveLength(1)
++      const event = dispatches[0]!
++      block = {
++        kind: 'tool-result', seq: event.seq, time: event.time, callTime: null,
++        callId: event.data.subCallId, parentCallId: event.data.parentCallId,
++        name: event.data.name, args: PartialArguments.fromText(JSON.stringify(event.data.arguments)),
++        call: { name: event.data.name, argsRaw: JSON.stringify(event.data.arguments) },
++        content: event.data.content, isError: event.data.isError, subCalls: [],
++      }
++    } else {
++      expect(result.value).toEqual([{ type: 'text', text }])
++      block = {
++        kind: 'tool-result', seq: 1, time: 1, callTime: null, callId,
++        name, args: PartialArguments.fromText(JSON.stringify(shellArgs)),
++        call: { name, argsRaw: JSON.stringify(shellArgs) },
++        content: result.content, isError: result.isError, subCalls: [],
++      }
++    }
++    expect(block.isError).toBe(false)
++    const saves = (ctx.spillStore as MemorySpillStore).saves
++    return { block, saves }
++  } finally {
++    await ctx.fiber.dispose()
++  }
++}
++
+diff --git a/vendor/deepseek-harness/packages/session/session-persistence/src/recovery.ts b/vendor/deepseek-harness/packages/session/session-persistence/src/recovery.ts
+new file mode 100644
+index 0000000000..3b317bd1ef
+--- /dev/null
++++ b/vendor/deepseek-harness/packages/session/session-persistence/src/recovery.ts
+@@ -0,0 +1,11 @@
++/** Read-only recovery metadata shared by Host and Client, without service declarations. */
++export interface SessionHandleReadRecovery {
++  /** Recovery never rewrites the original artifact. */
++  readonly kind: 'invalid-tail'
++  /** First event omitted from the returned contiguous prefix. */
++  readonly firstInvalidSeq: number
++  /** Complete event rows omitted from the returned suffix. */
++  readonly discardedEvents: number
++  /** Bounded released-format diagnostic for logs and UI surfaces. */
++  readonly reason: string
++}

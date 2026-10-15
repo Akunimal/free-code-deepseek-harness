@@ -11,7 +11,7 @@ import type { SessionId, SessionSeqCursor } from '@deepseek-ai/dsh-session/types
 import type { SessionProjectionMap } from '@deepseek-ai/dsh-session-projection/types'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
-import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence'
+import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence/recovery'
 
 declare module '@deepseek-ai/dsh-session-projection/types' {
   interface SessionProjectionStateMap {

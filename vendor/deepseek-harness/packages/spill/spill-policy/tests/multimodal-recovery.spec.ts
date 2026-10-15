@@ -88,7 +88,7 @@ async function setup() {
   for (const [name, content] of Object.entries(originals)) {
     ctx.tools.register({
       ...createMcpToolDefinition(ctx, {
-        name, rawName: name, description: 'Return a fixed text and image sequence.', inputSchema: { type: 'object' },
+        name, rawName: name, serverName: 'recovery-fixture', description: 'Return a fixed text and image sequence.', inputSchema: { type: 'object' },
         call: async () => { await gates.get(name)?.(); return { content } },
       }),
       isConcurrencySafe: () => true,

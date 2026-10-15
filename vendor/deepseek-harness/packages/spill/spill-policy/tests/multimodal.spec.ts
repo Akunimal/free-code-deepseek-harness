@@ -76,7 +76,7 @@ async function setup(content: JsonValue[], maxInlineTokens: number) {
   ctx.llm.registerAdapter(['vision'], new VisionAdapter())
   await ctx.plugin(SpillPolicy, { maxInlineTokens })
   ctx.tools.register(createMcpToolDefinition(ctx, {
-    name: 'inspect', rawName: 'inspect', description: 'Return text and screenshots',
+    name: 'inspect', rawName: 'inspect', serverName: 'spill-fixture', description: 'Return text and screenshots',
     inputSchema: { type: 'object' }, call: async () => ({ content }),
   }))
   const session = Session.create(SessionId('mixed-spill'))

@@ -18,11 +18,16 @@
       "types": "./lib/types/index.d.ts",
       "default": "./lib/index.js"
     },
+    "./recovery": {
+      "types": "./lib/types/recovery.d.ts",
+      "default": "./lib/recovery.js"
+    },
     "./src/*": "./src/*",
     "./package.json": "./package.json"
   },
   "files": [
     "lib/index.js",
+    "lib/recovery.js",
     "lib/types/**/*.d.ts"
   ],
   "license": "MIT",

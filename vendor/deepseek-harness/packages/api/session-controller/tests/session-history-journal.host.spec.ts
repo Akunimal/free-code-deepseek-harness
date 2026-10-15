@@ -6,7 +6,7 @@ import AgentRegistry, { type Agent, type AssistantStreamFrame } from '@deepseek-
 import SessionStore, { SESSION_FORMAT_VERSION, SessionId } from '@deepseek-ai/dsh-session'
 import { LlmAttemptId, ToolCallId, createMessage, createToolResultMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { MessageSource } from '@deepseek-ai/dsh-llm'
-import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
+import type { Session, SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
 import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence'
 import { SessionHistoryController } from '@deepseek-ai/dsh-api-session-controller/src/history.ts'
 import type { SessionFollowFrame, SessionPage, SessionWireEvent } from '@deepseek-ai/dsh-api-session-controller/types'
@@ -109,7 +109,7 @@ describe('Session history raw journal', () => {
     fixture.append('turn/start', { turn: 1 })
     appendUserText(fixture, 'retained prefix')
     const events = fixture.snapshotEvents()
-    const meta = {
+    const meta: SessionHeader = {
       ...fixture.header,
       id: SessionId('cold-recovered-prefix'),
       version: SESSION_FORMAT_VERSION,
@@ -143,9 +143,9 @@ describe('Session history raw journal', () => {
         recovery,
       })
       if (opening.value?.type !== 'snapshot') throw new Error('recovered history did not open with a snapshot')
-      expect(opening.value.records.map(record => record.event.type))
+      expect(opening.value.records.map((record: SessionPage['records'][number]) => record.event.type))
         .toEqual(['turn/start', 'user/message', 'turn/end'])
-      expect(opening.value.records.slice(0, 2).map(record => record.event.seq)).toEqual([0, 1])
+      expect(opening.value.records.slice(0, 2).map((record: SessionPage['records'][number]) => record.event.seq)).toEqual([0, 1])
       const follows = iterator.next()
       await Promise.resolve()
       expect(promote).not.toHaveBeenCalled()

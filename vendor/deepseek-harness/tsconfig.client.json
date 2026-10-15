@@ -47,7 +47,10 @@
   // belongs to the host aggregate, which excludes this program's `*.client.*`
   // in turn. `exclude` wins over `include`, so the test glob above stays broad.
   "exclude": [
-    "packages/client/*/tests/**/*.host.spec.ts"
+    "packages/client/*/tests/**/*.host.spec.ts",
+    // Real Host producers behind a pure value contract are checked by the
+    // Host aggregate; loading them here would merge incompatible services.
+    "packages/client/*/tests/**/*.host-fixture.ts"
   ],
   "references": [
     { "path": "./packages/client/product-analytics/tsconfig.client.json" },

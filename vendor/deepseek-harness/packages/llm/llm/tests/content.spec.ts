@@ -345,7 +345,7 @@ describe('projectImagesForTextModelWithOcr', () => {
     }
   })
 
-  it('replaces direct and nested images with bounded OCR text and caches an attachment', async () => {
+  it('replaces user and tool images with bounded OCR text and caches an attachment', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'dsh-content-ocr-'))
     const path = join(dir, 'sample.png')
     await writeFile(path, Buffer.from('fixture image bytes'))
@@ -356,27 +356,19 @@ describe('projectImagesForTextModelWithOcr', () => {
     })
     try {
       const shared = image(3)
-      const messages = [createUserMessage({
-        content: [shared, {
-          type: 'tool-result',
-          toolCallId: ToolCallId('nested-ocr'),
-          content: [shared],
-        }],
-        source,
-      })]
+      const messages = [
+        createUserMessage({ content: [shared], source }),
+        createToolResultMessage({ callId: ToolCallId('nested-ocr'), content: [shared], isError: false }),
+      ]
       const projected = await projectImagesForTextModelWithOcr(
         messages,
         () => ({ readonlyPath: path }),
       )
       expect(runs).toBe(1)
-      expect(projected[0]?.content).toEqual([
+      for (const message of projected) expect(message.content).toEqual([
         { type: 'text', text: '[OCR text for attached image]\nrecognized text' },
-        {
-          type: 'tool-result',
-          toolCallId: ToolCallId('nested-ocr'),
-          content: [{ type: 'text', text: '[OCR text for attached image]\nrecognized text' }],
-        },
       ])
+      expect(projected).toHaveLength(2)
       expect(messages[0]?.content[0]).toStrictEqual(shared)
     } finally {
       restore()

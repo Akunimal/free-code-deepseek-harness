@@ -97,7 +97,7 @@ describe('project activation', () => {
     expect(call).not.toHaveBeenCalled()
     expect(state.activeProject).toBeUndefined()
 
-    activate.mockResolvedValueOnce({ content: [] })
+    activate.mockResolvedValueOnce({ isError: false, content: [] })
     await withProjectActivation<Result, Execution>({ ...params, execution: { id: 'retry', signal: new AbortController().signal } })
     expect(activate).toHaveBeenCalledTimes(2)
     expect(call).toHaveBeenCalledTimes(1)

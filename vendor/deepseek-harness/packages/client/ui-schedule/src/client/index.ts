@@ -87,7 +87,9 @@ export const inject = [
  */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en, es }), 'ui-schedule: dictionaries')
-  ctx.effect(() => ctx.locale.register(MANAGER_NS, { zh: managerZh, en: managerEn, es }), 'ui-schedule: manager dictionaries')
+  // The manager owns a larger vocabulary than the compact catalog. Retain
+  // existing Spanish copy and fall back to English for new manager-only keys.
+  ctx.effect(() => ctx.locale.register(MANAGER_NS, { zh: managerZh, en: managerEn, es: { ...managerEn, ...es } }), 'ui-schedule: manager dictionaries')
   const t = ctx.locale.bind(MANAGER_NS)
   const manager: CatalogInjected<ScheduleCatalogEntry> = createCatalogSource<ScheduleCatalogEntry>({
     list: () => ctx.remote.schedule.catalog(),

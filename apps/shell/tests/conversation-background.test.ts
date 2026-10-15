@@ -108,10 +108,24 @@ describe('Hermes conversation activity background', () => {
         const target=join(scratchRoot,path);mkdirSync(dirname(target),{recursive:true})
         writeFileSync(target,readFileSync(join(repoRoot,path),'utf8').replaceAll('\r\n','\n'))
       }
-      for(const flags of [['--reverse'],[],['--reverse','--check']]) {
-        const result=spawnSync('git',['-c','core.autocrlf=false','apply',...flags,patchPath],{cwd:scratchRoot,encoding:'utf8',windowsHide:true})
+      // Overlay 172 tightens the patterns' indexed access. Reverse that
+      // successor before checking the historical creation patch, then replay
+      // both; a standalone reverse of 171 must reject the evolved source.
+      const strictPatch = join(repoRoot, 'patches/upstream/172-freecode-client-host-contracts.patch')
+      const patternOnly = '--include=vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/phoenixPatterns.ts'
+      const commands = [
+        { patch: strictPatch, flags: ['--reverse', patternOnly] },
+        { patch: patchPath, flags: ['--reverse'] },
+        { patch: patchPath, flags: [] },
+        { patch: patchPath, flags: ['--reverse', '--check'] },
+        { patch: strictPatch, flags: [patternOnly] },
+        { patch: strictPatch, flags: ['--reverse', '--check', patternOnly] },
+      ]
+      for(const {patch, flags} of commands) {
+        const result=spawnSync('git',['-c','core.autocrlf=false','apply',...flags,patch],{cwd:scratchRoot,encoding:'utf8',windowsHide:true})
         expect(result.status,result.stderr).toBe(0)
       }
+      for(const path of paths) expect(readFileSync(join(scratchRoot,path),'utf8')).toBe(readFileSync(join(repoRoot,path),'utf8').replaceAll('\r\n','\n'))
     } finally { rmSync(scratchRoot,{recursive:true,force:true}) }
   })
 

@@ -9,7 +9,7 @@
 import { AttachmentId, type FileAttachmentRef, type ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import { ok, type RemoteMock, type RemoteTable, type StreamScript, type UnaryRuleFn } from '@deepseek-ai/dsh-remote-mock'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
-import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence'
+import type { SessionHandleReadRecovery } from '@deepseek-ai/dsh-session-persistence/recovery'
 import type { RemoteFailure, RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type {
   SessionAssistantStreamBaseline, SessionFollowFrame, SessionFollowRequest,

@@ -1,19 +1,24 @@
 // @vitest-environment jsdom
 /** Detail adapters accept the exact recorded result text and retain safe fallback paths. */
-import { describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it } from 'vitest'
 import type { ToolResultNode } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { en, zh } from '@deepseek-ai/dsh-client-ui-conversation/src/client/locales.ts'
 import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
-import { statusLine } from '@deepseek-ai/dsh-tool-jobs/src/render.ts'
-import { presentation } from '@deepseek-ai/dsh-tool-session-query/src/presentation.ts'
-import { renderList, renderRead, renderSpawn } from '@deepseek-ai/dsh-tool-terminal/src/render.ts'
 import { formatSpillNotice } from '@deepseek-ai/dsh-spill-policy/notice'
 import { detailBadge, detailJson, detailList, detailRecord, inspectionItems, nonempty } from '../src/client/tool/models/detail-model-shared.ts'
 import { detailsCardModel } from '../src/client/tool/models/details-card-model.ts'
-import { SpillLocator } from '@deepseek-ai/dsh-spill'
+import { SpillLocator } from '../../../spill/spill/src/types.ts'
 import { PartialArguments } from '@deepseek-ai/dsh-util-values'
+import type { DetailsProducerFixture, DetailsProducerOutput } from './details-models.contract.ts'
+
+const producerModule = './details-models.host-fixture.ts'
+let produced: DetailsProducerOutput
+beforeAll(async () => {
+  const host = await import(producerModule) as DetailsProducerFixture
+  produced = host.produceDetails()
+})
 
 const t = makeTranslate(en, commonEn)
 
@@ -70,12 +75,8 @@ describe('control detail adapters', () => {
     expect(details('list_agents', '(no subagents)')?.empty).toBe('No results')
     expect(details('job_list', 'j1 [bash] running — Build')?.items[0]?.fields).toContainEqual({ label: 'Type', value: 'bash' })
     expect(details('job_list', '(no background jobs)')?.empty).toBe('No results')
-    expect(details('terminal_list', renderList([], 1000))?.empty).toBe('No results')
-    const terminals = [
-      { sessionId: 'pty-1' as never, type: 'shell', status: { kind: 'running' as const } },
-      { sessionId: 'pty-2' as never, name: 'done', type: 'shell', pid: 4, status: { kind: 'exited' as const, exitCode: 2, signal: null } },
-    ]
-    expect(details('terminal_list', renderList(terminals, 1000))?.items).toHaveLength(2)
+    expect(details('terminal_list', produced.terminalsEmpty)?.empty).toBe('No results')
+    expect(details('terminal_list', produced.terminals)?.items).toHaveLength(2)
     const locations = details('lsp', 'src/a.ts:2:3\nhttps://example.test/a.ts:4:5\nuntitled:Untitled-1:6:7\nC:\\src\\a.ts:8:9\nD:/lib/a.ts:10:11', { file_path: 'src/main.ts', line: 2, character: 3, operation: 'findReferences' })?.items
     expect(locations?.map(item => item.location)).toEqual([
       { path: 'src/a.ts', line: 2 }, undefined, undefined, { path: 'C:\\src\\a.ts', line: 8 }, { path: 'D:/lib/a.ts', line: 10 },
@@ -98,15 +99,13 @@ describe('control detail adapters', () => {
     expect(details('list_subagent_models', 'deepseek-chat — Fast\nunknown', { model: 'deepseek-chat' })?.items).toHaveLength(2)
     expect(details('job_kill', 'requested cancellation of job j1', { job_id: 'j1', reason: 'stop' })?.summary).toContain('Cancellation requested')
     expect(details('job_kill', 'job j1 had already finished completed', { job_id: 'j1' })?.summary).toContain('Already finished')
-    const spawnText = renderSpawn({ sessionId: 'pty-1', type: 'shell', status: { kind: 'running' }, motd: 'ready' }, 1000)
-    expect(details('terminal_open', spawnText)?.items[0]?.code?.text).toBe('ready')
-    const readText = renderRead({ text: 'line', totalLines: 2, lineBegin: 0, lineEnd: 1, truncated: true }, 1000)
-    expect(details('terminal_read', readText, { sessionId: 'pty-1' })?.items[0]?.description).toBe('Output truncated')
+    expect(details('terminal_open', produced.spawn)?.items[0]?.code?.text).toBe('ready')
+    expect(details('terminal_read', produced.read, { sessionId: 'pty-1' })?.items[0]?.description).toBe('Output truncated')
     expect(details('terminal_signal', 'delivered SIGINT to foreground process group 12', { sessionId: 'pty-1' })?.items[0]?.fields).toContainEqual({ label: 'Process group', value: '12' })
     expect(details('terminal_close', 'closed terminal session pty-1', { sessionId: 'pty-1' })?.summary).toContain('Closed')
     expect(details('terminal_close', 'terminal session pty-1 was already closing', { sessionId: 'pty-1' })?.summary).toContain('Closing')
-    expect(details('job_output', `hello\n[output truncated]\n${statusLine({ status: 'completed' })}`, { job_id: 'j1' })?.items[0]).toMatchObject({ code: { text: 'hello' }, description: 'Output truncated' })
-    expect(details('job_output', `hello\n${statusLine({ status: 'completed', detail: 'exit code: 0' })}`, { job_id: 'j1' })?.items[0]?.description).toBe('exit code: 0')
+    expect(details('job_output', `hello\n[output truncated]\n${produced.jobCompleted}`, { job_id: 'j1' })?.items[0]).toMatchObject({ code: { text: 'hello' }, description: 'Output truncated' })
+    expect(details('job_output', `hello\n${produced.jobExit}`, { job_id: 'j1' })?.items[0]?.description).toBe('exit code: 0')
     expect(details('unknown', 'x')).toBeNull()
     expect(details('team_task_list', '{"tasks":[],"nextCursor":"bad"}')).toBeNull()
     expect(details('terminal_read', 'bad', { sessionId: 'pty-1' })).toBeNull()
@@ -118,10 +117,6 @@ describe('control detail adapters', () => {
 })
 
 describe('inspection detail adapters', () => {
-  const sessionRecord = (id: string, live: boolean, persisted: boolean) => ({
-    header: { id: id as never, createdAt: 1_000, parentSession: undefined }, live, persisted,
-  })
-
   it('accepts Cordis, workflow, and Ralph producer results', () => {
     expect(details('cordis_inspect_list', '{"providers":[{"name":"Service","status":"ready"}]}')?.summary).toBe('1 inspect providers')
     expect(details('cordis_inspect_query', '{"provider":"Service","method":"get","data":{"value":1}}')?.summary).toBe('Service.get')
@@ -136,48 +131,17 @@ describe('inspection detail adapters', () => {
   })
 
   it('uses the session-query producer presentation for searches, reads, and traces', () => {
-    const session = sessionRecord('s1', true, true)
-    const hit = { ...session, bestMatch: { sessionId: 's1' as never, seq: 2, type: 'user/message', time: 2_000, surface: 'current', snippet: 'needle' } }
-    const title = { text: 'Session one' }
-    const titles = new Map([
-      ['s1' as never, title], ['s2' as never, { text: 'Child' }], ['s3' as never, { text: 'Grandchild' }],
-    ]) as Parameters<typeof presentation.formatSessionSearch>[1]
-    const sessionSearch = presentation.formatSessionSearch({ items: [hit as never], capped: true }, titles, new Set())
-    expect(details('session_search', sessionSearch)?.items[0]).toMatchObject({ title: 'Session one', subtitle: 's1', description: 'needle' })
-    const eventSearch = presentation.formatEventSearch(
-      's1' as never, title,
-      { items: [{ sessionId: 's1' as never, seq: 2 as never, type: 'tool/call', time: 2_000, surface: 'current', snippet: 'needle' }], capped: false },
-    )
-    expect(details('session_event_search', eventSearch)?.items[0]?.title).toBe('needle')
-    const trace = presentation.formatSessionTrace(
-      { target: session as never, ancestors: [], descendants: [], complete: true, root: session as never } as never,
-      [], false, [{ record: sessionRecord('s2', true, true) as never, descendants: [{ record: sessionRecord('s3', true, true) as never, descendants: [] }] }], titles,
-    )
-    const traceItems = details('session_trace', trace)?.items
+    expect(details('session_search', produced.sessionSearch)?.items[0]).toMatchObject({ title: 'Session one', subtitle: 's1', description: 'needle' })
+    expect(details('session_event_search', produced.eventSearch)?.items[0]?.title).toBe('needle')
+    const traceItems = details('session_trace', produced.trace)?.items
     expect(traceItems).toHaveLength(3)
     expect(traceItems?.[0]).toMatchObject({ title: 'Session one', subtitle: 's1' })
     expect(traceItems?.[2]?.lines).toEqual([
       's2 — Child | 1970-01-01T00:00:01.000Z | live, persisted',
       '  s3 — Grandchild | 1970-01-01T00:00:01.000Z | live, persisted',
     ])
-    const eventTrace = presentation.formatEventTrace(
-      's1' as never, title,
-      {
-        session: { id: 's1' as never, createdAt: 1_000 } as never,
-        target: { sessionId: 's1' as never, seq: 2 as never, type: 'tool/call', time: 2_000, surface: 'current' },
-        replacementChain: [], replacedEventSeqs: [], sourceEventSeqs: [], derivedEventSeqs: [],
-      },
-    )
-    expect(details('session_event_trace', eventTrace)?.items[0]?.fields).toContainEqual({ label: 'Target event', value: 'seq 2 | tool/call | current | 1970-01-01T00:00:02.000Z' })
-    const event = { seq: 2, time: 2_000, type: 'tool/call', data: { name: 'x' } }
-    const eventRead = presentation.formatEventRead(
-      's1' as never, title,
-      {
-        session: {} as never, inheritedEventCount: 0 as never, target: event as never,
-        events: [event as never], startSeq: 2 as never, endSeq: 2 as never,
-      },
-    )
-    expect(details('session_event_read', eventRead)?.items[0]?.title).toBe('tool/call')
+    expect(details('session_event_trace', produced.eventTrace)?.items[0]?.fields).toContainEqual({ label: 'Target event', value: 'seq 2 | tool/call | current | 1970-01-01T00:00:02.000Z' })
+    expect(details('session_event_read', produced.eventRead)?.items[0]?.title).toBe('tool/call')
     expect(details('session_search', 'No prior session matches found.')?.summary).toBe('0 matches')
     expect(details('session_event_search', 'Session s1 — Session one\n\nNo prior event matches found.')?.summary).toBe('0 matches')
   })
