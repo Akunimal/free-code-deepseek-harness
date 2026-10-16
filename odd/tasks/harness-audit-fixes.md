@@ -37,8 +37,8 @@ The audit found that the privileged harness renderer has no main-frame navigatio
 
 ## Tasks
 
-- [x] HAF-1 — Protect privileged renderer navigation and IPC; add negative/positive security contracts. Added exact-origin/port allowlisting, top-level origin checks in every IPC handler, overlay-only channel permissions, navigation/redirect guards, and reload of the existing view when the supervisor publishes a new ephemeral port. RED observed before implementation; GREEN: 27/27 focused Vitest tests and shell TypeScript check passed. Commit: pending. Runtime smoke: N/A for this unit; do not launch/attach to the user's app, and the pure policy tests plus production-source contract cover the changed decision points.
-- [ ] HAF-2 — Coalesce model catalog refresh calls; add an initial-refresh race regression test.
+- [x] HAF-1 — Protect privileged renderer navigation and IPC; add negative/positive security contracts. Added exact-origin/port allowlisting, top-level origin checks in every IPC handler, overlay-only channel permissions, navigation/redirect guards, and reload of the existing view when the supervisor publishes a new ephemeral port. RED observed before implementation; GREEN: 27/27 focused Vitest tests and shell TypeScript check passed. Implementation commit: `468d21f` (`fix(security): restrict harness renderer IPC`). Runtime smoke: N/A for this unit; do not launch/attach to the user's app, and the pure policy tests plus production-source contract cover the changed decision points.
+- [x] HAF-2 — Coalesce model catalog refresh calls; add an initial-refresh race regression test. `doRefresh` now returns one shared in-flight promise to boot/timer/manual callers. Failed refreshes report failure and do not hand IPC a previous/null catalog; retry timers can start after the shared operation settles. RED: focused state test failed to resolve missing single-flight module, then exposed the async operation scheduling assumption in the test; GREEN: 27/27 focused Vitest tests and shell TypeScript check passed. Commit: pending.
 - [ ] HAF-3 — Fan Tor status changes out to the Pool Status overlay; add an event delivery contract.
 - [ ] HAF-4 — Preserve oversized request bodies on the legacy LB's one-shot path; add a byte-for-byte test.
 - [ ] HAF-5 — Strip stale representation headers from exhausted retry responses; add response-completeness tests.
@@ -46,10 +46,12 @@ The audit found that the privileged harness renderer has no main-frame navigatio
 ## Progress and evidence
 
 - Exploration complete; baseline audit recorded five findings and verified existing focused suites.
-- HAF-1 RED observed: `renderer-security.test.ts` cannot resolve the not-yet-implemented policy module; the production-source contract also fails because the harness navigation guard is absent. One test harness import mistake was corrected before accepting this RED evidence.
-- HAF-1 GREEN observed: `rtk pnpm --filter @freecode/shell exec vitest run tests/renderer-security.test.ts tests/window-composition.test.ts tests/model-refresh-ipc.test.ts` — 3 files / 27 tests passed; `rtk pnpm exec tsc -p apps/shell/tsconfig.json --noEmit` — passed.
+- HAF-1 RED observed: `renderer-security.test.ts` could not resolve the not-yet-implemented policy module; the production-source contract also failed because the harness navigation guard was absent. One test harness import mistake was corrected before accepting this RED evidence.
+- HAF-1 GREEN observed: `rtk pnpm --filter @freecode/shell exec vitest run tests/renderer-security.test.ts tests/window-composition.test.ts tests/model-refresh-ipc.test.ts` — 3 files / 27 tests passed; `rtk pnpm exec tsc -p apps/shell/tsconfig.json --noEmit` — passed; `rtk git diff --cached --check` — passed.
+- HAF-2 RED observed: `tests/model-refresh-state.test.ts` failed to load the absent `single-flight.js` helper before implementation. Once implemented, the first GREEN attempt found the regression test had not waited for the intentionally deferred operation invocation; the corrected test observes the single-flight lifecycle rather than depending on synchronous operation entry.
+- HAF-2 GREEN observed: `rtk pnpm --filter @freecode/shell exec vitest run tests/model-refresh-state.test.ts tests/model-refresh-ipc.test.ts tests/window-composition.test.ts` — 3 files / 27 tests passed; `rtk pnpm exec tsc -p apps/shell/tsconfig.json --noEmit` — passed.
 - Engram mirror is pending until runtime registration is available.
 
 ## Next step
 
-Commit HAF-1 with its tests; then begin HAF-2 test-first.
+Commit HAF-2 with its regression tests, then begin HAF-3 test-first.

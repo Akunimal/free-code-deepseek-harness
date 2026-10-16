@@ -206,6 +206,12 @@ describe('composition contract on production source', () => {
     expect(src).toMatch(/harnessView\.webContents\.loadURL\(h\.url\)/);
   });
 
+  it('makes manual model refresh await the same in-flight catalog operation', async () => {
+    const src = readFileSync(new URL('../src/main/index.ts', import.meta.url), 'utf8');
+    expect(src).toMatch(/const doRefresh = createSingleFlight\(async/);
+    expect(src).toMatch(/const refreshedCatalog = await doRefresh\(\);\s*if \(!refreshedCatalog\) throw new Error\('Model catalog refresh did not produce a catalog'\)/);
+  });
+
   it('embedded browser surfaces navigation failures instead of swallowing them', async () => {
     const { readFileSync } = await import('node:fs');
     const src = readFileSync(new URL('../src/main/embedded-browser.ts', import.meta.url), 'utf8');

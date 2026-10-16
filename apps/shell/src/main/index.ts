@@ -12,6 +12,7 @@ import { createModelCatalogRefreshState } from './model-refresh-state.js';
 import { registerIpc } from './ipc.js';
 import { canClosePoolStatusOverlay } from './pool-overlay-close.js';
 import { isTrustedHarnessNavigation, isTrustedRendererInvocation as isTrustedRendererCall } from './renderer-security.js';
+import { createSingleFlight } from './single-flight.js';
 import { nodeRuntimeEnv, resolveHarnessRuntimeDir, resolveNodePath, resolveResourcesDir } from './resource-paths.js';
 import { createAppLogger, type AppLogger } from './logger.js';
 import { createUpdateService, isNewerVersion, type UpdateCheckResult, type UpdateService } from './updater.js';
@@ -1288,7 +1289,6 @@ app.whenReady().then(async () => {
   // FASE 6: model refresh at boot + every 30 min.
   let catalog: ModelCatalog | null = null;
   const catalogRefreshState = createModelCatalogRefreshState();
-  let refreshInFlight = false;
   let refreshRetryAttempt = 0;
   let degradedProbeRetries = 0;
   const OPENCODE_REFRESH_RETRY_MS = 30_000;
@@ -1302,9 +1302,7 @@ app.whenReady().then(async () => {
     }, delay);
     refreshRetryTimer.unref();
   };
-  const doRefresh = async (): Promise<void> => {
-    if (refreshInFlight) return;
-    refreshInFlight = true;
+  const doRefresh = createSingleFlight(async (): Promise<ModelCatalog | null> => {
     try {
       catalog = await catalogRefreshState.run(() => refreshModels({
         lbBaseUrl: opencodeUrl,
@@ -1348,14 +1346,14 @@ app.whenReady().then(async () => {
           refreshRetryTimer.unref();
         }
       }
+      return catalog;
     } catch (err) {
       reportModelRefreshFailure(err);
       console.error('[main] model refresh failed:', err);
       scheduleRefreshRetry();
-    } finally {
-      refreshInFlight = false;
+      return null;
     }
-  };
+  });
   void doRefresh();
   refreshIntervalId = setInterval(() => void doRefresh(), REFRESH_INTERVAL_MS);
   refreshIntervalId.unref();
@@ -1370,7 +1368,11 @@ app.whenReady().then(async () => {
     catalogStore: { get: () => catalog },
     catalogRefreshState,
     reportModelRefreshFailure,
-    triggerRefresh: async () => { await doRefresh(); return catalog!; },
+    triggerRefresh: async () => {
+      const refreshedCatalog = await doRefresh();
+      if (!refreshedCatalog) throw new Error('Model catalog refresh did not produce a catalog');
+      return refreshedCatalog;
+    },
     isTrustedRendererInvocation: (event, channel) => isTrustedRendererCall(event, {
       harnessWebContents: harnessView?.webContents ?? null,
       overlayWebContents: overlayWindow?.webContents ?? null,

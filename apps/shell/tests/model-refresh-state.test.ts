@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createModelCatalogRefreshState } from '../src/main/model-refresh-state.js';
+import { createSingleFlight } from '../src/main/single-flight.js';
 
 function deferred() {
   let resolve!: () => void;
@@ -43,3 +44,60 @@ describe('model catalog refresh state', () => {
     expect(tracker.get()).toMatchObject({ status: 'idle', startedAt: null });
   });
 });
+
+describe('single-flight async work', () => {
+  it('shares the in-flight result with every caller and permits a later refresh', async () => {
+    const pending: Array<ReturnType<typeof deferredValue<string>>> = [];
+    const operation = () => {
+      const next = deferredValue<string>();
+      pending.push(next);
+      return next.promise;
+    };
+    const run = createSingleFlight(operation);
+
+    const initial = run();
+    const manualRefresh = run();
+    expect(manualRefresh).toBe(initial);
+    await Promise.resolve();
+    expect(pending).toHaveLength(1);
+
+    pending[0]!.resolve('catalog');
+    await expect(Promise.all([initial, manualRefresh])).resolves.toEqual(['catalog', 'catalog']);
+
+    const laterRefresh = run();
+    await Promise.resolve();
+    expect(pending).toHaveLength(2);
+    pending[1]!.resolve('new catalog');
+    await expect(laterRefresh).resolves.toBe('new catalog');
+  });
+
+  it('clears a failed in-flight operation so a retry can run', async () => {
+    const pending: Array<ReturnType<typeof deferredValue<string>>> = [];
+    const run = createSingleFlight(() => {
+      const next = deferredValue<string>();
+      pending.push(next);
+      return next.promise;
+    });
+
+    const failed = run();
+    await Promise.resolve();
+    pending[0]!.reject(new Error('temporary failure'));
+    await expect(failed).rejects.toThrow('temporary failure');
+
+    const retried = run();
+    await Promise.resolve();
+    expect(pending).toHaveLength(2);
+    pending[1]!.resolve('recovered');
+    await expect(retried).resolves.toBe('recovered');
+  });
+});
+
+function deferredValue<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
