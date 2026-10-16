@@ -14,7 +14,7 @@ function runtimeFile(path: string): string {
 
 describe('packaged DSH headless-process artifacts', () => {
   it('passes the prepackage gate against the generated runtime', () => {
-    expect(verifyHeadlessRuntime(runtimeRoot)).toEqual({ checked: 21 })
+    expect(verifyHeadlessRuntime(runtimeRoot)).toEqual({ checked: 23 })
   })
 
   it('rejects a packaged runtime missing the persistent PowerShell hide default', () => {

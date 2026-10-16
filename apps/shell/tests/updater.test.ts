@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
 import { checkUpstreamUpdate, createUpdateService, isNewerVersion, resolveUpdaterAdapter, type UpdaterAdapter } from '../src/main/updater.js';
-import { checkHarnessRelease, harnessAssetName, installHarnessRuntime, promoteHarnessRuntime, resolveTarExecutable } from '../src/main/harness-updater.js';
+import { checkHarnessRelease, harnessAssetName, installHarnessRuntime, promoteHarnessRuntime, resolveTarExecutable, validateHarnessRuntime } from '../src/main/harness-updater.js';
 
 function writeValidHarnessRuntime(
   root: string,
@@ -19,6 +19,10 @@ function writeValidHarnessRuntime(
   writeFileSync(join(dsh, 'apps', 'cli', 'lib', 'bin.js'), cliContents);
   mkdirSync(join(dsh, 'packages'), { recursive: true });
   writeFileSync(join(dsh, 'packages', 'core'), 'fixture');
+  for (const [path, markers] of [['host/open-in-app', 'FREECODE_HEADLESS_DESKTOP FREECODE_GUI_LAUNCH_ENDPOINT'],
+    ['util/native-command', 'FREECODE_HEADLESS_DESKTOP FREECODE_GUI_OPEN_PATH_ENDPOINT']]) {
+    const dir = join(dsh, 'packages', path!, 'lib'); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'index.js'), markers!);
+  }
   const bridgeDir = join(dsh, 'node_modules', '@deepseek-ai', 'dsh-host-directory-picker-native', 'lib');
   mkdirSync(bridgeDir, { recursive: true });
   writeFileSync(join(bridgeDir, 'index.js'), [
@@ -42,6 +46,15 @@ function createHarnessArchive(archivePath: string, archiveRoot: string): Buffer 
 }
 
 describe('update service', () => {
+  it('rejects a downloaded Windows runtime that claims a new version but lacks the GUI broker', () => {
+    const root = mkdtempSync(join(tmpdir(), 'freecode-runtime-gui-compat-'));
+    try {
+      writeValidHarnessRuntime(root, '0.2.1-alpha.9', '// fixture cli');
+      expect(() => validateHarnessRuntime(join(root, 'dsh'), join(root, 'runtime-manifest.json'), 'win32')).not.toThrow();
+      writeFileSync(join(root, 'dsh/packages/host/open-in-app/lib/index.js'), '// stale bundle');
+      expect(() => validateHarnessRuntime(join(root, 'dsh'), join(root, 'runtime-manifest.json'), 'win32')).toThrow(/private-desktop GUI broker/);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
   it('only treats a strictly newer release as available', () => {
     expect(isNewerVersion('0.2.2', '0.2.2')).toBe(false);
     expect(isNewerVersion('0.2.2', '0.2.3')).toBe(true);

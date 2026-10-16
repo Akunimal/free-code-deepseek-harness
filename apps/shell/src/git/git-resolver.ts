@@ -8,7 +8,7 @@
  *   4. Pre-operation validation (git --version, rev-parse, status, diff)
  */
 
-import { spawn, spawnSync } from 'node:child_process'
+import { launchHiddenSync } from '../main/freecode-launcher.js'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -192,14 +192,14 @@ function findInPath(name: string, pathOverride?: string): string | null {
  */
 function getGitVersion(gitPath: string): string | null {
   try {
-    const result = spawnSync(gitPath, ['--version'], {
+    const result = launchHiddenSync({
+      executable: gitPath,
+      args: ['--version'],
       encoding: 'utf8',
       timeout: 5_000,
-      windowsHide: true,
-      shell: false,
     })
     if (result.status === 0 && result.stdout) {
-      return result.stdout.trim()
+      return result.stdout.toString().trim()
     }
   } catch {
     // Binary exists but can't execute
@@ -336,18 +336,18 @@ function runGit(
   env?: Record<string, string>,
 ): { exitCode: number | null; stdout: string; stderr: string } {
   try {
-    const result = spawnSync(gitPath, args, {
+    const result = launchHiddenSync({
+      executable: gitPath,
+      args,
       encoding: 'utf8',
       timeout: timeoutMs,
-      windowsHide: true,
-      shell: false,
       cwd,
       env: env ? { ...process.env, ...env } : undefined,
     })
     return {
       exitCode: result.status,
-      stdout: result.stdout ?? '',
-      stderr: result.stderr ?? '',
+      stdout: result.stdout?.toString() ?? '',
+      stderr: result.stderr?.toString() ?? '',
     }
   } catch (err) {
     return {

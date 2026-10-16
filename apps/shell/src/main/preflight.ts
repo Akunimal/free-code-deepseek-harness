@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { assertHeadlessDesktopRuntime } from './headless-runtime-capability.js';
 
 /**
  * Startup preflight — verifies the harness runtime layout is intact before
@@ -184,6 +185,8 @@ export function verifyHarnessLayout(options: PreflightOptions): PreflightResult 
 
   const bridgeWarning = verifyBridgeInvariant(harnessDir, platform);
   if (bridgeWarning) warnings.push(bridgeWarning);
+  try { assertHeadlessDesktopRuntime(join(harnessDir, 'dsh'), platform); }
+  catch (error) { warnings.push(error instanceof Error ? error.message : String(error)); }
 
   const manifestWarning = verifyManifestInvariant(harnessDir);
   if (manifestWarning) warnings.push(manifestWarning);

@@ -7,6 +7,10 @@ module.exports.default = async function verifyPackagedElectron(context) {
   // existing path until their executable layout is explicitly supported.
   if (context.electronPlatformName !== 'win32') return;
 
+  const headlessVerifierPath = path.resolve(__dirname, '../../../scripts/verify-headless-desktop.mjs');
+  const { verifyHeadlessDesktop } = await import(pathToFileURL(headlessVerifierPath).href);
+  await verifyHeadlessDesktop(path.join(context.appOutDir, 'resources', 'freecode'));
+
   const verifierPath = path.resolve(__dirname, '../../../scripts/verify-packaged-electron-runtime.mjs');
   const { verifyPackagedElectronRuntime } = await import(pathToFileURL(verifierPath).href);
   const productFilename = context.packager.appInfo.productFilename;

@@ -75,7 +75,7 @@ export interface LaunchOptions {
   /** Working directory. */
   cwd?: string
   /** Sanitized environment — only listed keys are forwarded. */
-  env?: Record<string, string>
+  env?: NodeJS.ProcessEnv
   /** stdio configuration. Default: ['ignore', 'pipe', 'pipe']. */
   stdio?: SpawnOptions['stdio']
   /** Request ID for correlation. */
@@ -113,6 +113,14 @@ function isFilePath(executable: string): boolean {
   return executable.includes('/') || executable.includes('\\')
 }
 
+function headlessEnvironment(env: NodeJS.ProcessEnv | undefined): NodeJS.ProcessEnv | undefined {
+  if (process.platform !== 'win32') return env
+  const policy = { GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never', GCM_GUI_PROMPT: '0' }
+  const keys = new Set(Object.keys(policy))
+  const inherited = Object.fromEntries(Object.entries(env ?? process.env).filter(([key]) => !keys.has(key.toUpperCase())))
+  return { ...inherited, ...policy }
+}
+
 /**
  * Spawn a hidden child process through the centralized seam.
  *
@@ -148,7 +156,7 @@ export function launchHidden(options: LaunchOptions): LaunchResult {
   const spawnOpts: SpawnOptions = {
     ...HIDDEN_OPTIONS,
     cwd: options.cwd,
-    env: options.env,
+    env: headlessEnvironment(options.env),
     stdio: options.stdio ?? ['ignore', 'pipe', 'pipe'],
   }
 
@@ -248,7 +256,7 @@ export interface LaunchSyncOptions {
   executable: string
   args?: string[]
   cwd?: string
-  env?: Record<string, string>
+  env?: NodeJS.ProcessEnv
   encoding?: SpawnSyncOptions['encoding']
   timeout?: number
   maxBuffer?: number
@@ -278,7 +286,7 @@ export function launchHiddenSync(options: LaunchSyncOptions): ReturnType<typeof 
   const syncOpts: SpawnSyncOptions = {
     ...HIDDEN_SYNC_OPTIONS,
     cwd: options.cwd,
-    env: options.env,
+    env: headlessEnvironment(options.env),
     encoding: options.encoding ?? 'utf8',
     timeout: options.timeout,
     maxBuffer: options.maxBuffer,

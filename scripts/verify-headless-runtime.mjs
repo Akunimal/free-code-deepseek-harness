@@ -6,6 +6,16 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 const HEADLESS_RUNTIME_CHECKS = [
   {
+    path: 'packages/host/open-in-app/lib/index.js',
+    description: 'explicit GUI actions leave the private desktop through the authenticated broker',
+    verify: source => source.includes('FREECODE_HEADLESS_DESKTOP') && source.includes('FREECODE_GUI_LAUNCH_ENDPOINT'),
+  },
+  {
+    path: 'packages/util/native-command/lib/index.js',
+    description: 'document and reveal gestures leave the private desktop through the authenticated broker',
+    verify: source => source.includes('FREECODE_HEADLESS_DESKTOP') && source.includes('FREECODE_GUI_OPEN_PATH_ENDPOINT'),
+  },
+  {
     path: 'packages/shell/tool-pwsh-persistent/lib/index.js',
     description: 'persistent PowerShell reasserts the hidden Start-Process default',
     verify: source => source.includes('Start-Process:WindowStyle') && source.includes('Hidden'),

@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 describe('launchHiddenAndWait', () => {
+  it.skipIf(process.platform !== 'win32')('keeps background Git credential helpers noninteractive without changing GUI-app policy', async () => {
+    const { launchHiddenSync } = await import('../src/main/freecode-launcher.js');
+    const result = launchHiddenSync({ executable: process.execPath, args: ['-e',
+      'console.log(JSON.stringify([process.env.GIT_TERMINAL_PROMPT,process.env.GCM_INTERACTIVE,process.env.GCM_GUI_PROMPT]))'],
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '1', GCM_INTERACTIVE: 'true', GCM_GUI_PROMPT: '1' }, timeout: 5000 });
+    expect(result.status).toBe(0);
+    expect(JSON.parse(String(result.stdout))).toEqual(['0', 'never', '0']);
+  });
   it.skipIf(process.platform !== 'win32')('refuses unsupported extra IPC handles instead of silently losing them', async () => {
     const { launchHidden } = await import('../src/main/freecode-launcher.js');
     expect(() => launchHidden({ executable: process.execPath, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] })).toThrow(/explicit broker/);

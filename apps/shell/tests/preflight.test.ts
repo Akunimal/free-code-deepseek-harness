@@ -12,7 +12,7 @@ import { verifyHarnessLayout, awaitHarnessLayout, formatPreflightFailure } from 
 
 let root: string;
 
-function makeFullLayout(base: string, opts: { bundleHasBridge?: boolean; harnessDir?: string } = {}): void {
+function makeFullLayout(base: string, opts: { bundleHasBridge?: boolean; harnessDir?: string; desktopHasBridge?: boolean } = {}): void {
   const hasBridge = opts.bundleHasBridge ?? true;
   const harnessDir = opts.harnessDir ?? base;
   const dsh = join(harnessDir, 'dsh');
@@ -26,6 +26,14 @@ function makeFullLayout(base: string, opts: { bundleHasBridge?: boolean; harness
     ? '// bundle\nconst env = process.env.FREECODE_DIALOG_BRIDGE_ENDPOINT;\nconst token = process.env.FREECODE_DIALOG_BRIDGE_TOKEN;\nfetch(env, { headers: { \'x-freecode-dialog-token\': token } });\n'
     : '// bundle without bridge\n';
   writeFileSync(join(bundleDir, 'index.js'), bundle);
+  for (const [path, markers] of [
+    ['host/open-in-app', 'FREECODE_HEADLESS_DESKTOP FREECODE_GUI_LAUNCH_ENDPOINT'],
+    ['util/native-command', 'FREECODE_HEADLESS_DESKTOP FREECODE_GUI_OPEN_PATH_ENDPOINT'],
+  ]) {
+    const directory = join(dsh, 'packages', path!, 'lib');
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(join(directory, 'index.js'), opts.desktopHasBridge === false ? '// stale' : markers!);
+  }
   mkdirSync(harnessDir, { recursive: true });
   writeFileSync(join(harnessDir, 'runtime-manifest.json'), '{"version":"0.0.0","cli":"dsh/apps/cli/lib/bin.js"}');
   mkdirSync(join(base, 'opencode2api'), { recursive: true });
@@ -42,6 +50,12 @@ afterEach(() => {
 });
 
 describe('verifyHarnessLayout', () => {
+  it('refuses a Windows runtime without explicit GUI brokering before isolating it', () => {
+    makeFullLayout(root, { desktopHasBridge: false });
+    const result = verifyHarnessLayout({ resourcesDir: root, platform: 'win32' });
+    expect(result.ok).toBe(false);
+    expect(result.warnings.join('\n')).toMatch(/private.desktop.*GUI|GUI.*private.desktop/i);
+  });
   it('passes on a complete layout', () => {
     makeFullLayout(root);
     const result = verifyHarnessLayout({ resourcesDir: root, platform: 'win32' });
@@ -120,7 +134,7 @@ describe('verifyHarnessLayout', () => {
       check++;
       if (check === 2) {
         // Filesystem "settles" — extraction finishes on the 2nd retry.
-        writeFileSync(join(emptyPackages, 'core'), '');
+        makeFullLayout(root);
       }
     };
     const result = await awaitHarnessLayout({ resourcesDir: root, platform: 'win32', attempts: 6, delayMs: 0, sleep });

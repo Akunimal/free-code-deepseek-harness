@@ -17,6 +17,8 @@ test('workspace tests serialize cold CLI probes without weakening their budgets'
   assert.match(rootPackage.scripts.test, /--filter "\.\/packages\/\*\*" --filter "\.\/apps\/\*\*" test/);
   const contract = readFileSync(new URL('packages/contract-tests/tests/contract.test.ts', repositoryRoot), 'utf8');
   assert.match(contract, /timeout: 60_000/);
+  const shellTests = readFileSync(new URL('apps/shell/vitest.config.ts', repositoryRoot), 'utf8');
+  assert.match(shellTests, /fileParallelism:\s*false/);
 });
 
 function createPeFixture(label) {
@@ -113,7 +115,8 @@ test('release plan requires an empty-cache public runtime download smoke under p
   assert.match(smokeScript, /createHarnessUpdater/);
   assert.match(smokeScript, /mkdirSync/);
   assert.match(smokeScript, /mkdtempSync/);
-  assert.match(smokeScript, /windowsHide:\s*true/);
+  assert.match(smokeScript, /launchHiddenSync/);
+  assert.match(smokeScript, /headlessHostPolicy\.configure\(join\(packagedResources, 'headless-host\.exe'\)\)/);
   assert.match(smokeScript, /--help/);
   const gateEntry = readFileSync(new URL('scripts/release-gate.mjs', repositoryRoot), 'utf8');
   assert.match(gateEntry, /function runElectronAsNode/);

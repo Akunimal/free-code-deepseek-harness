@@ -24,6 +24,10 @@ describe('bridge extraEnv plumbing', () => {
     expect(env.FREECODE_DIALOG_BRIDGE_ENDPOINT).toBe('http://127.0.0.1:56789/pick-directory');
     expect(env.FREECODE_DIALOG_BRIDGE_TOKEN).toHaveLength(64);
     expect(env.FREECODE_FILE_OPEN_ENDPOINT).toBe('http://127.0.0.1:56789/open-text-file');
+    expect(env.FREECODE_GUI_LAUNCH_ENDPOINT).toBe('http://127.0.0.1:56789/launch-gui');
+    expect(env.FREECODE_GUI_OPEN_DIRECTORY_ENDPOINT).toBe('http://127.0.0.1:56789/open-directory');
+    expect(env.FREECODE_GUI_OPEN_PATH_ENDPOINT).toBe('http://127.0.0.1:56789/open-path');
+    expect(env.FREECODE_HEADLESS_DESKTOP).toBe(process.platform === 'win32' ? '1' : undefined);
   });
 
   it('omits bridge env vars when the bridge is not available', () => {
@@ -31,10 +35,13 @@ describe('bridge extraEnv plumbing', () => {
     expect(env.FREECODE_DIALOG_BRIDGE_ENDPOINT).toBeUndefined();
     expect(env.FREECODE_DIALOG_BRIDGE_TOKEN).toBeUndefined();
     expect(env.FREECODE_FILE_OPEN_ENDPOINT).toBeUndefined();
+    expect(env.FREECODE_GUI_LAUNCH_ENDPOINT).toBeUndefined();
+    expect(env.FREECODE_GUI_OPEN_DIRECTORY_ENDPOINT).toBeUndefined();
+    expect(env.FREECODE_GUI_OPEN_PATH_ENDPOINT).toBeUndefined();
   });
 
   it('never forgets DSH_CLIENT_TITLE', () => {
-    for (const bridge of [null, { endpoint: 'x', fileOpenEndpoint: 'y', token: 'z' }]) {
+    for (const bridge of [null, { endpoint: 'http://127.0.0.1:56789/pick-directory', fileOpenEndpoint: 'http://127.0.0.1:56789/open-text-file', token: 'z' }]) {
       const env = buildHarnessExtraEnv(bridge);
       expect(env.DSH_CLIENT_TITLE).toBe('FreeCode');
     }

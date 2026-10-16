@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-import { spawnSync } from 'node:child_process';
+import { launchHiddenSync } from '../apps/shell/dist/src/main/freecode-launcher.js';
+import { headlessHostPolicy } from '../apps/shell/dist/src/main/headless-host-policy.js';
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
@@ -23,6 +24,7 @@ if (!releaseOutput) throw new Error('first-run-runtime-download: FREECODE_RELEAS
 
 const packageRoot = resolve(releaseOutput);
 const packagedResources = join(packageRoot, 'win-unpacked', 'resources', 'freecode');
+headlessHostPolicy.configure(join(packagedResources, 'headless-host.exe'));
 const packagedManifest = join(packagedResources, 'runtime-manifest.json');
 const requirements = readHarnessRuntimeRequirements(packagedManifest);
 const scratchRoot = mkdtempSync(join(tmpdir(), 'freecode-first-run-runtime-'));
@@ -80,13 +82,13 @@ try {
   const manifestPath = join(runtimeRoot, 'runtime-manifest.json');
   validateHarnessRuntime(dshRoot, manifestPath, 'win32', requirements);
   const cliPath = join(dshRoot, 'apps', 'cli', 'lib', 'bin.js');
-  const child = spawnSync(process.execPath, [cliPath, '--help'], {
+  const child = launchHiddenSync({
+    executable: process.execPath, args: [cliPath, '--help'],
     cwd: profileRoot,
     env: isolatedEnvironment(),
     encoding: 'utf8',
     timeout: 120_000,
     maxBuffer: 4 * 1024 * 1024,
-    windowsHide: true,
   });
   if (child.error) throw new Error(`first-run-runtime-download: downloaded CLI did not start: ${child.error.message}\n${conciseOutput(child.stdout)}\n${conciseOutput(child.stderr)}`);
   if (child.status !== 0) {

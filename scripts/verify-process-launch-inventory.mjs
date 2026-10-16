@@ -339,6 +339,11 @@ export function verifyProcessLaunchInventory(root = repoRoot) {
     failures.push(...result.parseDiagnostics)
     for (const launch of result.launches) {
       launches.push(launch)
+      if (path.startsWith('apps/shell/src/') && ![
+        'apps/shell/src/main/freecode-launcher.ts', 'apps/shell/src/main/interactive-gui.ts',
+      ].includes(path)) {
+        failures.push(`${path}:${launch.line}: ${launch.api} bypasses the required native headless host`)
+      }
       const exception = VISIBLE_UI_EXCEPTIONS.get(path)
       if (launch.policy === 'visible-ui-exception' && exception?.api === launch.api) {
         exceptionCounts.set(path, (exceptionCounts.get(path) ?? 0) + 1)

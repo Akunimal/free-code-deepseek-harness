@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { headlessHostPolicy } from '../src/main/headless-host-policy.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -13,7 +14,17 @@ import {
 
 describe('Phase 5: Git resolver', () => {
   beforeEach(() => { resetGitResolver(); });
-  afterEach(() => { resetGitResolver(); });
+  afterEach(() => { resetGitResolver(); vi.restoreAllMocks(); });
+
+  it('contains both Git discovery and Git operations through the native launch policy', () => {
+    const invocation = vi.spyOn(headlessHostPolicy, 'invocation');
+    const resolved = resolveGitPath();
+    expect(invocation).toHaveBeenCalledWith(resolved.path, ['--version']);
+    invocation.mockClear();
+    const result = runGitCommand({ gitPath: resolved.path, args: ['--version'], cwd: process.cwd() });
+    expect(result.exitCode).toBe(0);
+    expect(invocation).toHaveBeenCalledWith(resolved.path, ['--version']);
+  });
 
   it('resolves git from PATH', () => {
     const result = resolveGitPath();

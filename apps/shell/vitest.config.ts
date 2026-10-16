@@ -5,6 +5,9 @@ export default defineConfig({
     include: ['tests/**/*.{test,spec}.{ts,tsx}'],
     exclude: ['resources/**', 'release/**', 'node_modules/**'],
     minWorkers: 1,
-    maxWorkers: 4,
+    maxWorkers: 1,
+    // Native CLI boots and the AST inventory compete for the same cold files.
+    // Serialize files; preserve every test and its existing timeout budget.
+    fileParallelism: false,
   },
 });

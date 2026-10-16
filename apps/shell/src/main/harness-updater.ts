@@ -5,6 +5,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { launchHiddenAndWait } from './freecode-launcher.js'
+import { assertHeadlessDesktopRuntime } from './headless-runtime-capability.js';
 
 const semver = createRequire(import.meta.url)('semver') as {
   gte(version: string, range: string): boolean;
@@ -421,6 +422,7 @@ export function validateHarnessRuntime(
     throw new Error(`Harness runtime native ABI ${manifest.nodeModuleVersion} does not match Electron NODE_MODULE_VERSION ${requiredModuleVersion}`);
   }
   assertHarnessRuntimeVersion(manifest.version, requirements?.minimumVersion);
+  assertHeadlessDesktopRuntime(harnessDir, platform);
 }
 
 export function assertHarnessRuntimeVersion(version: string, minimumVersion?: string): void {

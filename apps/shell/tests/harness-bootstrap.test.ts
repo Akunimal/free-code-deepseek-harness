@@ -16,6 +16,10 @@ function makeValidRuntime(
   writeFileSync(join(dsh, 'apps', 'cli', 'lib', 'bin.js'), '// cli');
   mkdirSync(join(dsh, 'packages'), { recursive: true });
   writeFileSync(join(dsh, 'packages', 'core'), 'fixture');
+  for (const [path, markers] of [['host/open-in-app', 'FREECODE_HEADLESS_DESKTOP FREECODE_GUI_LAUNCH_ENDPOINT'],
+    ['util/native-command', 'FREECODE_HEADLESS_DESKTOP FREECODE_GUI_OPEN_PATH_ENDPOINT']]) {
+    const dir = join(dsh, 'packages', path!, 'lib'); mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, 'index.js'), markers!);
+  }
   const bridgeDir = join(dsh, 'node_modules', '@deepseek-ai', 'dsh-host-directory-picker-native', 'lib');
   mkdirSync(bridgeDir, { recursive: true });
   writeFileSync(join(bridgeDir, 'index.js'), [

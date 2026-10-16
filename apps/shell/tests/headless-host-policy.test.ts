@@ -12,7 +12,7 @@ describe('OS headless boundary', () => {
     expect(() => policy.invocation('pwsh.exe', [])).toThrow(/not configured/);
   });
 
-  it('keeps every target argument literal and routes through the verified helper', () => {
+  it.skipIf(process.platform !== 'win32')('keeps every target argument literal and routes through the verified helper', () => {
     const policy = createHeadlessHostPolicy('win32');
     policy.configure(helper);
     expect(policy.invocation('pwsh.exe', ['-Command', 'a & b', ''])).toEqual({

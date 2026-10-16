@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -34,9 +36,23 @@ func TestPrivateDesktopContainsVisibleRootAndNewConsoleDescendant(t *testing.T) 
 	var output bytes.Buffer
 	drained := make(chan struct{})
 	go func() { io.Copy(&output, r); close(drained) }()
-	code, err := runContained([]string{exe, "-test.run=^TestWindowFixture$"}, hostOptions{
-		stdin: syscall.Handle(os.Stdin.Fd()), stdout: syscall.Handle(w.Fd()), stderr: syscall.Handle(w.Fd()),
-	})
+	var code uint32
+	if helper := os.Getenv("FREECODE_HEADLESS_HOST_UNDER_TEST"); helper != "" {
+		command := exec.Command(helper, "--", exe, "-test.run=^TestWindowFixture$")
+		command.Stdin, command.Stdout, command.Stderr = os.Stdin, w, w
+		command.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+		err = command.Run()
+		if _, exited := err.(*exec.ExitError); exited {
+			err = nil
+		}
+		if command.ProcessState != nil {
+			code = uint32(command.ProcessState.ExitCode())
+		}
+	} else {
+		code, err = runContained([]string{exe, "-test.run=^TestWindowFixture$"}, hostOptions{
+			stdin: syscall.Handle(os.Stdin.Fd()), stdout: syscall.Handle(w.Fd()), stderr: syscall.Handle(w.Fd()),
+		})
+	}
 	w.Close()
 	select {
 	case <-drained:
@@ -86,12 +102,15 @@ func TestHelperJobClosesOnlyItsOwnedTree(t *testing.T) {
 	if testing.Short() {
 		t.Skip("actual helper build and Job lifetime integration")
 	}
-	helper := filepath.Join(t.TempDir(), "headless-host.exe")
-	build := exec.Command("go", "build", "-trimpath", "-ldflags=-H=windowsgui", "-o", helper, ".")
-	build.Env = append(os.Environ(), "GOTOOLCHAIN=local", "GOPROXY=off", "GOSUMDB=off", "CGO_ENABLED=0")
-	build.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-	if output, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build: %v %s", err, output)
+	helper := os.Getenv("FREECODE_HEADLESS_HOST_UNDER_TEST")
+	if helper == "" {
+		helper = filepath.Join(t.TempDir(), "headless-host.exe")
+		build := exec.Command("go", "build", "-trimpath", "-ldflags=-H=windowsgui", "-o", helper, ".")
+		build.Env = append(os.Environ(), "GOTOOLCHAIN=local", "GOPROXY=off", "GOSUMDB=off", "CGO_ENABLED=0")
+		build.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+		if output, err := build.CombinedOutput(); err != nil {
+			t.Fatalf("build: %v %s", err, output)
+		}
 	}
 	t.Setenv("FREECODE_HEADLESS_FIXTURE", "hold")
 	exe, _ := os.Executable()
@@ -142,6 +161,59 @@ func TestContainmentFailsClosed(t *testing.T) {
 	_, err := runContained([]string{exe}, hostOptions{desktopName: "invalid\\desktop"})
 	if err == nil {
 		t.Fatal("invalid desktop must fail, never spawn directly")
+	}
+}
+
+func TestNativeWatchdogDoesNotHideAWindowOutsideItsJob(t *testing.T) {
+	if testing.Short() {
+		t.Skip("actual Windows event-hook scope integration")
+	}
+	t.Setenv("FREECODE_HEADLESS_FIXTURE", "foreign")
+	name, _ := syscall.UTF16PtrFromString(fmt.Sprintf("FreeCode-headless-foreign-%d", time.Now().UnixNano()))
+	security := syscall.SecurityAttributes{Length: uint32(unsafe.Sizeof(syscall.SecurityAttributes{})), InheritHandle: 1}
+	desktop, _, err := user32.NewProc("CreateDesktopW").Call(uintptr(unsafe.Pointer(name)), 0, 0, 0, 0xff, uintptr(unsafe.Pointer(&security)))
+	if desktop == 0 {
+		t.Fatal(err)
+	}
+	defer user32.NewProc("CloseDesktop").Call(desktop)
+	job, _, err := kernel32.NewProc("CreateJobObjectW").Call(0, 0)
+	if job == 0 {
+		t.Fatal(err)
+	}
+	defer syscall.CloseHandle(syscall.Handle(job))
+	r, w, _ := os.Pipe()
+	defer r.Close()
+	var count atomic.Uint32
+	var lock sync.Mutex
+	stop, err := watchDesktop(desktop, job, true, syscall.Handle(w.Fd()), &count, &lock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stop()
+	exe, _ := os.Executable()
+	application, _ := syscall.UTF16PtrFromString(exe)
+	command, _ := syscall.UTF16PtrFromString(syscall.EscapeArg(exe) + " -test.run=^TestWindowFixture$")
+	for _, h := range []syscall.Handle{syscall.Handle(os.Stdin.Fd()), syscall.Handle(w.Fd())} {
+		if err := syscall.SetHandleInformation(h, 1, 1); err != nil {
+			t.Fatal(err)
+		}
+	}
+	startup := syscall.StartupInfo{Cb: uint32(unsafe.Sizeof(syscall.StartupInfo{})), Desktop: name, Flags: 0x101,
+		StdInput: syscall.Handle(os.Stdin.Fd()), StdOutput: syscall.Handle(w.Fd()), StdErr: syscall.Handle(w.Fd())}
+	var process syscall.ProcessInformation
+	if err := syscall.CreateProcess(application, command, nil, nil, true, 0x08000000, nil, nil, &startup, &process); err != nil {
+		t.Fatal(err)
+	}
+	defer syscall.CloseHandle(process.Process)
+	defer syscall.CloseHandle(process.Thread)
+	defer syscall.TerminateProcess(process.Process, 125) // Exact test-owned fixture only.
+	if result, err := syscall.WaitForSingleObject(process.Process, 5000); err != nil || result != 0 {
+		t.Fatalf("fixture wait: %d %v", result, err)
+	}
+	w.Close()
+	output, _ := io.ReadAll(r)
+	if !bytes.Contains(output, []byte(`"visible":true`)) || bytes.Contains(output, []byte("[headless-window]")) || count.Load() != 0 {
+		t.Fatalf("foreign-job window was changed or recorded: %s", output)
 	}
 }
 
@@ -245,7 +317,11 @@ func TestWindowFixture(t *testing.T) {
 	var inJob int32
 	process, _ := syscall.GetCurrentProcess()
 	syscall.NewLazyDLL("kernel32.dll").NewProc("IsProcessInJob").Call(uintptr(process), 0, uintptr(unsafe.Pointer(&inJob)))
-	record, _ := json.Marshal(map[string]any{"desktop": desktopName, "interactive": interactive, "job": inJob != 0, "mode": mode, "pid": os.Getpid()})
+	if mode == "foreign" {
+		time.Sleep(200 * time.Millisecond)
+	}
+	visible, _, _ := user.NewProc("IsWindowVisible").Call(hwnd)
+	record, _ := json.Marshal(map[string]any{"desktop": desktopName, "interactive": interactive, "job": inJob != 0, "mode": mode, "pid": os.Getpid(), "visible": visible != 0})
 	fmt.Printf("FIXTURE %s\n", record)
 	if mode == "root" || mode == "hold" {
 		exe, _ := os.Executable()

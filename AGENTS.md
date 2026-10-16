@@ -24,3 +24,15 @@ the gate or describe a local cached install as a clean-install pass.
 Keep every smoke profile/cache and child process isolated and test-owned. Do
 not inspect, stop, restart, install over, or otherwise interfere with a user's
 running FreeCode instance to perform release validation.
+
+## Windows headless process policy
+
+All shell-owned background Windows processes must use `freecode-launcher` and
+the verified GUI-subsystem `headless-host` helper. Keep private-desktop creation
+and suspended-process Job attachment mandatory; never add a direct-spawn
+fallback, environment opt-out, or process-name window hider. Explicit human GUI
+actions use the authenticated Electron broker, not the background desktop.
+Packaging must execute the adversarial native window/descendant and Job-lifetime
+tests against the exact staged and packaged helper, alongside runtime GUI-broker
+compatibility checks. Source-string contracts alone do not satisfy this policy.
+See [Windows desktop containment](docs/HEADLESS-DESKTOP.md) for scope and limits.

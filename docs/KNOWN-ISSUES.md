@@ -234,6 +234,14 @@ Estas entradas quedan para clasificar rápidamente reportes antiguos:
 - El README principal, el README en español y las descripciones de release tienen cobertura bilingüe.
 - La barra de direcciones y el layout del Chromium embebido se corrigieron en `v0.2.2`; Enter/Ir, navegación HTTPS de hosts simples y reflow del texto quedan cubiertos por la implementación del release.
 
+### KI-012 — Background window flashes recur / Reaparecen ventanas de procesos de fondo
+
+**Estado:** reportado nuevamente después de v0.9.5. La rama local incorpora escritorio Windows no interactivo por árbol de procesos, Job Object antes de ejecutar el destino y watchdog limitado al Job, además de un broker para acciones GUI explícitas. Las pruebas nativas fuerzan ventanas y consolas nuevas; el empaquetado debe repetirlas sobre su binario exacto. El candidato necesita DSH alpha9 y todavía no se considera publicado ni validado desde una descarga pública limpia. El instalador de auditoría anterior no contiene esta corrección.
+
+**Status:** reported again after v0.9.5. The local branch adds per-tree noninteractive Windows desktops, pre-execution Job attachment, a Job-scoped watchdog and a broker for explicit GUI actions. Native tests force visible windows and new-console descendants; packaging must repeat them against its exact binary. The candidate requires DSH alpha9 and is not yet considered published or validated by a public clean-cache download. The previous audit installer does not contain this correction.
+
+Implementation, diagnostics and limits: [Windows desktop containment / Contención de ventanas](HEADLESS-DESKTOP.md).
+
 ## Cómo reportar un problema nuevo / How to report a new issue
 
 Include the FreeCode version, Windows architecture, selected language, model/pool, whether RTK is enabled, the approximate time, and the relevant session-log excerpt with secrets removed. For stream failures, include whether the failure recovered automatically and whether the same request works after switching model or pool.
