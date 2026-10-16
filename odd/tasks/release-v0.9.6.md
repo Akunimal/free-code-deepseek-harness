@@ -149,6 +149,88 @@ the user's active FreeCode instance. Existing artifact build/evidence helper:
 - Registry/policy focused GREEN: 2 files / 18 tests passed, including exact
   registry bytes/mtime preservation and missing-file non-creation. The developer's
   ignored registry was not changed. Repeat the entire gate, not just these tests.
+- Second full gate `D:/Temp/freecode-v0.9.6-gate-2026-10-16T22-26-51-081Z.*`
+  finished with exit 1 at 22:30:03Z. All 54 other workspace files passed (381
+  tests). `tests/native-abi-verifier.test.ts` failed at collection: its top-level
+  probe, `electron.exe` with `ELECTRON_RUN_AS_NODE=1`, printed libuv
+  `PostQueuedCompletionStatus: (6)` (invalid handle) and exited non-zero. Gate
+  stopped before the public first-run smoke; no clean-install claim.
+- Diagnosis: not reproducible. The same file passed standalone, through
+  `headless-host.exe`, and in a full `apps/shell` vitest run via the helper
+  (55 files / 384 tests, `D:/Temp/abi-diagnose-workspace-193513.log`). No source
+  or test change made. Treated as a transient native-process startup failure in
+  the gate chain; the rerun below decides it. If it recurs, add probe diagnostics
+  (`error`, `signal`, handle/env state) before any retry logic.
+- Third full gate started 22:36:29Z with the same isolated runner:
+  `D:/Temp/freecode-v0.9.6-gate-2026-10-16T22-36-29-517Z.{log,json}`.
+  Result: exit 1 at 22:45:02Z. `workspace-tests` passed (55 files / 384 tests),
+  so the native ABI flake did not recur. `workspace-contract-tests`,
+  typechecks, vendor regressions, stream/locale/offline-MCP contracts passed.
+  Stopped at `windows-acl-tests`: 15 of 19 in
+  `vendor/deepseek-harness/packages/sandbox/sandbox-windows-acl/tests/runner.spec.ts`
+  failed. The plan step also names `failure-paths.spec.ts`, which does not exist,
+  so vitest ran only `runner.spec.ts`.
+- windows-acl diagnosis (not yet fixed; both causes reproduced):
+  1. Fixture defect: specs spawn the literal `pwsh`, which is absent here
+     (only Windows PowerShell 5.1). Availability probe `resolvePwshPath()` falls
+     back to 5.1, so the suite is not skipped. Result: `CreateProcessAsUserW`
+     Win32 2, exit 127.
+  2. Containment-context defect: with `pwsh` replaced by the resolved 5.1 path
+     (temporary spec, removed), all 14 remaining failures are exit
+     `0xC0000142` (STATUS_DLL_INIT_FAILED) with empty stderr when run inside
+     `headless-host.exe`. The same spec passes 19/19 outside the helper. The
+     helper creates its private desktop with a NULL security descriptor
+     (`apps/shell/native/headless-host/main_windows.go`) and sets it as child
+     `StartupInfo.Desktop`, so Low-integrity confined children cannot initialise
+     USER32. The gate runner wraps everything in the helper by design
+     (`D:/Temp/freecode-release096-run.cjs`).
+  Fixing cause 1 in `vendor/` may change the immutable runtime source fingerprint
+  (`0.2.1-alpha.9` pin), so it needs an explicit decision. Cause 2 is a
+  containment decision (desktop DACL for restricted SIDs versus excluding this
+  step from the helper wrapper) and needs review. No gate was rerun after the
+  failure and no source was changed in this pass.
+- Follow-up (same day, after the user chose "ajustar DACL"): the security-
+  descriptor attempt was reverted because it changed nothing. The private
+  desktop got SDDL `D:(A;;GA;;;SY)(A;;GA;;;OW)(A;;0x000000c7;;;<logon SID>)`,
+  with a Go unit test (GREEN). Under the rebuilt helper, the 14 node/pwsh
+  confined children still exit `0xC0000142`, the same as before. The same
+  confined `node -e 0` exits 0 outside the helper. Dropping `CREATE_NO_WINDOW`
+  (0x08000000) from the helper's `CreateProcess` flags also did not fix it.
+  Attempt patch: `D:/Temp/headless-desktop-dacl-attempt.patch`. Native
+  sources are back to HEAD and the helper was rebuilt from HEAD.
+  Still open at that point: the failing component is inside the helper's
+  containment chain. No gate has been relaunched since gate 3.
+- BISECT RESULT (diagnostic copies only in `D:/Temp/helper-bisect/variants/`,
+  repo and resources untouched; spawn harness = vitest `spawnSync`, not a
+  direct shell run):
+  - baseline HEAD helper: confined `node -e 0` = `0xC0000142`; confined `cmd /c exit 0` = 0.
+  - no AssignProcessToJobObject: node still fails. Job is not the cause.
+  - no inherited stdio (no USESTDHANDLES, bInheritHandles=false): node still fails. Stdio is not the cause.
+  - child on the interactive desktop (no private desktop): node = 0. The private desktop is required to reproduce.
+  - node.exe imports user32.dll (GetProcessWindowStation, GetUserObjectInformationW, GetMessageA, ...); cmd.exe does not. USER32 init in a Low-integrity WRITE_RESTRICTED child fails on the private desktop.
+  - logon-SID DACL alone (0xc7 or GA), or Everyone 0xc7, without a label: still fails. DACL is not sufficient.
+  - Low mandatory label alone (`S:(ML;;NW;;;LW)`), no logon ACE: still fails.
+  - Low label + logon ACE GA: node = 0. Low label + logon ACE 0xc7: node = 0.
+  - Low label + SY GA + logon 0xc7 (no OW ACE): node = 0. This is the minimal functional set.
+  - Root cause: the private desktop keeps the default Medium integrity label. A Low-IL restricted child cannot write to it, so USER32 init fails. The desktop DACL also has to admit the restricting logon SID.
+  - Validation of that variant: Go native tests PASS (6 integration tests; `TestWindowFixture` is a fixture and skips). `runner.spec.ts` = 19/19 with PowerShell resolved; under the real literal `pwsh` it is 9 of 10 failing with exit 127 (fixture issue only, still open).
+  - Security review, not yet approved. The change lowers integrity isolation on the private desktop: Low-IL processes gain write-level rights (0xc7 for the logon session: read objects, create windows and menus, enumerate, write objects). Excluded: SWITCHDESKTOP, hook control, journal record/playback, WRITE_DAC/WRITE_OWNER, DELETE. The owner ACE is removed. Residual risk: same-session processes that learn the random 128-bit desktop name, or enumerate desktops on WinSta0, can create windows there. Not tested empirically. Alternatives considered: per-run restricting SID (needs coupling to sandbox SIDs), or keeping Medium and avoiding USER32 in children (not viable for node).
+  - No repo change made. Gate not relaunched. Needs approval for (a) the label-based helper change and (b) the `pwsh` fixture decision.
+- APPROVED by the user (label Low + logon ACE 0xc7, no owner ACE). Applied in
+  `apps/shell/native/headless-host/main_windows.go` (not committed):
+  - Private desktop SDDL: `D:(A;;GA;;;SY)(A;;0x000000c7;;;<logon SID>)S:(ML;;NW;;;LW)`. Logon SID is read from the helper's own token (SE_GROUP_LOGON_ID); the desktop is created fail-closed if it cannot be read.
+  - RED: `TestPrivateDesktopDACLGrantsLogonSessionOnlyDesktopRightsAtLowIntegrity` failed on the assertion (old SDDL had `OW` and no label). GREEN after the change.
+  - Go tests (`go test -v`, full): PASS for containment-fails-closed, Job teardown, watchdog scope, private desktop root/descendant, stdio/argv/env, and the window-fixture test skips by design.
+  - Helper rebuilt with `scripts/build-headless-host.mjs`; `headless-host.json` source `3a7f7852...`.
+  - `runner.spec.ts` under the real helper: 9 passed, 10 failed, 0 × `0xC0000142`. All 10 failures are the literal `pwsh` fixture issue (9 × exit 127, 1 × null).
+  - `scripts/headless-containment-gate.test.mjs` and `scripts/build-headless-host.test.mjs` pass (exit 0). `scripts/verify-headless-desktop.mjs` PASS.
+  - Residual risk accepted per approval: same-logon-session Low-IL processes that learn the desktop name can create windows and write objects there. Not tested empirically.
+  - `pwsh` fix chosen by the user's instruction (option B): `runner.spec.ts` now spawns `resolvePwshPath()`, the same resolution the probe and the executor use. Under the real helper: 19/19 PASS, 0 × `0xC0000142`.
+  - Gate plan correction: `windows-acl-tests` named `failure-paths.spec.ts`, which does not exist, so vitest silently ran only `runner.spec.ts`. It now names the four real `*-failure-paths.spec.ts` (103 tests PASS under the helper).
+  - Runtime pin check: `apps/shell/harness-runtime.json` (`0.2.1-alpha.9`) unchanged. `scripts/verify-pinned-runtime-asset.mjs` verifies SHA-256 `7c1d8cb1…c4ca5` against the manifest; archive untouched. The vendor spec is a test file, not part of the runtime archive.
+  - Contract tests of gate step 1 (`release-gate-contract-tests`): 62/62 PASS.
+  - Commits on `codex/v0.9.5-clean-runtime-bootstrap`: `debe96c0a4` (native private desktop integrity fix + Go test + docs), `00a95a868e` (vendor runner.spec on resolved pwsh), `3c8617a74b` (gate plan failure-path specs).
+  - Gate 4 relaunch pending. Gate not yet relaunched in this pass.
 
 ## Relevant files
 
