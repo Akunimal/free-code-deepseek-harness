@@ -107,6 +107,19 @@ change upstream, rewrite published tags or overwrite old desktop artifacts.
   "Releases are manual" declaration. Restored it in both languages without
   changing the contract or any runtime behavior. Publication stays blocked;
   run the full gate again after this failed attempt finishes.
+- First full gate exited 1 at `workspace-tests`: 117 contract tests passed,
+  two failed and 12 pre-existing opt-in tests were skipped. The second failure
+  required a developer's ignored `.atl/skill-registry.md` to contain a particular
+  generator header. That cache is not a tracked release input and had a different
+  legitimate generator; do not forge its provenance or overwrite it. Expand this
+  task's test-maintenance scope to use test-owned temporary registry fixtures,
+  retain byte/mtime non-mutation assertions, and add missing-file coverage. No
+  product/runtime behavior or gate requirement changes. Corrective policy unit:
+  `e2ade64bcd`; the failed gate transcript/receipt are under
+  `D:/Temp/freecode-v0.9.6-gate-2026-10-16T22-22-15-733Z.*`.
+- Registry/policy focused GREEN: 2 files / 18 tests passed, including exact
+  registry bytes/mtime preservation and missing-file non-creation. The developer's
+  ignored registry was not changed. Repeat the entire gate, not just these tests.
 
 ## Relevant files
 
