@@ -70,6 +70,14 @@ export function createReleaseGatePlan({ version, outputDir }) {
       FREECODE_RELEASE_TARGETS: 'nsis',
     }),
     step('pinned-runtime-asset-integrity', ['exec', 'node', 'scripts/verify-pinned-runtime-asset.mjs']),
+    {
+      label: 'first-run-runtime-download',
+      tool: 'electron-as-node',
+      args: ['scripts/verify-first-run-runtime-download.mjs'],
+      env: {
+      FREECODE_RELEASE_OUTPUT: absoluteOutput,
+      },
+    },
     step('vendored-bundle-freshness', ['exec', 'node', 'scripts/verify-vendor-bundles-fresh.mjs']),
     step('conversation-motion-bundle', ['exec', 'node', 'scripts/verify-conversation-bundle.mjs', 'vendor/deepseek-harness']),
     step('runtime-closure-tests', ['exec', 'node', '--test', 'scripts/runtime-closure.test.mjs']),

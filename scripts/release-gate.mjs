@@ -52,11 +52,25 @@ function runGit(label, args) {
   if (result.status !== 0) throw new Error(`${label} failed with exit code ${String(result.status)}`);
 }
 
+function runElectronAsNode(label, args, env = {}) {
+  console.log(`\nrelease-gate: ${label}`);
+  const electronPath = resolve(root, 'apps/shell/node_modules/electron/dist/electron.exe');
+  const result = spawnSync(electronPath, args, {
+    cwd: root,
+    stdio: 'inherit',
+    windowsHide: true,
+    env: { ...process.env, CI: 'true', ELECTRON_RUN_AS_NODE: '1', ...env },
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(`${label} failed with exit code ${String(result.status)}`);
+}
+
 console.log(`release-gate: verifying local desktop candidate ${version}; DSH runtime remains separately pinned.`);
 try {
   const plan = createReleaseGatePlan({ version, outputDir });
   for (const step of plan) {
     if (step.tool === 'git') runGit(step.label, step.args);
+    else if (step.tool === 'electron-as-node') runElectronAsNode(step.label, step.args, step.env);
     else run(step.label, step.args, step.env);
   }
   console.log(`\nrelease-gate: ${version} non-interactive desktop release checks passed; only hidden test-owned CLI/fixture children ran; no installer or FreeCode GUI was launched.`);

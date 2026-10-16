@@ -96,6 +96,32 @@ test('release plan statically validates an isolated NSIS build without install o
   assert.match(gateEntry, /does not install or launch the[\s*]+FreeCode GUI/i);
 });
 
+test('release plan requires an empty-cache public runtime download smoke under packaged Electron ABI', () => {
+  const outputDir = join(tmpdir(), 'freecode-release-gate-test');
+  const plan = createReleaseGatePlan({ version: '0.9.5', outputDir });
+  const smokeIndex = plan.findIndex(step => step.label === 'first-run-runtime-download');
+  const packageIndex = plan.findIndex(step => step.label === 'desktop-package');
+  const archiveIndex = plan.findIndex(step => step.label === 'pinned-runtime-asset-integrity');
+  assert.ok(smokeIndex >= 0, 'release gate must run the fresh-cache runtime download smoke');
+  assert.ok(smokeIndex > packageIndex && smokeIndex > archiveIndex, 'smoke must run against the exact packaged manifest after archive validation');
+  const smoke = plan[smokeIndex];
+  assert.equal(smoke.tool, 'electron-as-node');
+  assert.deepEqual(smoke.args, ['scripts/verify-first-run-runtime-download.mjs']);
+  assert.equal(smoke.env.FREECODE_RELEASE_OUTPUT, outputDir, 'smoke must read the exact package produced by this gate');
+  const smokeScript = readFileSync(new URL('scripts/verify-first-run-runtime-download.mjs', repositoryRoot), 'utf8');
+  assert.match(smokeScript, /ensureHarnessRuntime/);
+  assert.match(smokeScript, /createHarnessUpdater/);
+  assert.match(smokeScript, /mkdirSync/);
+  assert.match(smokeScript, /mkdtempSync/);
+  assert.match(smokeScript, /windowsHide:\s*true/);
+  assert.match(smokeScript, /--help/);
+  const gateEntry = readFileSync(new URL('scripts/release-gate.mjs', repositoryRoot), 'utf8');
+  assert.match(gateEntry, /function runElectronAsNode/);
+  assert.match(gateEntry, /ELECTRON_RUN_AS_NODE:\s*'1'/);
+  assert.match(gateEntry, /windowsHide:\s*true/);
+  assert.match(gateEntry, /step\.tool === 'electron-as-node'/);
+});
+
 test('pinned runtime archive is verified by its recorded digest and filename', async () => {
   const temp = mkdtempSync(join(tmpdir(), 'freecode-runtime-archive-test-'));
   try {
