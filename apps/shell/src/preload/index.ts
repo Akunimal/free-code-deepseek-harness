@@ -18,6 +18,7 @@ const IpcChannels = {
   poolStatus: 'pool:status',
   poolRestartWorker: 'pool:restartWorker',
   poolResize: 'pool:resize',
+  poolOverlayClose: 'pool:closeOverlay',
   modelsCatalog: 'models:catalog',
   modelsRefresh: 'models:refresh',
   modelsRefreshState: 'models:refreshState',
@@ -56,6 +57,7 @@ const api: FreeCodeApi = {
     },
     resize: (size: number): Promise<void> => ipcRenderer.invoke(IpcChannels.poolResize, { size }),
     restartWorker: (id: string): Promise<void> => ipcRenderer.invoke(IpcChannels.poolRestartWorker, { id }),
+    closeOverlay: (): Promise<void> => ipcRenderer.invoke(IpcChannels.poolOverlayClose),
   },
   models: {
     refresh: (): Promise<ModelCatalog> => ipcRenderer.invoke(IpcChannels.modelsRefresh),

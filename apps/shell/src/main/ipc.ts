@@ -52,6 +52,8 @@ export interface IpcDeps {
    *  nested WebContentsView, the shell provides this so pushes reach the
    *  actual harness page, not the (blank) window container webContents. */
   getRendererTargets?: () => WebContents[];
+  /** Close the auxiliary Pool Status window only for its own WebContents. */
+  closePoolStatusOverlay: (sender: WebContents) => void;
 }
 
 function defaultRendererTargets(): WebContents[] {
@@ -124,6 +126,10 @@ export function registerIpc(deps: IpcDeps): () => void {
     const parsed = PoolResizePayloadSchema.parse(payload);
     return Promise.resolve();
   });
+
+  // pool:closeOverlay — the borderless data: window cannot close itself with
+  // window.close(); delegate to main and let it verify the caller's WebContents.
+  ipcMain.handle(IpcChannels.poolOverlayClose, (e) => deps.closePoolStatusOverlay(e.sender));
 
   // settings:openFolder (invoke) — reveal DSH_HOME in the OS file manager
   ipcMain.handle(IpcChannels.settingsOpenFolder, () => shell.openPath(homeDir));
@@ -246,6 +252,7 @@ export function registerIpc(deps: IpcDeps): () => void {
     ipcMain.removeHandler(IpcChannels.harnessRestart);
     ipcMain.removeHandler(IpcChannels.poolRestartWorker);
     ipcMain.removeHandler(IpcChannels.poolResize);
+    ipcMain.removeHandler(IpcChannels.poolOverlayClose);
     ipcMain.removeHandler(IpcChannels.settingsOpenFolder);
     ipcMain.removeHandler(IpcChannels.mcpGetState);
     ipcMain.removeHandler(IpcChannels.mcpSetEnabled);

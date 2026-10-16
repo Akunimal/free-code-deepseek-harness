@@ -21,6 +21,7 @@ function createBridgeFixture() {
   handlers.clear();
   const catalogRefreshState = createModelCatalogRefreshState();
   const sent: Array<{ channel: string; payload: unknown }> = [];
+  const closeRequests: unknown[] = [];
   const target = {
     isDestroyed: () => false,
     send: (channel: string, payload: unknown) => sent.push({ channel, payload }),
@@ -45,9 +46,10 @@ function createBridgeFixture() {
       return catalog;
     },
     setLocale: () => undefined,
+    closePoolStatusOverlay: (sender) => closeRequests.push(sender),
     getRendererTargets: () => [target] as never,
   });
-  return { catalogRefreshState, dispose, sent };
+  return { catalogRefreshState, closeRequests, dispose, sent };
 }
 
 afterEach(() => handlers.clear());
@@ -74,5 +76,19 @@ describe('model catalog refresh IPC', () => {
     await catalogRefreshState.run(async () => undefined);
     expect(sent).toHaveLength(3);
     expect(handlers.has(IpcChannels.modelsGetRefreshState)).toBe(false);
+  });
+});
+
+describe('Pool Status overlay close IPC', () => {
+  it('forwards the invoking WebContents to the main-process ownership guard', () => {
+    const { closeRequests, dispose } = createBridgeFixture();
+    const sender = { id: 'pool-overlay-webcontents' };
+    const handler = handlers.get(IpcChannels.poolOverlayClose);
+
+    handler?.({ sender });
+
+    expect(closeRequests).toEqual([sender]);
+    dispose();
+    expect(handlers.has(IpcChannels.poolOverlayClose)).toBe(false);
   });
 });

@@ -10,6 +10,7 @@ import { seedProviders } from './provider-seeder.js';
 import { refreshModels, ModelCatalog, shouldRetryModelRefresh } from './model-refresher.js';
 import { createModelCatalogRefreshState } from './model-refresh-state.js';
 import { registerIpc } from './ipc.js';
+import { canClosePoolStatusOverlay } from './pool-overlay-close.js';
 import { nodeRuntimeEnv, resolveHarnessRuntimeDir, resolveNodePath, resolveResourcesDir } from './resource-paths.js';
 import { createAppLogger, type AppLogger } from './logger.js';
 import { createUpdateService, isNewerVersion, type UpdateCheckResult, type UpdateService } from './updater.js';
@@ -607,7 +608,7 @@ button:disabled{opacity:.55;cursor:default}
 .tor-card{border:1px solid #2a2f3a;border-radius:10px;padding:12px;margin-top:12px;background:#141821}
 </style></head>
 <body>
-<button class="close-btn" onclick="window.close()" title="Close">✕</button>
+<button class="close-btn" onclick="window.freecode.pool.closeOverlay()" title="Close">✕</button>
 <h3 style="margin-top:0">${escapeOverlayHtml(t('overlay.title'))}</h3>
 <div class="tor-card">
 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -1361,6 +1362,11 @@ app.whenReady().then(async () => {
     getRendererTargets: () => harnessView && !harnessView.webContents.isDestroyed()
       ? [harnessView.webContents]
       : [],
+    closePoolStatusOverlay: (sender) => {
+      const target = overlayWindow;
+      if (!target || !canClosePoolStatusOverlay(sender, target)) return;
+      target.close();
+    },
   });
 
   if (runtime.supervisor.statusValue === 'ready' && runtime.supervisor.currentUrl) {

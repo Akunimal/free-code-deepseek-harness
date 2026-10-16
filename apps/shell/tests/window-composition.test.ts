@@ -17,6 +17,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
+import { canClosePoolStatusOverlay } from '../src/main/pool-overlay-close.js';
 
 // -----------------------------------------------------------------
 // Tema 1 — bounds delegation between embedded-browser and harnessView
@@ -131,6 +132,18 @@ describe('close-to-tray decision (Tema 2)', () => {
   });
 });
 
+describe('Pool Status overlay close ownership', () => {
+  it('permits only the live overlay WebContents and never the main window', () => {
+    const overlayContents = {};
+    const mainContents = {};
+    const overlay = { webContents: overlayContents, isDestroyed: () => false };
+    expect(canClosePoolStatusOverlay(overlayContents, overlay)).toBe(true);
+    expect(canClosePoolStatusOverlay(mainContents, overlay)).toBe(false);
+    expect(canClosePoolStatusOverlay(overlayContents, null)).toBe(false);
+    expect(canClosePoolStatusOverlay(overlayContents, { ...overlay, isDestroyed: () => true })).toBe(false);
+  });
+});
+
 // -----------------------------------------------------------------
 // Cross-cutting — the anti-regression grep on index.ts source
 // -----------------------------------------------------------------
@@ -190,6 +203,23 @@ describe('composition contract on production source', () => {
     const src = readFileSync(new URL('../src/main/index.ts', import.meta.url), 'utf8');
     expect(src).toContain("t('notify.ready.body')");
     expect(src).not.toMatch(/body:\s*h\.url/);
+  });
+
+  it('closes the Pool Status overlay through a sender-checked preload IPC, not window.close', async () => {
+    const { readFileSync } = await import('node:fs');
+    const index = readFileSync(new URL('../src/main/index.ts', import.meta.url), 'utf8');
+    const preload = readFileSync(new URL('../src/preload/index.ts', import.meta.url), 'utf8');
+    const ipc = readFileSync(new URL('../src/main/ipc.ts', import.meta.url), 'utf8');
+    const sharedTypes = readFileSync(new URL('../../../packages/shared-types/src/index.ts', import.meta.url), 'utf8');
+
+    expect(index).toContain('onclick="window.freecode.pool.closeOverlay()"');
+    expect(index).not.toMatch(/onclick="window\.close\(\)"/);
+    expect(sharedTypes).toContain("poolOverlayClose: 'pool:closeOverlay'");
+    expect(preload).toMatch(/closeOverlay:\s*\(\):\s*Promise<void>\s*=>\s*ipcRenderer\.invoke\(IpcChannels\.poolOverlayClose\)/);
+    expect(ipc).toMatch(/ipcMain\.handle\(IpcChannels\.poolOverlayClose,\s*\(e\)\s*=>\s*deps\.closePoolStatusOverlay\(e\.sender\)\)/);
+    expect(index).toMatch(/closePoolStatusOverlay:\s*\(sender\)\s*=>/);
+    expect(index).toMatch(/canClosePoolStatusOverlay\(sender,\s*target\)/);
+    expect(index).toMatch(/target\.close\(\)/);
   });
 });
 
