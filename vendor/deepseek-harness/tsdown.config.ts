@@ -1,5 +1,18 @@
 import { defineConfig } from 'tsdown'
 import { typertPlugin } from './packages/typert/generator/lib/types/tsdown-plugin.js'
+import { discoverTsdownWorkspacePackages } from './scripts/tsdown-workspace.mjs'
+
+const clientWorkspace = discoverTsdownWorkspacePackages(import.meta.dirname, [
+  'vendor/*',
+  'packages/*/*',
+  'apps/cli',
+])
+const hostWorkspace = discoverTsdownWorkspacePackages(import.meta.dirname, [
+  'vendor/*',
+  'packages/*/*',
+  'apps/cli',
+  'apps/desktop-host',
+])
 
 function isBuildFaceClient(value: unknown): boolean {
   if (value === undefined || value === 'host') return false
@@ -19,9 +32,11 @@ function isBuildFaceClient(value: unknown): boolean {
 export default defineConfig(({ env }) => {
   const client = isBuildFaceClient(env?.DSH_BUILD_FACE)
   return {
-    workspace: client
-      ? ['vendor/*', 'packages/*/*', 'apps/cli']
-      : ['vendor/*', 'packages/*/*', 'apps/cli', 'apps/desktop-host'],
+    // tsdown 0.22.2 treats every directory matched by `include` as a package,
+    // even when it has no package.json. Resolve the existing workspace globs to
+    // real packages first so generated folders (for example Graphify output)
+    // cannot inherit this root entry config and abort the whole build.
+    workspace: client ? clientWorkspace : hostWorkspace,
     entry: client ? '' : ['lib/types/{index,startup}.js'],
     outDir: 'lib',
     format: ['esm'],

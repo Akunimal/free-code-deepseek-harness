@@ -58,6 +58,14 @@ describe('stack-aware patch replay', () => {
       .toMatchObject({ order: 174 });
     expect(manifest.patches.find((entry: { file: string }) => entry.file === '175-freecode-model-block-reentrancy-guard.patch'))
       .toMatchObject({ order: 175 });
+    expect(manifest.patches.find((entry: { file: string }) => entry.file === '176-freecode-model-catalog-refresh-status.patch'))
+      .toMatchObject({ order: 176 });
+    expect(manifest.patches.find((entry: { file: string }) => entry.file === '177-freecode-animated-conversation-backgrounds.patch'))
+      .toMatchObject({ order: 177 });
+    expect(manifest.patches.find((entry: { file: string }) => entry.file === '178-freecode-model-capabilities.patch'))
+      .toMatchObject({ order: 178 });
+    expect(manifest.patches.find((entry: { file: string }) => entry.file === '179-freecode-filter-tsdown-workspaces.patch'))
+      .toMatchObject({ order: 179 });
     const result = verifyOverlappingAppliedPatches({
       root,
       patchDir,

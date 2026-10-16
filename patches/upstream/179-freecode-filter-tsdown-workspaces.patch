@@ -1,0 +1,131 @@
+diff --git a/vendor/deepseek-harness/scripts/tsdown-workspace.d.mts b/vendor/deepseek-harness/scripts/tsdown-workspace.d.mts
+new file mode 100644
+index 0000000000..96a0edb1d7
+--- /dev/null
++++ b/vendor/deepseek-harness/scripts/tsdown-workspace.d.mts
+@@ -0,0 +1,4 @@
++export function discoverTsdownWorkspacePackages(
++  root: string,
++  patterns: readonly string[],
++): string[]
+diff --git a/vendor/deepseek-harness/scripts/tsdown-workspace.mjs b/vendor/deepseek-harness/scripts/tsdown-workspace.mjs
+new file mode 100644
+index 0000000000..6161b46bfb
+--- /dev/null
++++ b/vendor/deepseek-harness/scripts/tsdown-workspace.mjs
+@@ -0,0 +1,44 @@
++import { existsSync, readdirSync, statSync } from 'node:fs'
++import { join, relative, resolve, sep } from 'node:path'
++
++function isDirectory(path) {
++  try {
++    return statSync(path).isDirectory()
++  } catch {
++    return false
++  }
++}
++
++function childDirectories(parent) {
++  if (!isDirectory(parent)) return []
++  return readdirSync(parent)
++    .filter((name) => !name.startsWith('.'))
++    .map((name) => join(parent, name))
++    .filter(isDirectory)
++}
++
++/** Resolve the current tsdown directory globs to actual workspace packages. */
++export function discoverTsdownWorkspacePackages(root, patterns) {
++  const absoluteRoot = resolve(root)
++  const directories = new Set()
++
++  for (const pattern of patterns) {
++    let candidates = [absoluteRoot]
++    for (const segment of pattern.split('/')) {
++      if (segment === '*') {
++        candidates = candidates.flatMap(childDirectories)
++      } else if (segment.includes('*')) {
++        throw new Error(`Unsupported tsdown workspace segment: ${segment}`)
++      } else {
++        candidates = candidates.map((candidate) => join(candidate, segment))
++      }
++    }
++
++    for (const candidate of candidates) {
++      if (!isDirectory(candidate) || !existsSync(join(candidate, 'package.json'))) continue
++      directories.add(relative(absoluteRoot, candidate).split(sep).join('/'))
++    }
++  }
++
++  return [...directories].sort()
++}
+diff --git a/vendor/deepseek-harness/scripts/tsdown-workspace.spec.ts b/vendor/deepseek-harness/scripts/tsdown-workspace.spec.ts
+new file mode 100644
+index 0000000000..849b2d6dbe
+--- /dev/null
++++ b/vendor/deepseek-harness/scripts/tsdown-workspace.spec.ts
+@@ -0,0 +1,27 @@
++import { existsSync } from 'node:fs'
++import { join, resolve } from 'node:path'
++import { describe, expect, it } from 'vitest'
++import { discoverTsdownWorkspacePackages } from './tsdown-workspace.mjs'
++
++const root = resolve(import.meta.dirname, '..')
++const clientPatterns = ['vendor/*', 'packages/*/*', 'apps/cli']
++const hostPatterns = [...clientPatterns, 'apps/desktop-host']
++
++describe('tsdown workspace discovery', () => {
++  it('includes only matching directories that own a package manifest', () => {
++    for (const directory of discoverTsdownWorkspacePackages(root, hostPatterns)) {
++      expect(existsSync(join(root, directory, 'package.json')), directory).toBe(true)
++    }
++  })
++
++  it('omits generated Graphify folders without excluding real client and host packages', () => {
++    const client = discoverTsdownWorkspacePackages(root, clientPatterns)
++    const host = discoverTsdownWorkspacePackages(root, hostPatterns)
++
++    expect(client).not.toContain('packages/api/graphify-out')
++    expect(client).not.toContain('packages/client/ui-conversation/graphify-out')
++    expect(client).toContain('packages/client/ui-conversation')
++    expect(host).toContain('apps/desktop-host')
++    expect(client).not.toContain('apps/desktop-host')
++  })
++})
+diff --git a/vendor/deepseek-harness/tsdown.config.ts b/vendor/deepseek-harness/tsdown.config.ts
+index c378de376a..54531595ab 100644
+--- a/vendor/deepseek-harness/tsdown.config.ts
++++ b/vendor/deepseek-harness/tsdown.config.ts
+@@ -1,5 +1,18 @@
+ import { defineConfig } from 'tsdown'
+ import { typertPlugin } from './packages/typert/generator/lib/types/tsdown-plugin.js'
++import { discoverTsdownWorkspacePackages } from './scripts/tsdown-workspace.mjs'
++
++const clientWorkspace = discoverTsdownWorkspacePackages(import.meta.dirname, [
++  'vendor/*',
++  'packages/*/*',
++  'apps/cli',
++])
++const hostWorkspace = discoverTsdownWorkspacePackages(import.meta.dirname, [
++  'vendor/*',
++  'packages/*/*',
++  'apps/cli',
++  'apps/desktop-host',
++])
+ 
+ function isBuildFaceClient(value: unknown): boolean {
+   if (value === undefined || value === 'host') return false
+@@ -19,9 +32,11 @@ function isBuildFaceClient(value: unknown): boolean {
+ export default defineConfig(({ env }) => {
+   const client = isBuildFaceClient(env?.DSH_BUILD_FACE)
+   return {
+-    workspace: client
+-      ? ['vendor/*', 'packages/*/*', 'apps/cli']
+-      : ['vendor/*', 'packages/*/*', 'apps/cli', 'apps/desktop-host'],
++    // tsdown 0.22.2 treats every directory matched by `include` as a package,
++    // even when it has no package.json. Resolve the existing workspace globs to
++    // real packages first so generated folders (for example Graphify output)
++    // cannot inherit this root entry config and abort the whole build.
++    workspace: client ? clientWorkspace : hostWorkspace,
+     entry: client ? '' : ['lib/types/{index,startup}.js'],
+     outDir: 'lib',
+     format: ['esm'],

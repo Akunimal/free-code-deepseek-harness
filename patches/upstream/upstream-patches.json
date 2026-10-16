@@ -418,6 +418,18 @@
         "packages/contract-tests/tests/patch-stack-replay.contract.test.ts"
       ],
       "vendorOnly": true
+    },
+    {
+      "file": "179-freecode-filter-tsdown-workspaces.patch",
+      "order": 179,
+      "owner": "freecode",
+      "description": "Filter tsdown workspace globs to directories with package manifests before config inheritance",
+      "seam": "tsdown.config.ts + scripts/tsdown-workspace.mjs",
+      "contractTests": [
+        "scripts/tsdown-workspace.spec.ts",
+        "packages/contract-tests/tests/patch-stack-replay.contract.test.ts"
+      ],
+      "vendorOnly": true
     }
   ]
 }

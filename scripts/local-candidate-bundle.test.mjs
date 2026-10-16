@@ -10,7 +10,7 @@ test('local candidate preflight verifies exact artifacts without installation or
   const directory = mkdtempSync(join(tmpdir(), 'freecode-local-candidate-'));
   try {
     const version = '0.9.4';
-    const runtimeVersion = '0.2.1-alpha.7';
+    const runtimeVersion = '0.2.1-alpha.8';
     const setup = `FreeCode-DeepSeek-Harness-${version}-win-x64-setup.exe`;
     const portable = `FreeCode-DeepSeek-Harness-${version}-win-x64-portable.exe`;
     const runtime = `deepseek-harness-runtime-${runtimeVersion}-win32-x64.tar.gz`;
@@ -39,13 +39,13 @@ test('local candidate preflight verifies exact artifacts without installation or
 });
 
 test('candidate bundle paths cannot escape their chosen output directory', async () => {
-  await assert.rejects(writeLocalCandidateBundle({ directory: tmpdir(), version: '../escape', runtimeVersion: '0.2.1-alpha.7' }), /version/i);
+  await assert.rejects(writeLocalCandidateBundle({ directory: tmpdir(), version: '../escape', runtimeVersion: '0.2.1-alpha.8' }), /version/i);
 });
 
 test('explicit preparation promotes only the exact runtime and retains the previous cache in isolated APPDATA', { skip: process.platform !== 'win32' }, async () => {
   const directory = mkdtempSync(join(tmpdir(), 'freecode-preload-isolated-'));
   try {
-    const version = '0.9.4', runtimeVersion = '0.2.1-alpha.7';
+  const version = '0.9.4', runtimeVersion = '0.2.1-alpha.8';
     const stage = join(directory, 'stage');
     const appData = join(directory, 'isolated-appdata');
     const cache = join(appData, '@freecode/shell/harness-runtime');
