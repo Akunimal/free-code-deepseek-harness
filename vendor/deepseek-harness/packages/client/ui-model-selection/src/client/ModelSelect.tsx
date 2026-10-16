@@ -45,11 +45,43 @@ import { orderModelProviders } from './provider-order.ts'
 /** Which pane the dropdown shows: the two-row root or one drilled-in list. */
 type Pane = 'root' | 'model' | 'effort'
 
+interface ShellCatalogRefreshState {
+  revision: number
+  status: 'idle' | 'loading'
+  startedAt: number | null
+}
+
+interface ShellCatalogRefreshBridge {
+  getRefreshState(): Promise<ShellCatalogRefreshState>
+  onRefreshState(callback: (state: ShellCatalogRefreshState) => void): () => void
+}
+
+function shellCatalogRefreshBridge(): ShellCatalogRefreshBridge | undefined {
+  if (typeof window === 'undefined') return undefined
+  const bridge = (window as unknown as { freecode?: { models?: ShellCatalogRefreshBridge } })
+    .freecode?.models
+  return typeof bridge?.getRefreshState === 'function' && typeof bridge.onRefreshState === 'function'
+    ? bridge
+    : undefined
+}
+
 /** One dynamic effort row; undefined means preserve the provider default. */
 interface EffortChoice {
   key: string
   effort: string | undefined
   label: string
+}
+
+function formatContextCapacity(tokens: number): string {
+  if (tokens >= 1_000_000) return `${Math.round(tokens / 1_000_000)}M`
+  if (tokens >= 1024) return `${Math.round(tokens / 1024)}K`
+  return String(tokens)
+}
+
+function formatOutputCapacity(tokens: number): string {
+  if (tokens >= 1_000_000) return `${Math.round(tokens / 1_000_000)}M`
+  if (tokens >= 1000) return `${Math.round(tokens / 1000)}K`
+  return String(tokens)
 }
 
 /** Unplaced portal card: hidden but laid out at a fixed origin so offsetWidth/offsetHeight are real (Menu primitive's measure pass). */
@@ -74,6 +106,7 @@ export function ModelSelect(
   const [query, setQuery] = useState('')
   const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null)
   const [selectionFocus, setSelectionFocus] = useState(false)
+  const [shellCatalogRefreshing, setShellCatalogRefreshing] = useState(false)
   // The in-menu error strip serves catalog loads (its Retry re-runs the
   // load); a rejected SELECTION announces through the transient toast
   // instead, so the strip renders only while the latest failure-capable
@@ -89,6 +122,24 @@ export function ModelSelect(
   const [menuPos, setMenuPos] = useState<CSSProperties | null>(null)
   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
   const id = useId()
+
+  useEffect(() => {
+    const bridge = shellCatalogRefreshBridge()
+    if (bridge === undefined) return
+    let alive = true
+    let latestRevision = -1
+    const apply = (snapshot: ShellCatalogRefreshState): void => {
+      if (!alive || !Number.isInteger(snapshot.revision) || snapshot.revision <= latestRevision) return
+      latestRevision = snapshot.revision
+      setShellCatalogRefreshing(snapshot.status === 'loading')
+    }
+    const unsubscribe = bridge.onRefreshState(apply)
+    void bridge.getRefreshState().then(apply).catch(() => undefined)
+    return () => {
+      alive = false
+      unsubscribe()
+    }
+  }, [])
 
   const groups = useMemo(() => orderModelProviders(state.groups), [state.groups])
   const choices = useMemo(() => groups.flatMap(group =>
@@ -139,6 +190,7 @@ export function ModelSelect(
     ], [reasoning, t])
   const { pending } = state
   const busy = pending !== null
+  const catalogRefreshing = shellCatalogRefreshing || state.status === 'loading'
 
   const reload = (): void => {
     lastActionRef.current = 'load'
@@ -395,7 +447,14 @@ export function ModelSelect(
       closeAfterSelection()
       return
     }
-    submit(selection)
+    const modelDefault = choices.find(choice => choice.selection.provider === selection.provider
+      && choice.selection.model === selection.model)?.model.reasoning?.defaultEffort
+    submit({
+      ...selection,
+      ...selection.reasoningEffort === undefined && modelDefault !== undefined
+        ? { reasoningEffort: modelDefault }
+        : {},
+    })
   }
 
   const chooseEffort = (effort: string | undefined): void => {
@@ -452,6 +511,7 @@ export function ModelSelect(
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? `${id}-menu` : undefined}
+        aria-describedby={catalogRefreshing ? `${id}-catalog-refresh-status` : undefined}
         title={triggerLabel}
         aria-busy={busy}
         data-selection-focus={selectionFocus ? '' : undefined}
@@ -472,6 +532,18 @@ export function ModelSelect(
           ? <StateDot state="ongoing" />
           : <IconChevronDownOutlineRegular className={clsx(css.chevron, open && css.chevronOpen)} />}
       </button>
+      {catalogRefreshing && (
+        <span
+          id={`${id}-catalog-refresh-status`}
+          className={css.catalogRefreshStatus}
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <span className={css.catalogRefreshSpinner} aria-hidden="true" />
+          {t('status.catalogRefreshing')}
+        </span>
+      )}
 
       {/* Portaled to body (Menu primitive's portal mode) so the sidebar and
           column overflow clips cannot crop the card; synthetic events still
@@ -563,6 +635,14 @@ export function ModelSelect(
                       {group.models.map((model) => {
                         const index = modelIndex++
                         const selected = state.current?.provider === group.id && state.current.model === model.id
+                        const capacity = [
+                          model.contextWindow === undefined
+                            ? undefined
+                            : t('capacity.context', { tokens: formatContextCapacity(model.contextWindow) }),
+                          model.maxOutputTokens === undefined
+                            ? undefined
+                            : t('capacity.output', { tokens: formatOutputCapacity(model.maxOutputTokens) }),
+                        ].filter((label): label is string => label !== undefined).join(' · ')
                         return (
                           <button
                             ref={itemRef()}
@@ -581,12 +661,13 @@ export function ModelSelect(
                               else itemRefs.current[index]?.focus()
                             }}
                             key={model.id}
-                            title={model.name}
+                            title={capacity.length === 0 ? model.name : `${model.name} · ${capacity}`}
                             disabled={busy}
                             onClick={() => { choose({ provider: group.id, model: model.id }) }}
                           >
                             <span className={css.optionCopy}>
                               <span className={css.modelName}>{model.name}</span>
+                              {capacity.length > 0 && <span className={css.modelCapacity}>{capacity}</span>}
                             </span>
                             <span className={css.check}>
                               {pending?.provider === group.id && pending.model === model.id

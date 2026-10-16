@@ -1,0 +1,600 @@
+diff --git a/vendor/deepseek-harness/packages/api/session-controller/src/catalog.ts b/vendor/deepseek-harness/packages/api/session-controller/src/catalog.ts
+index e584596..866229b 100644
+--- a/vendor/deepseek-harness/packages/api/session-controller/src/catalog.ts
++++ b/vendor/deepseek-harness/packages/api/session-controller/src/catalog.ts
+@@ -46,6 +46,8 @@ export async function buildModelCatalog(
+           id: model.id,
+           name: model.name,
+           ...(model.description === undefined ? {} : { description: model.description }),
++          ...(resolved.context === undefined ? {} : { contextWindow: resolved.context.contextWindow }),
++          ...(resolved.maxOutputTokens === undefined ? {} : { maxOutputTokens: resolved.maxOutputTokens }),
+           ...(reasoning === undefined ? {} : { reasoning }),
+         }
+       }))
+diff --git a/vendor/deepseek-harness/packages/api/session-controller/src/types.ts b/vendor/deepseek-harness/packages/api/session-controller/src/types.ts
+index 5061938..0f0b998 100644
+--- a/vendor/deepseek-harness/packages/api/session-controller/src/types.ts
++++ b/vendor/deepseek-harness/packages/api/session-controller/src/types.ts
+@@ -140,6 +140,10 @@ export interface ModelCatalogModel {
+   readonly id: string
+   readonly name: string
+   readonly description?: string
++  /** Resolved context window for this exact provider/model route. */
++  readonly contextWindow?: number
++  /** Advertised maximum output tokens, when known. */
++  readonly maxOutputTokens?: number
+   readonly reasoning?: ModelReasoning
+ }
+ 
+diff --git a/vendor/deepseek-harness/packages/api/session-controller/tests/session-models.host.spec.ts b/vendor/deepseek-harness/packages/api/session-controller/tests/session-models.host.spec.ts
+index b47fe7b..3ad7aa5 100644
+--- a/vendor/deepseek-harness/packages/api/session-controller/tests/session-models.host.spec.ts
++++ b/vendor/deepseek-harness/packages/api/session-controller/tests/session-models.host.spec.ts
+@@ -486,6 +486,30 @@ describe('Web session model selection', () => {
+     await ctx.fiber.dispose()
+   })
+ 
++  it('preserves resolved per-route context and output capacities in the browser model catalog', async () => {
++    const { ctx } = await harness()
++    ctx.llm.registerAdapter(['capacity'], new class extends CatalogAdapter {
++      override resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
++        return Promise.resolve({
++          provider,
++          id: model,
++          name: 'Large Context Model',
++          context: { contextWindow: 1_048_576 },
++          maxOutputTokens: 393_216,
++        })
++      }
++    }('Capacity', [{ provider: 'capacity', id: 'large-context', name: 'Large Context Model' }]))
++
++    const catalog = await buildModelCatalog(ctx, { provider: 'capacity', model: 'large-context' })
++    expect(catalog.groups.find(group => group.id === 'capacity')?.models).toEqual([{
++      id: 'large-context',
++      name: 'Large Context Model',
++      contextWindow: 1_048_576,
++      maxOutputTokens: 393_216,
++    }])
++    await ctx.fiber.dispose()
++  })
++
+   it('rejects unlisted models and switches available models only after the next assembly', async () => {
+     const { ctx, agent, sessionId } = await harness()
+     const remote = createSessionTestRemote(ctx, { defaultModelSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-chat' }), cwd: '/tmp' })
+diff --git a/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/ModelSelect.module.css b/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/ModelSelect.module.css
+index c4ce491..fd8b514 100644
+--- a/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/ModelSelect.module.css
++++ b/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/ModelSelect.module.css
+@@ -307,6 +307,19 @@
+   white-space: nowrap;
+ }
+ 
++.modelOption {
++  min-height: 44px;
++}
++
++.modelCapacity {
++  overflow: hidden;
++  color: var(--dsw-alias-label-caption);
++  font-size: 11px;
++  line-height: 14px;
++  text-overflow: ellipsis;
++  white-space: nowrap;
++}
++
+ .check {
+   display: grid;
+   place-items: center;
+diff --git a/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/ModelSelect.tsx b/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/ModelSelect.tsx
+index e1eae33..04c3bc3 100644
+--- a/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/ModelSelect.tsx
++++ b/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/ModelSelect.tsx
+@@ -72,6 +72,18 @@ interface EffortChoice {
+   label: string
+ }
+ 
++function formatContextCapacity(tokens: number): string {
++  if (tokens >= 1_000_000) return `${Math.round(tokens / 1_000_000)}M`
++  if (tokens >= 1024) return `${Math.round(tokens / 1024)}K`
++  return String(tokens)
++}
++
++function formatOutputCapacity(tokens: number): string {
++  if (tokens >= 1_000_000) return `${Math.round(tokens / 1_000_000)}M`
++  if (tokens >= 1000) return `${Math.round(tokens / 1000)}K`
++  return String(tokens)
++}
++
+ /** Unplaced portal card: hidden but laid out at a fixed origin so offsetWidth/offsetHeight are real (Menu primitive's measure pass). */
+ const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
+ 
+@@ -435,7 +447,14 @@ export function ModelSelect(
+       closeAfterSelection()
+       return
+     }
+-    submit(selection)
++    const modelDefault = choices.find(choice => choice.selection.provider === selection.provider
++      && choice.selection.model === selection.model)?.model.reasoning?.defaultEffort
++    submit({
++      ...selection,
++      ...selection.reasoningEffort === undefined && modelDefault !== undefined
++        ? { reasoningEffort: modelDefault }
++        : {},
++    })
+   }
+ 
+   const chooseEffort = (effort: string | undefined): void => {
+@@ -616,6 +635,14 @@ export function ModelSelect(
+                       {group.models.map((model) => {
+                         const index = modelIndex++
+                         const selected = state.current?.provider === group.id && state.current.model === model.id
++                        const capacity = [
++                          model.contextWindow === undefined
++                            ? undefined
++                            : t('capacity.context', { tokens: formatContextCapacity(model.contextWindow) }),
++                          model.maxOutputTokens === undefined
++                            ? undefined
++                            : t('capacity.output', { tokens: formatOutputCapacity(model.maxOutputTokens) }),
++                        ].filter((label): label is string => label !== undefined).join(' · ')
+                         return (
+                           <button
+                             ref={itemRef()}
+@@ -634,12 +661,13 @@ export function ModelSelect(
+                               else itemRefs.current[index]?.focus()
+                             }}
+                             key={model.id}
+-                            title={model.name}
++                            title={capacity.length === 0 ? model.name : `${model.name} · ${capacity}`}
+                             disabled={busy}
+                             onClick={() => { choose({ provider: group.id, model: model.id }) }}
+                           >
+                             <span className={css.optionCopy}>
+                               <span className={css.modelName}>{model.name}</span>
++                              {capacity.length > 0 && <span className={css.modelCapacity}>{capacity}</span>}
+                             </span>
+                             <span className={css.check}>
+                               {pending?.provider === group.id && pending.model === model.id
+diff --git a/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/locales.ts b/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/locales.ts
+index 22cb727..c09dd68 100644
+--- a/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/locales.ts
++++ b/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/locales.ts
+@@ -26,6 +26,8 @@ export const zh = {
+   'menu.effort': '推理等级',
+   'menu.thinking': '思考模式',
+   'effort.providerDefault': 'Default',
++  'capacity.context': 'ä¸Šä¸‹æ–‡ {tokens}',
++  'capacity.output': 'æœ€å¤§è¾“å‡º {tokens}',
+   'blocked.noModels': '网关尚未验证任何模型。应用会自动重试；较慢的模型检查可能需要最多两分钟。',
+   'blocked.unavailable': '已保存的模型尚未通过网关验证。请选择列表中的模型以继续。',
+   'blocked.choose': '请选择一个可用模型以继续。',
+@@ -63,6 +65,8 @@ export const en = {
+   'menu.effort': 'Effort',
+   'menu.thinking': 'Thinking',
+   'effort.providerDefault': 'Default',
++  'capacity.context': 'Context {tokens}',
++  'capacity.output': 'Max output {tokens}',
+   'status.loading': 'Refreshing model list…',
+   'status.catalogRefreshing': 'Updating catalog…',
+   'error.action': 'Model operation failed: {message}',
+@@ -96,6 +100,8 @@ export const es = {
+   "menu.effort": "Esfuerzo",
+   "menu.thinking": "Pensamiento",
+   "effort.providerDefault": "Predeterminado",
++  "capacity.context": "Contexto {tokens}",
++  "capacity.output": "Salida máx. {tokens}",
+   "status.loading": "Actualizando lista de modelos…",
+   "status.catalogRefreshing": "Actualizando catálogo…",
+   "error.action": "Error en la operación del modelo: {message}",
+diff --git a/vendor/deepseek-harness/packages/client/ui-model-selection/tests/model-select.client.spec.tsx b/vendor/deepseek-harness/packages/client/ui-model-selection/tests/model-select.client.spec.tsx
+index 44af7d5..a7b63c4 100644
+--- a/vendor/deepseek-harness/packages/client/ui-model-selection/tests/model-select.client.spec.tsx
++++ b/vendor/deepseek-harness/packages/client/ui-model-selection/tests/model-select.client.spec.tsx
+@@ -137,6 +137,55 @@ describe('shell catalog refresh feedback', () => {
+ })
+ 
+ describe('ModelSelect reasoning effort', () => {
++  it('shows per-model context/output capacity and uses that model\'s default effort on switch', async () => {
++    const currentModel = {
++      id: 'deepseek-v4-flash',
++      name: 'DeepSeek-V4-Flash',
++      contextWindow: 1_048_576,
++      maxOutputTokens: 393_216,
++      reasoning: {
++        efforts: [
++          { id: 'off', name: 'Off' },
++          { id: 'low', name: 'Low' },
++          { id: 'medium', name: 'Medium' },
++          { id: 'high', name: 'High' },
++          { id: 'max', name: 'Max' },
++        ],
++        defaultEffort: 'high',
++      },
++    }
++    const nextModel = {
++      id: 'deepseek-v4-pro',
++      name: 'DeepSeek-V4-Pro',
++      contextWindow: 524_288,
++      maxOutputTokens: 196_608,
++      reasoning: {
++        efforts: [{ id: 'low', name: 'Low' }, { id: 'high', name: 'High' }],
++        defaultEffort: 'low',
++      },
++    }
++    const directory = createSnapshotStore<ModelDirectoryState>(state({
++      current: { provider: 'deepseek-free', model: 'deepseek-v4-flash', reasoningEffort: 'high' },
++      groups: [{ id: 'deepseek-free', name: 'DeepSeek', models: [currentModel, nextModel] }],
++    }))
++    const select = vi.fn(async (_selection: ModelSelection) => ({ ok: true as const, value: undefined }))
++    render(<ModelSelect locked={false} available directory={directory} load={vi.fn()} select={select} t={t} />)
++
++    fireEvent.click(screen.getByRole('button', { name: /DeepSeek-V4-Flash/ }))
++    fireEvent.click(screen.getByRole('menuitem', { name: /模型/ }))
++    expect(screen.getByRole('menuitemradio', { name: /DeepSeek-V4-Flash.*1M.*393K/ })).toBeTruthy()
++    const next = screen.getByRole('menuitemradio', { name: /DeepSeek-V4-Pro.*512K.*197K/ })
++    fireEvent.click(next)
++    await waitFor(() => expect(select).toHaveBeenCalledWith({
++      provider: 'deepseek-free', model: 'deepseek-v4-pro', reasoningEffort: 'low',
++    }))
++
++    fireEvent.click(screen.getByRole('button', { name: /DeepSeek-V4-Flash/ }))
++    fireEvent.click(screen.getByRole('menuitem', { name: /推理等级/ }))
++    expect(screen.getAllByRole('menuitemradio').map(item => item.textContent))
++      .toEqual(['Off', 'Low', 'Medium', 'High', 'Max'])
++  })
++
+   it('renders effort names without descriptions and submits the effort as part of the session selection', async () => {
+     const directory = createSnapshotStore<ModelDirectoryState>(state())
+     const select = vi.fn(async (selection: ModelSelection) => {
+diff --git a/vendor/deepseek-harness/packages/llm/llm-pi-ai/README.md b/vendor/deepseek-harness/packages/llm/llm-pi-ai/README.md
+index ea0adbe..b8a38e8 100644
+--- a/vendor/deepseek-harness/packages/llm/llm-pi-ai/README.md
++++ b/vendor/deepseek-harness/packages/llm/llm-pi-ai/README.md
+@@ -100,7 +100,7 @@ A profile's `models` list replaces the route's installed catalog rather than ext
+ 
+ ### Run with reasoning and wire compatibility
+ 
+-`reasoningEfforts` declares a model's selectable thinking levels: each key is a level selectors offer, its value the spelling dispatch sends on the wire, so `max: ultra` renames a level for a gateway with its own vocabulary. Omitting the field keeps the installed catalog entry's capability; `false` declares a non-reasoning model. `compat` switches reshape the request for endpoints pi-ai cannot recognize — which role carries the system prompt, which field caps output, how a thinking level travels — configurable per route and per model. A model neither the entry nor the installed catalog sizes takes the route's `defaultContextWindow` and `defaultMaxTokens` fallbacks.
++`outputMaxTokens` records an endpoint's output capability without silently turning it into a per-request budget; `maxTokens` remains the explicitly chosen request default. `defaultReasoningEffort` is scoped to one model and must be among its supported levels; it takes precedence over the route-level reasoning default. `reasoningEfforts` declares a model's selectable thinking levels: each key is a level selectors offer, its value the spelling dispatch sends on the wire, so `max: ultra` renames a level for a gateway with its own vocabulary. Omitting the field keeps the installed catalog entry's capability; `false` declares a non-reasoning model. `compat` switches reshape the request for endpoints pi-ai cannot recognize — which role carries the system prompt, which field caps output, how a thinking level travels — configurable per route and per model. A model neither the entry nor the installed catalog sizes takes the route's `defaultContextWindow` and `defaultMaxTokens` fallbacks.
+ 
+ For self-hosted Chat Completions endpoints, `thinkingTokenBudgetField` selects the reasoning-budget parameter, and `vllmPriority` sets an integer scheduler priority when the server enables priority scheduling. Template arguments accept `$var: thinking.budget`. `openai-responses` gateways can set `supportsMaxOutputTokens: false` to omit `max_output_tokens`; Azure and Codex transports ignore this shared compatibility field. These controls are opt-in; catalog-owned Anthropic effort and fallback capabilities are not configurable switches.
+ 
+diff --git a/vendor/deepseek-harness/packages/llm/llm-pi-ai/README.zh.md b/vendor/deepseek-harness/packages/llm/llm-pi-ai/README.zh.md
+index 8a72e38..7d57c80 100644
+--- a/vendor/deepseek-harness/packages/llm/llm-pi-ai/README.zh.md
++++ b/vendor/deepseek-harness/packages/llm/llm-pi-ai/README.zh.md
+@@ -100,7 +100,7 @@ profile 的 `models` 列表会替换而非扩展路由的已安装目录；每
+ 
+ ### 带推理（reasoning）与协议兼容运行
+ 
+-`reasoningEfforts` 声明模型可选择的 thinking 等级：每个键都是选择器提供的等级，其值是分派时在协议中发送的拼写，因此 `max: ultra` 可以为拥有自有词汇的网关重命名等级。省略该字段时保留已安装目录条目的能力；`false` 声明非推理模型。对于 pi-ai 无法识别的端点，`compat` 开关重塑请求——哪个角色携带系统提示词、哪个字段限制输出、thinking 等级如何传递——可逐路由、逐模型配置。条目与已安装目录都没有尺寸的模型，会采用路由的 `defaultContextWindow` 与 `defaultMaxTokens` 回退值。
++`outputMaxTokens` 记录端点公布的输出能力，但不会悄悄把它变成每次请求的预算；`maxTokens` 仍表示明确配置的请求默认上限。`defaultReasoningEffort` 属于单个模型，必须是该模型支持的等级，并优先于路由级 reasoning 默认值。`reasoningEfforts` 声明模型可选择的 thinking 等级：每个键都是选择器提供的等级，其值是分派时在协议中发送的拼写，因此 `max: ultra` 可以为拥有自有词汇的网关重命名等级。省略该字段时保留已安装目录条目的能力；`false` 声明非推理模型。对于 pi-ai 无法识别的端点，`compat` 开关重塑请求——哪个角色携带系统提示词、哪个字段限制输出、thinking 等级如何传递——可逐路由、逐模型配置。条目与已安装目录都没有尺寸的模型，会采用路由的 `defaultContextWindow` 与 `defaultMaxTokens` 回退值。
+ 
+ 对于自托管 Chat Completions 端点，`thinkingTokenBudgetField` 选择推理预算参数，`vllmPriority` 在服务端启用优先级调度时设置整数调度优先级。模板参数接受 `$var: thinking.budget`。`openai-responses` 网关可设置 `supportsMaxOutputTokens: false` 来省略 `max_output_tokens`；Azure 与 Codex 传输会忽略这个共享兼容字段。这些控制均需显式启用；目录拥有的 Anthropic effort 和回退能力不是可配置开关。
+ 
+diff --git a/vendor/deepseek-harness/packages/llm/llm-pi-ai/src/adapter.ts b/vendor/deepseek-harness/packages/llm/llm-pi-ai/src/adapter.ts
+index 756749d..55bc080 100644
+--- a/vendor/deepseek-harness/packages/llm/llm-pi-ai/src/adapter.ts
++++ b/vendor/deepseek-harness/packages/llm/llm-pi-ai/src/adapter.ts
+@@ -307,16 +307,21 @@ export class PiAiAdapter extends LlmAdapter {
+   private modelInfo(snapshot: PiAiSnapshot, provider: string, model: string): LlmResolvedModelInfo {
+     const profile = this.profileOf(snapshot, provider)
+     const resolvedModel = this.modelOf(snapshot, provider, model)
+-    const defaultLevel = describableReasoningLevel(resolvedModel, profile.reasoning)
++    const defaultLevel = describableReasoningLevel(
++      resolvedModel,
++      profile.modelDefaultReasoningEfforts.get(model) ?? profile.reasoning,
++    )
+     // Only a cap the deployment configured is a request default; the
+     // catalog's `maxTokens` sizes the model and stops there.
+     const configuredMaxTokens = profile.configuredMaxTokens.get(model)
++    const maxOutputTokens = profile.modelOutputMaxTokens.get(model)
+     return {
+       provider,
+       id: model,
+       name: resolvedModel.name,
+       inputModalities: [...resolvedModel.input],
+       context: { contextWindow: resolvedModel.contextWindow },
++      ...maxOutputTokens === undefined ? {} : { maxOutputTokens },
+       ...configuredMaxTokens === undefined ? {} : { defaultMaxTokens: configuredMaxTokens },
+       ...reasoningInfo(resolvedModel, defaultLevel),
+     }
+diff --git a/vendor/deepseek-harness/packages/llm/llm-pi-ai/src/catalog.ts b/vendor/deepseek-harness/packages/llm/llm-pi-ai/src/catalog.ts
+index a257fee..87b8e01 100644
+--- a/vendor/deepseek-harness/packages/llm/llm-pi-ai/src/catalog.ts
++++ b/vendor/deepseek-harness/packages/llm/llm-pi-ai/src/catalog.ts
+@@ -591,6 +591,8 @@ export interface PiAiModelProfile {
+   name?: string
+   /** Maximum combined request and response context in tokens. */
+   contextWindow?: number
++  /** Provider-advertised output capacity; unlike `maxTokens`, this is not a request default. */
++  outputMaxTokens?: number
+   /**
+    * Maximum output tokens. Configuring one also makes it this model's
+    * per-request default; a value inherited from the installed catalog, or the
+@@ -618,6 +620,8 @@ export interface PiAiModelProfile {
+    * declares the offered levels and their wire spellings.
+    */
+   reasoningEfforts?: false | PiAiReasoningEfforts
++  /** Effort selected when this exact model becomes active, if it supports it. */
++  defaultReasoningEffort?: ModelThinkingLevel
+   /** pi-ai wire-compatibility switches for this model, winning over the route's per field; one its protocol does not declare is refused. */
+   compat?: PiAiCompatProfile
+ }
+@@ -827,6 +831,10 @@ export interface RouteCatalog {
+    * picked, so only an explicit configuration lands here.
+    */
+   configuredMaxTokens: ReadonlyMap<string, number>
++  /** Advertised or explicitly configured output capability by model id. */
++  modelOutputMaxTokens: ReadonlyMap<string, number>
++  /** Model-specific default reasoning efforts, independent of route defaults. */
++  modelDefaultReasoningEfforts: ReadonlyMap<string, ModelThinkingLevel>
+ }
+ 
+ /**
+@@ -892,6 +900,8 @@ export function resolveRouteModels(
+   assertOfferedCompatFields(provider, 'route', request.compat)
+   const seen = new Set<string>()
+   const configuredMaxTokens = new Map<string, number>()
++  const modelOutputMaxTokens = new Map<string, number>()
++  const modelDefaultReasoningEfforts = new Map<string, ModelThinkingLevel>()
+   const resolveEntry = (entry: PiAiModelProfile): Model<Api> => {
+     assertOfferedCompatFields(provider, `model "${entry.id}"`, entry.compat)
+     if (entry.id.length === 0) invalid(provider, 'has a model with an empty id')
+@@ -915,14 +925,16 @@ export function resolveRouteModels(
+     if (!Number.isInteger(contextWindow) || contextWindow <= 0) {
+       invalid(provider, `model "${entry.id}" contextWindow must be a positive integer`)
+     }
+-    const maxTokens = entry.maxTokens ?? base?.maxTokens ?? request.defaultMaxTokens
++    const maxTokens = entry.maxTokens ?? entry.outputMaxTokens ?? base?.maxTokens ?? request.defaultMaxTokens
+     if (!Number.isInteger(maxTokens) || maxTokens <= 0) {
+       invalid(provider, `model "${entry.id}" maxTokens must be a positive integer`)
+     }
+     // Only a value the profile named is a deployment choice; the catalog's is
+     // the model's capability and stays out of request defaults.
+     if (entry.maxTokens !== undefined) configuredMaxTokens.set(entry.id, entry.maxTokens)
+-    return {
++    const outputCapability = entry.outputMaxTokens ?? entry.maxTokens ?? base?.maxTokens
++    if (outputCapability !== undefined) modelOutputMaxTokens.set(entry.id, outputCapability)
++    const model: Model<Api> = {
+       // The installed entry lays the floor, and the fields below override it.
+       // Enumerating instead would silently drop every `Model` field this
+       // package does not model — reasoning-level spellings, compatibility
+@@ -941,6 +953,13 @@ export function resolveRouteModels(
+       ...resolveModelReasoning(provider, entry, base),
+       ...resolveModelCompat(provider, entry, request.compat, base, api),
+     }
++    if (entry.defaultReasoningEffort !== undefined) {
++      if (!supportsModelThinkingLevel(model, entry.defaultReasoningEffort)) {
++        invalid(provider, `model "${entry.id}" defaultReasoningEffort "${entry.defaultReasoningEffort}" is not supported`)
++      }
++      modelDefaultReasoningEfforts.set(entry.id, entry.defaultReasoningEffort)
++    }
++    return model
+   }
+   const models: Model<Api>[] = []
+   for (const entry of entries) {
+@@ -966,5 +985,12 @@ export function resolveRouteModels(
+     invalid(provider, `sets compat "${field}", but no model on the route speaks a protocol that takes it;`
+       + ` it exists on ${takers.join(', ')}`)
+   }
+-  return { models: serviceableModels, configuredMaxTokens, modelErrors }
++  return { models: serviceableModels, configuredMaxTokens, modelOutputMaxTokens, modelDefaultReasoningEfforts, modelErrors }
++}
++
++function supportsModelThinkingLevel(model: Model<Api>, level: ModelThinkingLevel): boolean {
++  if (!model.reasoning) return false
++  const mapped = model.thinkingLevelMap?.[level]
++  if (mapped === null) return false
++  return level !== 'xhigh' && level !== 'max' || mapped !== undefined
+ }
+diff --git a/vendor/deepseek-harness/packages/llm/llm-pi-ai/src/config.ts b/vendor/deepseek-harness/packages/llm/llm-pi-ai/src/config.ts
+index b07cd57..4ae659d 100644
+--- a/vendor/deepseek-harness/packages/llm/llm-pi-ai/src/config.ts
++++ b/vendor/deepseek-harness/packages/llm/llm-pi-ai/src/config.ts
+@@ -216,6 +216,10 @@ export interface ResolvedPiAiProviderProfile
+    * own, so a catalog capability must not appear here.
+    */
+   configuredMaxTokens: ReadonlyMap<string, number>
++  /** Advertised or explicitly configured output capability by model id. */
++  modelOutputMaxTokens: ReadonlyMap<string, number>
++  /** Per-model reasoning defaults; route-level `reasoning` remains the fallback. */
++  modelDefaultReasoningEfforts: ReadonlyMap<string, ModelThinkingLevel>
+ }
+ 
+ /** Plugin configuration: the provider routes this instance owns. */
+@@ -304,6 +308,7 @@ const modelFields = {
+   name: z.string(),
+   contextWindow: z.number().step(1).min(1),
+   maxTokens: z.number().step(1).min(1),
++  outputMaxTokens: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER),
+   // No explicit default, unlike the route's `defaultInput`: schemastery
+   // materializes `[]` for an absent array, and resolution reads that as "no
+   // answer here" so the catalog entry below still applies.
+@@ -312,6 +317,7 @@ const modelFields = {
+   // `{}`, and absent must stay distinguishable — it means "inherit the
+   // installed catalog's capability", while `false` disables reasoning.
+   reasoningEfforts: z.union([z.const(false), reasoningEfforts]),
++  defaultReasoningEffort: z.union(THINKING_LEVELS),
+   compat: compatProfile,
+ }
+ 
+@@ -501,6 +507,8 @@ export function resolveProfiles(
+       ...rest.headers === undefined ? {} : { headers: { ...rest.headers } },
+       ...rest.thinkingBudgets === undefined ? {} : { thinkingBudgets: { ...rest.thinkingBudgets } },
+       configuredMaxTokens: catalog?.configuredMaxTokens ?? new Map(),
++      modelOutputMaxTokens: catalog?.modelOutputMaxTokens ?? new Map(),
++      modelDefaultReasoningEfforts: catalog?.modelDefaultReasoningEfforts ?? new Map(),
+       modelErrors: catalog?.modelErrors ?? new Map(),
+       ...piProvider === undefined ? {} : { piProvider },
+       ...catalogError === undefined ? {} : { catalogError },
+diff --git a/vendor/deepseek-harness/packages/llm/llm-pi-ai/tests/catalog.spec.ts b/vendor/deepseek-harness/packages/llm/llm-pi-ai/tests/catalog.spec.ts
+index e6f5330..36c66a9 100644
+--- a/vendor/deepseek-harness/packages/llm/llm-pi-ai/tests/catalog.spec.ts
++++ b/vendor/deepseek-harness/packages/llm/llm-pi-ai/tests/catalog.spec.ts
+@@ -490,6 +490,31 @@ describe('catalog routes with per-model configuration', () => {
+     expect((await ctx.llm.resolveModelInfo('deepseek', catalogModel.id)).defaultMaxTokens).toBe(4096)
+   })
+ 
++  it('keeps a declared output capability separate from request defaults and preserves the model effort default', async () => {
++    const server = await mockServer([])
++    const ctx = await harness({
++      providers: {
++        'acme-gateway': {
++          api: 'openai-completions',
++          baseURL: server.url,
++          models: [{
++            id: 'acme-reasoner',
++            contextWindow: 1_048_576,
++            outputMaxTokens: 393_216,
++            reasoningEfforts: { off: null, low: 'low', high: 'high' },
++            defaultReasoningEffort: 'high',
++          }],
++        },
++      },
++    })
++
++    const info = await ctx.llm.resolveModelInfo('acme-gateway', 'acme-reasoner')
++    expect(info.context).toEqual({ contextWindow: 1_048_576 })
++    expect(info.maxOutputTokens).toBe(393_216)
++    expect(info.defaultMaxTokens).toBeUndefined()
++    expect(info.reasoning?.defaultEffort).toBe(ReasoningEffortId('high'))
++  })
++
+   it('adds a model the installed catalog does not describe to a catalog route', async () => {
+     const server = await mockServer([{ events: textEvents }])
+     const ctx = await harness({
+@@ -722,6 +747,14 @@ describe('per-model reasoning efforts', () => {
+     expect(declare({ high: null })).toThrow(/only "off" may leave it empty/)
+     expect(declare({ high: '' })).toThrow(/must not be an empty string/)
+   })
++
++  it('rejects a per-model default effort that the declared model does not support', () => {
++    expect(() => resolveProfiles(declared([{
++      id: 'acme-think',
++      reasoningEfforts: { low: 'low' },
++      defaultReasoningEffort: 'high',
++    }]))).toThrow(/defaultReasoningEffort.*not supported/)
++  })
+ })
+ 
+ describe('modelOverrides', () => {
+diff --git a/vendor/deepseek-harness/packages/llm/llm/src/index.ts b/vendor/deepseek-harness/packages/llm/llm/src/index.ts
+index 8023826..c146905 100644
+--- a/vendor/deepseek-harness/packages/llm/llm/src/index.ts
++++ b/vendor/deepseek-harness/packages/llm/llm/src/index.ts
+@@ -770,7 +770,7 @@ export class LlmRuntime extends TypertRemoteService {
+       )
+     }
+     const context = resolved.context
+-    if (context !== undefined && (!Number.isInteger(context.contextWindow) || context.contextWindow <= 0)) {
++    if (context !== undefined && (!Number.isSafeInteger(context.contextWindow) || context.contextWindow <= 0)) {
+       throw new LlmError(
+         `adapter returned invalid context metadata for provider "${provider}" model "${model}"`,
+         'INVALID_MODEL_CONTEXT',
+@@ -803,6 +803,14 @@ export class LlmRuntime extends TypertRemoteService {
+         'INVALID_MODEL_MAX_TOKENS',
+       )
+     }
++    const maxOutputTokens = resolved.maxOutputTokens
++    if (maxOutputTokens !== undefined
++      && (!Number.isSafeInteger(maxOutputTokens) || maxOutputTokens <= 0)) {
++      throw new LlmError(
++        `adapter returned invalid output capability for provider "${provider}" model "${model}"`,
++        'INVALID_MODEL_MAX_OUTPUT_TOKENS',
++      )
++    }
+     const info: LlmResolvedModelInfo = {
+       provider,
+       id: model,
+@@ -810,6 +818,7 @@ export class LlmRuntime extends TypertRemoteService {
+       ...resolved.description === undefined ? {} : { description: resolved.description },
+       ...inputModalities === undefined ? {} : { inputModalities },
+       ...context === undefined ? {} : { context: { contextWindow: context.contextWindow } },
++      ...maxOutputTokens === undefined ? {} : { maxOutputTokens },
+       ...defaultMaxTokens === undefined ? {} : { defaultMaxTokens },
+       ...resolved.systemPromptUpdate === undefined ? {} : { systemPromptUpdate: resolved.systemPromptUpdate },
+       ...resolved.toolUpdate === undefined ? {} : { toolUpdate: resolved.toolUpdate },
+diff --git a/vendor/deepseek-harness/packages/llm/llm/src/types.ts b/vendor/deepseek-harness/packages/llm/llm/src/types.ts
+index e3f0bf4..da70ba7 100644
+--- a/vendor/deepseek-harness/packages/llm/llm/src/types.ts
++++ b/vendor/deepseek-harness/packages/llm/llm/src/types.ts
+@@ -416,6 +416,8 @@ export type ToolUpdate = 'in-history' | 'addition-only'
+ export interface LlmResolvedModelInfo extends LlmModelInfo {
+   /** Provider-owned context capacity when known. */
+   context?: LlmModelContext
++  /** Provider-advertised output capacity, distinct from a deployment request default. */
++  maxOutputTokens?: number
+   /** Adapter-configured per-request output cap materialized when callers omit one. */
+   defaultMaxTokens?: number
+   /** Adapter-owned selectable reasoning levels when exposed. */
+diff --git a/vendor/deepseek-harness/packages/llm/llm/tests/service.spec.ts b/vendor/deepseek-harness/packages/llm/llm/tests/service.spec.ts
+index 37a6509..921a819 100644
+--- a/vendor/deepseek-harness/packages/llm/llm/tests/service.spec.ts
++++ b/vendor/deepseek-harness/packages/llm/llm/tests/service.spec.ts
+@@ -74,6 +74,7 @@ class CatalogAdapter extends ScriptedAdapter {
+     private readonly reasoning: Readonly<Record<string, LlmModelReasoningInfo>> = {},
+     private readonly defaultMaxTokens: Readonly<Record<string, number>> = {},
+     private readonly systemPromptUpdate: Readonly<Record<string, string>> = {},
++    private readonly maxOutputTokens: Readonly<Record<string, number>> = {},
+   ) {
+     super(SCRIPT)
+   }
+@@ -97,6 +98,7 @@ class CatalogAdapter extends ScriptedAdapter {
+       ...this.contexts[model] === undefined ? {} : { context: this.contexts[model] },
+       ...this.reasoning[model] === undefined ? {} : { reasoning: this.reasoning[model] },
+       ...this.defaultMaxTokens[model] === undefined ? {} : { defaultMaxTokens: this.defaultMaxTokens[model] },
++      ...this.maxOutputTokens[model] === undefined ? {} : { maxOutputTokens: this.maxOutputTokens[model] },
+       ...this.systemPromptUpdate[model] === undefined
+         ? {}
+         : { systemPromptUpdate: this.systemPromptUpdate[model] as SystemPromptUpdate },
+@@ -1210,7 +1212,7 @@ describe('LlmRuntime', () => {
+     await expect(resolving).rejects.toBe(reason)
+   })
+ 
+-  it.each([0, -1, 1.5, Number.NaN])(
++  it.each([0, -1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1])(
+     'rejects invalid adapter model context %s',
+     async (contextWindow) => {
+       const ctx = new Context()
+@@ -1225,6 +1227,41 @@ describe('LlmRuntime', () => {
+     },
+   )
+ 
++  it.each([0, -1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1])(
++    'rejects invalid adapter output capability %s',
++    async (maxOutputTokens) => {
++      const ctx = new Context()
++      await ctx.plugin(LlmRuntime)
++      ctx.llm.registerAdapter(['route'], new CatalogAdapter(
++        { id: 'route', name: 'Route' },
++        [],
++        {},
++        {},
++        {},
++        {},
++        { model: maxOutputTokens },
++      ))
++      await expect(ctx.llm.resolveModelInfo('route', 'model'))
++        .rejects.toMatchObject({ code: 'INVALID_MODEL_MAX_OUTPUT_TOKENS' })
++    },
++  )
++
++  it('retains a valid adapter output capability on resolved model metadata', async () => {
++    const ctx = new Context()
++    await ctx.plugin(LlmRuntime)
++    ctx.llm.registerAdapter(['route'], new CatalogAdapter(
++      { id: 'route', name: 'Route' },
++      [],
++      {},
++      {},
++      {},
++      {},
++      { model: 393_216 },
++    ))
++    await expect(ctx.llm.resolveModelInfo('route', 'model'))
++      .resolves.toMatchObject({ maxOutputTokens: 393_216 })
++  })
++
+   it('captures a declared in-history system prompt update mode and rejects any other mode', async () => {
+     const ctx = new Context()
+     await ctx.plugin(LlmRuntime)

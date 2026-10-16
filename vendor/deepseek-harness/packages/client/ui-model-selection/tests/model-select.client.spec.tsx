@@ -8,7 +8,7 @@ import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { ComponentProps } from 'react'
 import type { ModelDirectoryState } from '../src/client/directory.ts'
 import { ModelSelect } from '../src/client/ModelSelect.tsx'
-import { en, zh } from '../src/client/locales.ts'
+import { en, es, zh } from '../src/client/locales.ts'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 
 // The seat's key domain is model ∪ common; the stub mirrors the real lookup
@@ -76,7 +76,116 @@ beforeEach(() => {
 
 afterEach(cleanup)
 
+describe('shell catalog refresh feedback', () => {
+  it('shows a localized progress status, ignores a stale snapshot, and clears on completion', async () => {
+    type RefreshSnapshot = { revision: number; status: 'idle' | 'loading'; startedAt: number | null }
+    let resolveSnapshot!: (snapshot: RefreshSnapshot) => void
+    let publish: ((snapshot: RefreshSnapshot) => void) | undefined
+    const unsubscribe = vi.fn()
+    const snapshot = new Promise<RefreshSnapshot>(resolve => { resolveSnapshot = resolve })
+    const bridge = {
+      getRefreshState: vi.fn(() => snapshot),
+      onRefreshState: vi.fn((callback: (value: RefreshSnapshot) => void) => {
+        publish = callback
+        return unsubscribe
+      }),
+    }
+    const previous = Object.getOwnPropertyDescriptor(window, 'freecode')
+    Object.defineProperty(window, 'freecode', { configurable: true, value: { models: bridge } })
+    onTestFinished(() => {
+      if (previous === undefined) Reflect.deleteProperty(window, 'freecode')
+      else Object.defineProperty(window, 'freecode', previous)
+    })
+    const esT: ComponentProps<typeof ModelSelect>['t'] = (key, params) => {
+      const template = (es as Record<string, string>)[key] ?? key
+      return params === undefined
+        ? template
+        : template.replace(/\{(\w+)\}/g, (match, name: string) => name in params ? String(params[name]) : match)
+    }
+
+    const { unmount } = render(<ModelSelect
+      locked={false}
+      available
+      directory={createSnapshotStore(state())}
+      load={vi.fn()}
+      select={vi.fn().mockResolvedValue({ ok: true, value: undefined })}
+      t={esT}
+    />)
+
+    await waitFor(() => {
+      expect(bridge.getRefreshState).toHaveBeenCalledOnce()
+      expect(bridge.onRefreshState).toHaveBeenCalledOnce()
+    })
+    act(() => publish?.({ revision: 2, status: 'loading', startedAt: 100 }))
+    await act(async () => {
+      resolveSnapshot({ revision: 1, status: 'idle', startedAt: null })
+      await snapshot
+    })
+
+    const progress = screen.getByRole('status')
+    expect(progress.textContent).toContain('Actualizando catálogo')
+    expect(progress.getAttribute('aria-live')).toBe('polite')
+    const trigger = screen.getByRole('button', { name: /DeepSeek-V4-Flash/ })
+    expect(trigger.getAttribute('aria-describedby')).toBe(progress.id)
+
+    act(() => publish?.({ revision: 3, status: 'idle', startedAt: null }))
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(trigger.getAttribute('aria-describedby')).toBeNull()
+    unmount()
+    expect(unsubscribe).toHaveBeenCalledOnce()
+  })
+})
+
 describe('ModelSelect reasoning effort', () => {
+  it('shows per-model context/output capacity and uses that model\'s default effort on switch', async () => {
+    const currentModel = {
+      id: 'deepseek-v4-flash',
+      name: 'DeepSeek-V4-Flash',
+      contextWindow: 1_048_576,
+      maxOutputTokens: 393_216,
+      reasoning: {
+        efforts: [
+          { id: 'off', name: 'Off' },
+          { id: 'low', name: 'Low' },
+          { id: 'medium', name: 'Medium' },
+          { id: 'high', name: 'High' },
+          { id: 'max', name: 'Max' },
+        ],
+        defaultEffort: 'high',
+      },
+    }
+    const nextModel = {
+      id: 'deepseek-v4-pro',
+      name: 'DeepSeek-V4-Pro',
+      contextWindow: 524_288,
+      maxOutputTokens: 196_608,
+      reasoning: {
+        efforts: [{ id: 'low', name: 'Low' }, { id: 'high', name: 'High' }],
+        defaultEffort: 'low',
+      },
+    }
+    const directory = createSnapshotStore<ModelDirectoryState>(state({
+      current: { provider: 'deepseek-free', model: 'deepseek-v4-flash', reasoningEffort: 'high' },
+      groups: [{ id: 'deepseek-free', name: 'DeepSeek', models: [currentModel, nextModel] }],
+    }))
+    const select = vi.fn(async (_selection: ModelSelection) => ({ ok: true as const, value: undefined }))
+    render(<ModelSelect locked={false} available directory={directory} load={vi.fn()} select={select} t={t} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /DeepSeek-V4-Flash/ }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /模型/ }))
+    expect(screen.getByRole('menuitemradio', { name: /DeepSeek-V4-Flash.*1M.*393K/ })).toBeTruthy()
+    const next = screen.getByRole('menuitemradio', { name: /DeepSeek-V4-Pro.*512K.*197K/ })
+    fireEvent.click(next)
+    await waitFor(() => expect(select).toHaveBeenCalledWith({
+      provider: 'deepseek-free', model: 'deepseek-v4-pro', reasoningEffort: 'low',
+    }))
+
+    fireEvent.click(screen.getByRole('button', { name: /DeepSeek-V4-Flash/ }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /推理等级/ }))
+    expect(screen.getAllByRole('menuitemradio').map(item => item.textContent))
+      .toEqual(['Off', 'Low', 'Medium', 'High', 'Max'])
+  })
+
   it('renders effort names without descriptions and submits the effort as part of the session selection', async () => {
     const directory = createSnapshotStore<ModelDirectoryState>(state())
     const select = vi.fn(async (selection: ModelSelection) => {

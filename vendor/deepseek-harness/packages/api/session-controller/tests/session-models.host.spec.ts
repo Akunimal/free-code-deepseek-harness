@@ -486,6 +486,30 @@ describe('Web session model selection', () => {
     await ctx.fiber.dispose()
   })
 
+  it('preserves resolved per-route context and output capacities in the browser model catalog', async () => {
+    const { ctx } = await harness()
+    ctx.llm.registerAdapter(['capacity'], new class extends CatalogAdapter {
+      override resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
+        return Promise.resolve({
+          provider,
+          id: model,
+          name: 'Large Context Model',
+          context: { contextWindow: 1_048_576 },
+          maxOutputTokens: 393_216,
+        })
+      }
+    }('Capacity', [{ provider: 'capacity', id: 'large-context', name: 'Large Context Model' }]))
+
+    const catalog = await buildModelCatalog(ctx, { provider: 'capacity', model: 'large-context' })
+    expect(catalog.groups.find(group => group.id === 'capacity')?.models).toEqual([{
+      id: 'large-context',
+      name: 'Large Context Model',
+      contextWindow: 1_048_576,
+      maxOutputTokens: 393_216,
+    }])
+    await ctx.fiber.dispose()
+  })
+
   it('rejects unlisted models and switches available models only after the next assembly', async () => {
     const { ctx, agent, sessionId } = await harness()
     const remote = createSessionTestRemote(ctx, { defaultModelSelection: () => ({ provider: 'deepseek-official', model: 'deepseek-chat' }), cwd: '/tmp' })

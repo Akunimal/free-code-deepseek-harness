@@ -1,6 +1,11 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { compatForModel, reasoningEffortsForModelWithHint } from './reasoning-policy.js';
+import {
+  compatForModel,
+  reasoningEffortsForModelWithHint,
+  type ModelReasoningEfforts,
+  type ModelReasoningLevel,
+} from './reasoning-policy.js';
 import { readHarnessSettings, writeHarnessSettings } from './harness-settings.js';
 
 /**
@@ -12,6 +17,11 @@ import { readHarnessSettings, writeHarnessSettings } from './harness-settings.js
 
 export interface CatalogModel {
   id: string;
+  contextWindow?: number;
+  maxOutputTokens?: number;
+  reasoning?: boolean;
+  reasoningEfforts?: ModelReasoningEfforts;
+  defaultReasoningEffort?: ModelReasoningLevel;
   responds: boolean;
   latencyMs: number | null;
   lastSeen: number;
@@ -108,6 +118,24 @@ const CATALOG_FILE = 'model-catalog.json';
 // user's selector while an in-flight request is still viable.
 const PROBE_TIMEOUT_MS = 120_000;
 const FREE_PROVIDER = 'deepseek-free';
+const REASONING_LEVELS = new Set<ModelReasoningLevel>(['minimal', 'low', 'medium', 'high', 'xhigh', 'max']);
+const DEEPSEEK_V4_CAPABILITIES: ListedModel = {
+  id: '',
+  contextWindow: 1_048_576,
+  maxOutputTokens: 393_216,
+  reasoning: true,
+  reasoningEfforts: { off: null, low: 'low', high: 'high', max: 'max' },
+  defaultReasoningEffort: 'high',
+};
+
+interface ListedModel {
+  id: string;
+  contextWindow?: number;
+  maxOutputTokens?: number;
+  reasoning?: boolean;
+  reasoningEfforts?: ModelReasoningEfforts;
+  defaultReasoningEffort?: ModelReasoningLevel;
+}
 
 export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog> {
   const timeoutMs = cfg.probeTimeoutMs ?? PROBE_TIMEOUT_MS;
@@ -132,19 +160,22 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
   // unverified or protocol-rejected route slip through while a slow probe is
   // still running. A slow model may take up to two minutes, so keep the UI in
   // its explicit "checking"/blocked state until the 200-only result is ready.
+  const cachedCapabilities = loadGatewayModelCapabilities(cfg.userDataDir);
   const listings = await Promise.all(targets.map(async (target, index) => {
-    if (index === 0 && cfg.primaryUnavailable) return { target, ids: [] as string[] };
+    if (index === 0 && cfg.primaryUnavailable) return { target, ids: [] as ListedModel[] };
     try {
-      return { target, ids: await listModelIds(target, timeoutMs) };
+      const listed = await listModelIds(target, timeoutMs);
+      return {
+        target,
+        ids: listed.map(model => mergeModelCapabilities(model, cachedCapabilities?.get(model.id))),
+      };
     } catch (error) {
       // The required primary catalog keeps its historical failure contract.
       // An optional provider can be offline without failing the primary list.
       if (index === 0) throw error;
-      return { target, ids: [] as string[], listFailed: true as const };
+      return { target, ids: [] as ListedModel[], listFailed: true as const };
     }
   }));
-
-  const reasoningHints = loadGatewayReasoningFlags(cfg.userDataDir);
 
   // Keep optional-provider failures isolated and probe route IDs in parallel.
   const results = await Promise.all(listings.map(async (listing, index) => {
@@ -198,7 +229,7 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
   const section = settings['llm-pi-ai'] ?? (settings['llm-pi-ai'] = {});
   const providers = section.providers ?? (section.providers = {});
   for (const { target, entries } of results) {
-    syncProviderModels(providers, target, entries, reasoningHints);
+    syncProviderModels(providers, target, entries);
   }
   const responders = results.find(({ target }) => target.provider === FREE_PROVIDER)?.entries
     .filter(model => model.responds).map(model => model.id) ?? [];
@@ -216,7 +247,7 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
   return catalog;
 }
 
-async function listModelIds(target: ProviderRefreshTarget, timeoutMs: number): Promise<string[]> {
+async function listModelIds(target: ProviderRefreshTarget, timeoutMs: number): Promise<ListedModel[]> {
   const url = endpointUrl(target.baseUrl, '/models');
   let response: Response;
   try {
@@ -228,30 +259,68 @@ async function listModelIds(target: ProviderRefreshTarget, timeoutMs: number): P
     throw new ModelRefreshError('CATALOG_UNAVAILABLE', 'models catalog request failed', { cause: error });
   }
   if (response.status !== 200) throw new ModelRefreshError('CATALOG_UNAVAILABLE', `models list failed: ${response.status}`);
-  const modelsBody = (await response.json()) as { data?: unknown };
-  if (!Array.isArray(modelsBody.data)) {
+  const modelsBody: unknown = await response.json();
+  const data = asRecord(modelsBody)?.data;
+  if (!Array.isArray(data)) {
     throw new ModelRefreshError('CATALOG_UNAVAILABLE', 'models catalog returned an invalid data list');
   }
-  const ids = modelsBody.data
-    .map((model) => (model && typeof model === 'object' && typeof (model as { id?: unknown }).id === 'string'
-      ? (model as { id: string }).id
-      : null))
-    .filter((id): id is string => id !== null);
-  if (ids.length === 0 && !target.strictResponders) {
+  const models = data.flatMap((item): ListedModel[] => {
+    const record = asRecord(item);
+    if (record === undefined) return [];
+    const id = record.id;
+    if (typeof id !== 'string' || id.trim().length === 0) return [];
+    const metadata = asRecord(record.metadata);
+    const compat = asRecord(record.compat);
+    const efforts = parseReasoningEfforts(
+      record.reasoning_efforts,
+      metadata?.reasoning_efforts,
+      compat?.supportedReasoningEfforts,
+    );
+    const reasoning = typeof record.reasoning === 'boolean'
+      ? record.reasoning
+      : typeof metadata?.reasoning === 'boolean' ? metadata.reasoning : undefined;
+    const defaultEffort = parseReasoningLevel(
+      record.default_reasoning_effort,
+      metadata?.default_reasoning_effort,
+      compat?.defaultReasoningEffort,
+    );
+    const contextWindow = positiveSafeInteger(
+      record.context_window,
+      record.context_length,
+      metadata?.context_window,
+      metadata?.context_length,
+    );
+    const maxOutputTokens = positiveSafeInteger(
+      record.max_output,
+      record.max_output_tokens,
+      metadata?.max_output,
+      metadata?.max_output_tokens,
+    );
+    return [{
+      id,
+      ...(contextWindow === undefined ? {} : { contextWindow }),
+      ...(maxOutputTokens === undefined ? {} : { maxOutputTokens }),
+      ...(reasoning === undefined ? {} : { reasoning }),
+      ...(efforts === undefined ? {} : { reasoningEfforts: efforts }),
+      ...(defaultEffort === undefined ? {} : { defaultReasoningEffort: defaultEffort }),
+    }];
+  });
+  if (models.length === 0 && !target.strictResponders) {
     throw new ModelRefreshError('CATALOG_UNAVAILABLE', 'models catalog returned no models');
   }
-  return target.exactModelIds ? ids.filter(id => target.exactModelIds!.includes(id)) : ids;
+  return target.exactModelIds ? models.filter(model => target.exactModelIds!.includes(model.id)) : models;
 }
 
 async function probeModels(
   target: ProviderRefreshTarget,
-  ids: readonly string[],
+  ids: readonly ListedModel[],
   timeoutMs: number,
 ): Promise<CatalogModel[]> {
   if (target.probeModels === false && !target.strictResponders) {
-    return ids.map((id) => ({ id, responds: true, latencyMs: null, lastSeen: nowSeconds() }));
+    return ids.map(model => ({ ...model, responds: true, latencyMs: null, lastSeen: nowSeconds() }));
   }
-  return Promise.all(ids.map(async (id) => {
+  return Promise.all(ids.map(async (model) => {
+    const { id } = model;
     const started = Date.now();
     let responds = false;
     let latencyMs: number | null = null;
@@ -291,6 +360,7 @@ async function probeModels(
       failureKind = 'transport';
     }
     return {
+      ...model,
       id,
       responds,
       latencyMs,
@@ -332,26 +402,43 @@ function readLastKnownGoodByProvider(userDataDir: string): Record<string, string
 }
 
 /**
- * Best-effort read of the gateway-advertised per-model `reasoning` flags.
+ * Best-effort read of the gateway-advertised per-model capabilities.
  * The opencode2api gateway persists its served-model metadata next to its
  * config (`<userDataDir>/opencode2api/config.json.models.catalog.json`,
  * `metadata.zen` / `metadata.go` maps). Absent/unparseable files yield null
  * and the name-only policy applies. Never throws.
  */
-export function loadGatewayReasoningFlags(userDataDir: string): Map<string, boolean> | null {
+export function loadGatewayModelCapabilities(userDataDir: string): Map<string, ListedModel> | null {
   try {
     const raw = readFileSync(join(userDataDir, 'opencode2api', 'config.json.models.catalog.json'), 'utf8');
     const parsed: unknown = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return null;
     const metadata = (parsed as { metadata?: unknown }).metadata;
     if (!metadata || typeof metadata !== 'object') return null;
-    const out = new Map<string, boolean>();
+    const out = new Map<string, ListedModel>();
     for (const lane of Object.values(metadata as Record<string, unknown>)) {
       if (!lane || typeof lane !== 'object') continue;
       for (const [id, info] of Object.entries(lane as Record<string, unknown>)) {
-        if (info && typeof info === 'object' && (info as { reasoning?: unknown }).reasoning === true) {
-          out.set(id, true);
-        }
+        const record = asRecord(info);
+        if (record === undefined) continue;
+        const contextWindow = positiveSafeInteger(record.context_window, record.contextWindow);
+        const maxOutputTokens = positiveSafeInteger(record.max_output, record.maxOutputTokens);
+        const reasoning = typeof record.reasoning === 'boolean' ? record.reasoning : undefined;
+        const reasoningEfforts = parseReasoningEfforts(record.reasoning_efforts, record.reasoningEfforts);
+        const defaultReasoningEffort = parseReasoningLevel(
+          record.default_reasoning_effort,
+          record.defaultReasoningEffort,
+        );
+        if (contextWindow === undefined && maxOutputTokens === undefined && reasoning === undefined
+          && reasoningEfforts === undefined && defaultReasoningEffort === undefined) continue;
+        out.set(id, {
+          id,
+          ...(contextWindow === undefined ? {} : { contextWindow }),
+          ...(maxOutputTokens === undefined ? {} : { maxOutputTokens }),
+          ...(reasoning === undefined ? {} : { reasoning }),
+          ...(reasoningEfforts === undefined ? {} : { reasoningEfforts }),
+          ...(defaultReasoningEffort === undefined ? {} : { defaultReasoningEffort }),
+        });
       }
     }
     return out;
@@ -360,11 +447,69 @@ export function loadGatewayReasoningFlags(userDataDir: string): Map<string, bool
   }
 }
 
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
+function positiveSafeInteger(...values: unknown[]): number | undefined {
+  return values.find((value): value is number => Number.isSafeInteger(value) && (value as number) > 0);
+}
+
+function parseReasoningLevel(...values: unknown[]): ModelReasoningLevel | undefined {
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+    const level = value.trim().toLowerCase() as ModelReasoningLevel;
+    if (REASONING_LEVELS.has(level)) return level;
+  }
+  return undefined;
+}
+
+function parseReasoningEfforts(...values: unknown[]): ModelReasoningEfforts | undefined {
+  const declared = values.find(Array.isArray);
+  if (!Array.isArray(declared)) return undefined;
+  const levels = new Set<ModelReasoningLevel>();
+  for (const value of declared) {
+    const level = parseReasoningLevel(value);
+    if (level !== undefined) levels.add(level);
+  }
+  if (levels.size === 0) return false;
+  return {
+    off: null,
+    ...Object.fromEntries([...levels].map(level => [level, level])),
+  } as ModelReasoningEfforts;
+}
+
+function mergeModelCapabilities(model: ListedModel, cached?: ListedModel): ListedModel {
+  const explicitNonReasoning = model.reasoning === false || cached?.reasoning === false;
+  const useDeepSeekV4Defaults = isDeepSeekV4Model(model.id) && !explicitNonReasoning;
+  const fallback = useDeepSeekV4Defaults ? DEEPSEEK_V4_CAPABILITIES : undefined;
+  const contextWindow = model.contextWindow ?? cached?.contextWindow ?? fallback?.contextWindow;
+  const maxOutputTokens = model.maxOutputTokens ?? cached?.maxOutputTokens ?? fallback?.maxOutputTokens;
+  const reasoning = model.reasoning ?? cached?.reasoning ?? fallback?.reasoning;
+  const reasoningEfforts = model.reasoningEfforts ?? cached?.reasoningEfforts ?? fallback?.reasoningEfforts;
+  const defaultReasoningEffort = model.defaultReasoningEffort
+    ?? cached?.defaultReasoningEffort
+    ?? fallback?.defaultReasoningEffort;
+  return {
+    id: model.id,
+    ...(contextWindow === undefined ? {} : { contextWindow }),
+    ...(maxOutputTokens === undefined ? {} : { maxOutputTokens }),
+    ...(reasoning === undefined ? {} : { reasoning }),
+    ...(reasoningEfforts === undefined ? {} : { reasoningEfforts }),
+    ...(defaultReasoningEffort === undefined ? {} : { defaultReasoningEffort }),
+  };
+}
+
+function isDeepSeekV4Model(id: string): boolean {
+  return /^deepseek-v4(?:[.-]|$)/i.test(id);
+}
+
 function syncProviderModels(
   providers: Record<string, Record<string, any>>,
   target: ProviderRefreshTarget,
   entries: CatalogModel[],
-  reasoningHints: Map<string, boolean> | null = null,
 ): void {
   const provider = providers[target.provider] ?? (providers[target.provider] = {
     ...(target.provider === FREE_PROVIDER ? { displayName: 'OpenCode Free' } : {}),
@@ -403,7 +548,7 @@ function syncProviderModels(
       ...lastKnownGood.filter((model) => !responderIds.has(model.id)),
       ...advertisedFallbacks.filter((model) => !responderIds.has(model.id)),
     ]
-      .map((model) => modelSettingsForModel(model.id, reasoningHints?.get(model.id)));
+      .map(model => modelSettingsForModel(model));
     return;
   }
 
@@ -411,7 +556,7 @@ function syncProviderModels(
   // only prior HTTP-200 routes when this refresh ended in a transport failure;
   // explicit HTTP rejections (including unsupported-protocol 400) are dropped.
   if (target.strictResponders) {
-    provider.models = lastKnownGood.map((model) => modelSettingsForModel(model.id, reasoningHints?.get(model.id)));
+    provider.models = lastKnownGood.map(model => modelSettingsForModel(model));
     return;
   }
 
@@ -425,28 +570,42 @@ function syncProviderModels(
     .filter((id) => !appendedIds.has(id))
     .map((id) => {
       appendedIds.add(id);
-      return modelSettingsForModel(id, reasoningHints?.get(id));
+      return modelSettingsForModel(mergeModelCapabilities({ id }));
     });
   const fallbackAdvertised = advertisedFallbacks
     .filter((model) => !appendedIds.has(model.id))
     .map((model) => {
       appendedIds.add(model.id);
-      return modelSettingsForModel(model.id, reasoningHints?.get(model.id));
+      return modelSettingsForModel(model);
     });
   if (fallbackEntries.length > 0 || fallbackAdvertised.length > 0) {
     provider.models = [...current, ...fallbackEntries, ...fallbackAdvertised];
   }
 }
 
-function modelSettingsForModel(id: string, gatewayReasoning?: boolean): {
+function modelSettingsForModel(model: ListedModel): {
   id: string;
-  reasoningEfforts: ReturnType<typeof reasoningEffortsForModelWithHint>;
+  contextWindow?: number;
+  outputMaxTokens?: number;
+  reasoningEfforts: ModelReasoningEfforts;
+  defaultReasoningEffort?: ModelReasoningLevel;
   compat?: { thinkingFormat: 'deepseek'; supportsReasoningEffort: false };
 } {
-  const compat = compatForModel(id);
+  const compat = compatForModel(model.id);
+  const reasoningEfforts = model.reasoning === false
+    ? false
+    : model.reasoningEfforts ?? reasoningEffortsForModelWithHint(model.id, model.reasoning);
+  const defaultReasoningEffort = model.defaultReasoningEffort !== undefined
+    && reasoningEfforts !== false
+    && Object.prototype.hasOwnProperty.call(reasoningEfforts, model.defaultReasoningEffort)
+    ? model.defaultReasoningEffort
+    : undefined;
   return {
-    id,
-    reasoningEfforts: reasoningEffortsForModelWithHint(id, gatewayReasoning),
+    id: model.id,
+    ...(model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow }),
+    ...(model.maxOutputTokens === undefined ? {} : { outputMaxTokens: model.maxOutputTokens }),
+    reasoningEfforts,
+    ...(defaultReasoningEffort === undefined ? {} : { defaultReasoningEffort }),
     ...(compat === undefined ? {} : { compat }),
   };
 }

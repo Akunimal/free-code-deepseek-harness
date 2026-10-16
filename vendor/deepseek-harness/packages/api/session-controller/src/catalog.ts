@@ -46,6 +46,8 @@ export async function buildModelCatalog(
           id: model.id,
           name: model.name,
           ...(model.description === undefined ? {} : { description: model.description }),
+          ...(resolved.context === undefined ? {} : { contextWindow: resolved.context.contextWindow }),
+          ...(resolved.maxOutputTokens === undefined ? {} : { maxOutputTokens: resolved.maxOutputTokens }),
           ...(reasoning === undefined ? {} : { reasoning }),
         }
       }))

@@ -416,6 +416,8 @@ export type ToolUpdate = 'in-history' | 'addition-only'
 export interface LlmResolvedModelInfo extends LlmModelInfo {
   /** Provider-owned context capacity when known. */
   context?: LlmModelContext
+  /** Provider-advertised output capacity, distinct from a deployment request default. */
+  maxOutputTokens?: number
   /** Adapter-configured per-request output cap materialized when callers omit one. */
   defaultMaxTokens?: number
   /** Adapter-owned selectable reasoning levels when exposed. */

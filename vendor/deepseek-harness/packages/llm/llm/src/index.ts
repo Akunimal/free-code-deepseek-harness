@@ -770,7 +770,7 @@ export class LlmRuntime extends TypertRemoteService {
       )
     }
     const context = resolved.context
-    if (context !== undefined && (!Number.isInteger(context.contextWindow) || context.contextWindow <= 0)) {
+    if (context !== undefined && (!Number.isSafeInteger(context.contextWindow) || context.contextWindow <= 0)) {
       throw new LlmError(
         `adapter returned invalid context metadata for provider "${provider}" model "${model}"`,
         'INVALID_MODEL_CONTEXT',
@@ -803,6 +803,14 @@ export class LlmRuntime extends TypertRemoteService {
         'INVALID_MODEL_MAX_TOKENS',
       )
     }
+    const maxOutputTokens = resolved.maxOutputTokens
+    if (maxOutputTokens !== undefined
+      && (!Number.isSafeInteger(maxOutputTokens) || maxOutputTokens <= 0)) {
+      throw new LlmError(
+        `adapter returned invalid output capability for provider "${provider}" model "${model}"`,
+        'INVALID_MODEL_MAX_OUTPUT_TOKENS',
+      )
+    }
     const info: LlmResolvedModelInfo = {
       provider,
       id: model,
@@ -810,6 +818,7 @@ export class LlmRuntime extends TypertRemoteService {
       ...resolved.description === undefined ? {} : { description: resolved.description },
       ...inputModalities === undefined ? {} : { inputModalities },
       ...context === undefined ? {} : { context: { contextWindow: context.contextWindow } },
+      ...maxOutputTokens === undefined ? {} : { maxOutputTokens },
       ...defaultMaxTokens === undefined ? {} : { defaultMaxTokens },
       ...resolved.systemPromptUpdate === undefined ? {} : { systemPromptUpdate: resolved.systemPromptUpdate },
       ...resolved.toolUpdate === undefined ? {} : { toolUpdate: resolved.toolUpdate },

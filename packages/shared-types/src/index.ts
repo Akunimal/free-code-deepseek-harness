@@ -28,6 +28,21 @@ export const ModelCatalogSchema = z.object({
 });
 export type ModelCatalog = z.infer<typeof ModelCatalogSchema>;
 
+/** Shell-owned model catalog refresh lifecycle, safe to expose to the UI. */
+export const ModelCatalogRefreshStateSchema = z.object({
+  revision: z.number().int().nonnegative(),
+  status: z.enum(['idle', 'loading']),
+  startedAt: z.number().int().nonnegative().nullable(),
+}).superRefine((value, ctx) => {
+  if (value.status === 'loading' && value.startedAt === null) {
+    ctx.addIssue({ code: 'custom', message: 'loading catalog state requires startedAt', path: ['startedAt'] });
+  }
+  if (value.status === 'idle' && value.startedAt !== null) {
+    ctx.addIssue({ code: 'custom', message: 'idle catalog state cannot retain startedAt', path: ['startedAt'] });
+  }
+});
+export type ModelCatalogRefreshState = z.infer<typeof ModelCatalogRefreshStateSchema>;
+
 /** Tor resilience status snapshot. */
 export const TorStatusSchema = z.object({
   active: z.boolean(),
@@ -48,6 +63,8 @@ export const IpcChannels = {
   poolResize: 'pool:resize',
   modelsCatalog: 'models:catalog',
   modelsRefresh: 'models:refresh',
+  modelsRefreshState: 'models:refreshState',
+  modelsGetRefreshState: 'models:getRefreshState',
   settingsOpenFolder: 'settings:openFolder',
   mcpGetState: 'mcp:getState',
   mcpSetEnabled: 'mcp:setEnabled',
@@ -75,6 +92,8 @@ export interface IpcPayloads {
   [IpcChannels.poolResize]: { size: number };
   [IpcChannels.modelsCatalog]: ModelCatalog;
   [IpcChannels.modelsRefresh]: void;
+  [IpcChannels.modelsRefreshState]: ModelCatalogRefreshState;
+  [IpcChannels.modelsGetRefreshState]: void;
   [IpcChannels.settingsOpenFolder]: void;
   [IpcChannels.mcpGetState]: void;
   [IpcChannels.mcpSetEnabled]: { id: string; enabled: boolean };
@@ -152,6 +171,8 @@ export interface FreeCodeApi {
   models: {
     refresh(): Promise<ModelCatalog>;
     onCatalog(cb: (catalog: ModelCatalog) => void): () => void;
+    getRefreshState(): Promise<ModelCatalogRefreshState>;
+    onRefreshState(cb: (state: ModelCatalogRefreshState) => void): () => void;
   };
   harness: {
     restart(): Promise<void>;

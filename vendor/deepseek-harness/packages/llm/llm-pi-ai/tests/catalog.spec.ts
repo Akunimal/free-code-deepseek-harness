@@ -490,6 +490,31 @@ describe('catalog routes with per-model configuration', () => {
     expect((await ctx.llm.resolveModelInfo('deepseek', catalogModel.id)).defaultMaxTokens).toBe(4096)
   })
 
+  it('keeps a declared output capability separate from request defaults and preserves the model effort default', async () => {
+    const server = await mockServer([])
+    const ctx = await harness({
+      providers: {
+        'acme-gateway': {
+          api: 'openai-completions',
+          baseURL: server.url,
+          models: [{
+            id: 'acme-reasoner',
+            contextWindow: 1_048_576,
+            outputMaxTokens: 393_216,
+            reasoningEfforts: { off: null, low: 'low', high: 'high' },
+            defaultReasoningEffort: 'high',
+          }],
+        },
+      },
+    })
+
+    const info = await ctx.llm.resolveModelInfo('acme-gateway', 'acme-reasoner')
+    expect(info.context).toEqual({ contextWindow: 1_048_576 })
+    expect(info.maxOutputTokens).toBe(393_216)
+    expect(info.defaultMaxTokens).toBeUndefined()
+    expect(info.reasoning?.defaultEffort).toBe(ReasoningEffortId('high'))
+  })
+
   it('adds a model the installed catalog does not describe to a catalog route', async () => {
     const server = await mockServer([{ events: textEvents }])
     const ctx = await harness({
@@ -721,6 +746,14 @@ describe('per-model reasoning efforts', () => {
     expect(declare({ off: 'none' })).toThrow(/offers no level beyond "off"/)
     expect(declare({ high: null })).toThrow(/only "off" may leave it empty/)
     expect(declare({ high: '' })).toThrow(/must not be an empty string/)
+  })
+
+  it('rejects a per-model default effort that the declared model does not support', () => {
+    expect(() => resolveProfiles(declared([{
+      id: 'acme-think',
+      reasoningEfforts: { low: 'low' },
+      defaultReasoningEffort: 'high',
+    }]))).toThrow(/defaultReasoningEffort.*not supported/)
   })
 })
 

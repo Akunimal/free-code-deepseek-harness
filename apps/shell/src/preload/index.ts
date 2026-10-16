@@ -3,6 +3,7 @@ import type {
   FreeCodeApi,
   IpcPayloads,
   ModelCatalog,
+  ModelCatalogRefreshState,
   WorkerHandle,
   OcrResult,
   EmbeddedMcpState,
@@ -19,6 +20,8 @@ const IpcChannels = {
   poolResize: 'pool:resize',
   modelsCatalog: 'models:catalog',
   modelsRefresh: 'models:refresh',
+  modelsRefreshState: 'models:refreshState',
+  modelsGetRefreshState: 'models:getRefreshState',
   settingsOpenFolder: 'settings:openFolder',
   mcpGetState: 'mcp:getState',
   mcpSetEnabled: 'mcp:setEnabled',
@@ -60,6 +63,13 @@ const api: FreeCodeApi = {
       const listener = (_e: unknown, catalog: ModelCatalog): void => cb(catalog);
       ipcRenderer.on(IpcChannels.modelsCatalog, listener);
       return () => ipcRenderer.removeListener(IpcChannels.modelsCatalog, listener);
+    },
+    getRefreshState: (): Promise<ModelCatalogRefreshState> =>
+      ipcRenderer.invoke(IpcChannels.modelsGetRefreshState),
+    onRefreshState(cb: (state: ModelCatalogRefreshState) => void): () => void {
+      const listener = (_e: unknown, state: ModelCatalogRefreshState): void => cb(state);
+      ipcRenderer.on(IpcChannels.modelsRefreshState, listener);
+      return () => ipcRenderer.removeListener(IpcChannels.modelsRefreshState, listener);
     },
   },
   harness: {
@@ -111,4 +121,4 @@ const api: FreeCodeApi = {
 
 contextBridge.exposeInMainWorld('freecode', api);
 
-export type { FreeCodeApi, IpcPayloads, ModelCatalog, WorkerHandle, OcrResult, EmbeddedMcpState, McpRuntimeStatus };
+export type { FreeCodeApi, IpcPayloads, ModelCatalog, ModelCatalogRefreshState, WorkerHandle, OcrResult, EmbeddedMcpState, McpRuntimeStatus };

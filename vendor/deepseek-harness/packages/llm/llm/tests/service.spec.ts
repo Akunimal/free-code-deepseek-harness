@@ -74,6 +74,7 @@ class CatalogAdapter extends ScriptedAdapter {
     private readonly reasoning: Readonly<Record<string, LlmModelReasoningInfo>> = {},
     private readonly defaultMaxTokens: Readonly<Record<string, number>> = {},
     private readonly systemPromptUpdate: Readonly<Record<string, string>> = {},
+    private readonly maxOutputTokens: Readonly<Record<string, number>> = {},
   ) {
     super(SCRIPT)
   }
@@ -97,6 +98,7 @@ class CatalogAdapter extends ScriptedAdapter {
       ...this.contexts[model] === undefined ? {} : { context: this.contexts[model] },
       ...this.reasoning[model] === undefined ? {} : { reasoning: this.reasoning[model] },
       ...this.defaultMaxTokens[model] === undefined ? {} : { defaultMaxTokens: this.defaultMaxTokens[model] },
+      ...this.maxOutputTokens[model] === undefined ? {} : { maxOutputTokens: this.maxOutputTokens[model] },
       ...this.systemPromptUpdate[model] === undefined
         ? {}
         : { systemPromptUpdate: this.systemPromptUpdate[model] as SystemPromptUpdate },
@@ -1210,7 +1212,7 @@ describe('LlmRuntime', () => {
     await expect(resolving).rejects.toBe(reason)
   })
 
-  it.each([0, -1, 1.5, Number.NaN])(
+  it.each([0, -1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1])(
     'rejects invalid adapter model context %s',
     async (contextWindow) => {
       const ctx = new Context()
@@ -1224,6 +1226,41 @@ describe('LlmRuntime', () => {
         .rejects.toMatchObject({ code: 'INVALID_MODEL_CONTEXT' })
     },
   )
+
+  it.each([0, -1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1])(
+    'rejects invalid adapter output capability %s',
+    async (maxOutputTokens) => {
+      const ctx = new Context()
+      await ctx.plugin(LlmRuntime)
+      ctx.llm.registerAdapter(['route'], new CatalogAdapter(
+        { id: 'route', name: 'Route' },
+        [],
+        {},
+        {},
+        {},
+        {},
+        { model: maxOutputTokens },
+      ))
+      await expect(ctx.llm.resolveModelInfo('route', 'model'))
+        .rejects.toMatchObject({ code: 'INVALID_MODEL_MAX_OUTPUT_TOKENS' })
+    },
+  )
+
+  it('retains a valid adapter output capability on resolved model metadata', async () => {
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    ctx.llm.registerAdapter(['route'], new CatalogAdapter(
+      { id: 'route', name: 'Route' },
+      [],
+      {},
+      {},
+      {},
+      {},
+      { model: 393_216 },
+    ))
+    await expect(ctx.llm.resolveModelInfo('route', 'model'))
+      .resolves.toMatchObject({ maxOutputTokens: 393_216 })
+  })
 
   it('captures a declared in-history system prompt update mode and rejects any other mode', async () => {
     const ctx = new Context()

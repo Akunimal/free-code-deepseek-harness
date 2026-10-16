@@ -591,6 +591,8 @@ export interface PiAiModelProfile {
   name?: string
   /** Maximum combined request and response context in tokens. */
   contextWindow?: number
+  /** Provider-advertised output capacity; unlike `maxTokens`, this is not a request default. */
+  outputMaxTokens?: number
   /**
    * Maximum output tokens. Configuring one also makes it this model's
    * per-request default; a value inherited from the installed catalog, or the
@@ -618,6 +620,8 @@ export interface PiAiModelProfile {
    * declares the offered levels and their wire spellings.
    */
   reasoningEfforts?: false | PiAiReasoningEfforts
+  /** Effort selected when this exact model becomes active, if it supports it. */
+  defaultReasoningEffort?: ModelThinkingLevel
   /** pi-ai wire-compatibility switches for this model, winning over the route's per field; one its protocol does not declare is refused. */
   compat?: PiAiCompatProfile
 }
@@ -827,6 +831,10 @@ export interface RouteCatalog {
    * picked, so only an explicit configuration lands here.
    */
   configuredMaxTokens: ReadonlyMap<string, number>
+  /** Advertised or explicitly configured output capability by model id. */
+  modelOutputMaxTokens: ReadonlyMap<string, number>
+  /** Model-specific default reasoning efforts, independent of route defaults. */
+  modelDefaultReasoningEfforts: ReadonlyMap<string, ModelThinkingLevel>
 }
 
 /**
@@ -892,6 +900,8 @@ export function resolveRouteModels(
   assertOfferedCompatFields(provider, 'route', request.compat)
   const seen = new Set<string>()
   const configuredMaxTokens = new Map<string, number>()
+  const modelOutputMaxTokens = new Map<string, number>()
+  const modelDefaultReasoningEfforts = new Map<string, ModelThinkingLevel>()
   const resolveEntry = (entry: PiAiModelProfile): Model<Api> => {
     assertOfferedCompatFields(provider, `model "${entry.id}"`, entry.compat)
     if (entry.id.length === 0) invalid(provider, 'has a model with an empty id')
@@ -915,14 +925,16 @@ export function resolveRouteModels(
     if (!Number.isInteger(contextWindow) || contextWindow <= 0) {
       invalid(provider, `model "${entry.id}" contextWindow must be a positive integer`)
     }
-    const maxTokens = entry.maxTokens ?? base?.maxTokens ?? request.defaultMaxTokens
+    const maxTokens = entry.maxTokens ?? entry.outputMaxTokens ?? base?.maxTokens ?? request.defaultMaxTokens
     if (!Number.isInteger(maxTokens) || maxTokens <= 0) {
       invalid(provider, `model "${entry.id}" maxTokens must be a positive integer`)
     }
     // Only a value the profile named is a deployment choice; the catalog's is
     // the model's capability and stays out of request defaults.
     if (entry.maxTokens !== undefined) configuredMaxTokens.set(entry.id, entry.maxTokens)
-    return {
+    const outputCapability = entry.outputMaxTokens ?? entry.maxTokens ?? base?.maxTokens
+    if (outputCapability !== undefined) modelOutputMaxTokens.set(entry.id, outputCapability)
+    const model: Model<Api> = {
       // The installed entry lays the floor, and the fields below override it.
       // Enumerating instead would silently drop every `Model` field this
       // package does not model — reasoning-level spellings, compatibility
@@ -941,6 +953,13 @@ export function resolveRouteModels(
       ...resolveModelReasoning(provider, entry, base),
       ...resolveModelCompat(provider, entry, request.compat, base, api),
     }
+    if (entry.defaultReasoningEffort !== undefined) {
+      if (!supportsModelThinkingLevel(model, entry.defaultReasoningEffort)) {
+        invalid(provider, `model "${entry.id}" defaultReasoningEffort "${entry.defaultReasoningEffort}" is not supported`)
+      }
+      modelDefaultReasoningEfforts.set(entry.id, entry.defaultReasoningEffort)
+    }
+    return model
   }
   const models: Model<Api>[] = []
   for (const entry of entries) {
@@ -966,5 +985,12 @@ export function resolveRouteModels(
     invalid(provider, `sets compat "${field}", but no model on the route speaks a protocol that takes it;`
       + ` it exists on ${takers.join(', ')}`)
   }
-  return { models: serviceableModels, configuredMaxTokens, modelErrors }
+  return { models: serviceableModels, configuredMaxTokens, modelOutputMaxTokens, modelDefaultReasoningEfforts, modelErrors }
+}
+
+function supportsModelThinkingLevel(model: Model<Api>, level: ModelThinkingLevel): boolean {
+  if (!model.reasoning) return false
+  const mapped = model.thinkingLevelMap?.[level]
+  if (mapped === null) return false
+  return level !== 'xhigh' && level !== 'max' || mapped !== undefined
 }

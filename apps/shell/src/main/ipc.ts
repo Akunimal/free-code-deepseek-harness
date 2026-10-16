@@ -3,6 +3,7 @@ import {
   IpcChannels,
   IpcPayloads,
   ModelCatalogSchema,
+  ModelCatalogRefreshStateSchema,
   WorkerHandleSchema,
   GentleAiRunRequestSchema,
   GentleAiStatusSchema,
@@ -15,6 +16,7 @@ import { isOcrAvailable, extractText } from './ocr.js';
 import { getGentleAiStatus, runGentleAi, runGentleAiDoctor } from './gentle-ai.js';
 import { z } from 'zod';
 import { ensureEmbeddedMcpConfig, setEmbeddedMcpEnabled } from './mcp-home.js';
+import type { ModelCatalogRefreshStateStore } from './model-refresh-state.js';
 
 const PoolResizePayloadSchema = z.object({ size: z.number().int().min(1).max(16) });
 const LocaleSetPayloadSchema = z.object({ locale: z.enum(['zh', 'en', 'es']) });
@@ -38,6 +40,7 @@ export interface IpcDeps {
   lbBaseUrl: string;
   resourcesDir?: string;
   catalogStore: { get(): unknown };
+  catalogRefreshState: ModelCatalogRefreshStateStore;
   reportModelRefreshFailure?: (error: unknown) => void;
   /** Trigger a guarded model refresh (shares the refreshInFlight mutex with the
    *  timer). IPC calls this instead of refreshModels() directly to prevent
@@ -90,6 +93,16 @@ export function registerIpc(deps: IpcDeps): () => void {
       deps.reportModelRefreshFailure?.(error);
       throw error;
     }
+  });
+
+  // The status snapshot covers refreshes that started before the Harness
+  // renderer subscribed; the push keeps it current without polling.
+  ipcMain.handle(IpcChannels.modelsGetRefreshState, () =>
+    ModelCatalogRefreshStateSchema.parse(deps.catalogRefreshState.get()));
+  const offCatalogRefreshState = deps.catalogRefreshState.subscribe((state) => {
+    const payload: IpcPayloads[typeof IpcChannels.modelsRefreshState] =
+      ModelCatalogRefreshStateSchema.parse(state);
+    for (const wc of rendererTargets()) wc.send(IpcChannels.modelsRefreshState, payload);
   });
 
 
@@ -229,6 +242,7 @@ export function registerIpc(deps: IpcDeps): () => void {
   return () => {
     offTorChange?.();
     ipcMain.removeHandler(IpcChannels.modelsRefresh);
+    ipcMain.removeHandler(IpcChannels.modelsGetRefreshState);
     ipcMain.removeHandler(IpcChannels.harnessRestart);
     ipcMain.removeHandler(IpcChannels.poolRestartWorker);
     ipcMain.removeHandler(IpcChannels.poolResize);
@@ -246,5 +260,6 @@ export function registerIpc(deps: IpcDeps): () => void {
     ipcMain.removeHandler(IpcChannels.gentleAiDoctor);
     ipcMain.removeHandler(IpcChannels.gentleAiRun);
     offMcpStatus();
+    offCatalogRefreshState();
   };
 }

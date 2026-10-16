@@ -14,12 +14,8 @@
  * their own wire contract says otherwise.
  */
 
-export type ModelReasoningEfforts = false | {
-  off: null;
-  low?: 'low';
-  high: 'high';
-  max?: 'max';
-};
+export type ModelReasoningLevel = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+export type ModelReasoningEfforts = false | { off: null } & Partial<Record<ModelReasoningLevel, ModelReasoningLevel>>;
 
 const DEEPSEEK_REASONING_EFFORTS: Exclude<ModelReasoningEfforts, false> = {
   off: null,

@@ -1,0 +1,51 @@
+import type { ModelCatalogRefreshState } from '@freecode/shared-types';
+
+export interface ModelCatalogRefreshStateStore {
+  get(): ModelCatalogRefreshState;
+  subscribe(listener: (state: ModelCatalogRefreshState) => void): () => void;
+  run<T>(operation: () => Promise<T>): Promise<T>;
+}
+
+/**
+ * Owns a revisioned view of the shell's catalog refresh lifecycle. Keeping
+ * this outside the renderer lets the preload return the current snapshot even
+ * when startup refresh began before the Harness page mounted.
+ */
+export function createModelCatalogRefreshState(): ModelCatalogRefreshStateStore {
+  let state: ModelCatalogRefreshState = { revision: 0, status: 'idle', startedAt: null };
+  let activeRuns = 0;
+  const listeners = new Set<(value: ModelCatalogRefreshState) => void>();
+
+  const publish = (status: ModelCatalogRefreshState['status']): void => {
+    state = {
+      revision: state.revision + 1,
+      status,
+      startedAt: status === 'loading' ? Date.now() : null,
+    };
+    for (const listener of listeners) {
+      try {
+        listener(state);
+      } catch {
+        // A disconnected renderer must not prevent the refresh itself from running.
+      }
+    }
+  };
+
+  return {
+    get: () => state,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => { listeners.delete(listener); };
+    },
+    async run<T>(operation: () => Promise<T>): Promise<T> {
+      activeRuns += 1;
+      if (activeRuns === 1) publish('loading');
+      try {
+        return await operation();
+      } finally {
+        activeRuns -= 1;
+        if (activeRuns === 0) publish('idle');
+      }
+    },
+  };
+}

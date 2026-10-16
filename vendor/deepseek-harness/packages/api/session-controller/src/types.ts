@@ -140,6 +140,10 @@ export interface ModelCatalogModel {
   readonly id: string
   readonly name: string
   readonly description?: string
+  /** Resolved context window for this exact provider/model route. */
+  readonly contextWindow?: number
+  /** Advertised maximum output tokens, when known. */
+  readonly maxOutputTokens?: number
   readonly reasoning?: ModelReasoning
 }
 

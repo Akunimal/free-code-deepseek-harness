@@ -87,6 +87,27 @@ describe('model-refresher', () => {
     }
   });
 
+  it('ignores malformed entries in an otherwise valid model catalog', async () => {
+    const { home, data } = tmpDirs();
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const endpoint = String(url);
+      if (endpoint.endsWith('/v1/models')) {
+        return new Response(JSON.stringify({ data: [null, 'invalid', { id: 'valid-model' }] }), { status: 200 });
+      }
+      if (endpoint.endsWith('/v1/chat/completions')) {
+        return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+      }
+      return new Response('not found', { status: 404 });
+    }));
+
+    try {
+      const catalog = await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
+      expect(catalog.providers['deepseek-free']?.models.map((model) => model.id)).toEqual(['valid-model']);
+    } finally {
+      rmSync(dirname(home), { recursive: true, force: true });
+    }
+  });
+
   it.each([
     ['empty route list', [], true],
     ['transport failure despite another responder', [
@@ -461,7 +482,12 @@ describe('model-refresher', () => {
     expect(p.apiKeyEnv).toBe('FREECODE_PUBLIC_KEY');
     expect(p.defaultInput).toEqual(['text']);
     expect(p.models).toEqual([
-      deepseekModel('deepseek-v4-flash-free'),
+      {
+        ...deepseekModel('deepseek-v4-flash-free'),
+        contextWindow: 1_048_576,
+        outputMaxTokens: 393_216,
+        defaultReasoningEffort: 'high',
+      },
     ]);
     rmSync(dirname(home), { recursive: true, force: true });
   });
@@ -551,6 +577,115 @@ describe('model-refresher', () => {
     expect(models).toContainEqual({ id: 'space-bunny-free', reasoningEfforts: { off: null, low: 'low', high: 'high' } });
     expect(models).toContainEqual({ id: 'jev-1.13-free', reasoningEfforts: false });
     rmSync(dirname(home), { recursive: true, force: true });
+  });
+
+  it('carries gateway-declared context, output capability, supported efforts and defaults into each route', async () => {
+    const { home, data } = tmpDirs();
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
+      const endpoint = String(url);
+      if (endpoint.endsWith('/v1/models')) return new Response(JSON.stringify({ data: [
+        {
+          id: 'deepseek-v4-flash',
+          context_window: 1_048_576,
+          max_output: 393_216,
+          reasoning: true,
+          reasoning_efforts: ['low', 'medium', 'high', 'max'],
+          default_reasoning_effort: 'high',
+        },
+        {
+          id: 'catalog-small-reasoner',
+          metadata: { context_window: 48_000, max_output: 6_000, reasoning: true },
+          reasoning_efforts: ['minimal', 'high'],
+          default_reasoning_effort: 'minimal',
+        },
+      ] }), { status: 200 });
+      if (endpoint.endsWith('/v1/chat/completions')) return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+      return new Response('not found', { status: 404 });
+    }));
+
+    try {
+      await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
+      const models = readHarnessSettings(home)['llm-pi-ai'].providers['deepseek-free'].models;
+      expect(models).toContainEqual({
+        id: 'deepseek-v4-flash',
+        contextWindow: 1_048_576,
+        outputMaxTokens: 393_216,
+        reasoningEfforts: { off: null, low: 'low', medium: 'medium', high: 'high', max: 'max' },
+        defaultReasoningEffort: 'high',
+      });
+      expect(models).toContainEqual({
+        id: 'catalog-small-reasoner',
+        contextWindow: 48_000,
+        outputMaxTokens: 6_000,
+        reasoningEfforts: { off: null, minimal: 'minimal', high: 'high' },
+        defaultReasoningEffort: 'minimal',
+      });
+    } finally {
+      rmSync(dirname(home), { recursive: true, force: true });
+    }
+  });
+
+  it('uses the verified 1M context and V4 effort defaults only for an unambiguous DeepSeek V4 id', async () => {
+    const { home, data } = tmpDirs();
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
+      const endpoint = String(url);
+      if (endpoint.endsWith('/v1/models')) return new Response(JSON.stringify({ data: [
+        { id: 'deepseek-v4-pro' },
+        { id: 'other-v4-provider-model' },
+      ] }), { status: 200 });
+      if (endpoint.endsWith('/v1/chat/completions')) return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+      return new Response('not found', { status: 404 });
+    }));
+
+    try {
+      await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
+      const models = readHarnessSettings(home)['llm-pi-ai'].providers['deepseek-free'].models;
+      expect(models).toContainEqual({
+        id: 'deepseek-v4-pro',
+        contextWindow: 1_048_576,
+        outputMaxTokens: 393_216,
+        reasoningEfforts: { off: null, low: 'low', high: 'high', max: 'max' },
+        defaultReasoningEffort: 'high',
+      });
+      expect(models).toContainEqual({ id: 'other-v4-provider-model', reasoningEfforts: false });
+    } finally {
+      rmSync(dirname(home), { recursive: true, force: true });
+    }
+  });
+
+  it('ignores malformed capability values and lets valid upstream metadata override the V4 fallback', async () => {
+    const { home, data } = tmpDirs();
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
+      const endpoint = String(url);
+      if (endpoint.endsWith('/v1/models')) return new Response(JSON.stringify({ data: [
+        {
+          id: 'deepseek-v4-flash',
+          context_window: 524_288,
+          max_output: 'not-a-number',
+          reasoning: true,
+          reasoning_efforts: ['low', 'high'],
+          default_reasoning_effort: 'low',
+        },
+        { id: 'custom-model', context_window: '1048576', max_output: -4, reasoning_efforts: ['admin'] },
+      ] }), { status: 200 });
+      if (endpoint.endsWith('/v1/chat/completions')) return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+      return new Response('not found', { status: 404 });
+    }));
+
+    try {
+      await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
+      const models = readHarnessSettings(home)['llm-pi-ai'].providers['deepseek-free'].models;
+      expect(models).toContainEqual({
+        id: 'deepseek-v4-flash',
+        contextWindow: 524_288,
+        outputMaxTokens: 393_216,
+        reasoningEfforts: { off: null, low: 'low', high: 'high' },
+        defaultReasoningEffort: 'low',
+      });
+      expect(models).toContainEqual({ id: 'custom-model', reasoningEfforts: false });
+    } finally {
+      rmSync(dirname(home), { recursive: true, force: true });
+    }
   });
 
   it('falls back to name policy when gateway metadata is absent', async () => {

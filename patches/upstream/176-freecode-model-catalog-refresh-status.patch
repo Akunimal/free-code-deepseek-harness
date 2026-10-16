@@ -1,0 +1,255 @@
+diff --git a/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/ModelSelect.module.css b/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/ModelSelect.module.css
+index f4f42cb9cc..c4ce49184e 100644
+--- a/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/ModelSelect.module.css
++++ b/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/ModelSelect.module.css
+@@ -1,6 +1,43 @@
+ .root {
+   position: relative;
+   min-width: 0;
++  display: inline-flex;
++  align-items: center;
++  gap: 6px;
++}
++
++.catalogRefreshStatus {
++  display: inline-flex;
++  flex: 0 1 auto;
++  align-items: center;
++  gap: 5px;
++  min-width: 0;
++  max-width: 150px;
++  color: var(--dsw-alias-label-caption);
++  font-size: 11px;
++  line-height: 14px;
++  white-space: nowrap;
++}
++
++.catalogRefreshSpinner {
++  flex: 0 0 11px;
++  width: 11px;
++  height: 11px;
++  border: 1.5px solid currentColor;
++  border-left-color: transparent;
++  border-radius: 50%;
++  animation: model-catalog-refresh-spin 850ms linear infinite;
++}
++
++@keyframes model-catalog-refresh-spin {
++  to { transform: rotate(360deg); }
++}
++
++@media (prefers-reduced-motion: reduce) {
++  .catalogRefreshSpinner {
++    animation: none;
++    border-top-color: transparent;
++  }
+ }
+ 
+ /* Figma 313:14108 ToggleButton: 13/20 regular secondary label, 4px gap,
+diff --git a/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/ModelSelect.tsx b/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/ModelSelect.tsx
+index a326b412ad..e1eae3374d 100644
+--- a/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/ModelSelect.tsx
++++ b/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/ModelSelect.tsx
+@@ -45,6 +45,26 @@ import { orderModelProviders } from './provider-order.ts'
+ /** Which pane the dropdown shows: the two-row root or one drilled-in list. */
+ type Pane = 'root' | 'model' | 'effort'
+ 
++interface ShellCatalogRefreshState {
++  revision: number
++  status: 'idle' | 'loading'
++  startedAt: number | null
++}
++
++interface ShellCatalogRefreshBridge {
++  getRefreshState(): Promise<ShellCatalogRefreshState>
++  onRefreshState(callback: (state: ShellCatalogRefreshState) => void): () => void
++}
++
++function shellCatalogRefreshBridge(): ShellCatalogRefreshBridge | undefined {
++  if (typeof window === 'undefined') return undefined
++  const bridge = (window as unknown as { freecode?: { models?: ShellCatalogRefreshBridge } })
++    .freecode?.models
++  return typeof bridge?.getRefreshState === 'function' && typeof bridge.onRefreshState === 'function'
++    ? bridge
++    : undefined
++}
++
+ /** One dynamic effort row; undefined means preserve the provider default. */
+ interface EffortChoice {
+   key: string
+@@ -74,6 +94,7 @@ export function ModelSelect(
+   const [query, setQuery] = useState('')
+   const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null)
+   const [selectionFocus, setSelectionFocus] = useState(false)
++  const [shellCatalogRefreshing, setShellCatalogRefreshing] = useState(false)
+   // The in-menu error strip serves catalog loads (its Retry re-runs the
+   // load); a rejected SELECTION announces through the transient toast
+   // instead, so the strip renders only while the latest failure-capable
+@@ -90,6 +111,24 @@ export function ModelSelect(
+   const itemRefs = useRef<(HTMLButtonElement | null)[]>([])
+   const id = useId()
+ 
++  useEffect(() => {
++    const bridge = shellCatalogRefreshBridge()
++    if (bridge === undefined) return
++    let alive = true
++    let latestRevision = -1
++    const apply = (snapshot: ShellCatalogRefreshState): void => {
++      if (!alive || !Number.isInteger(snapshot.revision) || snapshot.revision <= latestRevision) return
++      latestRevision = snapshot.revision
++      setShellCatalogRefreshing(snapshot.status === 'loading')
++    }
++    const unsubscribe = bridge.onRefreshState(apply)
++    void bridge.getRefreshState().then(apply).catch(() => undefined)
++    return () => {
++      alive = false
++      unsubscribe()
++    }
++  }, [])
++
+   const groups = useMemo(() => orderModelProviders(state.groups), [state.groups])
+   const choices = useMemo(() => groups.flatMap(group =>
+     group.models.map(model => ({
+@@ -139,6 +178,7 @@ export function ModelSelect(
+     ], [reasoning, t])
+   const { pending } = state
+   const busy = pending !== null
++  const catalogRefreshing = shellCatalogRefreshing || state.status === 'loading'
+ 
+   const reload = (): void => {
+     lastActionRef.current = 'load'
+@@ -452,6 +492,7 @@ export function ModelSelect(
+         aria-haspopup="menu"
+         aria-expanded={open}
+         aria-controls={open ? `${id}-menu` : undefined}
++        aria-describedby={catalogRefreshing ? `${id}-catalog-refresh-status` : undefined}
+         title={triggerLabel}
+         aria-busy={busy}
+         data-selection-focus={selectionFocus ? '' : undefined}
+@@ -472,6 +513,18 @@ export function ModelSelect(
+           ? <StateDot state="ongoing" />
+           : <IconChevronDownOutlineRegular className={clsx(css.chevron, open && css.chevronOpen)} />}
+       </button>
++      {catalogRefreshing && (
++        <span
++          id={`${id}-catalog-refresh-status`}
++          className={css.catalogRefreshStatus}
++          role="status"
++          aria-live="polite"
++          aria-atomic="true"
++        >
++          <span className={css.catalogRefreshSpinner} aria-hidden="true" />
++          {t('status.catalogRefreshing')}
++        </span>
++      )}
+ 
+       {/* Portaled to body (Menu primitive's portal mode) so the sidebar and
+           column overflow clips cannot crop the card; synthetic events still
+diff --git a/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/locales.ts b/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/locales.ts
+index 54229cce45..22cb727d1b 100644
+--- a/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/locales.ts
++++ b/vendor/deepseek-harness/packages/client/ui-model-selection/src/client/locales.ts
+@@ -30,6 +30,7 @@ export const zh = {
+   'blocked.unavailable': '已保存的模型尚未通过网关验证。请选择列表中的模型以继续。',
+   'blocked.choose': '请选择一个可用模型以继续。',
+   'status.loading': '正在刷新模型列表…',
++  'status.catalogRefreshing': '正在更新模型目录…',
+   'error.action': '模型操作失败：{message}',
+   'error.sessionInUse': '当前会话已被占用，可能是其他正在运行的 DSH 导致的（如其他 dsh web、桌面端），请退出其他正在运行的 DSH 后重试。',
+   'action.reload': '重新加载',
+@@ -63,6 +64,7 @@ export const en = {
+   'menu.thinking': 'Thinking',
+   'effort.providerDefault': 'Default',
+   'status.loading': 'Refreshing model list…',
++  'status.catalogRefreshing': 'Updating catalog…',
+   'error.action': 'Model operation failed: {message}',
+   'error.sessionInUse': 'This session is already in use, possibly by another running DSH instance (such as dsh web or the desktop app). Quit other running DSH instances and try again.',
+   'action.reload': 'Reload',
+@@ -95,6 +97,7 @@ export const es = {
+   "menu.thinking": "Pensamiento",
+   "effort.providerDefault": "Predeterminado",
+   "status.loading": "Actualizando lista de modelos…",
++  "status.catalogRefreshing": "Actualizando catálogo…",
+   "error.action": "Error en la operación del modelo: {message}",
+   "action.reload": "Recargar",
+   "blocked.noModels": "La pasarela aún no verificó ningún modelo. La app vuelve a intentarlo automáticamente; una comprobación lenta puede tardar hasta dos minutos.",
+diff --git a/vendor/deepseek-harness/packages/client/ui-model-selection/tests/model-select.client.spec.tsx b/vendor/deepseek-harness/packages/client/ui-model-selection/tests/model-select.client.spec.tsx
+index 114910746c..44af7d5825 100644
+--- a/vendor/deepseek-harness/packages/client/ui-model-selection/tests/model-select.client.spec.tsx
++++ b/vendor/deepseek-harness/packages/client/ui-model-selection/tests/model-select.client.spec.tsx
+@@ -8,7 +8,7 @@ import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
+ import type { ComponentProps } from 'react'
+ import type { ModelDirectoryState } from '../src/client/directory.ts'
+ import { ModelSelect } from '../src/client/ModelSelect.tsx'
+-import { en, zh } from '../src/client/locales.ts'
++import { en, es, zh } from '../src/client/locales.ts'
+ import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
+ 
+ // The seat's key domain is model ∪ common; the stub mirrors the real lookup
+@@ -76,6 +76,66 @@ beforeEach(() => {
+ 
+ afterEach(cleanup)
+ 
++describe('shell catalog refresh feedback', () => {
++  it('shows a localized progress status, ignores a stale snapshot, and clears on completion', async () => {
++    type RefreshSnapshot = { revision: number; status: 'idle' | 'loading'; startedAt: number | null }
++    let resolveSnapshot!: (snapshot: RefreshSnapshot) => void
++    let publish: ((snapshot: RefreshSnapshot) => void) | undefined
++    const unsubscribe = vi.fn()
++    const snapshot = new Promise<RefreshSnapshot>(resolve => { resolveSnapshot = resolve })
++    const bridge = {
++      getRefreshState: vi.fn(() => snapshot),
++      onRefreshState: vi.fn((callback: (value: RefreshSnapshot) => void) => {
++        publish = callback
++        return unsubscribe
++      }),
++    }
++    const previous = Object.getOwnPropertyDescriptor(window, 'freecode')
++    Object.defineProperty(window, 'freecode', { configurable: true, value: { models: bridge } })
++    onTestFinished(() => {
++      if (previous === undefined) Reflect.deleteProperty(window, 'freecode')
++      else Object.defineProperty(window, 'freecode', previous)
++    })
++    const esT: ComponentProps<typeof ModelSelect>['t'] = (key, params) => {
++      const template = (es as Record<string, string>)[key] ?? key
++      return params === undefined
++        ? template
++        : template.replace(/\{(\w+)\}/g, (match, name: string) => name in params ? String(params[name]) : match)
++    }
++
++    const { unmount } = render(<ModelSelect
++      locked={false}
++      available
++      directory={createSnapshotStore(state())}
++      load={vi.fn()}
++      select={vi.fn().mockResolvedValue({ ok: true, value: undefined })}
++      t={esT}
++    />)
++
++    await waitFor(() => {
++      expect(bridge.getRefreshState).toHaveBeenCalledOnce()
++      expect(bridge.onRefreshState).toHaveBeenCalledOnce()
++    })
++    act(() => publish?.({ revision: 2, status: 'loading', startedAt: 100 }))
++    await act(async () => {
++      resolveSnapshot({ revision: 1, status: 'idle', startedAt: null })
++      await snapshot
++    })
++
++    const progress = screen.getByRole('status')
++    expect(progress.textContent).toContain('Actualizando catálogo')
++    expect(progress.getAttribute('aria-live')).toBe('polite')
++    const trigger = screen.getByRole('button', { name: /DeepSeek-V4-Flash/ })
++    expect(trigger.getAttribute('aria-describedby')).toBe(progress.id)
++
++    act(() => publish?.({ revision: 3, status: 'idle', startedAt: null }))
++    expect(screen.queryByRole('status')).toBeNull()
++    expect(trigger.getAttribute('aria-describedby')).toBeNull()
++    unmount()
++    expect(unsubscribe).toHaveBeenCalledOnce()
++  })
++})
++
+ describe('ModelSelect reasoning effort', () => {
+   it('renders effort names without descriptions and submits the effort as part of the session selection', async () => {
+     const directory = createSnapshotStore<ModelDirectoryState>(state())

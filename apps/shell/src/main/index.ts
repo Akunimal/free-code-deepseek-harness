@@ -8,6 +8,7 @@ import { DEFAULT_POOL_SIZE } from '@freecode/opencode-adapter';
 import { createSecretStore, ensureSecret } from './secret-store.js';
 import { seedProviders } from './provider-seeder.js';
 import { refreshModels, ModelCatalog, shouldRetryModelRefresh } from './model-refresher.js';
+import { createModelCatalogRefreshState } from './model-refresh-state.js';
 import { registerIpc } from './ipc.js';
 import { nodeRuntimeEnv, resolveHarnessRuntimeDir, resolveNodePath, resolveResourcesDir } from './resource-paths.js';
 import { createAppLogger, type AppLogger } from './logger.js';
@@ -1268,6 +1269,7 @@ app.whenReady().then(async () => {
 
   // FASE 6: model refresh at boot + every 30 min.
   let catalog: ModelCatalog | null = null;
+  const catalogRefreshState = createModelCatalogRefreshState();
   let refreshInFlight = false;
   let refreshRetryAttempt = 0;
   let degradedProbeRetries = 0;
@@ -1286,7 +1288,7 @@ app.whenReady().then(async () => {
     if (refreshInFlight) return;
     refreshInFlight = true;
     try {
-      catalog = await refreshModels({
+      catalog = await catalogRefreshState.run(() => refreshModels({
         lbBaseUrl: opencodeUrl,
         homeDir: join(userDataDir, 'dsh-home'),
         userDataDir,
@@ -1313,7 +1315,7 @@ app.whenReady().then(async () => {
           reportBackendState('catalog', c.availability === 'degraded' ? 'degraded' : 'ready',
             c.availability === 'degraded' ? degradedMessage : undefined);
         },
-      });
+      }));
       refreshRetryAttempt = 0;
       // Retry transient per-model failures even when another route responds,
       // so the selector can recover without discarding the last-known-good
@@ -1348,6 +1350,7 @@ app.whenReady().then(async () => {
     homeDir: join(userDataDir, 'dsh-home'),
     lbBaseUrl: opencodeUrl,
     catalogStore: { get: () => catalog },
+    catalogRefreshState,
     reportModelRefreshFailure,
     triggerRefresh: async () => { await doRefresh(); return catalog!; },
     setLocale: applyNativeLocale,

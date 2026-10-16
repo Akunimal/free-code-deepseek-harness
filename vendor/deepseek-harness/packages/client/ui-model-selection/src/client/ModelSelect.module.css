@@ -1,6 +1,43 @@
 .root {
   position: relative;
   min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.catalogRefreshStatus {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 150px;
+  color: var(--dsw-alias-label-caption);
+  font-size: 11px;
+  line-height: 14px;
+  white-space: nowrap;
+}
+
+.catalogRefreshSpinner {
+  flex: 0 0 11px;
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid currentColor;
+  border-left-color: transparent;
+  border-radius: 50%;
+  animation: model-catalog-refresh-spin 850ms linear infinite;
+}
+
+@keyframes model-catalog-refresh-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .catalogRefreshSpinner {
+    animation: none;
+    border-top-color: transparent;
+  }
 }
 
 /* Figma 313:14108 ToggleButton: 13/20 regular secondary label, 4px gap,
@@ -266,6 +303,19 @@
   font-size: 13px;
   line-height: 18px;
   font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modelOption {
+  min-height: 44px;
+}
+
+.modelCapacity {
+  overflow: hidden;
+  color: var(--dsw-alias-label-caption);
+  font-size: 11px;
+  line-height: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
