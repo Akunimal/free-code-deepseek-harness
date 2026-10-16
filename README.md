@@ -1,10 +1,10 @@
 # FreeCode DeepSeek Harness
 
-### Current release: v0.9.5 (Windows x64)
+### Current release: v0.9.6 (Windows x64)
 
-FreeCode DeepSeek Harness v0.9.5 is published for Windows x64. It fixes the Pool Status close button with a sender-checked preload IPC, and the release gate now proves the separate DSH first-run download from a genuinely empty profile/cache using the public GitHub asset, SHA-256, manifest, Electron ABI and a hidden CLI startup. This is the clean-cache first-run runtime proof for a user who has never cached DSH. Setup and portable remain separate from the DSH runtime; the exact downloads and checksums are in the [bilingual v0.9.5 release notes](release-notes-v0.9.5.md). v0.9.5 carries forward v0.9.4's opencode2api v1.4.0, Tor/model recovery, catalog-loading indicator (V094-37), 13 animated Hermes-inspired backgrounds (V094-38), per-model context/effort metadata (V094-39), plus routing/model fixes V094-21/35. The v0.9.4 release remains historical and unchanged.
+FreeCode DeepSeek Harness v0.9.6 contains the Windows background-window containment and harness audit fixes. Background process trees use the verified GUI-subsystem `headless-host` helper, a private noninteractive desktop and a Job attached before execution. Explicit user GUI actions use an authenticated Electron broker. Renderer IPC/navigation is restricted, concurrent catalog refreshes are coalesced, Tor status reaches the Pool overlay, and the legacy adapter preserves large requests and complete retry responses. DSH `0.2.1-alpha.9` is a separate first-launch download, not bundled in setup/portable. See the [bilingual v0.9.6 release notes](release-notes-v0.9.6.md).
 
-V094-21 keeps catalog seeding and Tor route health aligned with upstream HTTP responses; V094-35 fixes composer block recursion.
+**Candidate status:** v0.9.6 is not published yet. Public clean-cache proof and final setup/portable verification are pending; do not substitute a local preload.
 
 Windows-first coding with OpenCode Free models: choose a project, describe the
 work, and let the local Harness coordinate files, tools, MCP servers and model
@@ -14,37 +14,26 @@ calls.
 
 ## English
 
-## Current status: v0.9.5 published; latest release: v0.9.5 (Windows x64)
+## Current status: v0.9.6 (Windows x64)
 
-Source version: 0.9.5 (published); latest published release: v0.9.5 (Windows x64).
+Source version: 0.9.6; pinned runtime: `0.2.1-alpha.9`.
 
-The [v0.9.5 release notes](release-notes-v0.9.5.md) list the published assets,
-checksums, fresh-cache runtime proof and Pool Status close fix. The v0.9.4 tag,
-release and notes remain historical and unchanged.
+**Candidate status:** v0.9.6 is not published yet. Public clean-cache proof and final setup/portable verification are pending; do not substitute a local preload.
 
-The v0.9.5 NSIS setup and portable executable were built and verified; this
-release process did not install or launch the new product. The v0.9.4 NSIS
-setup was installed and confirmed working by the user.
+Inherited behavior remains: opencode2api v1.4.0, catalog/Tor fixes V094-21, composer fix V094-35, catalog-loading indicator V094-37, 13 Hermes-inspired CSS/ASCII backgrounds V094-38, context/effort metadata V094-39, Gentle AI and the active `profiles/web/cordis.patch.yml` catalog.
 
-The v0.9.5 release includes:
+The release consists of NSIS setup, a portable Windows executable, blockmap
+and `latest.yml`. The separate alpha9 runtime (~421.5 MB) and its SHA-256
+are published as dependency assets in v0.9.5 before testing v0.9.6 first launch.
+Internet is required without a valid cache. The mandatory gate uses production
+bootstrap/updater, an empty profile/cache, SHA-256, manifest, Electron ABI and
+hidden CLI startup. Failure blocks publication. Older runtimes do not satisfy alpha9.
 
-- an NSIS installer (see bilingual release notes for exact size and SHA-256);
-- a portable Windows executable (see exact size and SHA-256 in the notes);
-- `latest.yml` plus the setup blockmap for updates;
-- the pinned DSH `0.2.1-alpha.8` runtime and `.sha256` as separate ~421.5 MB
-  assets in the v0.9.4 runtime release, downloaded and verified on first launch
-  without a valid cache; the v0.9.5 release gate proves this from an empty cache.
-
-**Platform support: Windows x64 only** (v0.9.5 setup and portable were packaged
-and statically verified on Windows x64). **NOT tested and NOT supported**:
-Windows ARM64, Linux (any distribution/architecture), or macOS (any
-architecture). No artifacts are published for these platforms; contributor
-builds exist but were not tested by the maintainer and must not be treated as
-usable releases. Builds are local and do not use GitHub Actions workflows.
-
-`0.4.3` is a historical recovery reference, not the current release or source
-of truth. v0.9.5 is the current published Windows x64 baseline; v0.9.4 is the
-previous immutable release.
+**Platform support: Windows x64 only**; Windows ARM64, Linux and macOS are
+untested and unsupported. Builds are local without GitHub Actions; binaries are unsigned.
+The user confirmed the local containment candidate works before this version
+bump; that local preload is not public clean-install evidence. v0.9.5 and
+earlier releases retain their historical tags and binaries.
 
 ## What is included
 
@@ -73,9 +62,10 @@ previous immutable release.
 - The upstream DeepSeek Harness web UI, sessions, workspaces, permissions and
   file tools.
 - A single Electron shell and a single `dsh` child generation.
-- Renderer popups are denied and a window-registry backstop destroys any
-  native window outside splash/main/overlay. DSH's Win32-created `pwsh`
-  command children also start hidden, preventing console flashes and focus theft.
+- Renderer popups are denied. Background process trees use `headless-host`
+  with a private desktop and Job, not only `windowsHide`. Explicit user GUI
+  actions use an authenticated broker. This is not a sandbox against malicious
+  code, UAC, services or OS brokers.
 - Engram and free-search as managed MCP entries. Engram is on by default as
   the third managed row; free-search starts disabled until its binary is
   vendored. Entries whose command cannot spawn start disabled instead of
@@ -102,23 +92,23 @@ semantic memory surface.
 ## Install and first run
 
 1. Download the Windows setup or portable artifact from the
-   [v0.9.5 GitHub release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.5).
+   [v0.9.6 GitHub release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.6).
 2. Install or unpack it and launch the real shortcut/executable.
 3. Select a project directory in the picker.
 4. Ask the model to inspect or change the project.
 
-The v0.9.5 installer includes Electron, the opencode2api gateway, bundled Tor,
+The v0.9.6 installer includes Electron, the opencode2api gateway, bundled Tor,
 native dependencies and Tesseract (~178 MB). The large DSH runtime is a
 separate release asset: on first launch, FreeCode downloads the pinned
-`0.2.1-alpha.8` Windows x64 archive (~421.5 MB), verifies GitHub's SHA-256 and
+`0.2.1-alpha.9` Windows x64 archive (~421.5 MB), verifies GitHub's SHA-256 and
 Electron ABI, then caches it under `<userData>/harness-runtime`. Later starts
 reuse the verified cache offline. Any first launch without a valid cache needs
 network access; a failed download or validation offers Retry/Close and does not
-start the Harness. The v0.9.5 release gate also proves this first-run path from
+start the Harness. The mandatory v0.9.6 release gate must prove this first-run path from
 a newly empty isolated cache and public GitHub asset. Managed MCP servers still resolve `uvx` (vendored, with
 user-PATH and pinned-download fallbacks). If an incomplete installation is
 detected, the diagnostic points to the app log and recommends reinstalling
-from the official v0.9.5 release.
+from the official v0.9.6 release.
 
 The Windows bootstrap silently reuses a user-installed `uvx.exe`, or downloads
 the pinned official uv ZIP into a per-user tools directory after HTTPS and
@@ -221,11 +211,11 @@ distinguishes permission failures from tool/MCP failures.
 
 ## Updater and versioning
 
-About reads `app.getVersion()`, so the packaged v0.9.5 binary says 0.9.5.
+About reads `app.getVersion()`, so the packaged v0.9.6 binary says 0.9.6.
 The app checks for updates at startup and every six hours. The update control
 is the same circular primary button as Send, with the arrow pointing down.
 When downloading, the tray tooltip/menu and a native notification say so; the
-install/restart phase is also visible. v0.9.5 prevents the updater from
+install/restart phase is also visible. v0.9.6 prevents the updater from
 offering an older DSH runtime as an upgrade; installing the desktop release and
 bootstrapping its pinned runtime are separate steps.
 
@@ -284,7 +274,7 @@ Every product feature must have an owner file, a modular patch or shell-layer
 implementation, a contract test and a replay/idempotence check. See
 [docs/UPSTREAM-PATCHING.md](docs/UPSTREAM-PATCHING.md).
 
-## Windows local release gate: v0.9.5
+## Windows local release gate: v0.9.6
 
 Run from PowerShell on Windows x64. The gate is non-interactive at the desktop
 UI boundary: it builds an NSIS package in a unique temporary directory,
@@ -296,47 +286,35 @@ the recorded child PID tree and never enumerates or kills unrelated processes.
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.5-final-20261016'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.6-final-20261016'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.5-final-20261016
+pnpm verify:desktop-release-assets apps/shell/release-0.9.6-final-20261016
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 `build:desktop` creates setup and portable artifacts in the new
-`apps/shell/release-0.9.5-final-20261016/` output directory; it refuses to replace an
+`apps/shell/release-0.9.6-final-20261016/` output directory; it refuses to replace an
 existing non-empty folder. `verify:desktop-release-assets` checks the exact PE
 files, setup blockmap, updater metadata and hashes without launching either
 executable. Desktop packaging does not rebuild or replace the separately versioned DSH runtime. Only when the DSH
 runtime itself changes should maintainers bump its manifest version and run
 `pnpm package:runtime:release`; existing runtime versions are immutable.
 
-Hashes and failures of previous alpha5–alpha8 candidate installers remain
-historical in their release notes. Use the v0.9.5 desktop output and public
-alpha8 runtime asset from v0.9.4 for a clean install; do not use local-only
-alpha candidate bundles.
+Previous alpha5–alpha8 builds and their hashes remain historical in v0.9.4 notes.
+The current runtime is alpha9, fetched from separate v0.9.5 assets; a local
+preload is not public first-install evidence.
 
-The user confirmed the installed v0.9.4 application works on Windows x64. The
-v0.9.5 setup/portable are statically verified but this release task did not
-install or launch them. The interactive
-`smoke:nsis` installs, launches and uninstalls the application, which can alter
-per-user shortcut/registration state; it is opt-in for a disposable Windows VM
-only, never part of `release:gate` or a maintainer workstation run. Details are
-in [release policy](docs/RELEASE-POLICY.md) and its
-[Spanish version](docs/RELEASE-POLICY.es.md). v0.9.0's earlier gate counts are
-historical and remain in [its release notes](release-notes-v0.9.0.md).
-
-The published [v0.9.5 release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.5)
-contains the current setup, portable, blockmap and `latest.yml`. The pinned DSH
-alpha8 runtime tarball and `.sha256` remain separate assets in the immutable
-[v0.9.4 runtime release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.4).
-
-The final v0.9.5 release assets are staged under
-`apps/shell/release-0.9.5-final-20261016/`; historical release folders remain
-untouched.
+The [v0.9.6 GitHub release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.6)
+contains the final artifacts listed in the bilingual notes. The fresh output is
+`apps/shell/release-0.9.6-final-20261016/`; historical folders are not overwritten.
+The gate does not install or launch the FreeCode GUI. The interactive installer
+smoke installs, launches and uninstalls, so it is only allowed in a disposable
+Windows VM, never on the workstation or beside the user's instance.
+See the [release policy](docs/RELEASE-POLICY.md).
 
 ## Manual contributor builds for other operating systems
 
-Linux and macOS are not release targets for v0.9.5, and Windows ARM64 is not
+Linux and macOS are not release targets for v0.9.6, and Windows ARM64 is not
 tested either. A contributor may work on a native host with its own Node,
 pnpm, Git, Electron build tools and native dependencies:
 
@@ -377,7 +355,8 @@ hardening y release local en ambos idiomas.
 ## Documentation index
 
 - [Upstream feature inventory](docs/UPSTREAM-FEATURES.md)
-- [v0.9.5 release notes](release-notes-v0.9.5.md)
+- [v0.9.6 release notes](release-notes-v0.9.6.md)
+- [v0.9.5 — history / historial](release-notes-v0.9.5.md)
 - [v0.9.4 release notes](release-notes-v0.9.4.md)
 - [v0.9.3 release notes](release-notes-v0.9.3.md)
 - [v0.9.2 release notes](release-notes-v0.9.2.md)

@@ -1,12 +1,8 @@
 # Política de releases
 
-### Release v0.9.5 publicada actual (Windows x64)
+### Release actual: v0.9.6 (Windows x64)
 
-La release pública v0.9.5 contiene setup, portable y metadatos del updater. Corrige el botón de cierre de Estado del pool y agrega una prueba real obligatoria de caché vacía para el runtime DSH separado `0.2.1-alpha.8`; su archivo y SHA-256 inmutables siguen disponibles en la release pública v0.9.4. El gate usa el bootstrap/updater de producción bajo la ABI de Electron empaquetada, descarga el asset público exacto a un perfil/caché temporal vacío, valida digest, extracción, manifest y ABI, e inicia el CLI descargado en modo oculto. También conserva opencode2api v1.4.0, V094-37, los fondos animados inspirados en Hermes (V094-38), V094-39, las correcciones de catálogo/Tor V094-21 y la corrección de recursión del composer V094-35. El catálogo activo es `profiles/web/cordis.patch.yml`. Los assets y hashes de v0.9.5 están en `release-notes-v0.9.5.md`; las notas de v0.9.4 quedan como historial inmutable.
-
-Las releases son manuales y tienen como target Windows x64. Esta política
-describe el límite real entre la app desktop y el runtime para v0.9.5; no
-autoriza a tocar una instancia de FreeCode que esté en ejecución.
+**Estado candidato:** v0.9.6 aún no está publicada. Faltan la prueba pública de caché vacía y la verificación final de setup/portable; una precarga local no las reemplaza.
 
 ## Prueba obligatoria de instalación limpia
 
@@ -22,14 +18,21 @@ salida del setup no lo reemplazan. El smoke solo usa su perfil/caché temporal y
 su hijo CLI oculto; no instala ni inicia FreeCode ni inspecciona, detiene o reinicia
 procesos ajenos.
 
-La release v0.9.5 conserva el arreglo V094-35 de recursión del bloqueo del modelo; por eso el pin de `apps/shell/harness-runtime.json` sigue en 0.2.1-alpha.8. Alpha6 es un archivo histórico inmutable y anterior a ese código. El runtime alpha8 público mide 421.507.898 bytes y su SHA-256 es `bf9f4324f0a10d6ff0861e365284d08d8f3745a3c5da49621d339629926023a6`. El runtime sigue separado del setup/portable; sus hashes desktop exactos están en las notas bilingües v0.9.5. Las cachés alpha4/alpha6 no satisfacen el pin alpha8. OmniRoute sigue retirado: no se incluye fallback, descarga, servidor ni detector. En el siguiente inicio solo se retiran configuraciones propias obsoletas y cachés verificadas; se conservan proveedores e historial ajenos.
+## Contención Windows y runtime
 
-Nota histórica: v0.9.2 publicó el runtime DSH inmutable `0.2.1-alpha.2`;
-v0.9.4 publicó alpha8 y v0.9.5 prueba ese asset público con caché vacía.
+v0.9.6 exige `headless-host` GUI, escritorio privado y Job asignado con el
+destino suspendido, sin fallback directo. Las acciones GUI explícitas usan el
+broker autenticado. Las pruebas nativas adversarias de ventanas/descendientes
+y cierre del Job corren contra el helper exacto preparado y empaquetado;
+los strings de fuente no bastan. Ver [contención y límites](HEADLESS-DESKTOP.md).
 
-La salida final verificada usa el directorio único
-`apps/shell/release-0.9.5-final-20261016/`; no reutilices ni
-sobrescribas el directorio obsoleto de la candidata alpha5.
+El pin actual es `0.2.1-alpha.9` (ABI 149), 421.541.194 bytes, SHA-256
+`7c1d8cb1b53e2a88a7549941afacf423a1345353b9c3aa6fd53d95d3f49c4ca5`.
+Se agrega como dependencia a la release v0.9.5 antes del gate; no se reemplaza
+ningún asset anterior. v0.9.4 publicó alpha8 y v0.9.2 alpha2: quedan como historia.
+OmniRoute sigue retirado. Se conservan sesiones y proveedores del usuario.
+La salida nueva es `apps/shell/release-0.9.6-final-20261016/` y los tamaños/
+hashes finales se registran en [notas bilingües](../release-notes-v0.9.6.md).
 
 Tras cambiar opencode2api o su overlay activo, recompilá con
 `bash scripts/build-opencode2api.sh`. También prepara el nuevo sidecar Windows
@@ -53,9 +56,9 @@ las rutas temporales: `--user-data-dir` de Chromium no redirige por sí solo
 `app.getPath('userData')` de Electron. Sin un perfil privado, el smoke puede
 dejar el torrc apuntando a recursos dentro de su instalación temporal eliminada.
 
-La release desktop v0.9.5 contiene setup NSIS, portable, blockmap del setup y
-`latest.yml`. El runtime DSH separado tiene versión independiente: v0.9.5
-descarga el runtime Windows x64 exacto `0.2.1-alpha.8` desde la release runtime pública v0.9.4,
+La release desktop v0.9.6 contiene setup NSIS, portable, blockmap del setup y
+`latest.yml`. El runtime DSH separado tiene versión independiente: v0.9.6
+descarga el runtime Windows x64 exacto `0.2.1-alpha.9` desde la release runtime pública v0.9.5,
 que también incluye el checksum SHA-256. El gate verifica el archivo fijado
 local y el manifest empaquetado; nunca vuelve a generar, elimina ni reemplaza
 ese tarball inmutable. El packaging desktop habitual tampoco ejecuta
@@ -74,9 +77,9 @@ nueva y aislada, y verificá exactamente esa carpeta:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.5-final-20261016'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.6-final-20261016'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.5-final-20261016
+pnpm verify:desktop-release-assets apps/shell/release-0.9.6-final-20261016
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
@@ -123,7 +126,7 @@ setup exacto:
 ```powershell
 $env:FREECODE_ALLOW_INTERACTIVE_NSIS_SMOKE = '1'
 $env:FREECODE_NSIS_SMOKE_ENV = 'disposable-vm'
-$env:FREECODE_NSIS_SETUP_PATH = 'C:\path\to\exact\FreeCode-DeepSeek-Harness-0.9.4-win-x64-setup.exe'
+$env:FREECODE_NSIS_SETUP_PATH = 'C:\path\to\exact\FreeCode-DeepSeek-Harness-0.9.6-win-x64-setup.exe'
 pnpm --filter @freecode/shell smoke:nsis
 ```
 

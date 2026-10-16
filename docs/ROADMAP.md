@@ -1,15 +1,20 @@
 # Roadmap / Hoja de ruta
 
-### Current release: v0.9.5 (Windows x64)
+### Current release: v0.9.6 (Windows x64)
 
-The public v0.9.5 release contains the desktop setup, portable and updater metadata. It adds a mandatory first-run DSH download proof from an empty profile/cache and fixes KI-011, the Pool Status close button. The proof downloads the exact public alpha8 runtime (`0.2.1-alpha.8`) via production bootstrap/updater, verifies digest/layout/manifest/Electron ABI, then starts the CLI hidden. v0.9.4 remains the immutable source of that separate runtime asset. v0.9.5 carries forward opencode2api v1.4.0, Tor/model resilience, catalog loading feedback (V094-37), 13 Hermes-inspired animated backgrounds (V094-38), per-model context/effort (V094-39), Gentle AI, profile synchronization, V094-21 catalog/Tor corrections and the V094-35 composer recursion fix. The active model catalog is `profiles/web/cordis.patch.yml`. See the bilingual v0.9.5 notes for exact assets/hashes.
+FreeCode DeepSeek Harness v0.9.6 contains the Windows background-window containment and harness audit fixes. Background process trees use the verified GUI-subsystem `headless-host` helper, a private noninteractive desktop and a Job attached before execution. Explicit user GUI actions use an authenticated Electron broker. Renderer IPC/navigation is restricted, concurrent catalog refreshes are coalesced, Tor status reaches the Pool overlay, and the legacy adapter preserves large requests and complete retry responses. DSH `0.2.1-alpha.9` is a separate first-launch download, not bundled in setup/portable. See the [bilingual v0.9.6 release notes](../release-notes-v0.9.6.md).
 
-### Release actual: v0.9.5 (Windows x64)
+**Candidate status:** v0.9.6 is not published yet. Public clean-cache proof and final setup/portable verification are pending; do not substitute a local preload.
 
-La release pública v0.9.5 contiene setup, portable y metadatos del updater. Agrega la prueba obligatoria de descarga inicial DSH desde un perfil/caché vacíos y corrige KI-011, el botón de cierre de Estado del pool. El smoke obtiene el runtime alpha8 público (`0.2.1-alpha.8`) mediante el bootstrap/updater de producción, valida digest/estructura/manifest/ABI Electron y luego inicia el CLI descargado oculto. La release v0.9.4 sigue siendo la fuente inmutable del asset runtime separado. v0.9.5 conserva opencode2api v1.4.0, resiliencia Tor/modelos, indicador de catálogo (V094-37), 13 fondos animados inspirados en Hermes (V094-38), contexto/esfuerzo por modelo (V094-39), Gentle AI, sincronización de perfil, correcciones de catálogo/Tor V094-21 y corrección de recursión del composer V094-35. Ver las notas bilingües v0.9.5 para hashes y assets exactos.
+### Release actual: v0.9.6 (Windows x64)
 
-Baseline: `v0.9.5`
-Published baseline: `v0.9.5`
+FreeCode DeepSeek Harness v0.9.6 incorpora la contención de ventanas Windows y las correcciones de auditoría del harness. Los árboles de procesos de fondo usan `headless-host` verificado, un escritorio privado no interactivo y un Job asignado antes de ejecutar. Las acciones GUI explícitas usan un broker Electron autenticado. Se restringen IPC/navegación, se unifican refrescos concurrentes del catálogo, llega el estado Tor al overlay y el adaptador antiguo conserva requests grandes y respuestas completas. DSH `0.2.1-alpha.9` se descarga por separado al primer inicio; no viene dentro del setup/portable. Ver las [notas bilingües v0.9.6](../release-notes-v0.9.6.md).
+
+**Estado candidato:** v0.9.6 aún no está publicada. Faltan la prueba pública de caché vacía y la verificación final de setup/portable; una precarga local no las reemplaza.
+
+Baseline: `v0.9.6` (candidate / candidata)
+Previous published baseline / Baseline publicada anterior: `v0.9.5`.
+Runtime: `0.2.1-alpha.9`; output / salida: `apps/shell/release-0.9.6-final-20261016/`.
 
 ## Estrategia de ahorro de contexto / Context-efficiency strategy
 
@@ -24,7 +29,7 @@ RTK and Caveman are not enabled together by default: they may complement each ot
 
 ## En curso / In progress
 
-No hay tareas de release activas para v0.9.5. / There are no active v0.9.5 release tasks.
+v0.9.6: publicar alpha9 inmutable, pasar el gate público clean-cache, verificar setup/portable y publicar. / Publish immutable alpha9, pass the public clean-cache gate, verify setup/portable and publish. Tracked in `odd/tasks/release-v0.9.6.md`.
 
 ## Completado / Completed
 

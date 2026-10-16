@@ -5,38 +5,19 @@
 
 ## Estado actual / Current status
 
-La release publicada `v0.9.5` mantiene la resiliencia Tor (una instancia única
-`tor.exe` empaquetada, con rotación `NEWNYM` y failover para opencode2api),
-consolida el lane de modelos a un único `deepseek-free` sin duplicados, hace
-que el seeder respete el modelo elegido por el usuario, incorpora el modo
-Gentle AI integrado de 0.8.0, elimina freellmpool y WARP, y mantiene Engram
-como tercera fila MCP administrada con el locale español corregido. v0.9.4
-agrega el indicador de carga del catálogo, 13 fondos animados Hermes, metadata
-de contexto/esfuerzo por modelo y el runtime DSH alpha8 publicado. v0.9.5
-demuestra además la descarga inicial desde caché vacía mediante el gate de
-release y corrige el botón de cierre de Estado del pool. Las limitaciones
-honestas restantes: la cuota del upstream gobierna el lane
-anónimo, los binarios RTK/Caveman/free-search no están empaquetados, y las
-demás plataformas no están probadas. En v0.9.5 sólo se soporta Windows x64;
-Windows ARM64, Linux y macOS no están soportados. El runtime DSH `0.2.1-alpha.8`
-se descarga por separado en el primer inicio sin caché válida, por lo que
-esa primera ejecución requiere Internet; la descarga se valida con un smoke de
-caché vacía antes de publicar.
+Fuente candidata / Candidate source: `v0.9.6`; DSH `0.2.1-alpha.9` (ABI 149).
+**Estado candidato:** v0.9.6 aún no está publicada. Faltan la prueba pública de caché vacía y la verificación final de setup/portable; una precarga local no las reemplaza.
 
-The published `v0.9.5` release retains Tor resilience (a single bundled
-`tor.exe` instance with `NEWNYM` rotation and opencode2api failover),
-consolidates the model lane into a single duplicate-free `deepseek-free`, makes
-the seeder preserve the user-chosen model, carries the 0.8.0 Gentle AI mode,
-removes freellmpool and WARP, and keeps Engram as the third managed MCP row
-with the fixed Spanish locale. It also proves the pinned alpha8 runtime download
-from a genuinely empty cache/profile and fixes the Pool Status close button.
-Honest limitations remain: upstream quota
-governs the anonymous lane, the RTK/Caveman/free-search binaries are not
-vendored, and other platforms are untested. v0.9.5 supports Windows x64 only;
-Windows ARM64, Linux and macOS are unsupported. The DSH `0.2.1-alpha.8` runtime
-is fetched separately on first launch when no valid cache exists, so that
-launch needs Internet access. The release gate validates this separately
-downloaded runtime using an empty cache and public GitHub asset.
+**Candidate status:** v0.9.6 is not published yet. Public clean-cache proof and final setup/portable verification are pending; do not substitute a local preload.
+
+En v0.9.6 sólo se soporta Windows x64; Windows ARM64, Linux y macOS no están
+probados ni soportados. Se conservan Tor, OpenCode Free, Gentle AI, contexto/
+effort por modelo y 13 fondos Hermes. El runtime se descarga por separado
+con SHA-256; hace falta Internet sin caché válida. Ver [notas](../release-notes-v0.9.6.md).
+
+v0.9.6 supports Windows x64 only; other platforms are untested/unsupported.
+The runtime remains a separate first-launch download requiring Internet without
+a valid cache. Upstream model quota and optional PATH helpers remain limitations.
 
 ## Limitaciones operativas / Operational limitations
 
@@ -48,18 +29,18 @@ La ruta OpenCode Free depende del puente local, los workers disponibles, los lí
 
 ### KI-002 — Separate first-launch runtime download / Descarga del runtime en el primer inicio
 
-The v0.9.4 setup/portable are about 178 MB; see the bilingual release notes for
+The current setup/portable are about 180 MB; see the bilingual release notes for
 exact hashes and sizes. The DSH runtime is not inside either desktop installer.
 A first launch without a valid cache downloads the separate pinned
-`0.2.1-alpha.8` Windows x64 runtime archive (~421.5 MB),
+`0.2.1-alpha.9` Windows x64 runtime archive (~421.5 MB),
 then caches the validated runtime per user for offline later starts. This
 network/download step is part of the current packaging, not by itself evidence
 that the application is hung.
 
-El setup/portable v0.9.4 pesan cerca de 178 MB; consulta las notas bilingües
+El setup/portable actual pesan cerca de 180 MB; consulta las notas bilingües
 para tamaños y hashes exactos. Ninguno incluye el runtime DSH. En un primer
 inicio sin caché válida se descarga por separado el runtime Windows x64 fijado
-en `0.2.1-alpha.8` (~421,5 MB), y después de
+en `0.2.1-alpha.9` (~421,5 MB), y después de
 validarlo se guarda por usuario para los arranques sin conexión. Este paso de
 red/descarga forma parte del empaquetado actual y, por sí solo, no indica que
 la aplicación esté colgada.
@@ -164,9 +145,9 @@ conservá intacto el archivo de sesión original.
 
 ### KI-010 — DSH alpha8 first-launch runtime asset / Asset runtime DSH alpha8 del primer inicio
 
-Resolved in v0.9.4: the public release includes the immutable DSH alpha8 runtime asset, version `0.2.1-alpha.8`, and its SHA-256. The v0.9.5 release gate additionally proves first-run retrieval from a newly created empty profile/cache through production bootstrap/updater code, validates GitHub's SHA-256 digest, runtime manifest, extraction layout and Electron ABI, then starts the downloaded DSH CLI hidden with `--help` exit 0. The archive is 421,507,898 bytes; SHA-256 `bf9f4324f0a10d6ff0861e365284d08d8f3745a3c5da49621d339629926023a6`. Older alpha4/alpha6 caches do not satisfy this pin.
+Resolved in v0.9.4: the public release includes the immutable DSH alpha8 runtime asset, version `0.2.1-alpha.9`, and its SHA-256. The v0.9.5 release gate additionally proves first-run retrieval from a newly created empty profile/cache through production bootstrap/updater code, validates GitHub's SHA-256 digest, runtime manifest, extraction layout and Electron ABI, then starts the downloaded DSH CLI hidden with `--help` exit 0. The archive is 421,507,898 bytes; SHA-256 `bf9f4324f0a10d6ff0861e365284d08d8f3745a3c5da49621d339629926023a6`. Older alpha4/alpha6 caches do not satisfy this pin.
 
-Resuelto en v0.9.4: la release pública e inmutable incluye el asset runtime DSH alpha8 para Windows x64 (`0.2.1-alpha.8`) y su SHA-256. El gate v0.9.5 también prueba el primer inicio desde un perfil/caché nuevos y vacíos, descarga ese asset público mediante el bootstrap/updater de producción, valida SHA-256, manifest, estructura extraída y ABI de Electron, y luego inicia el CLI DSH en modo oculto; `--help` termina con código 0. El archivo mide 421.507.898 bytes; SHA-256 `bf9f4324f0a10d6ff0861e365284d08d8f3745a3c5da49621d339629926023a6`. Las cachés alpha4/alpha6 no satisfacen este pin.
+Resuelto en v0.9.4: la release pública e inmutable incluye el asset runtime DSH alpha8 para Windows x64 (`0.2.1-alpha.9`) y su SHA-256. El gate v0.9.5 también prueba el primer inicio desde un perfil/caché nuevos y vacíos, descarga ese asset público mediante el bootstrap/updater de producción, valida SHA-256, manifest, estructura extraída y ABI de Electron, y luego inicia el CLI DSH en modo oculto; `--help` termina con código 0. El archivo mide 421.507.898 bytes; SHA-256 `bf9f4324f0a10d6ff0861e365284d08d8f3745a3c5da49621d339629926023a6`. Las cachés alpha4/alpha6 no satisfacen este pin.
 
 ### KI-011 — Pool-status window close button / Botón de cierre de estado del pool
 
@@ -234,13 +215,20 @@ Estas entradas quedan para clasificar rápidamente reportes antiguos:
 - El README principal, el README en español y las descripciones de release tienen cobertura bilingüe.
 - La barra de direcciones y el layout del Chromium embebido se corrigieron en `v0.2.2`; Enter/Ir, navegación HTTPS de hosts simples y reflow del texto quedan cubiertos por la implementación del release.
 
-### KI-012 — Background window flashes recur / Reaparecen ventanas de procesos de fondo
+### KI-012 — Background window flashes / Ventanas de fondo fugaces
 
-**Estado:** reportado nuevamente después de v0.9.5. La rama local incorpora escritorio Windows no interactivo por árbol de procesos, Job Object antes de ejecutar el destino y watchdog limitado al Job, además de un broker para acciones GUI explícitas. Las pruebas nativas fuerzan ventanas y consolas nuevas; el empaquetado debe repetirlas sobre su binario exacto. El candidato necesita DSH alpha9 y todavía no se considera publicado ni validado desde una descarga pública limpia. El instalador de auditoría anterior no contiene esta corrección.
+**Estado:** corregido en el candidato v0.9.6 y confirmado funcionando por el
+usuario en su prueba local. Escritorios privados, Job antes de ejecutar,
+watchdog acotado al Job y broker GUI explícito reemplazan la dependencia
+exclusiva de flags ocultos. Falta el gate público limpio antes de publicar.
 
-**Status:** reported again after v0.9.5. The local branch adds per-tree noninteractive Windows desktops, pre-execution Job attachment, a Job-scoped watchdog and a broker for explicit GUI actions. Native tests force visible windows and new-console descendants; packaging must repeat them against its exact binary. The candidate requires DSH alpha9 and is not yet considered published or validated by a public clean-cache download. The previous audit installer does not contain this correction.
+**Status:** fixed in the v0.9.6 candidate and user-confirmed in its local test.
+Private desktops, pre-execution Job attachment, a bounded Job-scoped watchdog
+and an explicit GUI broker replace reliance on hidden flags alone. The public
+clean-cache gate is still required before publication. This is not a sandbox
+against malicious same-user code, UAC, services or OS brokers.
 
-Implementation, diagnostics and limits: [Windows desktop containment / Contención de ventanas](HEADLESS-DESKTOP.md).
+Implementation and limits: [Windows desktop containment](HEADLESS-DESKTOP.md).
 
 ## Cómo reportar un problema nuevo / How to report a new issue
 

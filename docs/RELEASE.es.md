@@ -1,49 +1,21 @@
 # Release y packaging
 
-### Release actual: v0.9.5 (Windows x64)
+### Release actual: v0.9.6 (Windows x64)
 
-La release pública v0.9.5 incluye instalador NSIS, portable y metadatos del updater. Corrige el botón de cierre de Estado del pool y prueba la descarga inicial del runtime DSH alpha8 desde un perfil/caché scratch vacíos usando el bootstrap/updater de producción, el asset público de GitHub, SHA-256, extracción, manifest, ABI de Electron empaquetada e inicio oculto del CLI. El runtime DSH sigue siendo una descarga separada; su asset inmutable está en la release v0.9.4. v0.9.5 conserva opencode2api v1.4.0, V094-37, V094-38, los fondos animados inspirados en Hermes, V094-39, sincronización de perfil, routing, las correcciones de catálogo/Tor V094-21 y la corrección de recursión del composer V094-35. Los assets y hashes actuales están en las [notas bilingües v0.9.5](../release-notes-v0.9.5.md); v0.9.4 queda como historial. El catálogo activo es `profiles/web/cordis.patch.yml`.
+FreeCode DeepSeek Harness v0.9.6 incorpora la contención de ventanas Windows y las correcciones de auditoría del harness. Los árboles de procesos de fondo usan `headless-host` verificado, un escritorio privado no interactivo y un Job asignado antes de ejecutar. Las acciones GUI explícitas usan un broker Electron autenticado. Se restringen IPC/navegación, se unifican refrescos concurrentes del catálogo, llega el estado Tor al overlay y el adaptador antiguo conserva requests grandes y respuestas completas. DSH `0.2.1-alpha.9` se descarga por separado al primer inicio; no viene dentro del setup/portable. Ver las [notas bilingües v0.9.6](../release-notes-v0.9.6.md).
 
-Este repositorio es el fork público Akunimal/free-code-deepseek-harness de
-deepseek-ai/deepseek-harness. El código de producto vive fuera del subtree
-vendor/deepseek-harness cuando es posible; los cambios de upstream se
-reproducen mediante el stack ordenado de patches.
+**Estado candidato:** v0.9.6 aún no está publicada. Faltan la prueba pública de caché vacía y la verificación final de setup/portable; una precarga local no las reemplaza.
+
+Se conservan opencode2api v1.4.0, correcciones catálogo/Tor V094-21, composer V094-35, indicador de carga V094-37, 13 fondos CSS/ASCII Hermes V094-38, contexto/esfuerzo V094-39, Gentle AI y el catálogo activo `profiles/web/cordis.patch.yml`.
 
 ## Baseline actual
 
-La release publicada v0.9.5 es la baseline actual para Windows x64:
-
-- instalador NSIS v0.9.5 (ver tamaño y hash exactos en las notas de release);
-- ejecutable portable v0.9.5 (ver tamaño y hash exactos en las notas),
-  verificado estáticamente pero no instalado por separado;
-- `latest.yml` y blockmap del setup para el updater;
-- el tarball del runtime DSH Windows x64 `0.2.1-alpha.8` (~421,5 MB) y su
-  checksum `.sha256` están en la release runtime inmutable v0.9.4, separados
-  de los instaladores; v0.9.5 prueba su descarga desde caché vacía.
-
-Los nombres, tamaños y SHA-256 exactos de setup, portable y metadatos están en
-las notas bilingües v0.9.5. Se verificaron estáticamente; este proceso no instaló
-ni inició esos artefactos. El usuario confirmó que el setup v0.9.4 funciona.
-Windows x64 es el único target probado y soportado.
-Windows ARM64, Linux y macOS NO están probados ni soportados; no se publican
-artefactos para esas plataformas.
-
-0.4.3 es una referencia histórica de recuperación, no una garantía de
-compatibilidad ni la fuente de verdad del código actual. La validación de
-release usa el paquete v0.9.5 y su bootstrap del runtime fijado.
-
-El roadmap de 0.7.0 está cerrado; su ledger está en el
-[ledger de 0.7.0](STATE-0.7.0.md). Los hallazgos completos de sólo lectura
-están en [AUDIT-0.6.0-TEST-PLAN.md](AUDIT-0.6.0-TEST-PLAN.md).
-
-La fuente y la release pública están alineadas en **v0.9.5**. Corrige el cierre
-de Estado del pool y exige prueba real de descarga runtime con caché vacía; la
-release v0.9.4 conserva la historia detallada de modelos, Tor y fondos.
-
-Las builds desktop alpha5–alpha8 anteriores quedan como historial supersedido.
-
-Los intentos alpha5–alpha8 y sus hashes se conservan como historia; usa solo
-los assets adjuntos a la release pública v0.9.4.
+La fuente y los artefactos corresponden a v0.9.6. El runtime separado alpha9
+se agrega a v0.9.5 como dependencia inmutable antes del gate público limpio;
+no se reemplazan los binarios desktop ni tags anteriores. La versión desktop
+anterior usaba alpha8 desde v0.9.4. Solo Windows x64 está soportado.
+Los hashes nuevos se registran en las notas después de verificar los artefactos.
+La salida final nueva es `apps/shell/release-0.9.6-final-20261016/`.
 
 ## Build local de Windows
 
@@ -56,15 +28,15 @@ perfil/caché nuevos y vacíos mediante el bootstrap/updater de producción.
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.5-final-20261016'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.6-final-20261016'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.5-final-20261016
+pnpm verify:desktop-release-assets apps/shell/release-0.9.6-final-20261016
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 El gate ejecuta tests, contratos, typechecks, build/preflight y un smoke MCP
 offline con fixtures stdio del repositorio y un proveedor mock de loopback;
-descarga el runtime público exacto `0.2.1-alpha.8` a un perfil/caché scratch
+descarga el runtime público exacto `0.2.1-alpha.9` a un perfil/caché scratch
 vacíos mediante el bootstrap/updater de producción, valida SHA-256, extracción,
 manifest, ABI Electron e inicio oculto del CLI, y compila un setup NSIS temporal
 para validación estática. Los procesos usan rutas scratch; el smoke MCP no
@@ -80,14 +52,14 @@ ejecutables.
 Los comandos son locales y no usan GitHub Actions. Si faltan recursos
 obligatorios, el gate falla en vez de saltearlos silenciosamente.
 
-Los artefactos desktop v0.9.5 quedan en el directorio final aislado:
+Los artefactos desktop v0.9.6 quedan en el directorio final aislado:
 
 ~~~
-apps/shell/release-0.9.5-final-20261016/FreeCode-DeepSeek-Harness-0.9.5-win-x64-setup.exe
-apps/shell/release-0.9.5-final-20261016/FreeCode-DeepSeek-Harness-0.9.5-win-x64-setup.exe.blockmap
-apps/shell/release-0.9.5-final-20261016/FreeCode-DeepSeek-Harness-0.9.5-win-x64-portable.exe
-apps/shell/release-0.9.5-final-20261016/latest.yml
-apps/shell/release-0.9.5-final-20261016/win-unpacked/FreeCode DeepSeek Harness.exe
+apps/shell/release-0.9.6-final-20261016/FreeCode-DeepSeek-Harness-0.9.6-win-x64-setup.exe
+apps/shell/release-0.9.6-final-20261016/FreeCode-DeepSeek-Harness-0.9.6-win-x64-setup.exe.blockmap
+apps/shell/release-0.9.6-final-20261016/FreeCode-DeepSeek-Harness-0.9.6-win-x64-portable.exe
+apps/shell/release-0.9.6-final-20261016/latest.yml
+apps/shell/release-0.9.6-final-20261016/win-unpacked/FreeCode DeepSeek Harness.exe
 ~~~
 
 Los artefactos v0.9.4 permanecen como historial en su carpeta original:
@@ -110,7 +82,7 @@ opt-ins explícitos de la [política de release](RELEASE-POLICY.es.md).
 
 ## Política de dependencias runtime
 
-Los instaladores desktop v0.9.5 contienen Electron, el gateway opencode2api
+Los instaladores desktop v0.9.6 contienen Electron, el gateway opencode2api
 (único gateway de modelos — freellmpool eliminado en 0.8.0), los binarios de
 Tor incluidos (`tor.exe`, `geoip`, `geoip6`), archivos nativos del picker y
 Tesseract. El runtime DSH se excluye intencionalmente de setup/portable y se
@@ -120,8 +92,8 @@ arrancan deshabilitadas. El cierre instalado enumera versión, arquitectura,
 origen, licencia, hash y ruta relativa en `runtime-deps.json`, verificado por
 `verify-runtime-dependencies.mjs`.
 
-En el primer inicio de v0.9.5, si no hay una caché válida por usuario, se descarga el runtime DSH alpha8
-(`0.2.1-alpha.8`) Windows x64 exacto desde la release runtime inmutable v0.9.4,
+En el primer inicio de v0.9.6, si no hay una caché válida por usuario, se descarga el runtime DSH alpha9
+(`0.2.1-alpha.9`) Windows x64 exacto desde la release runtime inmutable v0.9.5,
 verifica el SHA-256 publicado y la ABI de Electron, y lo guarda en
 `<userData>/harness-runtime`. Los inicios siguientes pueden usar esa caché
 validada sin conexión. Esa descarga requiere Internet; si falla la descarga o compatibilidad, el supervisor no
@@ -153,7 +125,7 @@ obligatorio en la workstation; si hace falta, usá sólo una VM desechable.
 El updater de la aplicación no reemplaza al gate de release. Debe conservar el
 control con forma de Enviar y flecha hacia abajo, chequear al iniciar y en su
 intervalo programado, mostrar progreso en tray/notificación durante descarga e
-instalación y respetar los datos del usuario. v0.9.5 también evita que runtimes
+instalación y respetar los datos del usuario. v0.9.6 también evita que runtimes
 DSH más viejos aparezcan como actualizaciones disponibles.
 
 El camino de actualización de upstream, sólo para el checkout fuente, es:
@@ -171,23 +143,8 @@ Ver [docs/UPSTREAM-PATCHING.md](UPSTREAM-PATCHING.md) y
 
 ## Historial y enlaces de release
 
-Los documentos viejos bajo docs/RELEASE-NOTES-v*.md describen releases
-históricas y deliberadamente no se reescriben como instrucciones actuales. La
-baseline publicada se sigue en
-[GitHub release v0.9.5](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.5);
-las notas bilingües completas están en
-[release-notes-v0.9.5.md](../release-notes-v0.9.5.md). El runtime alpha8 separado
-sigue en la release inmutable
-[v0.9.4](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.4).
-
-Releases anteriores:
-[GitHub release v0.9.1](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.1) —
-[release-notes-v0.9.1.md](../release-notes-v0.9.1.md);
-[GitHub release v0.9.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.0) —
-[release-notes-v0.9.0.md](../release-notes-v0.9.0.md);
-[GitHub release v0.8.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.8.0) —
-[release-notes-v0.8.0.md](../release-notes-v0.8.0.md);
-[GitHub release v0.7.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.7.0) —
-[release-notes-v0.7.0.md](../release-notes-v0.7.0.md).
-
-Para la guía en inglés, consultá [RELEASE.md](RELEASE.md).
+La release actual y sus notas: [v0.9.6](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.6),
+[notas bilingües](../release-notes-v0.9.6.md). El runtime alpha9 separado se
+sirve desde los assets runtime añadidos a [v0.9.5](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.5).
+Los tags, notas y binarios desktop v0.9.5 y anteriores son historia inmutable.
+Ver la [guía en inglés](RELEASE.md) y [política](RELEASE-POLICY.es.md).

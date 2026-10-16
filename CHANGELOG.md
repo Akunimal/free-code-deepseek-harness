@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.9.6 — Candidate / Candidata — 2026-10-16
+
+See [bilingual release notes / notas bilingües](release-notes-v0.9.6.md).
+
+- Windows background trees now use a verified GUI-subsystem headless-host,
+  private desktops, suspended-process Job attachment and a bounded Job-scoped
+  watchdog. Explicit GUI gestures use an authenticated Electron broker. /
+  Contención de procesos de fondo con escritorio privado, Job antes de ejecutar,
+  watchdog limitado al Job y broker autenticado para acciones GUI explícitas.
+- Hardened renderer navigation/IPC, coalesced catalog refresh requests, fixed
+  Tor status fan-out, and preserved large adapter requests/complete retry
+  responses. / Navegación/IPC endurecidos, refrescos de catálogo unificados,
+  estado Tor actualizado y requests/respuestas íntegros en el adaptador antiguo.
+- Pins separate DSH `0.2.1-alpha.9` with GUI-broker compatibility; mandatory
+  native adversarial and public clean-cache gates cannot be substituted by a
+  local preload. / Runtime alpha9 separado compatible con broker GUI; los gates
+  nativos adversarios y de descarga pública limpia no se reemplazan por precarga.
+- Final Windows x64 setup, portable and updater metadata are pending their
+  checks; no older tag or desktop asset is overwritten. / Pendiente verificar
+  setup, portable y metadatos; no se reemplazan tags ni assets desktop anteriores.
+
 ## 0.9.5 — Published — 2026-10-16
 
 See the [bilingual v0.9.5 release notes](release-notes-v0.9.5.md). The release
