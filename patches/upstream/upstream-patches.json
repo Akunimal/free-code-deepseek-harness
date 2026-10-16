@@ -393,6 +393,18 @@
       "vendorOnly": true
     },
     {
+      "file": "177-freecode-animated-conversation-backgrounds.patch",
+      "order": 177,
+      "owner": "freecode",
+      "description": "Keep conversation patterns stable during streams and transition to original animated backgrounds after completion",
+      "seam": "packages/client/ui-conversation/src/client/skeleton/PhoenixBackground.tsx",
+      "contractTests": [
+        "packages/client/ui-conversation/tests/phoenix-background.client.spec.tsx",
+        "packages/contract-tests/tests/conversation-background.contract.test.ts"
+      ],
+      "vendorOnly": true
+    },
+    {
       "file": "178-freecode-model-capabilities.patch",
       "order": 178,
       "owner": "freecode",

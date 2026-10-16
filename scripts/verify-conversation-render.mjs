@@ -196,12 +196,24 @@ async function render(mode) {
     }
     if (mode === 'reduced') {
       if ([proof.idle,proof.workingEnd,proof.finished].some(s=>s.canvases!==0)) throw new Error('conversation renderer: reduced motion retained animation');
+      if (proof.idle.pattern!==proof.workingEnd.pattern || proof.finished.pattern===proof.workingEnd.pattern) {
+        throw new Error('conversation renderer: reduced-motion pattern did not stay stable while working and rotate after stop');
+      }
     } else {
       const fast=proof.workingEnd.draws-proof.workingStart.draws;
       const slow=proof.finished.draws-proof.finishStart.draws;
       if (fast < slow*2.5 || slow < 8 || fast > 130) throw new Error('conversation renderer: unbounded or missing work acceleration '+JSON.stringify({fast,slow}));
-      if (proof.idle.pattern===proof.workingEnd.pattern) throw new Error('conversation renderer: pattern did not change on new work');
-      if ([proof.idle,proof.workingEnd,proof.finished].some(s=>s.canvases!==1 || s.colored<100)) throw new Error('conversation renderer: invisible pattern '+JSON.stringify(proof));
+      if (proof.idle.pattern!==proof.workingStart.pattern || proof.workingStart.pattern!==proof.workingEnd.pattern) {
+        throw new Error('conversation renderer: pattern rotated while the stream was running');
+      }
+      if (proof.finishStart.pattern===proof.workingEnd.pattern || proof.finished.pattern!==proof.finishStart.pattern) {
+        throw new Error('conversation renderer: pattern did not rotate exactly once after finish/stop');
+      }
+      if (proof.finishStart.canvases!==2 || proof.finishStart.layers[0]?.pattern!==proof.workingEnd.pattern
+        || proof.finishStart.layers[1]?.pattern!==proof.finishStart.pattern || proof.finished.canvases!==1) {
+        throw new Error('conversation renderer: completion did not crossfade old and new layers '+JSON.stringify(proof.finishStart));
+      }
+      if ([proof.idle,proof.workingStart,proof.workingEnd,proof.finished].some(s=>s.canvases!==1 || s.colored<100)) throw new Error('conversation renderer: invisible pattern '+JSON.stringify(proof));
       if (proof.workingStart.hash===proof.workingEnd.hash) throw new Error('conversation renderer: canvas pixels did not move');
     }
     if (screenshot) {
@@ -218,10 +230,17 @@ async function render(mode) {
       await client.send('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
     }
     if (mode === 'normal') {
-      await client.send('Runtime.evaluate',{expression:'window.freecodeProof.gallery().then(stop=>{window.stopGallery=stop})',awaitPromise:true});
+      const renderedGallery = await client.send('Runtime.evaluate',{expression:
+        'window.freecodeProof.gallery().then(result=>{window.stopGallery=result.stop;return result.proof})',
+        awaitPromise:true,returnByValue:true});
+      const galleryProof = renderedGallery.result.value;
       const gallery = await client.send('Runtime.evaluate',{expression:
         'Array.from(document.querySelectorAll("canvas")).map(c=>{const d=c.getContext("2d").getImageData(0,0,c.width,c.height).data;let n=0;for(let i=3;i<d.length;i+=4)if(d[i])n++;return n})', returnByValue:true});
-      if (gallery.result.value.length!==9 || gallery.result.value.some(n=>n<10)) throw new Error('conversation renderer: some Hermes patterns are invisible: '+JSON.stringify(gallery.result.value));
+      if (gallery.result.value.length!==13 || gallery.result.value.some(n=>n<10)) throw new Error('conversation renderer: some Hermes patterns are invisible: '+JSON.stringify(gallery.result.value));
+      const ascii = galleryProof.filter(entry=>entry.pattern==='ascii-weather' || entry.pattern==='ascii-stars');
+      if (ascii.length!==2 || ascii.some(entry=>entry.textDraws===0 || entry.before===entry.after)) {
+        throw new Error('conversation renderer: original ASCII glyphs did not render and animate: '+JSON.stringify(ascii));
+      }
       if (evidenceDir) {
         const capture=await client.send('Page.captureScreenshot',{format:'png',fromSurface:true});
         const {writeFileSync}=await import('node:fs');
@@ -231,6 +250,7 @@ async function render(mode) {
       const cleaned=await client.send('Runtime.evaluate',{expression:'document.querySelectorAll("canvas").length',returnByValue:true});
       if(cleaned.result.value!==0)throw new Error('conversation renderer: leaked canvas after disposal');
       proof.galleryColoredPixels=gallery.result.value;
+      proof.asciiAnimation=ascii;
     }
     if (evidenceDir) {
       const { writeFileSync } = await import('node:fs');

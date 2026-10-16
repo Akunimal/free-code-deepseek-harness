@@ -23,8 +23,32 @@
 .phoenixBackground[data-reduced-motion='true'] {
   background: radial-gradient(ellipse at 35% 25%, #9cdef21c, transparent 70%);
 }
+.phoenixLayer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.phoenixLayer[data-transition-phase='incoming'] {
+  animation: phoenix-background-in 900ms ease-out both;
+}
+.phoenixLayer[data-transition-phase='outgoing'] {
+  animation: phoenix-background-out 900ms ease-in both;
+}
+.phoenixLayer[data-reduced-motion='true'] {
+  animation: none;
+}
+@keyframes phoenix-background-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes phoenix-background-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
 @media (prefers-reduced-motion: reduce) {
   .phoenixBackground canvas { display: none; }
+  .phoenixLayer { animation: none !important; }
 }
 
 /* 76px with its rule: the height of the Sidebar's tab strip and header row

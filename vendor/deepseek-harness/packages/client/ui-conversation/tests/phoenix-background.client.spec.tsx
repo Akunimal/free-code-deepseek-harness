@@ -8,10 +8,12 @@ vi.mock('../src/client/skeleton/ConversationWidthControls.tsx', () => ({ Convers
 let frames: Map<number, FrameRequestCallback>
 let next = 0
 let disconnected = 0
+let textDraws: Array<[string, number, number]> = []
 let media: EventTarget & { matches: boolean; addListener: () => void; removeListener: () => void }
 
 beforeEach(() => {
   frames = new Map()
+  textDraws = []
   media = Object.assign(new EventTarget(), { matches: false, addListener() {}, removeListener() {} })
   vi.stubGlobal('matchMedia', () => media)
   vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => { frames.set(++next, cb); return next })
@@ -19,16 +21,45 @@ beforeEach(() => {
   vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() { disconnected++ } })
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => new Proxy({}, {
     get: (_target, key) => key === 'createLinearGradient' || key === 'createRadialGradient'
-      ? () => ({ addColorStop() {} }) : () => {},
+      ? () => ({ addColorStop() {} })
+      : key === 'fillText'
+        ? (text: string, x: number, y: number) => { textDraws.push([text, x, y]) }
+        : () => {},
     set: () => true,
   }) as never)
 })
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
 it('ports all nine actual Hermes patterns and never repeats a pick', () => {
-  expect(PHOENIX_PATTERNS).toEqual(['synapse', 'rain', 'constellations', 'sparkles', 'perlin-flow', 'petals', 'embers', 'bubbles', 'squares'])
+  expect(PHOENIX_PATTERNS).toEqual([
+    'synapse', 'rain', 'constellations', 'sparkles', 'perlin-flow', 'petals', 'embers', 'bubbles', 'squares',
+    'ascii-weather', 'ascii-stars', 'aurora', 'orbitals',
+  ])
   let last = pickPhoenixPattern()
   for (let i = 0; i < 50; i++) { const current = pickPhoenixPattern(); expect(current).not.toBe(last); last = current }
+})
+
+it('draws original ASCII weather glyphs and advances their positions over animation frames', () => {
+  const host = document.createElement('div')
+  Object.defineProperties(host, {
+    clientWidth: { configurable: true, value: 480 },
+    clientHeight: { configurable: true, value: 260 },
+  })
+  document.body.append(host)
+  const stop = startPhoenixPattern('ascii-weather', host)
+  const seeded = [...textDraws]
+  expect(seeded.length).toBeGreaterThan(0)
+  expect(seeded.every(([glyph]) => /^[~*.+\-/\\|^]$/u.test(glyph))).toBe(true)
+  const first = [...frames.entries()][0]
+  expect(first).toBeDefined()
+  frames.delete(first![0]); first![1](100)
+  const second = [...frames.entries()][0]
+  expect(second).toBeDefined()
+  frames.delete(second![0]); second![1](200)
+  expect(textDraws.length).toBeGreaterThan(seeded.length)
+  expect(textDraws.slice(seeded.length)).not.toEqual(expect.arrayContaining(seeded.slice(-10)))
+  stop()
+  host.remove()
 })
 
 it('uses elapsed time, accelerates work and bounds delayed-frame catch-up', () => {
@@ -65,18 +96,30 @@ function panel(running: boolean) {
   return <ConversationMainPanel {...props} />
 }
 
-it('actual panel uses live running state, not retained history; work/error/finish do not leak canvases', () => {
+it('keeps one pattern during a stream and crossfades exactly once after finish or stop', () => {
   const view = render(panel(false))
   const host = () => view.container.querySelector<HTMLElement>('[data-phoenix-background]')!
   expect(host().dataset.working).toBe('false')
   const initial = host().dataset.pattern
   view.rerender(panel(true))
   expect(host().dataset.working).toBe('true')
-  expect(host().dataset.pattern).not.toBe(initial)
+  expect(host().dataset.pattern).toBe(initial)
   expect(view.container.querySelectorAll('canvas')).toHaveLength(1)
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] })
+  act(() => { vi.advanceTimersByTime(90_000) })
+  expect(host().dataset.pattern).toBe(initial)
+  view.rerender(panel(true))
+  expect(host().dataset.pattern).toBe(initial)
   view.rerender(panel(false))
   expect(host().dataset.working).toBe('false')
+  expect(host().dataset.pattern).not.toBe(initial)
+  expect(host().dataset.transitionFrom).toBe(initial)
+  expect(view.container.querySelectorAll('[data-phoenix-layer]')).toHaveLength(2)
+  expect(frames.size).toBe(2)
+  act(() => { vi.advanceTimersByTime(900) })
+  expect(view.container.querySelectorAll('[data-phoenix-layer]')).toHaveLength(1)
   expect(frames.size).toBe(1)
+  vi.useRealTimers()
   act(() => { media.matches = true; media.dispatchEvent(new Event('change')) })
   expect(frames.size).toBe(0)
   expect(host().dataset.reducedMotion).toBe('true')

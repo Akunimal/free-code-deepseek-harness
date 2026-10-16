@@ -6,6 +6,7 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const errors = [];
 window.addEventListener('error', e => errors.push(e.message));
 const draws = new WeakMap();
+const textDraws = new WeakMap();
 for (const name of ['clearRect', 'fillRect']) {
   const original = CanvasRenderingContext2D.prototype[name];
   CanvasRenderingContext2D.prototype[name] = function (...args) {
@@ -15,6 +16,11 @@ for (const name of ['clearRect', 'fillRect']) {
     return original.apply(this, args);
   };
 }
+const originalFillText = CanvasRenderingContext2D.prototype.fillText;
+CanvasRenderingContext2D.prototype.fillText = function (...args) {
+  textDraws.set(this.canvas, (textDraws.get(this.canvas) || 0) + 1);
+  return originalFillText.apply(this, args);
+};
 const app = createRoot(document.getElementById('app'));
 let clicks = 0;
 function renderPanel(running) {
@@ -32,17 +38,28 @@ function renderPanel(running) {
 }
 function sample() {
   const host = document.querySelector('[data-phoenix-background]');
-  const canvas = host?.querySelector('canvas');
-  let colored = 0, hash = 2166136261;
-  if (canvas) {
-    const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
-    for (let i = 0; i < data.length; i += 4) {
-      if (data[i + 3]) colored++;
-      hash = Math.imul(hash ^ data[i + 3], 16777619);
+  const layers = Array.from(host?.querySelectorAll('[data-phoenix-layer]') || []).map(layer => {
+    const canvas = layer.querySelector('canvas');
+    let colored = 0, hash = 2166136261;
+    if (canvas) {
+      const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+      for (let i = 0; i < data.length; i++) {
+        if (i % 4 === 3 && data[i]) colored++;
+        hash = Math.imul(hash ^ data[i], 16777619);
+      }
     }
-  }
-  return { ...host?.dataset, canvases: document.querySelectorAll('canvas').length,
-    draws: canvas ? draws.get(canvas) || 0 : 0, colored, hash, width: canvas?.width, height: canvas?.height };
+    return {
+      pattern: layer.dataset.phoenixLayer,
+      opacity: Number(getComputedStyle(layer).opacity),
+      draws: canvas ? draws.get(canvas) || 0 : 0,
+      textDraws: canvas ? textDraws.get(canvas) || 0 : 0,
+      colored, hash, width: canvas?.width, height: canvas?.height,
+    };
+  });
+  const current = layers.at(-1);
+  return { ...host?.dataset, canvases: host?.querySelectorAll('canvas').length ?? 0, layers,
+    draws: current?.draws || 0, colored: current?.colored || 0, hash: current?.hash,
+    width: current?.width, height: current?.height };
 }
 window.freecodeProof = { renderPanel, sample, errors, async gallery() {
   app.unmount();
@@ -50,10 +67,26 @@ window.freecodeProof = { renderPanel, sample, errors, async gallery() {
   const cleanups = PHOENIX_PATTERNS.map(pattern => {
     const tile = document.createElement('div'); tile.className = 'tile'; tile.dataset.working = 'true';
     const label = document.createElement('label'); label.textContent = pattern; tile.append(label); gallery.append(tile);
-    return startPhoenixPattern(pattern, tile);
+    return { pattern, tile, stop: startPhoenixPattern(pattern, tile) };
   });
+  const hash = canvas => {
+    const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+    let value = 2166136261;
+    for (let i = 0; i < data.length; i++) value = Math.imul(value ^ data[i], 16777619);
+    return value;
+  };
+  await wait(150);
+  const before = new Map(cleanups.map(({ pattern, tile }) => [pattern, hash(tile.querySelector('canvas'))]));
   await wait(1200);
-  return () => { cleanups.forEach(stop => stop()); gallery.remove(); };
+  const proof = cleanups.map(({ pattern, tile }) => {
+    const canvas = tile.querySelector('canvas');
+    const data = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+    let colored = 0;
+    for (let i = 3; i < data.length; i += 4) if (data[i]) colored++;
+    return { pattern, colored, before: before.get(pattern), after: hash(canvas),
+      textDraws: textDraws.get(canvas) || 0 };
+  });
+  return { proof, stop: () => { cleanups.forEach(({ stop }) => stop()); gallery.remove(); } };
 } };
 (async () => {
   renderPanel(false); await wait(1000); const idle = sample();

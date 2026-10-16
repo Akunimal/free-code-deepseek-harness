@@ -103,23 +103,31 @@ describe('Hermes conversation activity background', () => {
     const scratchRoot=mkdtempSync(join(tmpdir(),'freecode-conversation-patch-'))
     try {
       const patch=readFileSync(patchPath,'utf8')
-      const paths=[...patch.matchAll(/^\+\+\+ b\/(.+)$/gm)].map(m=>m[1]!)
+      const successorPatch = join(repoRoot, 'patches/upstream/177-freecode-animated-conversation-backgrounds.patch')
+      const successor = readFileSync(successorPatch, 'utf8')
+      const paths=[...new Set([
+        ...patch.matchAll(/^\+\+\+ b\/(.+)$/gm),
+        ...successor.matchAll(/^\+\+\+ b\/(.+)$/gm),
+      ].map(m=>m[1]!))]
       for(const path of paths) {
         const target=join(scratchRoot,path);mkdirSync(dirname(target),{recursive:true})
         writeFileSync(target,readFileSync(join(repoRoot,path),'utf8').replaceAll('\r\n','\n'))
       }
-      // Overlay 172 tightens the patterns' indexed access. Reverse that
-      // successor before checking the historical creation patch, then replay
-      // both; a standalone reverse of 171 must reject the evolved source.
+      // Overlays 172 and 177 both evolve the original Hermes pattern files.
+      // Unwind the owned stack in reverse order, replay in forward order, and
+      // compare every touched file so newly introduced component/test files
+      // are covered too.
       const strictPatch = join(repoRoot, 'patches/upstream/172-freecode-client-host-contracts.patch')
       const patternOnly = '--include=vendor/deepseek-harness/packages/client/ui-conversation/src/client/skeleton/phoenixPatterns.ts'
       const commands = [
+        { patch: successorPatch, flags: ['--reverse', '--check'] },
+        { patch: successorPatch, flags: ['--reverse'] },
         { patch: strictPatch, flags: ['--reverse', patternOnly] },
         { patch: patchPath, flags: ['--reverse'] },
         { patch: patchPath, flags: [] },
-        { patch: patchPath, flags: ['--reverse', '--check'] },
         { patch: strictPatch, flags: [patternOnly] },
-        { patch: strictPatch, flags: ['--reverse', '--check', patternOnly] },
+        { patch: successorPatch, flags: [] },
+        { patch: successorPatch, flags: ['--reverse', '--check'] },
       ]
       for(const {patch, flags} of commands) {
         const result=spawnSync('git',['-c','core.autocrlf=false','apply',...flags,patch],{cwd:scratchRoot,encoding:'utf8',windowsHide:true})

@@ -45,16 +45,21 @@ export const PHOENIX_PATTERNS = [
   "embers",
   "bubbles",
   "squares",
+  "ascii-weather",
+  "ascii-stars",
+  "aurora",
+  "orbitals",
 ] as const;
 
 export type PhoenixPattern = (typeof PHOENIX_PATTERNS)[number];
 
-let _lastPattern: string = "";
+let _lastPattern: PhoenixPattern | undefined;
 
 /** Random pattern, never the same twice in a row (mirrors PPC behavior). */
-export function pickPhoenixPattern(): PhoenixPattern {
-  const pool = PHOENIX_PATTERNS.filter((p) => p !== _lastPattern);
-  const p = pool[Math.floor(Math.random() * pool.length)] ?? PHOENIX_PATTERNS[0];
+export function pickPhoenixPattern(avoid?: PhoenixPattern): PhoenixPattern {
+  const pool = PHOENIX_PATTERNS.filter((p) => p !== _lastPattern && p !== avoid);
+  const fallback = PHOENIX_PATTERNS.filter((p) => p !== avoid);
+  const p = pool[Math.floor(Math.random() * pool.length)] ?? fallback[0] ?? PHOENIX_PATTERNS[0];
   _lastPattern = p;
   return p;
 }
@@ -634,6 +639,142 @@ function startSquares(host: HTMLElement): Cleanup {
   });
 }
 
+/** Original ASCII weather glyphs drifting through a soft, uncluttered field. */
+function startAsciiWeather(host: HTMLElement): Cleanup {
+  type Glyph = { x: number; y: number; speed: number; drift: number; phase: number; size: number; alpha: number; char: string };
+  const glyphs: Glyph[] = [];
+  const chars = ["~", "/", "\\", "^", ".", "+", "-", "|"];
+  return mountCanvas(host, ({ ctx, size }) => {
+    const { W, H } = size();
+    if (W <= 0 || H <= 0) return;
+    ctx.clearRect(0, 0, W, H);
+    const target = Math.min(110, Math.max(22, Math.ceil((W * H) / 8_500)));
+    while (glyphs.length < target) {
+      glyphs.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        speed: 0.25 + Math.random() * 0.72,
+        drift: (Math.random() - 0.5) * 0.55,
+        phase: Math.random() * Math.PI * 2,
+        size: 10 + Math.random() * 7,
+        alpha: 0.14 + Math.random() * 0.3,
+        char: chars[Math.floor(Math.random() * chars.length)] ?? "~",
+      });
+    }
+    ctx.fillStyle = cssColor();
+    ctx.textBaseline = "middle";
+    for (const glyph of glyphs) {
+      glyph.phase += 0.025;
+      glyph.x += glyph.drift + Math.sin(glyph.phase) * 0.22;
+      glyph.y += glyph.speed;
+      if (glyph.y > H + glyph.size) {
+        glyph.y = -glyph.size;
+        glyph.x = Math.random() * W;
+      }
+      if (glyph.x < -glyph.size) glyph.x = W + glyph.size;
+      if (glyph.x > W + glyph.size) glyph.x = -glyph.size;
+      ctx.globalAlpha = glyph.alpha;
+      ctx.font = `${glyph.size}px ui-monospace, SFMono-Regular, Consolas, monospace`;
+      ctx.fillText(glyph.char, glyph.x, glyph.y);
+    }
+    ctx.globalAlpha = 1;
+  });
+}
+
+/** Original ASCII star field with slowly breathing glyphs and gentle drift. */
+function startAsciiStars(host: HTMLElement): Cleanup {
+  type Star = { x: number; y: number; phase: number; speed: number; char: string };
+  const stars: Star[] = [];
+  const chars = [".", ":", "+", "*"];
+  return mountCanvas(host, ({ ctx, size }) => {
+    const { W, H } = size();
+    if (W <= 0 || H <= 0) return;
+    ctx.clearRect(0, 0, W, H);
+    const target = Math.min(90, Math.max(18, Math.ceil((W * H) / 11_000)));
+    while (stars.length < target) stars.push({
+      x: Math.random() * W,
+      y: Math.random() * H,
+      phase: Math.random() * Math.PI * 2,
+      speed: 0.04 + Math.random() * 0.12,
+      char: chars[Math.floor(Math.random() * chars.length)] ?? ".",
+    });
+    const color = cssColor();
+    ctx.textBaseline = "middle";
+    ctx.font = "12px ui-monospace, SFMono-Regular, Consolas, monospace";
+    for (const star of stars) {
+      star.phase += star.speed;
+      star.y += 0.08;
+      if (star.y > H + 12) star.y = -12;
+      ctx.globalAlpha = 0.08 + (Math.sin(star.phase) + 1) * 0.16;
+      ctx.fillStyle = color;
+      ctx.fillText(star.char, star.x, star.y);
+    }
+    ctx.globalAlpha = 1;
+  });
+}
+
+/** Original low-contrast aurora ribbons, animated independently of the stream state. */
+function startAurora(host: HTMLElement): Cleanup {
+  let phase = 0;
+  return mountCanvas(host, ({ ctx, size }) => {
+    const { W, H } = size();
+    if (W <= 0 || H <= 0) return;
+    phase += 0.006;
+    ctx.clearRect(0, 0, W, H);
+    const tint = cssColor();
+    for (let band = 0; band < 4; band++) {
+      const center = H * (0.24 + band * 0.12);
+      const gradient = ctx.createLinearGradient(0, center - 70, W, center + 70);
+      gradient.addColorStop(0, "transparent");
+      gradient.addColorStop(0.48, rgba(tint, 0.11 - band * 0.012));
+      gradient.addColorStop(1, "transparent");
+      ctx.strokeStyle = gradient;
+      ctx.lineWidth = 38 + band * 12;
+      ctx.beginPath();
+      for (let x = 0; x <= W; x += 24) {
+        const y = center + Math.sin(x * 0.006 + phase + band) * H * 0.07
+          + Math.sin(x * 0.013 - phase * 0.7) * H * 0.025;
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+  });
+}
+
+/** Original orbital particles; small bounded point counts keep the canvas cheap. */
+function startOrbitals(host: HTMLElement): Cleanup {
+  let phase = 0;
+  return mountCanvas(host, ({ ctx, size }) => {
+    const { W, H } = size();
+    if (W <= 0 || H <= 0) return;
+    phase += 0.012;
+    ctx.clearRect(0, 0, W, H);
+    const cx = W * 0.52;
+    const cy = H * 0.48;
+    const tint = cssColor();
+    for (let orbit = 0; orbit < 5; orbit++) {
+      const rx = W * (0.1 + orbit * 0.075);
+      const ry = H * (0.08 + orbit * 0.06);
+      const angle = phase * (orbit % 2 === 0 ? 1 : -1) + orbit * 1.1;
+      const x = cx + Math.cos(angle) * rx;
+      const y = cy + Math.sin(angle) * ry;
+      ctx.globalAlpha = 0.11;
+      ctx.strokeStyle = tint;
+      ctx.lineWidth = 0.7;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 0.22;
+      ctx.fillStyle = tint;
+      ctx.beginPath();
+      ctx.arc(x, y, 1.2 + orbit * 0.18, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  });
+}
+
 const STARTERS: Record<PhoenixPattern, (host: HTMLElement) => Cleanup> = {
   synapse: startSynapse,
   rain: startRain,
@@ -644,6 +785,10 @@ const STARTERS: Record<PhoenixPattern, (host: HTMLElement) => Cleanup> = {
   embers: startEmbers,
   bubbles: startBubbles,
   squares: startSquares,
+  "ascii-weather": startAsciiWeather,
+  "ascii-stars": startAsciiStars,
+  aurora: startAurora,
+  orbitals: startOrbitals,
 };
 
 /** Start a pattern inside `host` (must be position:relative). */
