@@ -1,38 +1,42 @@
 # Known issues / Problemas conocidos
 
 Última sincronización documental / Last documentation sync: 2026-10-16
-Última release publicada / Latest published release: `v0.9.4`
+Última release publicada / Latest published release: `v0.9.5`
 
 ## Estado actual / Current status
 
-La release publicada `v0.9.4` mantiene la resiliencia Tor (una instancia única
+La release publicada `v0.9.5` mantiene la resiliencia Tor (una instancia única
 `tor.exe` empaquetada, con rotación `NEWNYM` y failover para opencode2api),
 consolida el lane de modelos a un único `deepseek-free` sin duplicados, hace
 que el seeder respete el modelo elegido por el usuario, incorpora el modo
 Gentle AI integrado de 0.8.0, elimina freellmpool y WARP, y mantiene Engram
 como tercera fila MCP administrada con el locale español corregido. v0.9.4
 agrega el indicador de carga del catálogo, 13 fondos animados Hermes, metadata
-de contexto/esfuerzo por modelo y el runtime DSH alpha8 publicado. Las
-limitaciones honestas restantes: la cuota del upstream gobierna el lane
+de contexto/esfuerzo por modelo y el runtime DSH alpha8 publicado. v0.9.5
+demuestra además la descarga inicial desde caché vacía mediante el gate de
+release y corrige el botón de cierre de Estado del pool. Las limitaciones
+honestas restantes: la cuota del upstream gobierna el lane
 anónimo, los binarios RTK/Caveman/free-search no están empaquetados, y las
-demás plataformas no están probadas. En v0.9.4 sólo se soporta Windows x64;
+demás plataformas no están probadas. En v0.9.5 sólo se soporta Windows x64;
 Windows ARM64, Linux y macOS no están soportados. El runtime DSH `0.2.1-alpha.8`
 se descarga por separado en el primer inicio sin caché válida, por lo que
-esa primera ejecución requiere Internet. KI-011, el botón de cierre de estado
-del pool, se difiere a v0.9.5.
+esa primera ejecución requiere Internet; la descarga se valida con un smoke de
+caché vacía antes de publicar.
 
-The published `v0.9.4` release retains Tor resilience (a single bundled
+The published `v0.9.5` release retains Tor resilience (a single bundled
 `tor.exe` instance with `NEWNYM` rotation and opencode2api failover),
 consolidates the model lane into a single duplicate-free `deepseek-free`, makes
 the seeder preserve the user-chosen model, carries the 0.8.0 Gentle AI mode,
 removes freellmpool and WARP, and keeps Engram as the third managed MCP row
-with the fixed Spanish locale. Honest limitations remain: upstream quota
+with the fixed Spanish locale. It also proves the pinned alpha8 runtime download
+from a genuinely empty cache/profile and fixes the Pool Status close button.
+Honest limitations remain: upstream quota
 governs the anonymous lane, the RTK/Caveman/free-search binaries are not
-vendored, and other platforms are untested. v0.9.4 supports Windows x64 only;
+vendored, and other platforms are untested. v0.9.5 supports Windows x64 only;
 Windows ARM64, Linux and macOS are unsupported. The DSH `0.2.1-alpha.8` runtime
 is fetched separately on first launch when no valid cache exists, so that
-launch needs Internet access. KI-011, the pool-status close button, is deferred
-to v0.9.5.
+launch needs Internet access. The release gate validates this separately
+downloaded runtime using an empty cache and public GitHub asset.
 
 ## Limitaciones operativas / Operational limitations
 
@@ -160,21 +164,23 @@ conservá intacto el archivo de sesión original.
 
 ### KI-010 — DSH alpha8 first-launch runtime asset / Asset runtime DSH alpha8 del primer inicio
 
-Resolved in v0.9.4: the public release includes a published DSH alpha8 runtime asset, version `0.2.1-alpha.8`, and its SHA-256. First launch reuses a valid per-user cache or downloads that exact release asset; the updater validates GitHub's SHA-256 digest, runtime manifest and Electron ABI before caching it. The archive is 421,507,898 bytes; SHA-256 `bf9f4324f0a10d6ff0861e365284d08d8f3745a3c5da49621d339629926023a6`. Older alpha4/alpha6 caches do not satisfy this pin. The user's installed v0.9.4 was confirmed working after local alpha8 precache; a clean-machine first-launch download was not separately exercised, so that specific environment remains an unverified test scenario rather than a missing release asset.
+Resolved in v0.9.4: the public release includes the immutable DSH alpha8 runtime asset, version `0.2.1-alpha.8`, and its SHA-256. The v0.9.5 release gate additionally proves first-run retrieval from a newly created empty profile/cache through production bootstrap/updater code, validates GitHub's SHA-256 digest, runtime manifest, extraction layout and Electron ABI, then starts the downloaded DSH CLI hidden with `--help` exit 0. The archive is 421,507,898 bytes; SHA-256 `bf9f4324f0a10d6ff0861e365284d08d8f3745a3c5da49621d339629926023a6`. Older alpha4/alpha6 caches do not satisfy this pin.
 
-Resuelto en v0.9.4: la release pública incluye el runtime DSH alpha8 para Windows x64 (`0.2.1-alpha.8`) y su SHA-256. El primer inicio reutiliza una caché válida por usuario o descarga ese asset exacto; antes de guardarlo, el updater valida el digest SHA-256 informado por GitHub, el manifest del runtime y la ABI de Electron. El archivo mide 421.507.898 bytes; SHA-256 `bf9f4324f0a10d6ff0861e365284d08d8f3745a3c5da49621d339629926023a6`. Las cachés alpha4/alpha6 no satisfacen este pin. El usuario confirmó que v0.9.4 instalada funciona después de precargar alpha8 localmente; no se probó por separado la descarga de primer inicio en una máquina limpia, así que ese escenario queda como prueba pendiente, no como asset faltante.
+Resuelto en v0.9.4: la release pública e inmutable incluye el asset runtime DSH alpha8 para Windows x64 (`0.2.1-alpha.8`) y su SHA-256. El gate v0.9.5 también prueba el primer inicio desde un perfil/caché nuevos y vacíos, descarga ese asset público mediante el bootstrap/updater de producción, valida SHA-256, manifest, estructura extraída y ABI de Electron, y luego inicia el CLI DSH en modo oculto; `--help` termina con código 0. El archivo mide 421.507.898 bytes; SHA-256 `bf9f4324f0a10d6ff0861e365284d08d8f3745a3c5da49621d339629926023a6`. Las cachés alpha4/alpha6 no satisfacen este pin.
 
 ### KI-011 — Pool-status window close button / Botón de cierre de estado del pool
 
-The close button on the pool-status window does not currently dismiss that
-window. This is a known UI issue deferred to v0.9.5; it does not block the
-v0.9.4 release. The next release should trace the window's close event and add
-a regression test for both the close control and the native window lifecycle.
+Resolved in v0.9.5: the borderless Pool Status page used `window.close()` from a
+`data:` URL, which cannot close a window not created by renderer script. The
+button now calls the preload bridge; main-process IPC closes only the live
+overlay whose WebContents exactly matches the sender. Regression tests reject
+other senders and ensure the main window cannot be closed through this route.
 
-El botón de cerrar de la ventana de estado del pool actualmente no la cierra.
-Es un problema de UI conocido, diferido a v0.9.5; no bloquea la release v0.9.4.
-La próxima versión debe trazar el evento de cierre y agregar una regresión para
-el botón y el ciclo de vida de la ventana nativa.
+Resuelto en v0.9.5: corregido el botón de cierre de Estado del pool. La página sin marco de Estado del pool usaba `window.close()`
+desde una URL `data:`, que no puede cerrar una ventana que no abrió un script del
+renderer. El botón ahora usa el bridge preload; el IPC main cierra únicamente
+el overlay activo cuyo WebContents coincide exactamente con el emisor. Las
+pruebas de regresión rechazan otros emisores y protegen la ventana principal.
 
 These entries are kept here so an old report is easy to classify:
 

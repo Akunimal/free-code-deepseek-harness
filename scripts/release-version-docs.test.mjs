@@ -6,12 +6,56 @@ import test from 'node:test';
 const root = resolve(import.meta.dirname, '..');
 const read = (relativePath) => readFileSync(join(root, relativePath), 'utf8');
 
-test('root and shell package metadata agree on the published 0.9.4 source version', () => {
+test('root and shell package metadata agree on the 0.9.5 source version', () => {
   const rootVersion = JSON.parse(read('package.json')).version;
   const shellVersion = JSON.parse(read('apps/shell/package.json')).version;
 
-  assert.equal(rootVersion, '0.9.4');
+  assert.equal(rootVersion, '0.9.5');
   assert.equal(shellVersion, rootVersion);
+});
+
+test('v0.9.5 publication is backed by real clean-cache proof and a permanent coder rule', () => {
+  const rootVersion = JSON.parse(read('package.json')).version;
+  const shellVersion = JSON.parse(read('apps/shell/package.json')).version;
+  const notes = read('release-notes-v0.9.5.md');
+  const agents = read('AGENTS.md');
+  const policyEn = read('docs/RELEASE-POLICY.md');
+  const policyEs = read('docs/RELEASE-POLICY.es.md');
+  const knownIssues = read('docs/KNOWN-ISSUES.md');
+  const roadmap = read('docs/ROADMAP.md');
+  const contracts = read('docs/CONTRACT-TESTS.md');
+
+  assert.equal(rootVersion, '0.9.5');
+  assert.equal(shellVersion, rootVersion);
+  assert.match(notes, /^# FreeCode DeepSeek Harness v0\.9\.5/m);
+  assert.match(notes, /^## English$/m);
+  assert.match(notes, /^## Español$/m);
+  assert.match(notes, /empty[\s\S]*cache[\s\S]*public[\s\S]*GitHub asset/i);
+  assert.match(notes, /cach[eé][\s\S]*vac[ií]os?[\s\S]*asset p[uú]blico exacto de\s+GitHub/i);
+  assert.match(notes, /Pool Status window[\s\S]*preload IPC/i);
+  assert.match(notes, /cierre[\s\S]*Estado del pool/i);
+  assert.match(agents, /public clean-cache runtime smoke/i);
+  assert.match(agents, /preloaded runtime cache/i);
+  assert.match(agents, /static hashes/i);
+  assert.match(agents, /hold publication|hold the release/i);
+  for (const [policy, language] of [[policyEn, 'en'], [policyEs, 'es']]) {
+    assert.match(policy, /first-run-runtime-download/);
+    assert.match(policy, language === 'en'
+      ? /empty[\s\S]*cache/i
+      : /cach[eé][\s\S]*vac[ií]a|vac[ií]a[\s\S]*cach[eé]/i);
+    assert.match(policy, language === 'en'
+      ? /public.*GitHub|GitHub.*public/i
+      : /p[uú]blico.*GitHub|GitHub.*p[uú]blico/i);
+    assert.match(policy, /v0\.9\.5/);
+  }
+  assert.match(knownIssues, /Última release publicada.*Latest published release: `v0\.9\.5`/is);
+  assert.match(knownIssues, /KI-011.*resolved in v0\.9\.5/is);
+  assert.match(knownIssues, /KI-011.*resuelto en v0\.9\.5/is);
+  assert.match(roadmap, /^Baseline: `v0\.9\.5`$/m);
+  assert.match(roadmap, /^Published baseline: `v0\.9\.5`$/m);
+  assert.match(contracts, /first-run-runtime-download/);
+  assert.match(contracts, /genuinely empty scratch profile\/cache/i);
+  assert.match(contracts, /static hashes, mocks, a preloaded\s+cache/i);
 });
 
 test('bilingual release notes identify the published v0.9.3 Windows assets', () => {
@@ -84,18 +128,18 @@ test('V094-21 candidate documentation supersedes the pre-fix installer and recor
   assert.match(notes, /Setup 0\.9\.4 \| 178,750,879 bytes \| `1e48c6c866a7b52d422eb62b852ffece4b6c5435aa3bbd490960e28395463440`/i);
   assert.match(notes, /Portable 0\.9\.4 \| 178,375,755 bytes \| `91f720be4c140477d4d8b9d62b2cc2ba4a0fe97858d7551b38de60b7a2e3cba6`/i);
 
-  const pendingBuildDir = 'release-0.9.4-final-20261016';
+  const pendingBuildDir = 'release-0.9.5-final-20261016';
   const activeDocs = [
-    read('README.md'), read('README.es.md'), read('docs/RELEASE.md'),
-    read('docs/RELEASE.es.md'), read('docs/RELEASE-POLICY.md'),
-    read('docs/RELEASE-POLICY.es.md'), read('docs/ROADMAP.md'),
+    ['README.md', read('README.md')], ['README.es.md', read('README.es.md')],
+    ['docs/RELEASE.md', read('docs/RELEASE.md')], ['docs/RELEASE.es.md', read('docs/RELEASE.es.md')],
+    ['docs/RELEASE-POLICY.md', read('docs/RELEASE-POLICY.md')],
+    ['docs/RELEASE-POLICY.es.md', read('docs/RELEASE-POLICY.es.md')], ['docs/ROADMAP.md', read('docs/ROADMAP.md')],
   ];
-  for (const document of activeDocs) {
-    assert.ok(document.includes(pendingBuildDir), `expected rebuild target ${pendingBuildDir}`);
-    assert.match(document, /V094-21/i);
-    assert.match(document, /V094-35/i);
-    assert.match(document, /V094-35/i);
-    assert.match(document, /release gate[\s\S]{0,100}passed|gate de release[\s\S]{0,100}pas[oó]|gate completo no interactivo pas[oó]/i);
+  for (const [file, document] of activeDocs) {
+    assert.ok(document.includes(pendingBuildDir), `expected rebuild target ${pendingBuildDir} in ${file}`);
+    assert.match(document, /V094-21/i, file);
+    assert.match(document, /V094-35/i, file);
+    assert.match(document, /first-run-runtime-download|clean-cache|empty[\s\S]{0,80}cache|vac[ií]os/i, file);
   }
 });
 
@@ -114,39 +158,43 @@ test('active bilingual release docs identify alpha8 and the catalog, animation, 
   }
 });
 
-test('the changelog leads with the verified published 0.9.4 release and retains history', () => {
+test('the changelog leads with the verified published 0.9.5 release and retains history', () => {
   const changelog = read('CHANGELOG.md');
 
-  assert.match(changelog, /^## 0\.9\.4 — Published — 2026-10-16$/m);
+  assert.match(changelog, /^## 0\.9\.5 — Published — 2026-10-16$/m);
+  assert.match(changelog, /clean-cache first-run runtime proof/i);
+  assert.match(changelog, /Pool Status close button/i);
   assert.match(changelog, /0\.2\.1-alpha\.8/);
   assert.match(changelog, /V094-37/);
   assert.match(changelog, /V094-38/);
   assert.match(changelog, /V094-39/);
   assert.match(changelog, /setup and portable binaries were built and statically verified/i);
-  assert.match(changelog, /bilingual v0\.9\.4 release notes.*release-notes-v0\.9\.4\.md/i);
+  assert.match(changelog, /bilingual v0\.9\.5 release notes.*release-notes-v0\.9\.5\.md/i);
+  assert.match(changelog, /^## 0\.9\.4 — Published — 2026-10-16$/m);
   assert.match(changelog, /^## 0\.9\.3 — 2026-10-12$/m);
+  assert.ok(changelog.indexOf('## 0.9.5') < changelog.indexOf('## 0.9.4'));
   assert.ok(changelog.indexOf('## 0.9.4') < changelog.indexOf('## 0.9.3'));
   assert.ok(changelog.indexOf('## 0.9.3') < changelog.indexOf('## 0.9.2'));
   assert.match(changelog, /bilingual v0\.9\.3 release notes.*release-notes-v0\.9\.3\.md/i);
   assert.match(changelog, /Source range: `v0\.9\.2\.\.v0\.9\.3`/);
 });
 
-test('English and Spanish READMEs identify v0.9.4 as the latest published release', () => {
+test('English and Spanish READMEs identify v0.9.5 as the latest published release', () => {
   const english = read('README.md');
   const spanish = read('README.es.md');
 
-  assert.match(english, /Source version: 0\.9\.4 \(published\); latest published release: v0\.9\.4 \(Windows x64\)/i);
-  assert.match(spanish, /Versión de la fuente: 0\.9\.4 \(publicada\); última release publicada: v0\.9\.4 \(Windows x64\)/i);
-  assert.match(english, /v0\.9\.4 release notes/i);
-  assert.match(spanish, /notas de la release v0\.9\.4/i);
+  assert.match(english, /Source version: 0\.9\.5 \(published\); latest published release: v0\.9\.5 \(Windows x64\)/i);
+  assert.match(spanish, /Versión de la fuente: 0\.9\.5 \(publicada\); última release publicada: v0\.9\.5 \(Windows x64\)/i);
+  assert.match(english, /v0\.9\.5 release notes/i);
+  assert.match(spanish, /notas de la release v0\.9\.5/i);
   assert.match(english, /v0\.9\.3 release notes/i);
   assert.match(spanish, /notas de la release v0\.9\.3/i);
-  assert.match(english, /v0\.9\.4 GitHub release/i);
-  assert.match(spanish, /release v0\.9\.4 en GitHub/i);
-  assert.match(english, /final v0\.9\.4 release assets are staged under\s+`apps\/shell\/release-0\.9\.4-final-20261016\/`/i);
-  assert.match(spanish, /artefactos finales de v0\.9\.4 quedan en\s+`apps\/shell\/release-0\.9\.4-final-20261016\/`/i);
-  assert.match(english, /portable Windows executable \(~178\.4 MB/i);
-  assert.match(spanish, /ejecutable portable de Windows \(~178,4 MB/i);
+  assert.match(english, /v0\.9\.5 GitHub release/i);
+  assert.match(spanish, /release v0\.9\.5 en GitHub/i);
+  assert.match(english, /final v0\.9\.5 release assets are staged under\s+`apps\/shell\/release-0\.9\.5-final-20261016\/`/i);
+  assert.match(spanish, /artefactos finales de v0\.9\.5 quedan en\s+`apps\/shell\/release-0\.9\.5-final-20261016\/`/i);
+  assert.match(english, /portable Windows executable \(see exact size/i);
+  assert.match(spanish, /ejecutable portable de Windows \(ver tamaño y SHA-256 exactos/i);
   for (const document of [english, spanish]) {
     assert.match(document, /alpha8/);
     assert.match(document, /published|publicada/i);
@@ -155,53 +203,53 @@ test('English and Spanish READMEs identify v0.9.4 as the latest published releas
   }
 });
 
-test('release guides and known-issues ledger identify published v0.9.4 as the supported baseline', () => {
+test('release guides and known-issues ledger identify published v0.9.5 as the supported baseline', () => {
   const englishRelease = read('docs/RELEASE.md');
   const spanishRelease = read('docs/RELEASE.es.md');
   const knownIssues = read('docs/KNOWN-ISSUES.md');
   const roadmap = read('docs/ROADMAP.md');
   const translations = read('TODO-spanish-translations.md');
 
-  assert.match(englishRelease, /published v0\.9\.4 release is the current Windows x64 baseline/i);
-  assert.doesNotMatch(englishRelease, /v0\.9\.4 is unpublished|unpublished candidate/i);
-  assert.doesNotMatch(spanishRelease, /v0\.9\.4 sigue sin publicarse/i);
-  assert.match(englishRelease, /release-0\.9\.4-final-20261016/);
-  assert.match(spanishRelease, /release-0\.9\.4-final-20261016/);
-  assert.match(englishRelease, /portable executable \(~178\.4 MB/i);
-  assert.match(spanishRelease, /portable v0\.9\.4 \(~178,4 MB/i);
-  assert.match(spanishRelease, /release publicada v0\.9\.4 es la baseline actual para Windows x64/i);
-  assert.match(englishRelease, /alpha6\/alpha7 desktop artifacts are superseded|alpha6 desktop artifacts predate V094-35/i);
-  assert.match(spanishRelease, /artefactos desktop alpha6\/alpha7 están obsoletos|artefactos desktop alpha6 son anteriores a V094-35/i);
+  assert.match(englishRelease, /published v0\.9\.5 release is the current Windows x64 baseline/i);
+  assert.doesNotMatch(englishRelease, /v0\.9\.5 is unpublished|unpublished candidate/i);
+  assert.doesNotMatch(spanishRelease, /v0\.9\.5 sigue sin publicarse/i);
+  assert.match(englishRelease, /release-0\.9\.5-final-20261016/);
+  assert.match(spanishRelease, /release-0\.9\.5-final-20261016/);
+  assert.match(englishRelease, /v0\.9\.5 Windows portable executable/i);
+  assert.match(spanishRelease, /ejecutable portable v0\.9\.5/i);
+  assert.match(spanishRelease, /release publicada v0\.9\.5 es la baseline actual para Windows x64/i);
+  assert.match(englishRelease, /Previous alpha5[–-]alpha8 attempts and hashes are preserved as history/i);
+  assert.match(spanishRelease, /intentos alpha5[–-]alpha8 y sus hashes se conservan como historia/i);
   assert.match(read('release-notes-v0.9.4.md'), /matching alpha5 runtime had been locally precached/i);
-  assert.match(englishRelease, /v0\.9\.4 also prevents older DSH runtimes/i);
-  assert.match(spanishRelease, /v0\.9\.4 también evita que runtimes\s+DSH/i);
-  assert.match(knownIssues, /Última release publicada.*Latest published release: `v0\.9\.4`/is);
-  assert.match(knownIssues, /v0\.9\.4 supports Windows x64 only/i);
-  assert.match(knownIssues, /v0\.9\.4 sólo se soporta Windows x64/i);
+  assert.match(englishRelease, /v0\.9\.5 also prevents older DSH runtimes/i);
+  assert.match(spanishRelease, /v0\.9\.5 también evita que runtimes\s+DSH/i);
+  assert.match(knownIssues, /Última release publicada.*Latest published release: `v0\.9\.5`/is);
+  assert.match(knownIssues, /v0\.9\.5 supports Windows x64 only/i);
+  assert.match(knownIssues, /v0\.9\.5 sólo se soporta Windows x64/i);
   assert.match(knownIssues, /KI-009.*resolved in v0\.9\.3/is);
   assert.match(knownIssues, /KI-009.*resuelto en v0\.9\.3/is);
-  assert.match(knownIssues, /KI-010.*resolved in v0\.9\.4.*published DSH alpha8 runtime asset/is);
-  assert.match(knownIssues, /KI-010.*resuelto en v0\.9\.4.*runtime DSH alpha8/is);
-  assert.match(knownIssues, /KI-011.*pool-status window.*close button.*deferred to v0\.9\.5/is);
-  assert.match(knownIssues, /KI-011.*botón de cierre de estado del pool.*v0\.9\.5/is);
+  assert.match(knownIssues, /KI-010.*resolved in v0\.9\.4.*public release includes the immutable DSH alpha8 runtime asset/is);
+  assert.match(knownIssues, /KI-010.*resuelto en v0\.9\.4.*release p[uú]blica.*asset runtime DSH alpha8/is);
+  assert.match(knownIssues, /KI-011.*Resolved in v0\.9\.5.*Pool Status page/is);
+  assert.match(knownIssues, /KI-011.*Resuelto en v0\.9\.5.*bot[oó]n de cierre/is);
   assert.match(knownIssues, /KI-009.*semantic.*tail/is);
   assert.match(knownIssues, /sufijo semántico puede ocultar historial válido/i);
   assert.match(knownIssues, /preserva los bytes originales raw\/Zstandard/i);
   assert.match(knownIssues, /portable[^\n]*178 MB/i);
   assert.match(knownIssues, /setup\/portable v0\.9\.4 pesan cerca de 178 MB/i);
-  assert.match(roadmap, /^Baseline: `v0\.9\.4`$/m);
-  assert.match(roadmap, /^Published baseline: `v0\.9\.4`$/m);
-  assert.match(roadmap, /^### `v0\.9\.5`.*pool-status.*close/im);
+  assert.match(roadmap, /^Baseline: `v0\.9\.5`$/m);
+  assert.match(roadmap, /^Published baseline: `v0\.9\.5`$/m);
+  assert.match(roadmap, /^### `v0\.9\.5`.*clean runtime.*Pool Status/im);
   assert.match(roadmap, /^### `v0\.9\.3`/m);
-  assert.match(translations, /baseline publicada v0\.9\.4/i);
+  assert.match(translations, /baseline publicada v0\.9\.5/i);
 
-  const freshOutputDir = 'release-0.9.4-final-20261016';
+  const freshOutputDir = 'release-0.9.5-final-20261016';
   for (const document of [englishRelease, spanishRelease, read('README.md'), read('README.es.md'), read('docs/RELEASE-POLICY.md'), read('docs/RELEASE-POLICY.es.md')]) {
     assert.ok(document.includes(freshOutputDir), `expected ${freshOutputDir} in the active release docs`);
   }
 });
 
-test('bilingual v0.9.4 docs mark old assets superseded and record the verified public build', () => {
+test('bilingual v0.9.5 docs list current assets and keep v0.9.4 assets historical', () => {
   const readmeEn = read('README.md');
   const readmeEs = read('README.es.md');
   const releaseEn = read('docs/RELEASE.md');
@@ -209,14 +257,14 @@ test('bilingual v0.9.4 docs mark old assets superseded and record the verified p
   const policyEn = read('docs/RELEASE-POLICY.md');
   const policyEs = read('docs/RELEASE-POLICY.es.md');
   const roadmap = read('docs/ROADMAP.md');
-  const outputDir = 'apps/shell/release-0.9.4-final-20261016/';
+  const outputDir = 'apps/shell/release-0.9.5-final-20261016/';
   const setupSha = '3117054ba2ee29c6c9993e7f7cdd525262f8d39e4f037e037c411142659d8a08';
   const portableSha = '79e03080494efcd9fc9f06311b1b4f78238e57b97fd2ea00ba97baa5513f520b';
 
-  assert.match(readmeEn, /alpha6\/alpha7 desktop artifacts are superseded/i);
-  assert.match(readmeEs, /artefactos desktop alpha6\/alpha7 están obsoletos/i);
-  assert.match(readmeEn, /complete release gate passed[\s\S]{0,180}setup\/portable artifacts were built and statically verified/i);
-  assert.match(readmeEs, /El gate completo no interactivo pasó[\s\S]{0,180}setup\/portable se compilaron y verificaron/i);
+  assert.match(readmeEn, /hashes and failures of previous alpha5[–-]alpha8 candidate installers remain[\s\S]{0,40}historical/i);
+  assert.match(readmeEs, /hashes y fallos de las builds candidatas alpha5[–-]alpha8 se conservan como\s+historia/i);
+  assert.match(readmeEn, /clean-cache[\s\S]{0,150}runtime proof/i);
+  assert.match(readmeEs, /prueba[\s\S]{0,100}(?:cach[eé] vac[ií]a[\s\S]{0,100}runtime|runtime[\s\S]{0,100}cach[eé] vac[ií]a)/i);
   for (const document of [readmeEn, readmeEs, releaseEn, releaseEs, policyEn, policyEs]) {
     assert.ok(document.includes(outputDir), `expected ${outputDir} in active release docs`);
   }
@@ -229,11 +277,11 @@ test('bilingual v0.9.4 docs mark old assets superseded and record the verified p
   assert.match(history, /Portable 0\.9\.4 \| 178,382,701 bytes \| `c549b4e273c748980af632c14bacaeb45bd9d4877e7b839f610fe6cd74e20193`/i);
   assert.match(history, /DSH 0\.2\.1-alpha\.8 runtime \| 421,507,898 bytes \| `bf9f4324f0a10d6ff0861e365284d08d8f3745a3c5da49621d339629926023a6`/i);
   for (const document of [releaseEn, releaseEs]) assert.match(document, /first launch.*download.*DSH runtime|primer inicio.*descarga.*runtime DSH/is);
-  assert.match(policyEn, /v0\.9\.4 published release/i);
-  assert.match(policyEs, /release v0\.9\.4 publicada/i);
-  assert.match(roadmap, /final non-interactive release gate passed[\s\S]{0,100}setup and portable were built/i);
+  assert.match(policyEn, /v0\.9\.5 public release/i);
+  assert.match(policyEs, /release p[uú]blica v0\.9\.5/i);
+  assert.match(roadmap, /Fresh install proof[\s\S]{0,300}empty profile\/cache/i);
   assert.match(roadmap, /earlier alpha5[–-]alpha8 desktop builds remain superseded history/i);
-  assert.match(roadmap, /(?:The public v0\.9\.4 release|v0\.9\.4 is now the published|v0\.9\.4 is the latest published)/i);
+  assert.match(roadmap, /(?:The public v0\.9\.5 release|v0\.9\.5 is now the published|v0\.9\.5 is the latest published)/i);
 });
 
 test('current release policy and EN/ES build guidance match the separate-runtime non-interactive gate', () => {
@@ -249,8 +297,8 @@ test('current release policy and EN/ES build guidance match the separate-runtime
     assert.match(policy, /v0\.9\.2/);
     assert.match(policy, /release:gate/);
   }
-  assert.match(policyEn, /v0\.9\.4 published release/i);
-  assert.match(policyEs, /release v0\.9\.4 publicada/i);
+  assert.match(policyEn, /v0\.9\.5 public release/i);
+  assert.match(policyEs, /release p[uú]blica v0\.9\.5/i);
   assert.match(policyEn, /disposable/i);
   assert.match(policyEs, /desechable/i);
   assert.match(policyEn, /does not install or\s+launch/i);
@@ -264,12 +312,12 @@ test('current release policy and EN/ES build guidance match the separate-runtime
     assert.match(readme, /pnpm build:desktop/);
     assert.match(readme, /pnpm release:gate/);
     assert.match(readme, /pnpm verify:desktop-release-assets/);
-    assert.match(readme, /apps\/shell\/release-0\.9\.4-final-20261016/);
+    assert.match(readme, /apps\/shell\/release-0\.9\.5-final-20261016/);
   }
   for (const releaseGuide of [releaseEn, releaseEs]) {
     assert.match(releaseGuide, /package:runtime:release/);
     assert.match(releaseGuide, /release:gate/);
-    assert.match(releaseGuide, /release-0\.9\.4-final-20261016/);
+    assert.match(releaseGuide, /release-0\.9\.5-final-20261016/);
   }
   assert.match(releaseEn, /disposable/i);
   assert.match(releaseEs, /desechable/i);
@@ -289,15 +337,16 @@ test('current release docs define the hidden test-child boundary consistently', 
   const readmeEs = read('README.es.md');
   const contracts = read('docs/CONTRACT-TESTS.md');
 
-  for (const document of [policyEn, releaseEn, readmeEn]) {
-    assert.match(document, /test-owned hidden.*(?:DSH CLI|Electron.*Node)|hidden.*test-owned.*(?:DSH CLI|Electron.*Node)/is);
+  for (const document of [policyEn, releaseEn]) {
+    assert.match(document, /test-owned hidden.*(?:DSH CLI|Electron.*Node)|hidden.*test-owned.*(?:DSH CLI|Electron.*Node)/is, 'English hidden child boundary: ' + (document === policyEn ? 'policy' : document === releaseEn ? 'release guide' : 'README'));
     assert.match(document, /scratch/i);
-    assert.match(document, /does not\s+install or launch the FreeCode GUI/i);
+    assert.match(document, /does not[\s\S]{0,40}install[\s\S]{0,40}launch/i, 'English no-install boundary: ' + (document === policyEn ? 'policy' : document === releaseEn ? 'release guide' : 'README'));
   }
+  assert.match(readmeEn, /fresh-cache public runtime download/i);
   for (const document of [policyEs, releaseEs, readmeEs]) {
     assert.match(document, /hijos.*(?:headless|ocultos).*propios.*(?:test|prueba)|(?:test|prueba).*propios.*hijos.*(?:headless|ocultos)/is);
     assert.match(document, /scratch|temporal/i);
-    assert.match(document, /no instala ni inicia la\s+GUI de FreeCode/i);
+    assert.match(document, /no instala ni inicia la\s+GUI de\s+FreeCode/i, 'Spanish no-install boundary: ' + (document === policyEs ? 'policy' : document === releaseEs ? 'release guide' : 'README'));
   }
   assert.match(policyEn, /does not\s+enumerate or kill unrelated processes/i);
   assert.match(policyEs, /no enumera ni termina\s+procesos ajenos/i);

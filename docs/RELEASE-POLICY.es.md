@@ -1,20 +1,34 @@
 # Política de releases
 
-### Release v0.9.4 publicada actual (Windows x64)
+### Release v0.9.5 publicada actual (Windows x64)
 
-La release pública v0.9.4 contiene setup, portable, metadatos del updater y el runtime DSH exacto `0.2.1-alpha.8` con checksum SHA-256. opencode2api v1.4.0 usa `profiles/web/cordis.patch.yml`. El gate completo no interactivo pasó y el verificador estático de assets también. Incluye el indicador de carga del catálogo (V094-37), fondos animados originales inspirados en Hermes que mantienen el patrón durante la generación y transicionan al completar/detener (V094-38), contexto/esfuerzos de razonamiento por modelo (V094-39), el arreglo V094-35 de recursión del composer, sincronización del perfil activo y las correcciones V094-21 de catálogo/Tor. Las builds desktop alpha5–alpha8 anteriores quedan como historial obsoleto; los assets y hashes finales están en `release-notes-v0.9.4.md`. KI-011 (botón de cerrar de estado del pool) queda para v0.9.5. El usuario instaló v0.9.4 y confirmó que funciona.
+La release pública v0.9.5 contiene setup, portable y metadatos del updater. Corrige el botón de cierre de Estado del pool y agrega una prueba real obligatoria de caché vacía para el runtime DSH separado `0.2.1-alpha.8`; su archivo y SHA-256 inmutables siguen disponibles en la release pública v0.9.4. El gate usa el bootstrap/updater de producción bajo la ABI de Electron empaquetada, descarga el asset público exacto a un perfil/caché temporal vacío, valida digest, extracción, manifest y ABI, e inicia el CLI descargado en modo oculto. También conserva opencode2api v1.4.0, V094-37, los fondos animados inspirados en Hermes (V094-38), V094-39, las correcciones de catálogo/Tor V094-21 y la corrección de recursión del composer V094-35. El catálogo activo es `profiles/web/cordis.patch.yml`. Los assets y hashes de v0.9.5 están en `release-notes-v0.9.5.md`; las notas de v0.9.4 quedan como historial inmutable.
 
 Las releases son manuales y tienen como target Windows x64. Esta política
-describe el límite real entre la app desktop y el runtime para v0.9.4; no
+describe el límite real entre la app desktop y el runtime para v0.9.5; no
 autoriza a tocar una instancia de FreeCode que esté en ejecución.
 
-La release v0.9.4 incluye el arreglo V094-35 de recursión del bloqueo del modelo; por eso el pin de `apps/shell/harness-runtime.json` es 0.2.1-alpha.8. Alpha6 es un archivo histórico inmutable y anterior a ese código. El runtime alpha8 publicado mide 421.507.898 bytes y su SHA-256 es `bf9f4324f0a10d6ff0861e365284d08d8f3745a3c5da49621d339629926023a6`. La release también contiene el setup/portable desktop y metadatos; los hashes exactos están en las notas bilingües. Las cachés alpha4/alpha6 no satisfacen el pin alpha8. OmniRoute sigue retirado: no se incluye fallback, descarga, servidor ni detector. En el siguiente inicio solo se retiran configuraciones propias obsoletas y cachés verificadas; se conservan proveedores e historial ajenos.
+## Prueba obligatoria de instalación limpia
+
+Antes de declarar lista o publicar cualquier release que descargue runtime,
+`pnpm release:gate` debe pasar `first-run-runtime-download`. No es una descarga
+simulada ni un cache-hit: crea un perfil aislado nuevo y una caché runtime vacía,
+usa el bootstrap/updater de producción y la ABI de Electron empaquetada, obtiene
+el asset runtime público exacto de GitHub, verifica SHA-256, estructura extraída,
+manifest y ABI, y luego inicia el CLI DSH descargado en modo oculto con `--help`.
+Si falta Internet, asset público, digest o cualquier validación/inicio, la release
+queda bloqueada. Checks estáticos, mocks, una caché precargada o el código de
+salida del setup no lo reemplazan. El smoke solo usa su perfil/caché temporal y
+su hijo CLI oculto; no instala ni inicia FreeCode ni inspecciona, detiene o reinicia
+procesos ajenos.
+
+La release v0.9.5 conserva el arreglo V094-35 de recursión del bloqueo del modelo; por eso el pin de `apps/shell/harness-runtime.json` sigue en 0.2.1-alpha.8. Alpha6 es un archivo histórico inmutable y anterior a ese código. El runtime alpha8 público mide 421.507.898 bytes y su SHA-256 es `bf9f4324f0a10d6ff0861e365284d08d8f3745a3c5da49621d339629926023a6`. El runtime sigue separado del setup/portable; sus hashes desktop exactos están en las notas bilingües v0.9.5. Las cachés alpha4/alpha6 no satisfacen el pin alpha8. OmniRoute sigue retirado: no se incluye fallback, descarga, servidor ni detector. En el siguiente inicio solo se retiran configuraciones propias obsoletas y cachés verificadas; se conservan proveedores e historial ajenos.
 
 Nota histórica: v0.9.2 publicó el runtime DSH inmutable `0.2.1-alpha.2`;
-v0.9.4 utiliza el asset alpha8 más nuevo sin sobrescribir el anterior.
+v0.9.4 publicó alpha8 y v0.9.5 prueba ese asset público con caché vacía.
 
 La nueva salida pendiente usa el directorio único
-`apps/shell/release-0.9.4-final-20261016/`; no reutilices ni
+`apps/shell/release-0.9.5-final-20261016/`; no reutilices ni
 sobrescribas el directorio obsoleto de la candidata alpha5.
 
 Tras cambiar opencode2api o su overlay activo, recompilá con
@@ -39,9 +53,9 @@ las rutas temporales: `--user-data-dir` de Chromium no redirige por sí solo
 `app.getPath('userData')` de Electron. Sin un perfil privado, el smoke puede
 dejar el torrc apuntando a recursos dentro de su instalación temporal eliminada.
 
-La release desktop v0.9.4 contiene setup NSIS, portable, blockmap del setup y
-`latest.yml`. El runtime DSH separado tiene versión independiente: v0.9.4
-descarga el runtime Windows x64 exacto `0.2.1-alpha.8` desde la release v0.9.4,
+La release desktop v0.9.5 contiene setup NSIS, portable, blockmap del setup y
+`latest.yml`. El runtime DSH separado tiene versión independiente: v0.9.5
+descarga el runtime Windows x64 exacto `0.2.1-alpha.8` desde la release runtime pública v0.9.4,
 que también incluye el checksum SHA-256. El gate verifica el archivo fijado
 local y el manifest empaquetado; nunca vuelve a generar, elimina ni reemplaza
 ese tarball inmutable. El packaging desktop habitual tampoco ejecuta
@@ -60,9 +74,9 @@ nueva y aislada, y verificá exactamente esa carpeta:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-final-20261016'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.5-final-20261016'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-final-20261016
+pnpm verify:desktop-release-assets apps/shell/release-0.9.5-final-20261016
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 

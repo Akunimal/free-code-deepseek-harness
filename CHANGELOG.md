@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.9.5 — Published — 2026-10-16
+
+See the [bilingual v0.9.5 release notes](release-notes-v0.9.5.md). The release
+continues to target Windows x64 and keeps the DSH alpha8 runtime as an immutable,
+separate asset in v0.9.4.
+
+### Reliability / Confiabilidad
+
+- Added a mandatory clean-cache first-run runtime proof (`first-run-runtime-download`). It starts
+  with a newly empty profile/cache, downloads the exact public GitHub runtime
+  through the production bootstrap/updater, validates SHA-256, archive layout,
+  manifest and packaged Electron ABI, then starts the downloaded DSH CLI hidden.
+  / Se agregó una prueba obligatoria al gate: parte de un perfil/caché vacíos,
+  descarga el runtime público mediante el bootstrap/updater de producción,
+  valida SHA-256, estructura, manifest y ABI empaquetada, y luego inicia el CLI
+  DSH descargado en modo oculto.
+- Fixed the Pool Status close button through a sender-owned preload IPC route;
+  it now closes only its overlay, never the main app. Regression tests cover
+  ownership and rejection cases. / El botón de Estado del pool usa un IPC
+  preload que valida el WebContents emisor y cierra solo su overlay, nunca la
+  app principal; las pruebas cubren propiedad y rechazos.
+- Added a permanent coder rule: mocks, static hashes, setup exit status and
+  preloaded caches are not first-install evidence; hold publication until the
+  public empty-cache smoke passes. / Se agregó una regla permanente: mocks,
+  hashes estáticos, un setup exitoso o caché precargada no prueban una primera
+  instalación; se bloquea la publicación hasta pasar el smoke público.
+
+### Release assets / Artefactos
+
+- Setup and portable binaries were built and statically verified; updater metadata
+  was verified too. This
+  release run did not install or launch the setup. Exact filenames, byte sizes
+  and SHA-256 digests are in the bilingual v0.9.5 release notes. / Setup,
+  portable y metadatos del updater se compilaron y verificaron estáticamente;
+  esta vez no se instaló ni inició el setup. Los nombres, tamaños exactos y
+  SHA-256 están en las notas bilingües v0.9.5.
+
 ## 0.9.4 — Published — 2026-10-16
 
 See the [bilingual v0.9.4 release notes](release-notes-v0.9.4.md). v0.9.4 is
@@ -80,13 +117,13 @@ metadata and the exact DSH alpha8 runtime/checksum.
   mientras trabaja y solo cambia al terminar/detener. Capturas Chromium del
   bundle real verifican ambos modos, glifos, resize, interacción y limpieza.
 
-- Fresh v0.9.4 setup and portable binaries were built and statically verified;
-  the user installed the setup and confirmed it works. v0.9.4 is the latest
-  published release. Exact hashes and KI-011 (pool-status close button deferred
-  to v0.9.5) are recorded in `release-notes-v0.9.4.md`. / Setup y portable
-  0.9.4 se compilaron y verificaron estáticamente; el usuario instaló el setup
-  y confirmó que funciona. v0.9.4 es la última release publicada. Los hashes y
-  KI-011 (cierre de estado del pool, diferido a v0.9.5) están en las notas.
+- At publication, v0.9.4 setup and portable binaries were built and statically
+  verified; the user installed the setup and confirmed it works. KI-011 (the
+  pool-status close button) was later fixed in v0.9.5. Original hashes remain
+  in `release-notes-v0.9.4.md`. / Al publicarse v0.9.4, setup y portable se
+  compilaron y verificaron estáticamente; el usuario instaló el setup y confirmó
+  que funciona. KI-011 (cierre de estado del pool) se corrigió en v0.9.5. Sus
+  hashes originales permanecen en `release-notes-v0.9.4.md`.
 
 ## 0.9.3 — 2026-10-12
 
