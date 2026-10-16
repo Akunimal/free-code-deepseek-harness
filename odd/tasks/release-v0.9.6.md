@@ -63,6 +63,35 @@ change upstream, rewrite published tags or overwrite old desktop artifacts.
 
 ## Progress and recovery
 
+### Resume point — 2026-10-16
+
+**Continue this feature from this file; do not restart from the conversation.**
+Current branch: `codex/v0.9.5-clean-runtime-bootstrap`; latest committed work:
+`b75e44a7ab` (`test(release): isolate registry contracts from ignored developer caches`).
+The local version/docs commit is `8cf2539e56`; release-policy correction is
+`e2ade64bcd`.
+
+The second full mandatory release gate is still running in the existing
+test-owned hidden session **30697** (last checked live; do not start a competing
+gate). Its runner/log are `D:/Temp/freecode-v0.9.6-gate-2026-10-16T22-26-51-081Z.json`
+and `.log`. Last observed progress: workspace Vitest suite, including DSH
+supervisor lifecycle cycles and Tor integration, after the exact helper passed
+the native adversarial containment smoke. No gate receipt/final result yet.
+First action in the next session: inspect this log/receipt for completion and
+whether the run is still active. Only a receipt with exit code 0 and the real
+`first-run-runtime-download: PASS` closes the gate; failure must be diagnosed
+and the **entire** gate rerun. The first attempt failed at workspace tests and
+is preserved in the earlier progress below. Never claim a clean-install pass
+from it.
+
+Public immutable alpha9 archive + checksum are now attached to v0.9.5; GitHub
+API reports the archive digest matches local SHA-256. No v0.9.6 desktop release,
+tag or push has occurred. Continue REL096-2, then build fresh 0.9.6 setup and
+portable only after the full gate passes. Do not launch an installer or touch
+the user's active FreeCode instance. Existing artifact build/evidence helper:
+`D:/Temp/freecode-release096-final-proof.mjs`; isolated runner:
+`D:/Temp/freecode-release096-run.cjs`.
+
 - Read the actual headless feature file and reconciled current user acceptance:
   HDC-5 work-unit commit is `91e0267d17`; the user subsequently confirmed it works.
 - Authorized current-session fetch confirms origin is the named HTTPS fork;
