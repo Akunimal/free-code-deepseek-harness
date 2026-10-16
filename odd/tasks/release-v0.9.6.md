@@ -91,6 +91,22 @@ change upstream, rewrite published tags or overwrite old desktop artifacts.
   before executing any writes; corrected and read back the resulting files.
 - Next: commit this source/docs unit, then publish only new alpha9 dependency
   assets and execute the full mandatory isolated gate.
+- REL096-1 work-unit commit: `8cf2539e56`, 1,250 authored additions/deletions
+  including the new task and notes; no generated artifacts. The documented
+  auto-chain / stacked-to-main choice remains effective above the heuristic.
+  The higher count is the coherent bilingual active-document alignment plus
+  replacement of obsolete version-specific assertions with current/historical
+  contracts, not product scope growth. Historical notes/hashes are unchanged.
+- REL096-2 dependency upload completed with the authorized `gh` session:
+  alpha9 tarball and its 122-byte checksum were appended to public v0.9.5,
+  without `--clobber`. GitHub's asset digest matches the local archive exactly;
+  checksum-asset SHA-256 is
+  `901db23e59131e3a9bd8c005787b2621d89df812d92737650370d996c7db8a07`.
+- The first full gate detected a documentation regression in the existing
+  release contract: the rewritten policy prefix had lost its explicit
+  "Releases are manual" declaration. Restored it in both languages without
+  changing the contract or any runtime behavior. Publication stays blocked;
+  run the full gate again after this failed attempt finishes.
 
 ## Relevant files
 

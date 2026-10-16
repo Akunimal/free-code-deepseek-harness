@@ -2,6 +2,9 @@
 
 ### Current release: v0.9.6 (Windows x64)
 
+Releases are manual and target Windows x64. This policy never authorizes
+touching the maintainer's running FreeCode instance.
+
 **Candidate status:** v0.9.6 is not published yet. Public clean-cache proof and final setup/portable verification are pending; do not substitute a local preload.
 
 ## Mandatory fresh-install proof

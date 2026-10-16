@@ -2,6 +2,9 @@
 
 ### Release actual: v0.9.6 (Windows x64)
 
+Las releases son manuales y tienen como target Windows x64. Esta política
+nunca autoriza tocar la instancia activa de FreeCode.
+
 **Estado candidato:** v0.9.6 aún no está publicada. Faltan la prueba pública de caché vacía y la verificación final de setup/portable; una precarga local no las reemplaza.
 
 ## Prueba obligatoria de instalación limpia
