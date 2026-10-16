@@ -62,17 +62,27 @@ function closeServer(server: Server): Promise<void> {
   return new Promise((r) => server.close(() => r()));
 }
 
-interface Fetched { status: number; headers: Record<string, string | string[] | undefined>; body: string }
+interface Fetched { status: number; headers: Record<string, string | string[] | undefined>; body: string; bytes: Buffer }
 
-function fetchLb(port: number, path: string, method = 'POST', body = '{}', extraHeaders: Record<string, string> = {}): Promise<Fetched> {
+function fetchLb(port: number, path: string, method = 'POST', body: string | Buffer = '{}', extraHeaders: Record<string, string> = {}): Promise<Fetched> {
   return new Promise((resolve, reject) => {
-    const req = httpRequest({ host: '127.0.0.1', port, path, method, headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body), ...extraHeaders } }, (res) => {
+    const bodyLength = Buffer.isBuffer(body) ? body.length : Buffer.byteLength(body);
+    const headers = {
+      'content-type': 'application/octet-stream',
+      ...(extraHeaders['transfer-encoding'] ? {} : { 'content-length': bodyLength }),
+      ...extraHeaders,
+    };
+    const req = httpRequest({ host: '127.0.0.1', port, path, method, headers }, (res) => {
       const chunks: Buffer[] = [];
       res.on('data', (c: Buffer) => chunks.push(c));
-      res.on('end', () => resolve({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(chunks).toString('utf8') }));
+      res.on('end', () => {
+        const bytes = Buffer.concat(chunks);
+        resolve({ status: res.statusCode ?? 0, headers: res.headers, body: bytes.length <= 1_000_000 ? bytes.toString('utf8') : '', bytes });
+      });
       res.on('error', reject);
     });
     req.on('error', reject);
+    req.setTimeout(10_000, () => req.destroy(new Error('LB response timed out')));
     req.end(body);
   });
 }
@@ -80,18 +90,19 @@ function fetchLb(port: number, path: string, method = 'POST', body = '{}', extra
 /** Build a fake worker that responds according to `program[i]`, one entry
  *  per received request. Programs may return `{status, body}` or a delayed
  *  stream. */
-type ProgramStep = { kind: 'status'; status: number; body?: string; contentType?: string } | { kind: 'stream'; chunks: string[]; delayMs?: number };
+type ProgramStep = { kind: 'status'; status: number; body?: string; contentType?: string; headers?: Record<string, string> } | { kind: 'stream'; chunks: string[]; delayMs?: number };
 
-function makeFakeWorker(program: ProgramStep[]): { server: Server; hits: number; portPromise: Promise<number> } {
-  const state = { hits: 0 };
+function makeFakeWorker(program: ProgramStep[]): { server: Server; hits: number; bodies: Buffer[]; portPromise: Promise<number> } {
+  const state: { hits: number; bodies: Buffer[] } = { hits: 0, bodies: [] };
   const server = createServer((req, res) => {
-    // Consume request body so 'end' fires and program advances predictably.
-    req.on('data', () => { /* discard */ });
+    const requestChunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => { requestChunks.push(Buffer.from(chunk)); });
     req.on('end', () => {
+      state.bodies.push(Buffer.concat(requestChunks));
       const step = program[state.hits] ?? program[program.length - 1]!;
       state.hits++;
       if (step.kind === 'status') {
-        res.writeHead(step.status, { 'content-type': step.contentType ?? 'application/json' });
+        res.writeHead(step.status, { 'content-type': step.contentType ?? 'application/json', ...step.headers });
         res.end(step.body ?? '');
         return;
       }
@@ -110,8 +121,30 @@ function makeFakeWorker(program: ProgramStep[]): { server: Server; hits: number;
   return {
     server,
     get hits() { return state.hits; },
+    get bodies() { return state.bodies; },
     portPromise: listen(server),
   };
+}
+
+async function assertLargeRequestForwarded(headers: Record<string, string>): Promise<void> {
+  const w0 = makeFakeWorker([{ kind: 'status', status: 200, body: 'ok' }]);
+  const p0 = await w0.portPromise;
+  const pool = makeStubPool([
+    { id: 'w0', pid: 1, port: p0, status: 'ready', startedAt: 0, restarts: 0 },
+  ]);
+  const lb = createLoadBalancer({ pool, logError: () => undefined });
+  await lb.listen();
+  const payload = Buffer.alloc(10 * 1024 * 1024 + 1, 0xa5);
+  try {
+    const result = await fetchLb(lb.port(), '/v1/files', 'POST', payload, headers);
+    expect(result.status).toBe(200);
+    expect(w0.bodies).toHaveLength(1);
+    expect(Buffer.compare(w0.bodies[0]!, payload)).toBe(0);
+    expect(pool.picks).toEqual(['w0']);
+  } finally {
+    await lb.close();
+    await closeServer(w0.server);
+  }
 }
 
 describe('LB retry fan-out', () => {
@@ -141,6 +174,14 @@ describe('LB retry fan-out', () => {
       await closeServer(w0.server);
       await closeServer(w1.server);
     }
+  });
+
+  it('forwards a large Content-Length request byte-for-byte on one attempt', async () => {
+    await assertLargeRequestForwarded({});
+  });
+
+  it('forwards a large chunked request byte-for-byte after abandoning buffering', async () => {
+    await assertLargeRequestForwarded({ 'transfer-encoding': 'chunked' });
   });
 
   it('parks a worker for ~8s when it returns 5xx before headers', async () => {
@@ -290,6 +331,45 @@ describe('LB retry fan-out', () => {
       await closeServer(w0.server);
       await closeServer(w1.server);
       await closeServer(w2.server);
+    }
+  });
+
+  it('returns a complete empty exhausted-retry response without stale body headers', async () => {
+    const response = {
+      kind: 'status' as const,
+      status: 429,
+      body: '{"error":"rate limited"}',
+      headers: {
+        'content-length': String(Buffer.byteLength('{"error":"rate limited"}')),
+        'content-encoding': 'identity',
+        'content-range': 'bytes 0-24/25',
+        'content-type': 'application/json',
+        'retry-after': '3',
+        'x-request-id': 'upstream-request-1',
+      },
+    };
+    // Two workers exhaust the unique-worker set before MAX_ATTEMPTS; the
+    // last retryable response is drained and synthesized as an empty response.
+    const workers = [makeFakeWorker([response]), makeFakeWorker([response])];
+    const ports = await Promise.all(workers.map((worker) => worker.portPromise));
+    const pool = makeStubPool(ports.map((port, index) => ({
+      id: `w${index}`, pid: index + 1, port, status: 'ready' as const, startedAt: 0, restarts: 0,
+    })));
+    const lb = createLoadBalancer({ pool, logError: () => undefined });
+    await lb.listen();
+    try {
+      const result = await fetchLb(lb.port(), '/v1/chat/completions');
+      expect(result.status).toBe(429);
+      expect(result.bytes).toHaveLength(0);
+      expect(result.headers['content-length']).toBeUndefined();
+      expect(result.headers['content-encoding']).toBeUndefined();
+      expect(result.headers['content-range']).toBeUndefined();
+      expect(result.headers['content-type']).toBeUndefined();
+      expect(result.headers['retry-after']).toBe('3');
+      expect(result.headers['x-request-id']).toBe('upstream-request-1');
+    } finally {
+      await lb.close();
+      await Promise.all(workers.map((worker) => closeServer(worker.server)));
     }
   });
 

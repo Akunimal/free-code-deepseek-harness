@@ -22,7 +22,7 @@ The audit found that the privileged harness renderer has no main-frame navigatio
 - Do not inspect, stop, restart, or interfere with a running FreeCode instance.
 - Preserve all pre-existing unrelated worktree changes and untracked files.
 - TDD mode: red-green-refactor, from the user's explicit earlier choice; runner: pnpm/Vitest.
-- Route: direct inline; delivery: ask-on-risk. Forecast: approximately 350 authored changed lines (excluding generated Graphify output); below the ~400-line chain-strategy threshold.
+- Route: direct inline; TDD: red-green-refactor; runner: pnpm/Vitest. Forecast exceeded ~400 authored changed lines (excluding generated Graphify output); user selected `stacked-to-main` for the delivery chain. This authorizes only local work-unit commits on the current feature branch; no push, PR, merge, tag, or release is authorized for this task.
 - Engram mirror: pending because the runtime has no authoritative registered session ID; do not invent one or write agent-attributed memory.
 
 ## Acceptance criteria
@@ -39,9 +39,9 @@ The audit found that the privileged harness renderer has no main-frame navigatio
 
 - [x] HAF-1 — Protect privileged renderer navigation and IPC; add negative/positive security contracts. Added exact-origin/port allowlisting, top-level origin checks in every IPC handler, overlay-only channel permissions, navigation/redirect guards, and reload of the existing view when the supervisor publishes a new ephemeral port. RED observed before implementation; GREEN: 27/27 focused Vitest tests and shell TypeScript check passed. Implementation commit: `468d21f` (`fix(security): restrict harness renderer IPC`). Runtime smoke: N/A for this unit; do not launch/attach to the user's app, and the pure policy tests plus production-source contract cover the changed decision points.
 - [x] HAF-2 — Coalesce model catalog refresh calls; add an initial-refresh race regression test. `doRefresh` now returns one shared in-flight promise to boot/timer/manual callers. Failed refreshes report failure and do not hand IPC a previous/null catalog; retry timers can start after the shared operation settles. RED: focused state test failed to resolve missing single-flight module, then exposed the async operation scheduling assumption in the test; GREEN: 27/27 focused Vitest tests and shell TypeScript check passed. Implementation commit: `98a8018` (`fix(models): coalesce catalog refresh requests`).
-- [x] HAF-3 — Fan Tor status changes out to the Pool Status overlay; add an event delivery contract. Added a dedicated Tor target list so the harness and live overlay receive asynchronous Tor state while unrelated broadcasts remain harness-only; destroyed targets are filtered. RED: event contract failed because overlay got no Tor event. GREEN: 28/28 focused IPC/overlay tests and shell TypeScript check passed. Commit: pending.
-- [ ] HAF-4 — Preserve oversized request bodies on the legacy LB's one-shot path; add a byte-for-byte test.
-- [ ] HAF-5 — Strip stale representation headers from exhausted retry responses; add response-completeness tests.
+- [x] HAF-3 — Fan Tor status changes out to the Pool Status overlay; add an event delivery contract. Added a dedicated Tor target list so the harness and live overlay receive asynchronous Tor state while unrelated broadcasts remain harness-only; destroyed targets are filtered. RED: event contract failed because overlay got no Tor event. GREEN: 28/28 focused IPC/overlay tests and shell TypeScript check passed. Implementation commit: `7d71b7e` (`fix(tor): broadcast status to pool overlay`).
+- [x] HAF-4 — Preserve oversized request bodies on the legacy LB's one-shot path; add a byte-for-byte test. Declared >10 MiB bodies skip buffering; unknown-length bodies use a non-destructive iterator and stream the consumed prefix plus remaining bytes to one worker without retry. RED: oversized Content-Length request timed out because the old early-return async iterator destroyed the input stream. GREEN: both Content-Length and chunked >10 MiB byte-for-byte tests passed; adapter TypeScript check passed. Commit: pending.
+- [x] HAF-5 — Strip stale representation headers from exhausted retry responses; add response-completeness tests. Empty synthesized responses now drop body framing/representation headers but preserve retry metadata and request IDs; HEAD retains corresponding GET metadata. RED: exhausted retries timed out because the response advertised the discarded JSON body's Content-Length. GREEN: 13/13 adapter tests and adapter TypeScript check passed. Commit: pending.
 
 ## Progress and evidence
 
@@ -52,8 +52,15 @@ The audit found that the privileged harness renderer has no main-frame navigatio
 - HAF-2 GREEN observed: `rtk pnpm --filter @freecode/shell exec vitest run tests/model-refresh-state.test.ts tests/model-refresh-ipc.test.ts tests/window-composition.test.ts` — 3 files / 27 tests passed; `rtk pnpm exec tsc -p apps/shell/tsconfig.json --noEmit` — passed.
 - HAF-3 RED observed: `rtk pnpm --filter @freecode/shell exec vitest run tests/model-refresh-ipc.test.ts` — the new Tor fan-out test failed because the overlay received no `tor:status` event.
 - HAF-3 GREEN observed: `rtk pnpm --filter @freecode/shell exec vitest run tests/model-refresh-ipc.test.ts tests/tor-ipc-contract.test.ts tests/window-composition.test.ts` — 3 files / 28 tests passed; `rtk pnpm exec tsc -p apps/shell/tsconfig.json --noEmit` — passed.
+- HAF-4 RED observed: the original large-body path timed out in `tests/lb-retry.test.ts` after the async iterator stopped at the 10 MiB cap and destroyed the incoming request.
+- HAF-4 GREEN observed: `rtk pnpm --filter @freecode/opencode-adapter exec vitest run tests/lb-retry.test.ts` — 12/12 tests passed, including Content-Length and chunked oversized request byte-preservation; `rtk pnpm --filter @freecode/opencode-adapter exec tsc --noEmit` — passed.
+- HAF-5 RED observed: exhausted retries with two workers timed out because the synthesized empty 429 response retained the previous response's `Content-Length`.
+- HAF-5 GREEN observed: `rtk pnpm --filter @freecode/opencode-adapter exec vitest run tests/lb-retry.test.ts` — 13/13 tests passed; `rtk pnpm --filter @freecode/opencode-adapter exec tsc --noEmit` — passed (exit 0).
+- Full shell suite observed: `rtk pnpm --filter @freecode/shell exec vitest run` — 49/52 files passed, 368/371 tests passed. Three integration failures remain unverified/unrelated to changed tests: `profile-models.integration.test.ts` timed out waiting for CLI readiness stdout; `supervisor.smoke.test.ts` timed out waiting for initial harness readiness; `tor-startup.integration.test.ts` received no Tor bootstrap progress. Do not hide these failures.
+- Focused shell regression suite observed after full run: 5 files / 37 tests passed; `rtk pnpm exec tsc -p apps/shell/tsconfig.json --noEmit` passed.
+- Full adapter suite observed: `rtk pnpm --filter @freecode/opencode-adapter exec vitest run` — 2 files / 24 tests passed; adapter TypeScript check passed.
 - Engram mirror is pending until runtime registration is available.
 
 ## Next step
 
-Commit HAF-3 with its event-delivery test, then begin HAF-4 test-first.
+Refresh Graphify and record its result, then make local Conventional Commits for HAF-4 and HAF-5 and record their commit identities. The full shell integration-suite failures above remain disclosed; focused tests and static checks are green. No remote publication or app/installer execution is in scope.

@@ -34,6 +34,31 @@ const RESPONSE_IDLE_TIMEOUT_MS = 180_000;
 /** Bodies larger than this bypass the buffer-and-replay retry mechanism:
  *  chat completions are always small, uploads / SSE bodies are rare. */
 const RETRY_BODY_CAP_BYTES = 10 * 1024 * 1024;
+const EMPTY_RETRY_BODY_HEADERS = new Set([
+  'accept-ranges',
+  'content-digest',
+  'content-encoding',
+  'content-language',
+  'content-length',
+  'content-location',
+  'content-md5',
+  'content-range',
+  'content-transfer-encoding',
+  'content-type',
+  'digest',
+  'etag',
+  'last-modified',
+  'repr-digest',
+  'trailer',
+  'transfer-encoding',
+]);
+
+interface RequestBody {
+  /** Complete body is replayable for fan-out attempts; null disables retries. */
+  replay: Buffer | null;
+  /** Prefix already consumed while discovering an oversized chunked body. */
+  prefix: Buffer;
+}
 
 interface StickyEntry {
   workerId: string;
@@ -151,19 +176,40 @@ export function createLoadBalancer(opts: LoadBalancerOptions): LoadBalancer {
     res.end(JSON.stringify(obj));
   }
 
-  /** Read the entire request body into a Buffer, capped. Requests whose body
-   *  exceeds the cap fall back to single-attempt piping (no retry) — the
-   *  caller decides. Returns null when the body was too large to buffer. */
-  async function bufferRequestBody(req: IncomingMessage): Promise<Buffer | null> {
+  function headersForEmptyRetryResponse(
+    headers: Record<string, string | string[] | undefined>,
+    method: string | undefined,
+  ): Record<string, string | string[] | undefined> {
+    // HEAD responses intentionally omit their body while retaining metadata
+    // about the corresponding GET representation (including Content-Length).
+    if (method === 'HEAD') return headers;
+    return Object.fromEntries(Object.entries(headers)
+      .filter(([name]) => !EMPTY_RETRY_BODY_HEADERS.has(name.toLowerCase())));
+  }
+
+  /** Read only bodies eligible for retry. Large declared bodies are never
+   *  consumed; unknown-length bodies retain any prefix read before the cap so
+   *  the caller can stream that prefix followed by the untouched remainder. */
+  async function bufferRequestBody(req: IncomingMessage): Promise<RequestBody> {
+    const contentLength = Number(req.headers['content-length']);
+    if (Number.isFinite(contentLength) && contentLength > RETRY_BODY_CAP_BYTES) {
+      return { replay: null, prefix: Buffer.alloc(0) };
+    }
+
     const chunks: Buffer[] = [];
     let total = 0;
-    for await (const chunk of req) {
+    // The default async iterator destroys a Readable when exited early. Keep
+    // IncomingMessage alive so an oversized chunked upload can continue to
+    // stream to its single selected worker after buffering is abandoned.
+    for await (const chunk of req.iterator({ destroyOnReturn: false })) {
       const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
       total += buf.length;
-      if (total > RETRY_BODY_CAP_BYTES) return null;
       chunks.push(buf);
+      if (total > RETRY_BODY_CAP_BYTES) {
+        return { replay: null, prefix: Buffer.concat(chunks, total) };
+      }
     }
-    return Buffer.concat(chunks, total);
+    return { replay: Buffer.concat(chunks, total), prefix: Buffer.alloc(0) };
   }
 
   /** Forward one request to one worker. Resolves with the upstream response
@@ -177,7 +223,7 @@ export function createLoadBalancer(opts: LoadBalancerOptions): LoadBalancer {
   function attemptRequest(
     worker: WorkerHandle,
     req: IncomingMessage,
-    body: Buffer | null,
+    body: RequestBody,
     res: ServerResponse,
   ): Promise<{ upstream: ClientRequest; upRes: HttpIncomingMessage } | { error: Error }> {
     return new Promise((resolve) => {
@@ -207,10 +253,12 @@ export function createLoadBalancer(opts: LoadBalancerOptions): LoadBalancer {
       // error), otherwise successive attempts double-register on `res`.
       upstream.once('close', () => res.removeListener('close', onClose));
 
-      if (body !== null) {
-        upstream.end(body);
+      if (body.replay !== null) {
+        upstream.end(body.replay);
       } else {
-        // No buffered body — pipe the live request (single-attempt path).
+        // No complete replay exists. Send any prefix consumed while detecting
+        // an unknown-length oversized body, then pipe the live remainder.
+        if (body.prefix.length > 0) upstream.write(body.prefix);
         req.pipe(upstream);
       }
     });
@@ -240,10 +288,10 @@ export function createLoadBalancer(opts: LoadBalancerOptions): LoadBalancer {
 
     // Buffer the body once so each attempt can replay it. Large bodies fall
     // through to single-attempt piping.
-    const bufferedBody = req.method && req.method !== 'GET' && req.method !== 'HEAD'
+    const body = req.method && req.method !== 'GET' && req.method !== 'HEAD'
       ? await bufferRequestBody(req)
-      : Buffer.alloc(0);
-    const canRetry = bufferedBody !== null;
+      : { replay: Buffer.alloc(0), prefix: Buffer.alloc(0) };
+    const canRetry = body.replay !== null;
 
     // First attempt honors sticky; retries always fan out to a new worker.
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
@@ -256,7 +304,7 @@ export function createLoadBalancer(opts: LoadBalancerOptions): LoadBalancer {
       if (!worker) break;
       tried.add(worker.id);
 
-      const result = await attemptRequest(worker, req, canRetry ? bufferedBody : null, res);
+      const result = await attemptRequest(worker, req, body, res);
 
       if ('error' in result) {
         // Connect error / socket timeout. Retry if downstream is still
@@ -315,7 +363,7 @@ export function createLoadBalancer(opts: LoadBalancerOptions): LoadBalancer {
       // The body is intentionally empty (real body was drained during
       // retry); the client sees the last upstream status without stale
       // partial content.
-      res.writeHead(lastStatus, lastHeaders);
+      res.writeHead(lastStatus, headersForEmptyRetryResponse(lastHeaders, req.method));
       res.end();
       return;
     }
