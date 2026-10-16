@@ -15,10 +15,11 @@ The audit found that the privileged harness renderer has no main-frame navigatio
 - Push asynchronous Tor state changes to the Pool Status overlay.
 - Preserve large request bodies on the LB's single-attempt path and avoid forwarding representation-length headers for a body that was discarded after retry exhaustion.
 - Add regression tests for each behavior and update this task record with observed verification and commit IDs.
+- Re-investigate the three integration timeouts from the first full shell run and compile a fresh isolated v0.9.5 Windows x64 setup after the checks pass.
 
 ## Constraints
 
-- No app/installer launch, install, release, tag, push, or remote operations.
+- Build of an isolated setup is authorized; do not launch or install it. No release, tag, push, or remote operation.
 - Do not inspect, stop, restart, or interfere with a running FreeCode instance.
 - Preserve all pre-existing unrelated worktree changes and untracked files.
 - TDD mode: red-green-refactor, from the user's explicit earlier choice; runner: pnpm/Vitest.
@@ -42,6 +43,8 @@ The audit found that the privileged harness renderer has no main-frame navigatio
 - [x] HAF-3 — Fan Tor status changes out to the Pool Status overlay; add an event delivery contract. Added a dedicated Tor target list so the harness and live overlay receive asynchronous Tor state while unrelated broadcasts remain harness-only; destroyed targets are filtered. RED: event contract failed because overlay got no Tor event. GREEN: 28/28 focused IPC/overlay tests and shell TypeScript check passed. Implementation commit: `7d71b7e` (`fix(tor): broadcast status to pool overlay`).
 - [x] HAF-4 — Preserve oversized request bodies on the legacy LB's one-shot path; add a byte-for-byte test. Declared >10 MiB bodies skip buffering; unknown-length bodies use a non-destructive iterator and stream the consumed prefix plus remaining bytes to one worker without retry. RED: oversized Content-Length request timed out because the old early-return async iterator destroyed the input stream. GREEN: both Content-Length and chunked >10 MiB byte-for-byte tests passed; adapter TypeScript check passed. Commit: `9542d43` (`fix(adapter): preserve large bodies and complete retry responses`), shared with HAF-5 because both harden the same LB request/response boundary.
 - [x] HAF-5 — Strip stale representation headers from exhausted retry responses; add response-completeness tests. Empty synthesized responses now drop body framing/representation headers but preserve retry metadata and request IDs; HEAD retains corresponding GET metadata. RED: exhausted retries timed out because the response advertised the discarded JSON body's Content-Length. GREEN: 13/13 adapter tests and adapter TypeScript check passed. Commit: `9542d43` (`fix(adapter): preserve large bodies and complete retry responses`), shared with HAF-4 because both harden the same LB request/response boundary.
+- [x] HAF-6 — Reproduce the three shell integration timeouts before deciding on a code fix. All three pass individually; all three pass together; a fresh full shell run passes 52/52 files and 371/371 tests. No deterministic source defect reproduced, so no speculative code change.
+- [x] HAF-7 — Run desktop prepackage checks and build a fresh isolated v0.9.5 Windows x64 NSIS setup; verify the artifact without launching/installing it. All prepackage checks passed; electron-builder produced the setup and blockmap; `verify-nsis-package-output.mjs` verified PE/package metadata, update manifest, runtime manifest, and separate-DSH policy. Artifact: `apps/shell/release-0.9.5-audit-20261016/FreeCode-DeepSeek-Harness-0.9.5-win-x64-setup.exe` (178,764,405 bytes; SHA-256 `91578ddde1b0a27f68bebc16fbcbf74998700479cb179acb2b0e2ac62c28ffb8`). Setup was not launched or installed. Commit: pending.
 
 ## Progress and evidence
 
@@ -59,9 +62,11 @@ The audit found that the privileged harness renderer has no main-frame navigatio
 - Full shell suite observed: `rtk pnpm --filter @freecode/shell exec vitest run` — 49/52 files passed, 368/371 tests passed. Three integration failures remain unverified/unrelated to changed tests: `profile-models.integration.test.ts` timed out waiting for CLI readiness stdout; `supervisor.smoke.test.ts` timed out waiting for initial harness readiness; `tor-startup.integration.test.ts` received no Tor bootstrap progress. Do not hide these failures.
 - Focused shell regression suite observed after full run: 5 files / 37 tests passed; `rtk pnpm exec tsc -p apps/shell/tsconfig.json --noEmit` passed.
 - Full adapter suite observed: `rtk pnpm --filter @freecode/opencode-adapter exec vitest run` — 2 files / 24 tests passed; adapter TypeScript check passed.
+- HAF-6 retest evidence: `tests/tor-startup.integration.test.ts` passed in isolation; `tests/profile-models.integration.test.ts` passed in isolation (50.44s); `tests/supervisor.smoke.test.ts` passed in isolation (5/5); the three together passed (3 files / 7 tests); then `rtk pnpm --filter @freecode/shell exec vitest run --reporter=dot` passed all 52 files / 371 tests. The initial 49/52, 368/371 run did not reproduce; its cause remains undetermined, rather than attributed to a code bug.
+- HAF-7 build evidence: `rtk pnpm --filter @freecode/shell package:desktop` with `FREECODE_RELEASE_TARGETS=nsis` and fresh output `release-0.9.5-audit-20261016` passed all prepackage verification, built Electron 44.0.0 / Windows x64 NSIS setup, and generated its blockmap. `rtk node scripts/verify-nsis-package-output.mjs apps/shell/release-0.9.5-audit-20261016/FreeCode-DeepSeek-Harness-0.9.5-win-x64-setup.exe` passed (178,764,405 bytes); SHA-256: `91578ddde1b0a27f68bebc16fbcbf74998700479cb179acb2b0e2ac62c28ffb8`. No install, launch, publication, tag, push, or remote operation was performed.
 - Graphify update completed: 121,220 nodes / 257,548 edges; aggregated view rebuilt with 4,598 communities. Graphify reported labels changed with the new community set and suggested `graphify label` (LLM); label refresh was not run because it is not required for graph freshness and would use an LLM.
 - Engram mirror is pending until runtime registration is available.
 
 ## Next step
 
-After this final task-record update, refresh Graphify once more. All five implementation tasks have local commit evidence; the full shell integration-suite failures above remain disclosed; focused tests and static checks are green. No remote publication or app/installer execution is in scope.
+Implementation, regression suite, and isolated setup build are complete. Record the final local work-unit commit below; the setup remains a locally built, statically verified artifact only. Do not install, launch, publish, tag, push, or overwrite prior release artifacts under this task's authorization.
