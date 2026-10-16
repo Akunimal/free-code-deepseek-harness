@@ -12,6 +12,11 @@ const CHILD_PROCESS_MODULES = new Set(['child_process', 'node:child_process'])
 // These wrappers launch only user-requested GUI handlers. Their non-hidden
 // behavior is explicit and scoped; all other launch sites must hide windows.
 const VISIBLE_UI_EXCEPTIONS = new Map([
+  ['apps/shell/src/main/interactive-gui.ts', {
+    api: 'spawn',
+    expression: 'false',
+    reason: 'Authenticated explicit GUI broker verifies a GUI PE and rejects console/script launchers before spawn.',
+  }],
   ['vendor/deepseek-harness/packages/host/open-in-app/src/resolver.ts', {
     api: 'spawn',
     expression: 'options.windowsHide??true',

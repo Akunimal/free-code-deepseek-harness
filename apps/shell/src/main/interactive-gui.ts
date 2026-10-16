@@ -50,7 +50,9 @@ export async function launchInteractiveGui(value: unknown): Promise<void> {
   const { command, args, electronCli } = validateGuiLaunch(value);
   await new Promise<void>((resolve, reject) => {
     const child = spawn(command, args, {
-      windowsHide: true, shell: false, detached: true, stdio: 'ignore',
+      // This is an already validated GUI PE. windowsHide also sets SW_HIDE for
+      // GUI apps, so using it here could make an intentional editor invisible.
+      windowsHide: false, shell: false, detached: true, stdio: 'ignore',
       env: { ...guiLaunchEnvironment(process.env), ...(electronCli ? { ELECTRON_RUN_AS_NODE: '1' } : {}) },
     });
     let settled = false;

@@ -78,6 +78,10 @@ describe('source process-launch headless contract', () => {
       api: 'execFile',
       policy: 'visible-ui-exception',
     }])
+
+    const gui = "import { spawn } from 'node:child_process'; spawn(command, args, { windowsHide: false })"
+    expect(inspectProcessLaunchSource(gui, 'apps/shell/src/main/interactive-gui.ts')[0]?.policy).toBe('visible-ui-exception')
+    expect(inspectProcessLaunchSource(gui, 'apps/shell/src/main/background.ts')[0]?.policy).toBe('dynamic')
   })
 
   it('audits all shipped application and package sources with no unreviewed console launch', () => {
@@ -85,7 +89,7 @@ describe('source process-launch headless contract', () => {
 
     expect(result.files).toBeGreaterThan(100)
     expect(result.launches).toBeGreaterThan(20)
-    expect(result.visibleUiExceptions).toBe(2)
+    expect(result.visibleUiExceptions).toBe(3)
     expect(result.failures).toEqual([])
   })
 

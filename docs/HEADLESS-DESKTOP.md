@@ -11,6 +11,7 @@ El entorno de fondo impone `GIT_TERMINAL_PROMPT=0`, `GCM_INTERACTIVE=never` y `G
 - Dos hooks de eventos observan los escritorios privado e interactivo. Antes de ocultar o registrar una ventana, consultan su pertenencia al Job mediante un handle del proceso. No seleccionan procesos por nombre, títulos o una lista global de PIDs.
 - El registro `[headless-window]` contiene PID, nombre del ejecutable, clase y escritorio privado/interactivo. Se limita a 32 entradas por helper; la ocultación continúa. No captura imágenes, títulos, argumentos, variables de entorno ni conversaciones.
 - Las acciones humanas de abrir aplicaciones, carpetas, documentos o localizar archivos pasan por un servicio Electron autenticado en loopback. El selector de carpetas mantiene su puente existente. Los ejecutables GUI se validan por su encabezado PE; no se aceptan intérpretes de consola ni scripts como excepción interactiva. El adaptador CLI instalado de GitHub Desktop tiene un permiso específico, sin heredar credenciales del harness.
+- Solo ese broker permite la visibilidad normal de la aplicación GUI validada. `windowsHide` también aplica `SW_HIDE` a aplicaciones gráficas en libuv; no se utiliza para esconder un editor que el usuario pidió abrir. Esto no habilita ventanas de procesos de fondo.
 - El editor de texto y el navegador de documentos se abren en el escritorio interactivo. Las asociaciones de archivos ejecutables/scripts se rechazan; pueden abrirse como texto. El navegador embebido sigue perteneciendo a Electron, no al árbol de fondo.
 
 ### Verificación y actualización
@@ -42,6 +43,8 @@ Background environments enforce `GIT_TERMINAL_PROMPT=0`, `GCM_INTERACTIVE=never`
 Event hooks monitor the private and interactive desktops. Every hide/log action requires kernel Job membership verified through a process handle, never a process-name or window-title match. Bounded `[headless-window]` diagnostics contain PID, executable basename, class and private/interactive desktop; no screenshots, titles, arguments, environment or conversation content are captured. Logging stops after 32 records per helper; enforcement continues.
 
 Explicit application, directory, document and reveal actions use the authenticated loopback Electron GUI broker. The existing folder-picker bridge remains active. The broker verifies GUI PE headers, strips inherited credentials and rejects console/script launchers. The installed GitHub Desktop CLI adapter has a narrow explicit exception. Text editing and browser-renderable documents remain interactive; executable/script associations are refused and can instead be opened as text. Embedded browsing remains owned by Electron.
+
+Only that broker permits normal visibility for its validated GUI executable. `windowsHide` also sets `SW_HIDE` for GUI applications in [libuv's Windows launcher](https://github.com/libuv/libuv/blob/v1.x/src/win/process.c), so applying it there could hide an intentionally opened editor. This is not a background-process escape hatch.
 
 ### Verification and limitations
 

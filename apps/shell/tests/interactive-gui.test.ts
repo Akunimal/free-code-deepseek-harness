@@ -1,6 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, afterEach } from 'vitest';
+import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { validateGuiLaunch, guiLaunchEnvironment, launchInteractiveGui } from '../src/main/interactive-gui.js';
+
+vi.mock('node:child_process', async importOriginal => {
+  const original = await importOriginal<typeof import('node:child_process')>();
+  return { ...original, spawn: vi.fn(original.spawn) };
+});
+afterEach(() => vi.clearAllMocks());
 
 describe('explicit interactive GUI exception', () => {
   it('rejects interpreters, non-PE files, relative paths and malformed argv', () => {
@@ -22,5 +29,11 @@ describe('explicit interactive GUI exception', () => {
     const command = fileURLToPath(new URL('../resources/freecode/headless-host.exe', import.meta.url));
     expect(validateGuiLaunch({ command, args: ['--build-info'] })).toEqual({ command, args: ['--build-info'] });
     await expect(launchInteractiveGui({ command, args: ['--build-info'] })).resolves.toBeUndefined();
+    expect(spawn).toHaveBeenCalledTimes(1);
+    const options = vi.mocked(spawn).mock.calls[0]?.[2];
+    expect(options?.windowsHide).toBe(false);
+    expect(options?.shell).toBe(false);
+    expect(options?.detached).toBe(true);
+    expect(options?.stdio).toBe('ignore');
   });
 });
