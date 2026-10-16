@@ -52,6 +52,8 @@ export interface IpcDeps {
    *  nested WebContentsView, the shell provides this so pushes reach the
    *  actual harness page, not the (blank) window container webContents. */
   getRendererTargets?: () => WebContents[];
+  /** Tor status also belongs to the static Pool Status overlay, not just the harness. */
+  getTorRendererTargets?: () => WebContents[];
   /** Close the auxiliary Pool Status window only for its own WebContents. */
   closePoolStatusOverlay: (sender: WebContents) => void;
   /** Validate the invoking main-frame WebContents and its origin per channel. */
@@ -66,6 +68,8 @@ export function registerIpc(deps: IpcDeps): () => void {
   const { runtime, userDataDir, homeDir, lbBaseUrl } = deps;
 
   const rendererTargets = (): WebContents[] => (deps.getRendererTargets?.() ?? defaultRendererTargets())
+    .filter((wc) => !wc.isDestroyed());
+  const torRendererTargets = (): WebContents[] => (deps.getTorRendererTargets?.() ?? rendererTargets())
     .filter((wc) => !wc.isDestroyed());
 
   const handle = (
@@ -251,7 +255,7 @@ export function registerIpc(deps: IpcDeps): () => void {
   const emitTorStatus = (): void => {
     if (!deps.torManager) return;
     const status = deps.torManager.getStatus();
-    for (const wc of rendererTargets()) wc.send(IpcChannels.torStatus, status);
+    for (const wc of torRendererTargets()) wc.send(IpcChannels.torStatus, status);
   };
 
   let offTorChange: (() => void) | null = null;

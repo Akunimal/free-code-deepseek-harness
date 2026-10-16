@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { IpcChannels, type ModelCatalog } from '@freecode/shared-types';
 import { createModelCatalogRefreshState } from '../src/main/model-refresh-state.js';
 import type { ShellRuntime } from '../src/main/runtime.js';
+import type { TorManager, TorManagerStatus } from '../src/main/tor-manager.js';
 import { registerIpc } from '../src/main/ipc.js';
 
 const handlers = vi.hoisted(() => new Map<string, (...args: unknown[]) => unknown>());
@@ -21,7 +22,19 @@ function createBridgeFixture(isTrustedRendererInvocation = () => true) {
   handlers.clear();
   const catalogRefreshState = createModelCatalogRefreshState();
   const sent: Array<{ channel: string; payload: unknown }> = [];
+  const overlaySent: Array<{ channel: string; payload: unknown }> = [];
   const closeRequests: unknown[] = [];
+  const torListeners = new Set<(status: TorManagerStatus) => void>();
+  const torStatus: TorManagerStatus = {
+    active: true,
+    status: 'ready',
+    socksPort: 9050,
+    controlPort: 9051,
+    pid: 1234,
+    circuitCount: 1,
+    lastRotatedAt: null,
+    lastError: null,
+  };
   const triggerRefresh = vi.fn(async () => {
     await catalogRefreshState.run(async () => undefined);
     return catalog;
@@ -30,6 +43,20 @@ function createBridgeFixture(isTrustedRendererInvocation = () => true) {
     isDestroyed: () => false,
     send: (channel: string, payload: unknown) => sent.push({ channel, payload }),
   };
+  const overlayTarget = {
+    isDestroyed: () => false,
+    send: (channel: string, payload: unknown) => overlaySent.push({ channel, payload }),
+  };
+  const torManager = {
+    getStatus: () => torStatus,
+    onChange: (listener: (status: TorManagerStatus) => void) => {
+      torListeners.add(listener);
+      return () => { torListeners.delete(listener); };
+    },
+    isReady: true,
+    start: async () => undefined,
+    stop: async () => undefined,
+  } as unknown as TorManager;
   const runtime = {
     workers: () => [],
     onMcpStatus: () => () => undefined,
@@ -40,6 +67,7 @@ function createBridgeFixture(isTrustedRendererInvocation = () => true) {
   } as unknown as ShellRuntime;
   const dispose = registerIpc({
     runtime,
+    torManager,
     userDataDir: 'test-data',
     homeDir: 'test-home',
     lbBaseUrl: 'http://127.0.0.1',
@@ -50,8 +78,18 @@ function createBridgeFixture(isTrustedRendererInvocation = () => true) {
     setLocale: () => undefined,
     closePoolStatusOverlay: (sender) => closeRequests.push(sender),
     getRendererTargets: () => [target] as never,
+    getTorRendererTargets: () => [target, overlayTarget] as never,
   });
-  return { catalogRefreshState, closeRequests, dispose, sent, target, triggerRefresh };
+  return {
+    catalogRefreshState,
+    closeRequests,
+    dispose,
+    emitTorChange: () => { for (const listener of torListeners) listener(torStatus); },
+    overlaySent,
+    sent,
+    target,
+    triggerRefresh,
+  };
 }
 
 afterEach(() => handlers.clear());
@@ -101,5 +139,17 @@ describe('Pool Status overlay close IPC', () => {
     expect(closeRequests).toEqual([sender]);
     dispose();
     expect(handlers.has(IpcChannels.poolOverlayClose)).toBe(false);
+  });
+});
+
+describe('Tor status IPC fan-out', () => {
+  it('pushes asynchronous Tor state changes to the harness and Pool Status overlay only', () => {
+    const { dispose, emitTorChange, overlaySent, sent } = createBridgeFixture();
+
+    emitTorChange();
+
+    expect(sent).toEqual([{ channel: IpcChannels.torStatus, payload: expect.objectContaining({ status: 'ready' }) }]);
+    expect(overlaySent).toEqual([{ channel: IpcChannels.torStatus, payload: expect.objectContaining({ status: 'ready' }) }]);
+    dispose();
   });
 });

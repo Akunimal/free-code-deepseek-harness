@@ -1386,6 +1386,12 @@ app.whenReady().then(async () => {
     getRendererTargets: () => harnessView && !harnessView.webContents.isDestroyed()
       ? [harnessView.webContents]
       : [],
+    // Tor state is consumed by both the embedded Harness page and the
+    // auxiliary Pool Status window. Other broadcasts remain harness-only.
+    getTorRendererTargets: () => [
+      ...(harnessView && !harnessView.webContents.isDestroyed() ? [harnessView.webContents] : []),
+      ...(overlayWindow && !overlayWindow.isDestroyed() ? [overlayWindow.webContents] : []),
+    ],
     closePoolStatusOverlay: (sender) => {
       const target = overlayWindow;
       if (!target || !canClosePoolStatusOverlay(sender, target)) return;
