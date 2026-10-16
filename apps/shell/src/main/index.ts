@@ -2,6 +2,7 @@ import { app, BrowserWindow, Menu, Tray, WebContentsView, nativeImage, Notificat
 import { join, resolve } from 'node:path';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { launchHidden, launchHiddenSync } from './freecode-launcher.js'
+import { headlessHostPolicy } from './headless-host-policy.js';
 import type { McpRuntimeStatus } from '@freecode/shared-types';
 import { createShellRuntime, ShellRuntime } from './runtime.js';
 import { DEFAULT_POOL_SIZE } from '@freecode/opencode-adapter';
@@ -137,6 +138,7 @@ async function bootstrap(harnessDir: string): Promise<ShellRuntime> {
   });
   appLogger?.logger.info({ uvxCommand }, '[DEBUG-STARTUP] bootstrap 2/5 ensureUvxCommand OK');
   const resources = resourcesDir();
+  if (process.platform === 'win32' && !dialogBridge) throw new Error('Headless Windows runtime requires the interactive dialog bridge');
   appLogger?.logger.info({}, '[DEBUG-STARTUP] bootstrap 3/5 createSecretStore starting');
   const secrets = await createSecretStore(userDataDir);
   appLogger?.logger.info({}, '[DEBUG-STARTUP] bootstrap 4/5 createSecretStore OK');
@@ -1130,6 +1132,7 @@ app.whenReady().then(async () => {
   if (app.isPackaged && !isPortable()) writeInstallMarker(userDataDir);
   checkStalePortable();
   appLogger = createAppLogger(join(userDataDir, 'logs'));
+  if (process.platform === 'win32') headlessHostPolicy.configure(join(resourcesDir(), 'headless-host.exe'));
   appLogger.logger.info({ packaged: app.isPackaged, platform: process.platform }, 'shell starting');
   const resources = resourcesDir();
   const harnessRuntimeDir = resolveHarnessRuntimeDir({

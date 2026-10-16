@@ -430,6 +430,19 @@
         "packages/contract-tests/tests/patch-stack-replay.contract.test.ts"
       ],
       "vendorOnly": true
+    },
+    {
+      "file": "180-freecode-private-desktop-gui-broker.patch",
+      "order": 180,
+      "owner": "freecode",
+      "description": "Broker explicit Windows GUI, document and reveal actions outside the protected background desktop",
+      "seam": "packages/host/open-in-app + packages/util/native-command",
+      "contractTests": [
+        "packages/host/open-in-app/tests/gui-bridge.spec.ts",
+        "packages/util/native-command/tests/desktop-bridge.spec.ts",
+        "packages/contract-tests/tests/patch-stack-replay.contract.test.ts"
+      ],
+      "vendorOnly": true
     }
   ]
 }

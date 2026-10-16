@@ -9,6 +9,8 @@ English | [中文](README.zh.md)
 
 ## Summary
 
+On Windows, FreeCode's private-desktop deployment brokers explicit application and directory actions through its authenticated Electron GUI service. A configured broker failure never falls back to an invisible launch. Standalone hosts keep their existing behavior. The GUI broker rejects script/console launchers; the installed GitHub Desktop CLI adapter has an explicit supported exception.
+
 Use `dsh-host-open-in-app` with its [browser companion](../../client/ui-open-in-app/README.md) to let users open a workspace directory in an installed editor, Git GUI, terminal, or file manager. It offers a fixed application catalog and shows only entries that the host can verify; newly installed applications appear after restart, while missing launchers are removed when detected. Requests require the deployment's browser authentication and host-origin trust checks. Detection and launch commands use configurable deadlines and do not pass inherited credentials to launched applications.
 
 ## Table of Contents

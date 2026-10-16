@@ -69,7 +69,10 @@ describe('HarnessSupervisor (C5)', () => {
   });
 
   it('spawns dsh web, grabs readiness URL, shuts down', async () => {
-    const sup = new HarnessSupervisor({ nodePath: nodeCmd, cliEntry: CLI_ENTRY, homeDir, lbUrl });
+    const diagnostics: string[] = [];
+    const sup = new HarnessSupervisor({ nodePath: nodeCmd, cliEntry: CLI_ENTRY, homeDir, lbUrl,
+      log: (_level, message) => { diagnostics.push(message); if (diagnostics.length > 64) diagnostics.shift(); },
+    });
     let ready: HarnessSupervisor['currentUrl'] = null;
     let readyPid: number | null = null;
     sup.onReady((h) => {
@@ -85,7 +88,7 @@ describe('HarnessSupervisor (C5)', () => {
       while (!ready && Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 250));
       }
-      expect(ready).toBeTruthy();
+      expect(ready, diagnostics.join('\n')).toBeTruthy();
       expect(ready).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/\?token=\S+$/);
       expect(sup.statusValue).toBe('ready');
       if (process.platform === 'win32') {
@@ -106,11 +109,9 @@ describe('HarnessSupervisor lifecycle hardening', () => {
   it('reports an unspawnable executable through the bounded stuck contract', async () => {
     const tmp = mkdtempSync(join(tmpdir(), 'dsh-sup-spawn-error-'));
     const logs: string[] = [];
-    // Windows reports both a missing executable (pre-spawn validation) and
-    // an invalid image (spawn UNKNOWN) synchronously, so the supervisor's
-    // sync throw branch owns this contract here. The async 'error'-event
-    // handler stays as defense-in-depth for delete-between-check-and-spawn
-    // races, which cannot be triggered deterministically.
+    // The GUI helper itself starts, but rejects an invalid target image on
+    // its private desktop. The bounded stuck tail must expose that failure,
+    // rather than confuse the helper's existence with a started dsh target.
     const notExecutable = join(tmp, 'not-an-executable.exe');
     writeFileSync(notExecutable, 'this is not a PE image', 'utf8');
     const supervisor = new HarnessSupervisor({
@@ -129,7 +130,9 @@ describe('HarnessSupervisor lifecycle hardening', () => {
       const deadline = Date.now() + 5_000;
       while (!stuck && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 10));
       expect(stuck).toBe(true);
-      expect(logs.some((message) => message === 'dsh spawn failed — no child process created')).toBe(true);
+      expect(logs.some(message => process.platform === 'win32'
+        ? message.includes('headless-host: containment failed: CreateProcessW')
+        : message === 'dsh spawn failed — no child process created')).toBe(true);
       expect(supervisor.currentPid).toBeNull();
     } finally {
       await supervisor.stop();

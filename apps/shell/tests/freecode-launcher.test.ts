@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
 describe('launchHiddenAndWait', () => {
+  it.skipIf(process.platform !== 'win32')('refuses unsupported extra IPC handles instead of silently losing them', async () => {
+    const { launchHidden } = await import('../src/main/freecode-launcher.js');
+    expect(() => launchHidden({ executable: process.execPath, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] })).toThrow(/explicit broker/);
+  });
+  it('preserves real Node stdout and stderr through the native helper', async () => {
+    const { launchHiddenSync } = await import('../src/main/freecode-launcher.js');
+    const result = launchHiddenSync({ executable: process.execPath,
+      args: ['-e', 'console.log("stdio-out"); console.error("stdio-err"); process.exitCode=23'], timeout: 5000 });
+    expect(result.status).toBe(23);
+    expect(result.stdout).toContain('stdio-out');
+    expect(result.stderr).toContain('stdio-err');
+  });
   it('waits for an owned hidden child without blocking the event loop', async () => {
     const module = await import('../src/main/freecode-launcher.js');
     const runner = Reflect.get(module, 'launchHiddenAndWait') as ((options: {

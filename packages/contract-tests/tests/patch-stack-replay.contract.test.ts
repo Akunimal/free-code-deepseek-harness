@@ -88,4 +88,15 @@ describe('stack-aware patch replay', () => {
       .toMatchObject({ ok: false });
     expect(readFileSync(f.target, 'utf8')).toBe('alpha\nmanual-edit\nomega\n');
   });
+
+  it('replays LF text patches against a CRLF Windows checkout without rewriting the original', () => {
+    const content = 'alpha\r\nbeta-two\r\nomega\r\n';
+    const f = fixture(content);
+    expect(verifyOverlappingAppliedPatches({ root: f.root, patchDir: f.patchDir, patches: f.patches, vendorPrefix }))
+      .toMatchObject({ ok: true });
+    expect(readFileSync(f.target, 'utf8')).toBe(content);
+    writeFileSync(f.target, 'alpha\r\nmanual-edit\r\nomega\r\n');
+    expect(verifyOverlappingAppliedPatches({ root: f.root, patchDir: f.patchDir, patches: f.patches, vendorPrefix }))
+      .toMatchObject({ ok: false });
+  });
 });

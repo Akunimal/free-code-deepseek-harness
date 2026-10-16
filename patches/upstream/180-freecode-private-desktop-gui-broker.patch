@@ -1,0 +1,264 @@
+diff --git a/vendor/deepseek-harness/packages/host/open-in-app/README.md b/vendor/deepseek-harness/packages/host/open-in-app/README.md
+index a02f064741..bf44613586 100644
+--- a/vendor/deepseek-harness/packages/host/open-in-app/README.md
++++ b/vendor/deepseek-harness/packages/host/open-in-app/README.md
+@@ -9,6 +9,8 @@ English | [中文](README.zh.md)
+ 
+ ## Summary
+ 
++On Windows, FreeCode's private-desktop deployment brokers explicit application and directory actions through its authenticated Electron GUI service. A configured broker failure never falls back to an invisible launch. Standalone hosts keep their existing behavior. The GUI broker rejects script/console launchers; the installed GitHub Desktop CLI adapter has an explicit supported exception.
++
+ Use `dsh-host-open-in-app` with its [browser companion](../../client/ui-open-in-app/README.md) to let users open a workspace directory in an installed editor, Git GUI, terminal, or file manager. It offers a fixed application catalog and shows only entries that the host can verify; newly installed applications appear after restart, while missing launchers are removed when detected. Requests require the deployment's browser authentication and host-origin trust checks. Detection and launch commands use configurable deadlines and do not pass inherited credentials to launched applications.
+ 
+ ## Table of Contents
+diff --git a/vendor/deepseek-harness/packages/host/open-in-app/README.zh.md b/vendor/deepseek-harness/packages/host/open-in-app/README.zh.md
+index 966493118a..208eddbd81 100644
+--- a/vendor/deepseek-harness/packages/host/open-in-app/README.zh.md
++++ b/vendor/deepseek-harness/packages/host/open-in-app/README.zh.md
+@@ -9,6 +9,8 @@ kind: "package-reference"
+ 
+ ## 概述
+ 
++在 Windows 上，FreeCode 的私有桌面部署通过经过身份验证的 Electron GUI 服务转发显式应用启动和目录打开操作。已配置的转发服务失败时，不会回退到不可见的启动方式。独立主机的现有行为不变。GUI 转发服务拒绝脚本和控制台启动器；已安装的 GitHub Desktop CLI 适配器具有明确支持的例外。
++
+ 将 `dsh-host-open-in-app` 与其[浏览器配套包](../../client/ui-open-in-app/README.zh.md)一起使用，让用户能在已安装的编辑器、Git GUI、终端或文件管理器中打开 workspace 目录。本包提供固定的应用目录，并只显示主机能够验证的条目；新安装的应用在重启后出现，而检测到启动器缺失时会移除对应条目。请求须通过部署的浏览器认证与主机来源信任检查。检测与启动命令使用可配置的期限，且不会把继承的凭据传给启动的应用。
+ 
+ ## 目录
+diff --git a/vendor/deepseek-harness/packages/host/open-in-app/src/gui-bridge.ts b/vendor/deepseek-harness/packages/host/open-in-app/src/gui-bridge.ts
+new file mode 100644
+index 0000000000..03c1e25a5e
+--- /dev/null
++++ b/vendor/deepseek-harness/packages/host/open-in-app/src/gui-bridge.ts
+@@ -0,0 +1,28 @@
++/**
++ * Broker an explicit desktop action outside FreeCode's private desktop.
++ * @param kind - GUI executable launch or directory opening.
++ * @param payload - argv or directory selected by the open-in-app route.
++ * @param env - shell-owned loopback endpoints and authentication token.
++ * @returns true after a broker acknowledgement, false for standalone hosts.
++ */
++export async function requestGuiBridge(
++  kind: 'launch' | 'directory',
++  payload: { command: string; args: readonly string[]; electronCli?: true } | { path: string },
++  env: Readonly<Record<string, string | undefined>> = process.env,
++): Promise<boolean> {
++  const endpoint = kind === 'launch' ? env.FREECODE_GUI_LAUNCH_ENDPOINT : env.FREECODE_GUI_OPEN_DIRECTORY_ENDPOINT
++  const token = env.FREECODE_DIALOG_BRIDGE_TOKEN
++  if (!endpoint && env.FREECODE_HEADLESS_DESKTOP !== '1') return false
++  if (!endpoint || !token) throw new Error('incomplete FreeCode GUI bridge configuration')
++  const url = new URL(endpoint)
++  if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || url.username || url.password
++    || url.pathname !== (kind === 'launch' ? '/launch-gui' : '/open-directory')) {
++    throw new Error('FreeCode GUI bridge must use its loopback endpoint')
++  }
++  const response = await fetch(url.href, {
++    method: 'POST', headers: { 'content-type': 'application/json', 'x-freecode-dialog-token': token },
++    body: JSON.stringify(payload), signal: AbortSignal.timeout(10_000),
++  })
++  if (!response.ok) throw new Error(`FreeCode GUI bridge refused action (${response.status})`)
++  return true
++}
+diff --git a/vendor/deepseek-harness/packages/host/open-in-app/src/resolver.ts b/vendor/deepseek-harness/packages/host/open-in-app/src/resolver.ts
+index 38851ee0cf..d644124cf6 100644
+--- a/vendor/deepseek-harness/packages/host/open-in-app/src/resolver.ts
++++ b/vendor/deepseek-harness/packages/host/open-in-app/src/resolver.ts
+@@ -20,6 +20,7 @@ import {
+   canOpenNativePath, openNativePath, runNativeCommand, desktopEntryFields, desktopDataDirectories, type NativeCommandRunner,
+ } from '@deepseek-ai/dsh-native-command'
+ import { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
++import { requestGuiBridge } from './gui-bridge.ts'
+ import {
+   OPEN_IN_APP_CATALOG, PATH_TOKEN,
+   type OpenInAppApp, type OpenInAppLaunch, type OpenInAppLocator, type OpenInAppPlatformSpec,
+@@ -71,8 +72,13 @@ export type OpenInAppLaunchOutcome = 'launched' | 'missing' | 'failed'
+  * @param options - watch-window length and adapter-specific process options.
+  * @returns after the launch is counted successful; rejects on early failure.
+  */
+-export const launchDetachedApp: OpenInAppLauncher = (command, args, options) =>
+-  new Promise((resolve, reject) => {
++export const launchDetachedApp: OpenInAppLauncher = (command, args, options) => {
++  if (process.platform === 'win32' && (process.env.FREECODE_GUI_LAUNCH_ENDPOINT || process.env.FREECODE_HEADLESS_DESKTOP === '1')) {
++    return requestGuiBridge('launch', { command, args,
++      ...(options.env?.ELECTRON_RUN_AS_NODE === '1' ? { electronCli: true } : {}),
++    }).then(() => {})
++  }
++  return new Promise((resolve, reject) => {
+     const child = spawn(command, [...args], {
+       detached: true,
+       stdio: 'ignore',
+@@ -94,6 +100,7 @@ export const launchDetachedApp: OpenInAppLauncher = (command, args, options) =>
+       else settle(() => { reject(new Error(`launcher exited with code ${String(code)}, signal ${String(signalName)}`)) })
+     })
+   })
++}
+ 
+ /** Injectable platform facts for deterministic tests. */
+ export interface OpenInAppInternals {
+@@ -686,7 +693,10 @@ function isMissingExecutable(error: unknown): boolean {
+ function runShellOpen(
+   path: string, watchMs: number, internals: ResolvedInternals,
+ ): Promise<OpenInAppLaunchOutcome> {
+-  const opening = openNativePath(path, new AbortController().signal, {
++  const opening = internals.platform === 'win32'
++    && (internals.env.FREECODE_GUI_OPEN_DIRECTORY_ENDPOINT || internals.env.FREECODE_HEADLESS_DESKTOP === '1')
++    ? requestGuiBridge('directory', { path }, internals.env).then(() => {})
++    : openNativePath(path, new AbortController().signal, {
+     platform: internals.platform, run: internals.run, env: internals.env,
+   })
+   return new Promise((resolve) => {
+diff --git a/vendor/deepseek-harness/packages/host/open-in-app/tests/gui-bridge.spec.ts b/vendor/deepseek-harness/packages/host/open-in-app/tests/gui-bridge.spec.ts
+new file mode 100644
+index 0000000000..3892410539
+--- /dev/null
++++ b/vendor/deepseek-harness/packages/host/open-in-app/tests/gui-bridge.spec.ts
+@@ -0,0 +1,32 @@
++import { afterEach, expect, it, vi } from 'vitest'
++import { requestGuiBridge } from '../src/gui-bridge.ts'
++
++afterEach(() => vi.unstubAllGlobals())
++
++it('keeps standalone hosts local when no desktop bridge is configured', async () => {
++  const fetcher = vi.fn()
++  vi.stubGlobal('fetch', fetcher)
++  expect(await requestGuiBridge('launch', { command: 'editor.exe', args: [] }, {})).toBe(false)
++  expect(fetcher).not.toHaveBeenCalled()
++})
++
++it('brokers explicit GUI actions outside the headless desktop with the private token', async () => {
++  const fetcher = vi.fn().mockResolvedValue({ ok: true })
++  vi.stubGlobal('fetch', fetcher)
++  const env = { FREECODE_GUI_LAUNCH_ENDPOINT: 'http://127.0.0.1:1234/launch-gui', FREECODE_DIALOG_BRIDGE_TOKEN: 'test-token' }
++  expect(await requestGuiBridge('launch', { command: 'editor.exe', args: ['a b'] }, env)).toBe(true)
++  expect(fetcher).toHaveBeenCalledWith(env.FREECODE_GUI_LAUNCH_ENDPOINT, expect.objectContaining({
++    method: 'POST', headers: expect.objectContaining({ 'x-freecode-dialog-token': 'test-token' }),
++    body: JSON.stringify({ command: 'editor.exe', args: ['a b'] }),
++  }))
++})
++
++it('does not silently launch into the hidden desktop after broker failure or token loss', async () => {
++  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 403 }))
++  const endpoint = { FREECODE_GUI_OPEN_DIRECTORY_ENDPOINT: 'http://127.0.0.1:1234/open-directory' }
++  await expect(requestGuiBridge('directory', { path: 'C:\\workspace' }, endpoint)).rejects.toThrow(/configuration/)
++  await expect(requestGuiBridge('directory', { path: 'C:\\workspace' }, { ...endpoint, FREECODE_DIALOG_BRIDGE_TOKEN: 'token' })).rejects.toThrow(/403/)
++  await expect(requestGuiBridge('launch', { command: 'editor.exe', args: [] }, {
++    FREECODE_GUI_LAUNCH_ENDPOINT: 'https://example.com/launch-gui', FREECODE_DIALOG_BRIDGE_TOKEN: 'token',
++  })).rejects.toThrow(/loopback/)
++})
+diff --git a/vendor/deepseek-harness/packages/util/native-command/README.md b/vendor/deepseek-harness/packages/util/native-command/README.md
+index 386ccfac49..4d24d0d919 100644
+--- a/vendor/deepseek-harness/packages/util/native-command/README.md
++++ b/vendor/deepseek-harness/packages/util/native-command/README.md
+@@ -9,6 +9,8 @@ English | [中文](README.zh.md)
+ 
+ ## Summary
+ 
++In FreeCode's protected Windows deployment, explicit file, document and reveal actions use the authenticated interactive-desktop broker rather than launching inside the background desktop. Text-editor requests use a visible editor; executable/script associations are refused instead of running commands. Other deployments keep their existing platform openers.
++
+ `dsh-native-command` runs host executables without a shell and opens Host filesystem paths through the desktop. The command runner captures utf8 output, propagates cancellation, and requires explicit Windows startup visibility. The path opener supports default-application and text-editor intents, browser-renderable documents, WSL translation, and desktop availability checks. It is a library, not a plugin: no `ctx`, no state, no events.
+ 
+ ## Table of Contents
+diff --git a/vendor/deepseek-harness/packages/util/native-command/README.zh.md b/vendor/deepseek-harness/packages/util/native-command/README.zh.md
+index 20f465a42e..7501d6566d 100644
+--- a/vendor/deepseek-harness/packages/util/native-command/README.zh.md
++++ b/vendor/deepseek-harness/packages/util/native-command/README.zh.md
+@@ -9,6 +9,8 @@ kind: "package-library"
+ 
+ ## 概述
+ 
++在 FreeCode 的受保护 Windows 部署中，显式文件、文档和定位操作通过经过身份验证的交互桌面转发服务执行，而不是在后台桌面内启动。文本编辑请求使用可见的编辑器；可执行文件和脚本关联会被拒绝，而不会作为命令运行。其他部署保留现有的平台打开方式。
++
+ `dsh-native-command` 无需 shell 即可运行 Host 可执行文件，并通过桌面打开 Host 文件系统路径。命令运行器捕获 utf8 输出、传播取消，并要求显式指定 Windows 启动时的窗口可见性。路径打开器支持默认应用与文本编辑器意图、浏览器可渲染文档、WSL 转换与桌面可用性检查。它是库而非插件：没有 `ctx`、无状态、不发事件。
+ 
+ ## 目录
+diff --git a/vendor/deepseek-harness/packages/util/native-command/src/path-opener.ts b/vendor/deepseek-harness/packages/util/native-command/src/path-opener.ts
+index 64a6c754ab..783209c2e5 100644
+--- a/vendor/deepseek-harness/packages/util/native-command/src/path-opener.ts
++++ b/vendor/deepseek-harness/packages/util/native-command/src/path-opener.ts
+@@ -158,11 +158,12 @@ async function openWindowsPath(path: string, signal: AbortSignal, run: PathOpene
+ /** Open settings through the authenticated Electron shell bridge when present. */
+ async function openViaElectronBridge(
+   endpoint: string, token: string, path: string, signal: AbortSignal,
++  intent?: PathOpenIntent | 'reveal',
+ ): Promise<void> {
+   const response = await fetch(endpoint, {
+     method: 'POST',
+     headers: { 'x-freecode-dialog-token': token, 'content-type': 'application/json' },
+-    body: JSON.stringify({ path }),
++    body: JSON.stringify({ path, ...(intent === undefined ? {} : { intent }) }),
+     signal,
+   })
+   if (!response.ok) {
+@@ -173,6 +174,23 @@ async function openViaElectronBridge(
+   if (data.error) throw new Error(`file open bridge: ${data.error}`)
+ }
+ 
++/** Explicit desktop gestures must leave FreeCode's noninteractive desktop. */
++async function openViaPrivateDesktopBroker(
++  path: string, signal: AbortSignal, intent: PathOpenIntent | 'reveal', env: NodeJS.ProcessEnv,
++): Promise<boolean> {
++  if (env.FREECODE_HEADLESS_DESKTOP !== '1') return false
++  const endpoint = env.FREECODE_GUI_OPEN_PATH_ENDPOINT
++  const token = env.FREECODE_DIALOG_BRIDGE_TOKEN
++  if (!endpoint || !token) throw new Error('incomplete FreeCode desktop path bridge configuration')
++  const url = new URL(endpoint)
++  if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || url.username || url.password || url.pathname !== '/open-path') {
++    throw new Error('FreeCode desktop path bridge requires its loopback endpoint')
++  }
++  signal.throwIfAborted()
++  await openViaElectronBridge(url.href, token, path, signal, intent)
++  return true
++}
++
+ /** Translate a WSL path before handing it to the Windows desktop. */
+ async function openWslPath(path: string, signal: AbortSignal, run: PathOpenerRunner): Promise<void> {
+   const translated = await run('wslpath', ['-w', path], signal, 'hidden')
+@@ -194,6 +212,8 @@ async function openNativePathWithIntent(
+   const env = internals.env ?? process.env
+   const wsl = platform === 'linux' && isWsl(internals)
+ 
++  if (platform === 'win32' && await openViaPrivateDesktopBroker(path, signal, intent, env)) return
++
+   if (platform === 'win32' && intent === 'text-editor') {
+     const endpoint = env.FREECODE_FILE_OPEN_ENDPOINT
+     const token = env.FREECODE_DIALOG_BRIDGE_TOKEN
+@@ -318,6 +338,7 @@ export async function revealNativePath(
+   signal.throwIfAborted()
+   const platform = internals.platform ?? process.platform
+   const run = internals.run ?? runNativeCommand
++  if (platform === 'win32' && await openViaPrivateDesktopBroker(path, signal, 'reveal', internals.env ?? process.env)) return
+   const manager = nativeFileManager({ ...internals, platform })
+   if (manager === 'finder') {
+     await run('open', ['-R', path], signal, 'hidden')
+diff --git a/vendor/deepseek-harness/packages/util/native-command/tests/desktop-bridge.spec.ts b/vendor/deepseek-harness/packages/util/native-command/tests/desktop-bridge.spec.ts
+new file mode 100644
+index 0000000000..cac3989856
+--- /dev/null
++++ b/vendor/deepseek-harness/packages/util/native-command/tests/desktop-bridge.spec.ts
+@@ -0,0 +1,27 @@
++import { afterEach, expect, it, vi } from 'vitest'
++import { openNativePath, openNativeAssociatedPath, openNativeTextFile, revealNativePath } from '../src/index.ts'
++
++afterEach(() => vi.unstubAllGlobals())
++
++it('brokers all explicit file/document/reveal actions outside the private desktop', async () => {
++  const fetcher = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ opened: true }) })
++  vi.stubGlobal('fetch', fetcher)
++  const run = vi.fn()
++  const env = { FREECODE_HEADLESS_DESKTOP: '1', FREECODE_GUI_OPEN_PATH_ENDPOINT: 'http://127.0.0.1:1234/open-path', FREECODE_DIALOG_BRIDGE_TOKEN: 'test-token' }
++  for (const [operation, intent] of [[openNativePath, 'default'], [openNativeAssociatedPath, 'association'],
++    [openNativeTextFile, 'text-editor'], [revealNativePath, 'reveal']] as const) {
++    await operation('C:\\workspace\\example.html', new AbortController().signal, { platform: 'win32', env, run })
++    expect(fetcher).toHaveBeenLastCalledWith(env.FREECODE_GUI_OPEN_PATH_ENDPOINT, expect.objectContaining({
++      body: JSON.stringify({ path: 'C:\\workspace\\example.html', intent }),
++    }))
++  }
++  expect(run).not.toHaveBeenCalled()
++})
++
++it('does not fall back to an invisible opener when the desktop broker is missing', async () => {
++  const run = vi.fn()
++  await expect(openNativePath('C:\\workspace', new AbortController().signal, {
++    platform: 'win32', env: { FREECODE_HEADLESS_DESKTOP: '1' }, run,
++  })).rejects.toThrow(/configuration/)
++  expect(run).not.toHaveBeenCalled()
++})

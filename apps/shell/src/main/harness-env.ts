@@ -17,6 +17,10 @@ export function buildHarnessExtraEnv(dialogBridge: DialogBridgeEnv | null): Reco
     ...(dialogBridge ? {
       FREECODE_DIALOG_BRIDGE_ENDPOINT: dialogBridge.endpoint,
       FREECODE_FILE_OPEN_ENDPOINT: dialogBridge.fileOpenEndpoint,
+      FREECODE_GUI_LAUNCH_ENDPOINT: new URL('/launch-gui', dialogBridge.endpoint).href,
+      FREECODE_GUI_OPEN_DIRECTORY_ENDPOINT: new URL('/open-directory', dialogBridge.endpoint).href,
+      FREECODE_GUI_OPEN_PATH_ENDPOINT: new URL('/open-path', dialogBridge.endpoint).href,
+      ...(process.platform === 'win32' ? { FREECODE_HEADLESS_DESKTOP: '1' } : {}),
       FREECODE_DIALOG_BRIDGE_TOKEN: dialogBridge.token,
     } : {}),
   }

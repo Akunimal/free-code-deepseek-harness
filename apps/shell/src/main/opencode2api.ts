@@ -1,4 +1,5 @@
-import { spawn, type ChildProcess } from 'node:child_process'
+import type { ChildProcess } from 'node:child_process'
+import { launchHidden } from './freecode-launcher.js'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { createServer } from 'node:net'
 import { join } from 'node:path'
@@ -162,12 +163,11 @@ export async function startOpencode2api(
 
   let proc: ChildProcess
   try {
-    proc = spawn(binary, ['-config', configPath, '-listen', `${host}:${port}`], {
-      windowsHide: true,
-      shell: false,
+    proc = launchHidden({
+      executable: binary, args: ['-config', configPath, '-listen', `${host}:${port}`],
       stdio: ['ignore', 'pipe', 'pipe'],
       cwd: configDir,
-    })
+    }).proc
   } catch (error) {
     log('warn', 'opencode2api failed to spawn', {
       error: error instanceof Error ? error.message : String(error),

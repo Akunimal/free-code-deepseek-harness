@@ -20,6 +20,7 @@ import {
   canOpenNativePath, openNativePath, runNativeCommand, desktopEntryFields, desktopDataDirectories, type NativeCommandRunner,
 } from '@deepseek-ai/dsh-native-command'
 import { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
+import { requestGuiBridge } from './gui-bridge.ts'
 import {
   OPEN_IN_APP_CATALOG, PATH_TOKEN,
   type OpenInAppApp, type OpenInAppLaunch, type OpenInAppLocator, type OpenInAppPlatformSpec,
@@ -71,8 +72,13 @@ export type OpenInAppLaunchOutcome = 'launched' | 'missing' | 'failed'
  * @param options - watch-window length and adapter-specific process options.
  * @returns after the launch is counted successful; rejects on early failure.
  */
-export const launchDetachedApp: OpenInAppLauncher = (command, args, options) =>
-  new Promise((resolve, reject) => {
+export const launchDetachedApp: OpenInAppLauncher = (command, args, options) => {
+  if (process.platform === 'win32' && (process.env.FREECODE_GUI_LAUNCH_ENDPOINT || process.env.FREECODE_HEADLESS_DESKTOP === '1')) {
+    return requestGuiBridge('launch', { command, args,
+      ...(options.env?.ELECTRON_RUN_AS_NODE === '1' ? { electronCli: true } : {}),
+    }).then(() => {})
+  }
+  return new Promise((resolve, reject) => {
     const child = spawn(command, [...args], {
       detached: true,
       stdio: 'ignore',
@@ -94,6 +100,7 @@ export const launchDetachedApp: OpenInAppLauncher = (command, args, options) =>
       else settle(() => { reject(new Error(`launcher exited with code ${String(code)}, signal ${String(signalName)}`)) })
     })
   })
+}
 
 /** Injectable platform facts for deterministic tests. */
 export interface OpenInAppInternals {
@@ -686,7 +693,10 @@ function isMissingExecutable(error: unknown): boolean {
 function runShellOpen(
   path: string, watchMs: number, internals: ResolvedInternals,
 ): Promise<OpenInAppLaunchOutcome> {
-  const opening = openNativePath(path, new AbortController().signal, {
+  const opening = internals.platform === 'win32'
+    && (internals.env.FREECODE_GUI_OPEN_DIRECTORY_ENDPOINT || internals.env.FREECODE_HEADLESS_DESKTOP === '1')
+    ? requestGuiBridge('directory', { path }, internals.env).then(() => {})
+    : openNativePath(path, new AbortController().signal, {
     platform: internals.platform, run: internals.run, env: internals.env,
   })
   return new Promise((resolve) => {

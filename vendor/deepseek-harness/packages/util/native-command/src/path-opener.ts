@@ -158,11 +158,12 @@ async function openWindowsPath(path: string, signal: AbortSignal, run: PathOpene
 /** Open settings through the authenticated Electron shell bridge when present. */
 async function openViaElectronBridge(
   endpoint: string, token: string, path: string, signal: AbortSignal,
+  intent?: PathOpenIntent | 'reveal',
 ): Promise<void> {
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: { 'x-freecode-dialog-token': token, 'content-type': 'application/json' },
-    body: JSON.stringify({ path }),
+    body: JSON.stringify({ path, ...(intent === undefined ? {} : { intent }) }),
     signal,
   })
   if (!response.ok) {
@@ -171,6 +172,23 @@ async function openViaElectronBridge(
   }
   const data = await response.json() as { error?: string }
   if (data.error) throw new Error(`file open bridge: ${data.error}`)
+}
+
+/** Explicit desktop gestures must leave FreeCode's noninteractive desktop. */
+async function openViaPrivateDesktopBroker(
+  path: string, signal: AbortSignal, intent: PathOpenIntent | 'reveal', env: NodeJS.ProcessEnv,
+): Promise<boolean> {
+  if (env.FREECODE_HEADLESS_DESKTOP !== '1') return false
+  const endpoint = env.FREECODE_GUI_OPEN_PATH_ENDPOINT
+  const token = env.FREECODE_DIALOG_BRIDGE_TOKEN
+  if (!endpoint || !token) throw new Error('incomplete FreeCode desktop path bridge configuration')
+  const url = new URL(endpoint)
+  if (url.protocol !== 'http:' || url.hostname !== '127.0.0.1' || url.username || url.password || url.pathname !== '/open-path') {
+    throw new Error('FreeCode desktop path bridge requires its loopback endpoint')
+  }
+  signal.throwIfAborted()
+  await openViaElectronBridge(url.href, token, path, signal, intent)
+  return true
 }
 
 /** Translate a WSL path before handing it to the Windows desktop. */
@@ -193,6 +211,8 @@ async function openNativePathWithIntent(
   const run = internals.run ?? runNativeCommand
   const env = internals.env ?? process.env
   const wsl = platform === 'linux' && isWsl(internals)
+
+  if (platform === 'win32' && await openViaPrivateDesktopBroker(path, signal, intent, env)) return
 
   if (platform === 'win32' && intent === 'text-editor') {
     const endpoint = env.FREECODE_FILE_OPEN_ENDPOINT
@@ -318,6 +338,7 @@ export async function revealNativePath(
   signal.throwIfAborted()
   const platform = internals.platform ?? process.platform
   const run = internals.run ?? runNativeCommand
+  if (platform === 'win32' && await openViaPrivateDesktopBroker(path, signal, 'reveal', internals.env ?? process.env)) return
   const manager = nativeFileManager({ ...internals, platform })
   if (manager === 'finder') {
     await run('open', ['-R', path], signal, 'hidden')

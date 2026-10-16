@@ -9,6 +9,8 @@ English | [中文](README.zh.md)
 
 ## Summary
 
+In FreeCode's protected Windows deployment, explicit file, document and reveal actions use the authenticated interactive-desktop broker rather than launching inside the background desktop. Text-editor requests use a visible editor; executable/script associations are refused instead of running commands. Other deployments keep their existing platform openers.
+
 `dsh-native-command` runs host executables without a shell and opens Host filesystem paths through the desktop. The command runner captures utf8 output, propagates cancellation, and requires explicit Windows startup visibility. The path opener supports default-application and text-editor intents, browser-renderable documents, WSL translation, and desktop availability checks. It is a library, not a plugin: no `ctx`, no state, no events.
 
 ## Table of Contents

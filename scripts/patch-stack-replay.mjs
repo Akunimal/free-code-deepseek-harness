@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
@@ -34,6 +34,13 @@ function check(patchPath, cwd, reverse) {
   return result.status === 0
 }
 
+// Unified text patches use LF while Windows checkouts can contain CRLF.
+// Canonicalize only scratch/comparison bytes; never rewrite the user's file or
+// ignore spaces/content divergence. Preserve binary buffers byte-for-byte.
+function patchTextBytes(contents) {
+  return contents.includes(0) ? contents : Buffer.from(contents.toString('latin1').replaceAll('\r\n', '\n'), 'latin1')
+}
+
 function replayGroup({ root, patchFiles, paths }) {
   const rootPath = resolve(root)
   const original = new Map(paths.map((path) => {
@@ -51,7 +58,7 @@ function replayGroup({ root, patchFiles, paths }) {
       if (contents === undefined) continue
       const target = join(scratchRoot, path)
       mkdirSync(dirname(target), { recursive: true })
-      copyFileSync(resolve(rootPath, path), target)
+      writeFileSync(target, patchTextBytes(contents))
     }
 
     for (const { entry, path } of [...patchFiles].reverse()) {
@@ -62,7 +69,8 @@ function replayGroup({ root, patchFiles, paths }) {
       const result = apply(path, scratchRoot, false)
       if (!result.ok) return { ok: false, stage: 'forward', patch: entry.file, detail: result.detail }
     }
-    for (const [path, expected] of original) {
+    for (const [path, originalBytes] of original) {
+      const expected = originalBytes === undefined ? undefined : patchTextBytes(originalBytes)
       const actualPath = join(scratchRoot, path)
       const actual = existsSync(actualPath) ? readFileSync(actualPath) : undefined
       if ((expected === undefined) !== (actual === undefined) || (expected && actual && !expected.equals(actual))) {

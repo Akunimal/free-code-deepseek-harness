@@ -4,9 +4,8 @@
  * Every FreeCode-owned child process must route through this module.
  * It enforces:
  *   - shell: false (no cmd.exe / PowerShell intermediary)
- *   - windowsHide: true + CREATE_NO_WINDOW
+ *   - verified native helper, private desktop and kernel-owned process Job
  *   - Sanitized environment (caller-specified keys only)
- *   - Job Object attachment for process tree management
  *   - Structured launch metrics for diagnostic traces
  *
  * Vendor processes (bash-local, pwsh-local) use ctx.subprocess.spawn
@@ -16,6 +15,7 @@
 import { spawn, spawnSync, type ChildProcess, type SpawnOptions, type SpawnSyncOptions } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { existsSync } from 'node:fs'
+import { headlessHostPolicy } from './headless-host-policy.js'
 
 // ── Launch metrics ───────────────────────────────────────────────────
 export interface LaunchMetrics {
@@ -52,9 +52,8 @@ function launchId(): string {
 export const HIDDEN_OPTIONS: SpawnOptions = {
   windowsHide: true,
   shell: false,
-  // Node.js on Windows passes CREATE_NO_WINDOW when windowsHide is set,
-  // but we also include it via the detached:false + windowsHide combo
-  // for defense in depth against SDK paths that might re-enable the window.
+  // These flags protect the native helper itself. The helper contains the
+  // target's entire inherited desktop/process tree before it begins execution.
   detached: false,
 }
 
@@ -118,8 +117,8 @@ function isFilePath(executable: string): boolean {
  * Spawn a hidden child process through the centralized seam.
  *
  * The process is:
- *   1. Spawned with shell:false, windowsHide:true, CREATE_NO_WINDOW
- *   2. Attached to the FreeCode Job Object (if available)
+ *   1. Started on a private desktop through the GUI-subsystem native helper
+ *   2. Attached to an owned Job before execution (never optional/fallback)
  *   3. Tracked in activeLaunches for diagnostics
  *
  * @throws if the executable does not exist or spawn fails
@@ -153,9 +152,15 @@ export function launchHidden(options: LaunchOptions): LaunchResult {
     stdio: options.stdio ?? ['ignore', 'pipe', 'pipe'],
   }
 
+  if (process.platform === 'win32' && Array.isArray(options.stdio)
+    && options.stdio.some((entry, index) => entry === 'ipc' || (index > 2 && entry !== 'ignore' && entry != null))) {
+    throw new LaunchError('spawn-failed', 'Headless host supports standard stdin/stdout/stderr only; IPC requires an explicit broker', metrics)
+  }
+
   let proc: ChildProcess
   try {
-    proc = spawn(options.executable, options.args ?? [], spawnOpts)
+    const invocation = headlessHostPolicy.invocation(options.executable, options.args ?? [])
+    proc = spawn(invocation.executable, invocation.args, spawnOpts)
   } catch (err) {
     throw new LaunchError(
       'spawn-failed',
@@ -279,7 +284,8 @@ export function launchHiddenSync(options: LaunchSyncOptions): ReturnType<typeof 
     maxBuffer: options.maxBuffer,
   }
 
-  return spawnSync(options.executable, options.args ?? [], syncOpts)
+  const invocation = headlessHostPolicy.invocation(options.executable, options.args ?? [])
+  return spawnSync(invocation.executable, invocation.args, syncOpts)
 }
 
 // ── Process tree kill ────────────────────────────────────────────────
@@ -291,8 +297,8 @@ export function launchHiddenSync(options: LaunchSyncOptions): ReturnType<typeof 
 export function killProcessTree(pid: number): void {
   if (process.platform === 'win32') {
     try {
-      spawnSync('taskkill', ['/T', '/F', '/PID', String(pid)], {
-        ...HIDDEN_SYNC_OPTIONS,
+      launchHiddenSync({
+        executable: 'taskkill', args: ['/T', '/F', '/PID', String(pid)],
         timeout: 5000,
       })
     } catch {
