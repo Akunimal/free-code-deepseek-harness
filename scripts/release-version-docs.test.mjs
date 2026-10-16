@@ -71,12 +71,12 @@ test('V094-21 candidate documentation supersedes the pre-fix installer and recor
   assert.match(spanish, /HTTP 400\/401\/403 ya no enfrían Direct\/Tor/i);
   assert.match(english, /Both now\s+pass in isolation[\s\S]{0,100}Tor 1\/1[\s\S]{0,140}supervisor 5\/5/i);
   assert.match(spanish, /Ambos\s+ahora pasan aislados[\s\S]{0,100}Tor 1\/1[\s\S]{0,140}supervisor 5\/5/i);
-  assert.match(english, /non-interactive release gate passed[\s\S]{0,180}setup\/portable artifacts were built and statically verified/i);
-  assert.match(spanish, /gate de release no interactivo pas[oó][\s\S]{0,180}setup\/portable se compilaron y verificaron/i);
+  assert.match(english, /That prior candidate[\s\S]{0,900}Its release gate passed and its local setup\/portable assets were statically verified/i);
+  assert.match(spanish, /gate completo no interactivo pas[oó][\s\S]{0,180}setup\/portable y el bundle de precarga local se compilaron y verificaron estáticamente/i);
   assert.match(notes, /Setup 0\.9\.4 \| 178,750,879 bytes \| `1e48c6c866a7b52d422eb62b852ffece4b6c5435aa3bbd490960e28395463440`/i);
   assert.match(notes, /Portable 0\.9\.4 \| 178,375,755 bytes \| `91f720be4c140477d4d8b9d62b2cc2ba4a0fe97858d7551b38de60b7a2e3cba6`/i);
 
-  const pendingBuildDir = 'release-0.9.4-alpha7-20261015';
+  const pendingBuildDir = 'release-0.9.4-alpha8-20261016';
   const activeDocs = [
     read('README.md'), read('README.es.md'), read('docs/RELEASE.md'),
     read('docs/RELEASE.es.md'), read('docs/RELEASE-POLICY.md'),
@@ -86,27 +86,35 @@ test('V094-21 candidate documentation supersedes the pre-fix installer and recor
     assert.ok(document.includes(pendingBuildDir), `expected rebuild target ${pendingBuildDir}`);
     assert.match(document, /V094-21/i);
     assert.match(document, /V094-35/i);
-    assert.match(document, /alpha6 desktop artifacts predate V094-35|artefactos desktop alpha6 son anteriores a V094-35/i);
+    assert.match(document, /V094-35/i);
     assert.match(document, /release gate passed|gate de release[\s\S]{0,100}pas[oó]|gate completo no interactivo pas[oó]/i);
   }
 });
 
-test('active bilingual candidate docs identify alpha7, the model-block repair, Hermes patterns and active-profile repair', () => {
+test('active bilingual candidate docs identify alpha8 and the catalog, animation, model-metadata and profile changes', () => {
   for (const file of ['README.md', 'README.es.md', 'docs/RELEASE.md', 'docs/RELEASE.es.md',
     'docs/RELEASE-POLICY.md', 'docs/RELEASE-POLICY.es.md', 'docs/ROADMAP.md', 'release-notes-v0.9.4.md']) {
     const source = read(file);
-    assert.match(source, /0\.2\.1-alpha\.7/, file);
+    assert.match(source, /0\.2\.1-alpha\.8/, file);
     assert.match(source, /Hermes/, file);
     assert.match(source, /cordis\.patch\.yml/, file);
     assert.match(source, /1\.4\.0/, file);
+    assert.match(source, /V094-37/i, file);
+    assert.match(source, /V094-38/i, file);
+    assert.match(source, /V094-39/i, file);
     assert.doesNotMatch(source, /therefore pins `0\.2\.1-alpha\.5`|source now pins DSH alpha5/i, file);
   }
 });
 
-test('the changelog leads with the 0.9.4 candidate and retains published history', () => {
+test('the changelog leads with the verified 0.9.4 alpha8 candidate and retains published history', () => {
   const changelog = read('CHANGELOG.md');
 
-  assert.match(changelog, /^## 0\.9\.4 — Candidate — 2026-10-15$/m);
+  assert.match(changelog, /^## 0\.9\.4 — Candidate — 2026-10-16$/m);
+  assert.match(changelog, /0\.2\.1-alpha\.8/);
+  assert.match(changelog, /V094-37/);
+  assert.match(changelog, /V094-38/);
+  assert.match(changelog, /V094-39/);
+  assert.match(changelog, /setup and portable binaries were built and statically verified/i);
   assert.match(changelog, /bilingual v0\.9\.4 (?:candidate )?notes.*release-notes-v0\.9\.4\.md/i);
   assert.match(changelog, /^## 0\.9\.3 — 2026-10-12$/m);
   assert.ok(changelog.indexOf('## 0.9.4') < changelog.indexOf('## 0.9.3'));
@@ -149,8 +157,8 @@ test('release guides and known-issues ledger identify v0.9.3 as the supported ba
   assert.match(englishRelease, /published v0\.9\.3 release is the current Windows x64 baseline/i);
   assert.match(englishRelease, /v0\.9\.4 is unpublished|unpublished candidate/i);
   assert.match(spanishRelease, /v0\.9\.4 sigue sin publicarse/i);
-  assert.match(englishRelease, /release-0\.9\.4-alpha7-20261015/);
-  assert.match(spanishRelease, /release-0\.9\.4-alpha7-20261015/);
+  assert.match(englishRelease, /release-0\.9\.4-alpha8-20261016/);
+  assert.match(spanishRelease, /release-0\.9\.4-alpha8-20261016/);
   assert.match(englishRelease, /portable executable \(~178\.2 MB \/ 169\.9 MiB/i);
   assert.match(spanishRelease, /portable v0\.9\.3 \(~178,2 MB \/ 169,9 MiB/i);
   assert.match(englishRelease, /53dfde329731d19081204a82bbbafc4678f4c81b4588a22884ef49064f400cd5/i);
@@ -158,8 +166,8 @@ test('release guides and known-issues ledger identify v0.9.3 as the supported ba
   assert.match(spanishRelease, /53dfde329731d19081204a82bbbafc4678f4c81b4588a22884ef49064f400cd5/i);
   assert.match(spanishRelease, /830eba7ca48d2ee56d2272dfa1d2d23684f5cc7507db55d7617dbc6ed8cd12d3/i);
   assert.match(spanishRelease, /release publicada v0\.9\.3 es la baseline actual para Windows x64/i);
-  assert.match(englishRelease, /alpha6 desktop artifacts predate V094-35/i);
-  assert.match(spanishRelease, /artefactos desktop alpha6 son anteriores a V094-35/i);
+  assert.match(englishRelease, /alpha6\/alpha7 desktop artifacts are superseded|alpha6 desktop artifacts predate V094-35/i);
+  assert.match(spanishRelease, /artefactos desktop alpha6\/alpha7 están obsoletos|artefactos desktop alpha6 son anteriores a V094-35/i);
   assert.match(read('release-notes-v0.9.4.md'), /matching alpha5 runtime had been locally precached/i);
   assert.match(englishRelease, /v0\.9\.3 also prevents older DSH runtimes/i);
   assert.match(spanishRelease, /v0\.9\.3 también evita que runtimes\s+DSH/i);
@@ -168,8 +176,8 @@ test('release guides and known-issues ledger identify v0.9.3 as the supported ba
   assert.match(knownIssues, /v0\.9\.3 sólo se soporta Windows x64/i);
   assert.match(knownIssues, /KI-009.*resolved in v0\.9\.3/is);
   assert.match(knownIssues, /KI-009.*resuelto en v0\.9\.3/is);
-  assert.match(knownIssues, /KI-010.*published DSH alpha7 runtime asset/is);
-  assert.match(knownIssues, /KI-010.*requiere publicar el runtime DSH alpha7/is);
+  assert.match(knownIssues, /KI-010.*published DSH alpha8 runtime asset/is);
+  assert.match(knownIssues, /KI-010.*requiere publicar el runtime DSH alpha8/is);
   assert.match(knownIssues, /Prepare-Local-Runtime\.ps1/);
   assert.match(knownIssues, /KI-009.*semantic.*tail/is);
   assert.match(knownIssues, /sufijo semántico puede ocultar historial válido/i);
@@ -182,13 +190,13 @@ test('release guides and known-issues ledger identify v0.9.3 as the supported ba
   assert.match(roadmap, /^### `v0\.9\.3`/m);
   assert.match(translations, /baseline publicada v0\.9\.3/i);
 
-  const freshOutputDir = 'release-0.9.4-alpha7-20261015';
+  const freshOutputDir = 'release-0.9.4-alpha8-20261016';
   for (const document of [englishRelease, spanishRelease, read('README.md'), read('README.es.md'), read('docs/RELEASE-POLICY.md'), read('docs/RELEASE-POLICY.es.md')]) {
     assert.ok(document.includes(freshOutputDir), `expected ${freshOutputDir} in the active release docs`);
   }
 });
 
-test('bilingual v0.9.4 docs mark pre-fix assets superseded and verified local assets without implying publication', () => {
+test('bilingual v0.9.4 docs mark old assets superseded and record the verified local build', () => {
   const readmeEn = read('README.md');
   const readmeEs = read('README.es.md');
   const releaseEn = read('docs/RELEASE.md');
@@ -196,14 +204,14 @@ test('bilingual v0.9.4 docs mark pre-fix assets superseded and verified local as
   const policyEn = read('docs/RELEASE-POLICY.md');
   const policyEs = read('docs/RELEASE-POLICY.es.md');
   const roadmap = read('docs/ROADMAP.md');
-  const outputDir = 'apps/shell/release-0.9.4-alpha7-20261015/';
+  const outputDir = 'apps/shell/release-0.9.4-alpha8-20261016/';
   const setupSha = '3117054ba2ee29c6c9993e7f7cdd525262f8d39e4f037e037c411142659d8a08';
   const portableSha = '79e03080494efcd9fc9f06311b1b4f78238e57b97fd2ea00ba97baa5513f520b';
 
-  assert.match(readmeEn, /alpha6 desktop artifacts predate V094-35/i);
-  assert.match(readmeEs, /artefactos desktop alpha6 son anteriores a V094-35/i);
+  assert.match(readmeEn, /alpha6\/alpha7 desktop artifacts are superseded/i);
+  assert.match(readmeEs, /artefactos desktop alpha6\/alpha7 están obsoletos/i);
   assert.match(readmeEn, /release gate passed[\s\S]{0,180}setup\/portable artifacts were built and statically verified/i);
-  assert.match(readmeEs, /gate de release no interactivo pas[oó][\s\S]{0,180}artefactos setup\/portable/i);
+  assert.match(readmeEs, /gate completo no interactivo pas[oó][\s\S]{0,180}setup\/portable se compilaron y verificaron/i);
   for (const document of [readmeEn, readmeEs, releaseEn, releaseEs, policyEn, policyEs]) {
     assert.ok(document.includes(outputDir), `expected ${outputDir} in active release docs`);
   }
@@ -212,11 +220,14 @@ test('bilingual v0.9.4 docs mark pre-fix assets superseded and verified local as
   assert.ok(history.includes(portableSha), 'historical candidate notes must retain the old portable digest');
   assert.match(history, /Setup 0\.9\.4 \| 178,750,879 bytes \| `1e48c6c866a7b52d422eb62b852ffece4b6c5435aa3bbd490960e28395463440`/i);
   assert.match(history, /Portable 0\.9\.4 \| 178,375,755 bytes \| `91f720be4c140477d4d8b9d62b2cc2ba4a0fe97858d7551b38de60b7a2e3cba6`/i);
+  assert.match(history, /Setup 0\.9\.4 \| 178,757,839 bytes \| `35b4f5eed71911c8048e32d60e64446701de907bb6c581a3c22d1f7e64371f66`/i);
+  assert.match(history, /Portable 0\.9\.4 \| 178,382,701 bytes \| `c549b4e273c748980af632c14bacaeb45bd9d4877e7b839f610fe6cd74e20193`/i);
+  assert.match(history, /DSH 0\.2\.1-alpha\.8 runtime \| 421,507,898 bytes \| `bf9f4324f0a10d6ff0861e365284d08d8f3745a3c5da49621d339629926023a6`/i);
   for (const document of [releaseEn, releaseEs]) assert.match(document, /Prepare-Local-Runtime\.ps1/);
   assert.match(policyEn, /not\s+published/i);
   assert.match(policyEs, /no está\s+publicado/i);
-  assert.match(roadmap, /fresh non-interactive release gate passed[\s\S]*setup and portable were built/i);
-  assert.match(roadmap, /earlier alpha5\/alpha6 desktop artifacts are superseded/i);
+  assert.match(roadmap, /fresh non-interactive release gate passed[\s\S]{0,100}setup and portable were built/i);
+  assert.match(roadmap, /earlier alpha5\/alpha6\/alpha7 desktop artifacts are superseded|earlier alpha5\/alpha6 desktop artifacts are superseded/i);
   assert.match(roadmap, /v0\.9\.3 (?:is still latest|remains the latest)/i);
 });
 

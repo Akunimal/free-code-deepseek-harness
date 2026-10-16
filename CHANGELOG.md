@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.4 — Candidate — 2026-10-15
+## 0.9.4 — Candidate — 2026-10-16
 
 See the [bilingual v0.9.4 candidate notes](release-notes-v0.9.4.md). This is an
 unpublished candidate; v0.9.3 remains the latest published Windows x64 release.
@@ -12,11 +12,13 @@ unpublished candidate; v0.9.3 remains the latest published Windows x64 release.
   requests use the protocol-qualified v1.4.0 inference route. / Los modelos
   ahora actualizan el perfil activo y recargan sin reinicio; la ruta pública
   v1.4.0 usa el namespace de protocolo correcto.
-- The candidate requires the new immutable DSH `0.2.1-alpha.6`. Strict Host
-  and Client builds pass independently; Hermes indexed access and Spanish
-  dictionary contracts are enforced. Old alpha5 installers do not contain
-  these repairs. / La candidata requiere alpha6 nuevo e inmutable; ambos
-  builds estrictos pasan y los instaladores alpha5 anteriores no lo contienen.
+- The candidate pins DSH `0.2.1-alpha.8`. Strict Host and Client builds pass
+  independently; Hermes indexed access and Spanish dictionary contracts are
+  enforced. The local alpha8 runtime archive is SHA-256 verified and paired
+  with a CHECK ONLY first-run preparation helper because it is not published.
+  / La candidata fija DSH `0.2.1-alpha.8`. Los builds estrictos de Host y
+  Client pasan; el archivo alpha8 local verifica SHA-256 y se acompaña de una
+  herramienta CHECK ONLY de precarga porque aún no está publicado.
 
 - Updated vendored opencode2api to v1.4.0 with persistent manual model choice,
   transient-probe recovery, and stable request/session identity contracts. The
@@ -25,14 +27,22 @@ unpublished candidate; v0.9.3 remains the latest published Windows x64 release.
   persistente, recuperación ante sondeos transitorios e identidades estables
   de request/sesión. Los tests protegen la política Direct primero y Tor solo
   tras no-2xx.
-- Model catalog startup now clears stale IDs before DSH reads settings; Muse
+- Model catalog startup now clears stale IDs before DSH reads settings; the
+  selector exposes catalog-refresh progress (V094-37), and each model retains
+  its own context/output limits and supported reasoning effort end to end
+  (V094-39). / El
+  selector muestra el progreso de carga del catálogo, y cada modelo conserva
+  contexto, límite de salida y esfuerzo admitido de punta a punta.
+- Model catalog startup clears stale IDs before DSH reads settings; Muse
   Spark probes use its 16-token minimum; upstream 400/401/403 responses no longer
   cool Direct/Tor proxy health (429, 5xx and transport failures still do). The
-  pre-fix alpha5 setup/portable are superseded pending a fresh build and gate. /
+  v0.9.4 setup/portable alpha8 are now built and statically verified; alpha5–7
+  desktop artifacts are superseded. /
   El catálogo ahora limpia IDs obsoletos antes de que DSH lea settings; los
   probes de Muse Spark usan el mínimo de 16 tokens; HTTP 400/401/403 upstream ya
   no enfría Direct/Tor (429, 5xx y fallos de transporte sí). Setup/portable
-  alpha5 anteriores al fix quedan obsoletos hasta un nuevo build y gate.
+  alpha8 de v0.9.4 se compilaron y verificaron; los desktop alpha5–7 quedaron
+  obsoletos.
 - Tor ControlPort now authenticates with SAFECOOKIE; readiness requires
   bootstrap 100% and a usable SOCKS listener, with adaptive circuit timeouts. /
   El ControlPort Tor ahora se autentica con SAFECOOKIE; la disponibilidad
@@ -59,15 +69,23 @@ unpublished candidate; v0.9.3 remains the latest published Windows x64 release.
 - Gentle AI is back in the shipped Web selector as an explicit opt-in mode;
   Standard remains the default. / Gentle AI vuelve al selector Web incluido
   como modo optativo explícito; Standard sigue siendo el predeterminado.
-- Replaced the incorrect generic wash with the actual nine MIT Hermes Phoenix
-  patterns, accelerated by live running state, with bounded loops, hidden-view
-  pause and reduced-motion fallback. Production-bundle Chromium proof checks
-  timed pixels, 4x work speed, resize, interaction and cleanup. A newly versioned
-  DSH runtime is still required; alpha5 was not overwritten. / Se reemplazó el
-  gradiente equivocado por los nueve patrones MIT de Hermes, con aceleración
-  según el turno real, pausas y movimiento reducido. Pruebas Chromium verifican
-  píxeles, velocidad 4x, resize, interacción y limpieza. Falta un runtime nuevo;
-  no se sobrescribió alpha5.
+- Replaced the incorrect generic wash with 13 original Hermes-style animated
+  patterns, including moving ASCII weather/stars. The current pattern remains
+  fixed while streaming, motion accelerates while working, and a crossfade
+  occurs only after completion/stop (V094-38). Production-bundle Chromium screenshots
+  verify normal/reduced motion, pattern changes, visible glyph movement, resize,
+  interaction and cleanup. / Se reemplazó el gradiente equivocado por 13 fondos
+  animados originales inspirados en Hermes, con clima/estrellas ASCII en
+  movimiento. El patrón se conserva durante el stream, la animación se acelera
+  mientras trabaja y solo cambia al terminar/detener. Capturas Chromium del
+  bundle real verifican ambos modos, glifos, resize, interacción y limpieza.
+
+- Fresh v0.9.4 setup and portable binaries were built and statically verified;
+  the setup was not run or installed, and v0.9.3 remains the latest published
+  release. Exact hashes live in `release-notes-v0.9.4.md`. / Setup y portable
+  0.9.4 se compilaron y verificaron estáticamente; no se ejecutó ni instaló el
+  setup, y v0.9.3 sigue siendo la última release publicada. Los hashes exactos
+  están en `release-notes-v0.9.4.md`.
 
 ## 0.9.3 — 2026-10-12
 

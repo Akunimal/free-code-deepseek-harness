@@ -1,8 +1,8 @@
 # FreeCode DeepSeek Harness
 
-### Current 0.9.4 candidate (alpha7)
+### Current 0.9.4 candidate (alpha8)
 
-The candidate targets `apps/shell/release-0.9.4-alpha7-20261015/`, with DSH 0.2.1-alpha.7 and opencode2api v1.4.0. It includes the model-catalog/profile repair, documented inference routing, Hermes backgrounds and V094-35, which prevents localized composer-block writes from recursing when model availability changes. The full non-interactive release gate passed and fresh setup/portable artifacts were built and statically verified; their exact sizes and hashes are in `release-notes-v0.9.4.md`. Alpha6 desktop artifacts predate V094-35 and must not be used to test this candidate. Alpha7 is unpublished, so the local bundle includes the exact runtime archive and a CHECK ONLY preflight. To test locally, close FreeCode yourself and explicitly run the preparation option before setup; this task did not install or launch FreeCode. Public-provider acceptance remains unverified. The active catalog is `profiles/web/cordis.patch.yml`. V094-21 remains included; alpha5/alpha6 desktop artifacts are superseded. No tag, upload or release is included.
+The candidate targets `apps/shell/release-0.9.4-alpha8-20261016/`, with DSH 0.2.1-alpha.8 and opencode2api v1.4.0. It includes V094-37 catalog-loading feedback; V094-38 original Hermes-inspired animated backgrounds that hold their pattern during generation, accelerate while working, and crossfade only on completion/stop; V094-39 per-model context and supported effort metadata; active-profile synchronization, documented inference routing, and V094-35's localized model-block recursion fix. The full non-interactive release gate passed; fresh setup/portable artifacts were built and statically verified in the target directory, with exact hashes in `release-notes-v0.9.4.md`. Alpha6/alpha7 desktop artifacts are superseded and must not be used to test this source. Alpha8 is unpublished; the local candidate bundle carries the exact runtime archive and a CHECK ONLY preflight. To test locally, close FreeCode yourself and explicitly run the preparation option before setup; this task did not install or launch FreeCode. Public-provider acceptance remains unverified. The active catalog is `profiles/web/cordis.patch.yml`. V094-21 remains included; alpha5/alpha6 desktop artifacts are superseded. No tag, upload or release is included.
 
 Windows-first coding with OpenCode Free models: choose a project, describe the
 work, and let the local Harness coordinate files, tools, MCP servers and model
@@ -290,14 +290,14 @@ the recorded child PID tree and never enumerates or kills unrelated processes.
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha7-20261015'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha8-20261016'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha7-20261015
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha8-20261016
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 `build:desktop` creates setup and portable artifacts in the new
-`apps/shell/release-0.9.4-alpha7-20261015/` output directory; it refuses to replace an
+`apps/shell/release-0.9.4-alpha8-20261016/` output directory; it refuses to replace an
 existing non-empty folder. `verify:desktop-release-assets` checks the exact PE
 files, setup blockmap, updater metadata and hashes without launching either
 executable. Desktop packaging does not rebuild or replace the separately versioned DSH runtime. Only when the DSH
@@ -305,7 +305,7 @@ runtime itself changes should maintainers bump its manifest version and run
 `pnpm package:runtime:release`; existing runtime versions are immutable.
 
 Hashes and failures of previous alpha5/alpha6 installers remain historical in the
-candidate notes. Use only the new alpha7 output and its local preflight; the
+candidate notes. Use only the new alpha8 output and its local preflight; the
 active instance has not been modified.
 
 The user confirmed the installed v0.9.3 application works on Windows x64. The

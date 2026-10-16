@@ -1,17 +1,17 @@
 # Política de releases
 
-### Candidata actual 0.9.4 (alpha7)
+### Candidata actual 0.9.4 (alpha8)
 
-El runtime alpha7 y su archivo/checksum están verificados localmente; opencode2api v1.4.0 usa `profiles/web/cordis.patch.yml`. El gate completo no interactivo pasó y los artefactos setup/portable se compilaron y verificaron estáticamente en `apps/shell/release-0.9.4-alpha7-20261015/`. Incluye los fondos Hermes, la sincronización real del perfil y los fixes V094-21 del catálogo y Tor. Los artefactos desktop alpha6 son anteriores a V094-35 y no contienen la corrección de recursión del composer. Alpha7 sigue sin publicarse; el paquete local incluye el runtime exacto y el preflight CHECK ONLY. Este trabajo no instaló ni inició FreeCode. La aceptación del proveedor público sigue sin verificarse. No se incluye tag, subida ni publicación.
+El runtime alpha8 y su archivo/checksum están verificados localmente; opencode2api v1.4.0 usa `profiles/web/cordis.patch.yml`. El gate completo no interactivo pasó y setup/portable se compilaron y verificaron estáticamente; los hashes exactos están en `release-notes-v0.9.4.md`. La candidata incluye indicador de carga del catálogo (V094-37), fondos animados originales inspirados en Hermes que conservan el patrón durante la generación y transicionan al completar/detener (V094-38), contexto/esfuerzos de razonamiento por modelo (V094-39), el fix V094-35 de recursión del composer, sincronización del perfil activo y los fixes V094-21 de catálogo/Tor. Los artefactos desktop alpha6/alpha7 están obsoletos. Alpha8 no está publicado; el paquete local incluye el runtime exacto y preflight CHECK ONLY. Este trabajo no instaló ni inició FreeCode. La aceptación del proveedor público sigue sin verificarse. No se incluye tag, subida ni publicación.
 
 Las releases son manuales y tienen como target Windows x64. Esta política
 describe el límite real entre la app desktop y el runtime para v0.9.3; no
 autoriza a tocar una instancia de FreeCode que esté en ejecución.
 
-La candidata v0.9.4 incluye el arreglo V094-35 de recursión del bloqueo del modelo; por eso el pin de `apps/shell/harness-runtime.json` es 0.2.1-alpha.7. Alpha6 es un archivo histórico inmutable y anterior a ese código. El runtime alpha7 se regeneró y verificó localmente (421.460.196 bytes; SHA-256 `79880a1446175c20846318f478eec8d40c139b16b54a1f4d4ebc35cad39f3b3f`). No está publicado. El gate completo y el build nuevo de setup/portable pasaron; sus hashes están en `release-notes-v0.9.4.md`. Las cachés alpha4/alpha6 no satisfacen el pin alpha7. Nunca presentes un archivo no subido como asset descargable. OmniRoute sigue retirado: no se incluye fallback, descarga, servidor ni detector. En el siguiente inicio solo se retiran configuraciones propias obsoletas y cachés verificadas; se conservan proveedores e historial ajenos.
+La candidata v0.9.4 incluye el arreglo V094-35 de recursión del bloqueo del modelo; por eso el pin de `apps/shell/harness-runtime.json` es 0.2.1-alpha.8. Alpha6 es un archivo histórico inmutable y anterior a ese código. El runtime alpha8 se regeneró y verificó localmente (421.507.898 bytes; SHA-256 `bf9f4324f0a10d6ff0861e365284d08d8f3745a3c5da49621d339629926023a6`). No está publicado. El gate y la compilación final de setup/portable pasaron; los hashes exactos están en las notas bilingües. Las cachés alpha4/alpha6 no satisfacen el pin alpha8. Nunca presentes un archivo no subido como asset descargable. OmniRoute sigue retirado: no se incluye fallback, descarga, servidor ni detector. En el siguiente inicio solo se retiran configuraciones propias obsoletas y cachés verificadas; se conservan proveedores e historial ajenos.
 
 La nueva salida pendiente usa el directorio único
-`apps/shell/release-0.9.4-alpha7-20261015/`; no reutilices ni
+`apps/shell/release-0.9.4-alpha8-20261016/`; no reutilices ni
 sobrescribas el directorio obsoleto de la candidata alpha5.
 
 Tras cambiar opencode2api o su overlay activo, recompilá con
@@ -56,9 +56,9 @@ nueva y aislada, y verificá exactamente esa carpeta:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha7-20261015'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha8-20261016'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha7-20261015
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha8-20261016
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 

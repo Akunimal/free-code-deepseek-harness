@@ -1,17 +1,17 @@
 # Release policy
 
-### Current 0.9.4 candidate (alpha7)
+### Current 0.9.4 candidate (alpha8)
 
-The alpha7 runtime and its archive/checksum are verified locally; opencode2api v1.4.0 uses `profiles/web/cordis.patch.yml`. The full non-interactive release gate passed and fresh setup/portable assets were built and statically verified in `apps/shell/release-0.9.4-alpha7-20261015/`. Hermes backgrounds, live profile synchronization, and the V094-21 model-catalog/Tor fixes are included. Alpha6 desktop artifacts predate V094-35 and do not contain the composer recursion fix. Alpha7 remains unpublished; the local test bundle includes the exact runtime archive and a CHECK ONLY preflight. This task did not install or launch FreeCode. Public-provider acceptance remains unverified; alpha5/alpha6 desktop artifacts are superseded. No tag, upload or release is included.
+The alpha8 runtime and its archive/checksum are verified locally; opencode2api v1.4.0 uses `profiles/web/cordis.patch.yml`. The full non-interactive release gate passed, and fresh setup/portable artifacts were built and statically verified; exact hashes are in `release-notes-v0.9.4.md`. The candidate includes visible catalog refresh status (V094-37), original Hermes-inspired animated backgrounds that stay stable during generation and transition after completion/stop (V094-38), per-model context/reasoning capabilities (V094-39), the V094-35 composer recursion fix, live profile synchronization and V094-21 model-catalog/Tor fixes. Alpha6/alpha7 desktop artifacts are superseded. Alpha8 remains unpublished; the local candidate bundle includes the exact runtime archive and a CHECK ONLY preflight. This task did not install or launch FreeCode. Public-provider acceptance remains unverified; alpha5/alpha6 desktop artifacts are superseded. No tag, upload or release is included.
 
 Releases are manual and target Windows x64. This policy describes the real
 desktop/runtime boundary used by v0.9.3; it does not authorize touching a
 maintainer's running FreeCode instance.
 
-The v0.9.4 candidate includes the V094-35 model-block recursion repair, so the tracked `apps/shell/harness-runtime.json` pin is 0.2.1-alpha.7. Alpha6 is an immutable historical archive and predates that code. The alpha7 runtime archive was regenerated and verified locally (421,460,196 bytes; SHA-256 `79880a1446175c20846318f478eec8d40c139b16b54a1f4d4ebc35cad39f3b3f`). It is not published. The full gate and fresh setup/portable build passed; the exact desktop hashes are in `release-notes-v0.9.4.md`. The old alpha4/alpha6 caches do not satisfy the alpha7 pin. Never describe an unuploaded archive as a downloadable release asset. OmniRoute remains removed: no fallback, download, server or detection endpoint is shipped. Only obsolete app-owned configuration and verified caches are retired at next startup; unrelated providers and sessions are preserved.
+The v0.9.4 candidate includes the V094-35 model-block recursion repair, so the tracked `apps/shell/harness-runtime.json` pin is 0.2.1-alpha.8. Alpha6 is an immutable historical archive and predates that code. The alpha8 runtime archive was regenerated and verified locally (421,507,898 bytes; SHA-256 `bf9f4324f0a10d6ff0861e365284d08d8f3745a3c5da49621d339629926023a6`). It is not published. The full gate and final setup/portable build passed; the exact artifact hashes are in the bilingual release notes. The old alpha4/alpha6 caches do not satisfy the alpha8 pin. Never describe an unuploaded archive as a downloadable release asset. OmniRoute remains removed: no fallback, download, server or detection endpoint is shipped. Only obsolete app-owned configuration and verified caches are retired at next startup; unrelated providers and sessions are preserved.
 
 The verified desktop artifacts are in the unique output directory
-`apps/shell/release-0.9.4-alpha7-20261015/`; do not reuse or overwrite
+`apps/shell/release-0.9.4-alpha8-20261016/`; do not reuse or overwrite
 the superseded alpha5 candidate directory.
 
 After changing opencode2api source or its active fork overlay, rebuild with
@@ -60,9 +60,9 @@ artifacts into a new, isolated output directory and verify that exact directory:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha7-20261015'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha8-20261016'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha7-20261015
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha8-20261016
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 

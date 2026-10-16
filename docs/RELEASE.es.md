@@ -1,8 +1,8 @@
 # Release y packaging
 
-### Candidata actual 0.9.4 (alpha7)
+### Candidata actual 0.9.4 (alpha8)
 
-La candidata apunta a `apps/shell/release-0.9.4-alpha7-20261015/`, con DSH 0.2.1-alpha.7 y opencode2api v1.4.0. Incluye el arreglo del catálogo/perfil, el enrutamiento de inferencia documentado, los fondos Hermes y V094-35, que evita escrituras recursivas del bloqueo localizado del composer cuando cambia la disponibilidad del modelo. El gate de release no interactivo pasó; los artefactos setup/portable se compilaron y verificaron estáticamente en el directorio indicado. Sus hashes están en `release-notes-v0.9.4.md`. Los artefactos desktop alpha6 son anteriores a V094-35 y no deben usarse para probar esta candidata. Alpha7 no está publicado; el bundle local incluye el runtime exacto, su checksum y el preflight CHECK ONLY `Prepare-Local-Runtime.ps1`. Antes de probar, cierra FreeCode tú mismo y ejecuta explícitamente la opción de precarga; esta tarea no instaló ni inició FreeCode. La aceptación del proveedor público sigue sin verificarse. El catálogo activo es `profiles/web/cordis.patch.yml`. Los artefactos desktop alpha5/alpha6 están obsoletos. No se incluye tag, subida ni publicación.
+La candidata apunta a `apps/shell/release-0.9.4-alpha8-20261016/`, con DSH 0.2.1-alpha.8 y opencode2api v1.4.0. Incluye V094-37, indicador visible de carga del catálogo; V094-38, fondos animados originales inspirados en Hermes que mantienen el patrón mientras genera y hacen transición solo al completar/detener; V094-39, contexto y esfuerzos admitidos por modelo; sincronización del perfil activo, rutas de inferencia documentadas y V094-35, arreglo de la recursión del bloqueo localizado. El gate de release no interactivo pasó; setup y portable se compilaron y verificaron estáticamente. Los tamaños y hashes exactos están en `release-notes-v0.9.4.md`. Los artefactos desktop alpha6/alpha7 están obsoletos. Alpha8 no está publicado; el paquete candidato local incluye el runtime exacto, checksum y preflight CHECK ONLY `Prepare-Local-Runtime.ps1`. Antes de probar, cierra FreeCode tú mismo y ejecuta explícitamente la opción de precarga; esta tarea no instaló ni inició FreeCode. La aceptación del proveedor público sigue sin verificarse. El catálogo activo es `profiles/web/cordis.patch.yml`. Los artefactos desktop alpha5/alpha6 están obsoletos. No se incluye tag, subida ni publicación.
 
 Este repositorio es el fork público Akunimal/free-code-deepseek-harness de
 deepseek-ai/deepseek-harness. El código de producto vive fuera del subtree
@@ -63,15 +63,15 @@ tarball.
 pnpm install --frozen-lockfile
 pnpm package:runtime:release
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha7-20261015'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha8-20261016'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha7-20261015
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha8-20261016
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 El gate ejecuta tests, contratos, typechecks, build/preflight y un smoke MCP
 offline con fixtures stdio del repositorio y un proveedor mock de loopback;
-verifica in situ el SHA-256 del runtime `0.2.1-alpha.7` y compila un setup NSIS
+verifica in situ el SHA-256 del runtime `0.2.1-alpha.8` y compila un setup NSIS
 exacto en una carpeta temporal para su validación estática. Los procesos usan
 rutas scratch para perfil/caché/temporales; el smoke MCP no hereda credenciales
 de la persona mantenedora ni ejecuta servidores de terceros. La limpieza apunta
@@ -125,7 +125,7 @@ verifica el SHA-256 publicado y la ABI de Electron, y lo guarda en
 validada sin conexión. Esa descarga requiere Internet; si falla la descarga o compatibilidad, el supervisor no
 debe iniciarse y se ofrecen Reintentar/Cerrar.
 
-La candidata v0.9.4 requiere alpha7, todavía sin publicar. Para probarla usá el
+La candidata v0.9.4 requiere alpha8, todavía sin publicar. Para probarla usá el
 runtime/preflight local verificado; publicá ese archivo exacto y su checksum
 antes de ofrecer el setup como release pública para una máquina limpia.
 

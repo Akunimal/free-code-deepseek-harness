@@ -1,8 +1,8 @@
 # FreeCode DeepSeek Harness
 
-### Candidata actual 0.9.4 (alpha7)
+### Candidata actual 0.9.4 (alpha8)
 
-La candidata apunta a `apps/shell/release-0.9.4-alpha7-20261015/`, con DSH 0.2.1-alpha.7 y opencode2api v1.4.0. Incluye el arreglo del catálogo/perfil, el enrutamiento de inferencia documentado, los fondos Hermes y V094-35, que evita escrituras recursivas del bloqueo localizado del composer cuando cambia la disponibilidad del modelo. El gate de release no interactivo pasó y se compilaron/verificaron estáticamente los artefactos setup/portable; sus tamaños y hashes exactos están en `release-notes-v0.9.4.md`. Los artefactos desktop alpha6 son anteriores a V094-35 y no deben usarse para probar esta candidata. Alpha7 no está publicado; el paquete local incluye el runtime exacto y un preflight CHECK ONLY. Para probarlo localmente, cierra FreeCode tú mismo y ejecuta explícitamente la opción de precarga antes del setup; esta tarea no instaló ni inició FreeCode. La aceptación del proveedor público sigue sin verificarse. El catálogo activo es `profiles/web/cordis.patch.yml`. Se mantienen los fixes V094-21; los artefactos desktop alpha5/alpha6 están obsoletos. No se incluye tag, subida ni publicación.
+La candidata apunta a `apps/shell/release-0.9.4-alpha8-20261016/`, con DSH 0.2.1-alpha.8 y opencode2api v1.4.0. Incluye V094-37, indicador visible de carga del catálogo; V094-38, fondos animados originales inspirados en Hermes que conservan el patrón durante la generación, aceleran mientras trabaja y hacen transición solo al terminar/detenerse; V094-39, contexto y esfuerzos admitidos por modelo; sincronización del perfil activo, rutas de inferencia documentadas y V094-35, arreglo de la recursión del bloqueo localizado del modelo. El gate completo no interactivo pasó; setup/portable se compilaron y verificaron estáticamente en el directorio indicado. Sus tamaños y hashes exactos están en `release-notes-v0.9.4.md`. Los artefactos desktop alpha6/alpha7 están obsoletos y no deben probarse contra esta fuente. Alpha8 no está publicado; el paquete candidato local incluye el runtime exacto y el preflight CHECK ONLY. Para probarlo localmente, cierra FreeCode tú mismo y ejecuta explícitamente la opción de precarga antes del setup; esta tarea no instaló ni inició FreeCode. La aceptación del proveedor público sigue sin verificarse. El catálogo activo es `profiles/web/cordis.patch.yml`. Se mantienen los fixes V094-21; los artefactos desktop alpha5/alpha6 están obsoletos. No se incluye tag, subida ni publicación.
 
 Programación en Windows con modelos OpenCode Free: elegí un proyecto,
 describí el trabajo y dejá que el Harness coordine archivos, herramientas,
@@ -287,14 +287,14 @@ enumera ni termina procesos ajenos.
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha7-20261015'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha8-20261016'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha7-20261015
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha8-20261016
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 `build:desktop` crea setup y portable en la nueva carpeta
-`apps/shell/release-0.9.4-alpha7-20261015/`; rechaza reemplazar una carpeta no vacía.
+`apps/shell/release-0.9.4-alpha8-20261016/`; rechaza reemplazar una carpeta no vacía.
 `verify:desktop-release-assets` valida los PE exactos, el blockmap, los metadatos
 del updater y sus hashes sin iniciar ninguno de los ejecutables. El packaging
 desktop no reconstruye ni reemplaza el runtime DSH, que tiene su propia versión.
@@ -303,7 +303,7 @@ se debe subir su versión en el manifest y ejecutar `pnpm package:runtime:releas
 las versiones existentes del runtime son inmutables.
 
 Los hashes y fallos de los instaladores alpha5/alpha6 anteriores se conservan como
-historia en las notas candidatas. Usá únicamente la salida alpha7 nueva y su
+historia en las notas candidatas. Usá únicamente la salida alpha8 nueva y su
 preflight local; no se modificó la instancia activa.
 
 El usuario confirmó que la aplicación v0.9.3 instalada funciona en Windows x64.

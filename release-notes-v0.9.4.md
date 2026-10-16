@@ -2,9 +2,30 @@
 
 ## English
 
-### Current 0.9.4 candidate (alpha7)
+### Current 0.9.4 candidate (alpha8)
 
-The current candidate targets `apps/shell/release-0.9.4-alpha7-20261015/`, with DSH 0.2.1-alpha.7 and opencode2api v1.4.0. Alpha5 and alpha6 desktop builds are superseded; alpha6 predates V094-35, which prevents the localized model-block reason from recursively writing the composer store. Catalog/profile synchronization, public inference protocol routing, Hermes animation and the browser-first prompt remain part of this candidate. The full non-interactive release gate passed and fresh desktop setup/portable artifacts were built and statically verified; current hashes and sizes are listed below. The alpha7 runtime is unpublished but included in the local test bundle with a CHECK ONLY preflight. This build did not install or run setup or FreeCode. Public-provider acceptance remains unverified; no tag, upload or release is included. V094-21 historical fixes remain included.
+The current candidate targets `apps/shell/release-0.9.4-alpha8-20261016/` and pins DSH 0.2.1-alpha.8 with opencode2api v1.4.0. V094-37 shows catalog refresh progress; V094-38 adds original animated backgrounds with 13 patterns, ASCII weather glyphs, faster motion during generation, a stable pattern while streaming, and a crossfade only after completion or stop; V094-39 preserves per-model context/output limits and supported reasoning efforts through the selector and context meter. The emitted alpha8 production bundle was rendered in Chromium: it held `aurora` during the stream, crossfaded to `ascii-stars` on stop, animated both ASCII patterns, resized correctly, and disabled canvas motion under reduced-motion preference. The inspected normal/reduced/gallery captures are in `D:/Temp/freecode-v094-alpha8-prod-render-20261016-r1/`. The candidate also includes active-profile/model synchronization, inference routing, and V094-35's composer recursion fix. The full non-interactive release gate passed; fresh setup/portable artifacts and the local runtime-preparation bundle were built, then statically verified without launching anything. The exact assets are listed below; the alpha7 executables in the following historical section are superseded. The alpha8 DSH runtime archive is local and checksum-verified but unpublished, so a clean install still needs that release asset or explicit local preparation. No setup was executed; FreeCode, its installed state and its user cache were not touched. Public-provider acceptance remains unverified. No tag, push, upload or release is included.
+
+### Verified local alpha8 artifacts / Artefactos alpha8 locales verificados
+
+The 0.9.4 NSIS setup and portable executable were built with electron-builder and
+statically verified by `verify:desktop-release-assets`. The included local test
+bundle passed `Prepare-Local-Runtime.ps1` in CHECK ONLY mode (SHA-256/size for
+setup, portable and the exact DSH alpha8 runtime; no cache writes). The runtime
+is a separate download asset and is not embedded in the desktop executables.
+No setup or app was run or installed.
+
+Output: `apps/shell/release-0.9.4-alpha8-20261016/`.
+
+| Artifact / Artefacto | Bytes | SHA-256 |
+|---|---:|---|
+| Setup 0.9.4 | 178,757,839 bytes | `35b4f5eed71911c8048e32d60e64446701de907bb6c581a3c22d1f7e64371f66` |
+| Portable 0.9.4 | 178,382,701 bytes | `c549b4e273c748980af632c14bacaeb45bd9d4877e7b839f610fe6cd74e20193` |
+| DSH 0.2.1-alpha.8 runtime | 421,507,898 bytes | `bf9f4324f0a10d6ff0861e365284d08d8f3745a3c5da49621d339629926023a6` |
+
+### Previous local 0.9.4 candidate (alpha7; superseded)
+
+That prior candidate targeted `apps/shell/release-0.9.4-alpha7-20261015/`, with DSH 0.2.1-alpha.7 and opencode2api v1.4.0. Alpha5 and alpha6 desktop builds are superseded; alpha6 predates V094-35, which prevents the localized model-block reason from recursively writing the composer store. Catalog/profile synchronization, public inference protocol routing, Hermes animation and the browser-first prompt remained part of that candidate. Its release gate passed and its local setup/portable assets were statically verified; historical hashes and sizes are listed in the following table. The alpha7 runtime is unpublished and was included in that local test bundle with a CHECK ONLY preflight. That build did not install or run setup or FreeCode. Public-provider acceptance remains unverified; no tag, upload or release was included. V094-21 historical fixes remain included.
 
 
 **Status: locally built candidate; not yet published.** v0.9.3 remains the latest published
@@ -26,7 +47,7 @@ those model/background results. Those artifacts are superseded by V094-24/25/26
 and the current alpha7 candidate.
 The v0.9.4 candidate remains unpublished.
 
-### Verified local alpha7 artifacts / Artefactos alpha7 locales verificados
+### Verified local alpha7 artifacts (superseded) / Artefactos alpha7 locales verificados (obsoletos)
 
 The non-interactive release gate passed; these artifacts were statically
 verified only. / El gate no interactivo pasó; estos artefactos solo se verificaron
@@ -148,9 +169,30 @@ interrupted. No tag or public v0.9.4 release exists.
 
 ## Español
 
-### Candidata actual 0.9.4 (alpha7)
+### Candidata actual 0.9.4 (alpha8)
 
-La candidata actual apunta a apps/shell/release-0.9.4-alpha7-20261015/, con DSH 0.2.1-alpha.7 y opencode2api v1.4.0. Los builds desktop alpha5/alpha6 quedan obsoletos; alpha6 precede a V094-35, que evita que el motivo localizado del bloqueo del modelo escriba recursivamente en el store del composer. La sincronización del perfil/catálogo, el protocolo de inferencia pública, la animación Hermes y el prompt browser-first siguen incluidos. El gate de release no interactivo pasó; el setup/portable se compilaron y verificaron estáticamente. Los tamaños y hashes exactos están en la tabla de artefactos verificados. El runtime alpha7 no publicado se incluye en el bundle local con preflight CHECK ONLY. Esta build no instaló ni ejecutó setup o FreeCode. La aceptación del proveedor público sigue sin verificarse; no se incluye tag, subida ni publicación. Se mantienen los fixes históricos V094-21.
+La candidata actual apunta a `apps/shell/release-0.9.4-alpha8-20261016/` y fija DSH 0.2.1-alpha.8 con opencode2api v1.4.0. V094-37 muestra el progreso de carga del catálogo; V094-38 incorpora 13 fondos animados originales, glifos ASCII de clima, más velocidad durante la generación, patrón estable durante el stream y transición únicamente al completar o detener. V094-39 conserva por modelo el contexto, el límite de salida y los esfuerzos de razonamiento admitidos hasta el selector y el medidor. El bundle de producción alpha8 se renderizó en Chromium: mantuvo `aurora` durante el stream, pasó con crossfade a `ascii-stars` al detener, animó ambos patrones ASCII, se adaptó al resize y desactivó el canvas con movimiento reducido. Las capturas normal/reducido/galería se inspeccionaron en `D:/Temp/freecode-v094-alpha8-prod-render-20261016-r1/`. También incluye sincronización del perfil/modelos, rutas de inferencia y V094-35, que corrige la recursión del composer. El gate completo no interactivo pasó; setup/portable y el bundle de precarga local se compilaron y verificaron estáticamente. Sus assets exactos se detallan abajo; los ejecutables alpha7 de la sección histórica siguiente están obsoletos. El runtime DSH alpha8 está verificado localmente, pero no publicado; una instalación limpia requiere publicar ese asset o prepararlo explícitamente de forma local. No se ejecutó setup ni se tocó FreeCode, su instalación o caché. La aceptación del proveedor público sigue sin verificarse. No se incluye tag, push, subida ni publicación.
+
+### Artefactos alpha8 locales verificados / Verified local alpha8 artifacts
+
+El setup NSIS y el portable 0.9.4 se compilaron con electron-builder y se
+verificaron estáticamente. El paquete local de prueba pasó
+`Prepare-Local-Runtime.ps1` en modo CHECK ONLY (hash/tamaño de setup, portable y
+runtime DSH alpha8 exacto; sin escribir en la caché). El runtime es un asset
+separado y no está embebido en los ejecutables desktop. No se ejecutó ni instaló
+setup o app.
+
+Salida: `apps/shell/release-0.9.4-alpha8-20261016/`.
+
+| Artefacto / Artifact | Bytes | SHA-256 |
+|---|---:|---|
+| Setup 0.9.4 | 178.757.839 bytes | `35b4f5eed71911c8048e32d60e64446701de907bb6c581a3c22d1f7e64371f66` |
+| Portable 0.9.4 | 178.382.701 bytes | `c549b4e273c748980af632c14bacaeb45bd9d4877e7b839f610fe6cd74e20193` |
+| Runtime DSH 0.2.1-alpha.8 | 421.507.898 bytes | `bf9f4324f0a10d6ff0861e365284d08d8f3745a3c5da49621d339629926023a6` |
+
+### Candidata local anterior 0.9.4 (alpha7; obsoleta)
+
+Esa candidata anterior apuntaba a apps/shell/release-0.9.4-alpha7-20261015/, con DSH 0.2.1-alpha.7 y opencode2api v1.4.0. Los builds desktop alpha5/alpha6 quedaron obsoletos; alpha6 precedía a V094-35, que evita que el motivo localizado del bloqueo del modelo escriba recursivamente en el store del composer. La sincronización del perfil/catálogo, el protocolo de inferencia pública, la animación Hermes y el prompt browser-first estaban incluidos. El gate de release pasó; el setup/portable se compilaron y verificaron estáticamente; los tamaños y hashes históricos están en la tabla siguiente. El runtime alpha7 no publicado se incluyó en aquel bundle local con preflight CHECK ONLY. Esa build no instaló ni ejecutó setup o FreeCode. La aceptación del proveedor público sigue sin verificarse; no se incluyó tag, subida ni publicación. Se mantienen los fixes históricos V094-21.
 
 
 **Estado: candidata local compilada; todavía no publicada.** v0.9.3 sigue siendo la última release
