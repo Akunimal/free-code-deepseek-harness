@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -21,6 +22,29 @@ import (
 var sourceID = "development"
 var user32 = syscall.NewLazyDLL("user32.dll")
 var kernel32 = syscall.NewLazyDLL("kernel32.dll")
+var advapi32 = syscall.NewLazyDLL("advapi32.dll")
+
+const (
+	tokenGroupsClass = 2          // TOKEN_INFORMATION_CLASS TokenGroups.
+	seGroupLogonID   = 0xC0000000 // SE_GROUP_LOGON_ID.
+	// Desktop rights granted to the restricted child's logon-session SID:
+	// DESKTOP_READOBJECTS | CREATEWINDOW | CREATEMENU | ENUMERATE | WRITEOBJECTS.
+	// Deliberately excludes SWITCHDESKTOP, HOOKCONTROL, JOURNALRECORD/PLAYBACK,
+	// WRITE_DAC, WRITE_OWNER and DELETE.
+	privateDesktopLogonRights = 0x000000c7
+)
+
+var logonSessionSIDPattern = regexp.MustCompile(`^S-1-5-5-[0-9]+-[0-9]+$`)
+
+type sidAndAttributes struct {
+	Sid        *syscall.SID
+	Attributes uint32
+}
+
+type tokenGroups struct {
+	GroupCount uint32
+	Groups     [1]sidAndAttributes
+}
 
 type hostOptions struct {
 	stdin, stdout, stderr syscall.Handle
@@ -65,6 +89,60 @@ func checked(ok uintptr, err error, operation string) error {
 	return nil
 }
 
+// privateDesktopSDDL returns the private desktop descriptor. SYSTEM keeps full
+// control; only the caller's logon session receives the desktop rights above.
+// The owner gets no ACE. Never Everyone or Authenticated Users. The Low
+// mandatory label (no-write-up) lets Low-integrity WRITE_RESTRICTED children
+// initialise USER32 on this desktop; without it the default Medium label fails
+// their DLL init. Only this private desktop is labelled; the interactive desktop
+// is untouched.
+func privateDesktopSDDL(logonSID string) (string, error) {
+	if !logonSessionSIDPattern.MatchString(logonSID) {
+		return "", fmt.Errorf("logon session SID is malformed")
+	}
+	return fmt.Sprintf("D:(A;;GA;;;SY)(A;;0x%08x;;;%s)S:(ML;;NW;;;LW)", privateDesktopLogonRights, logonSID), nil
+}
+
+// logonSessionSID returns this helper token's logon-session SID (S-1-5-5-x-y).
+// The windows-acl sandbox's WRITE_RESTRICTED children keep that SID as a
+// restricting SID, so a desktop ACE for it admits them without widening access.
+func logonSessionSID() (string, error) {
+	token, err := syscall.OpenCurrentProcessToken()
+	if err != nil {
+		return "", fmt.Errorf("OpenCurrentProcessToken: %w", err)
+	}
+	defer token.Close()
+	var needed uint32
+	advapi32.NewProc("GetTokenInformation").Call(uintptr(token), tokenGroupsClass, 0, 0, uintptr(unsafe.Pointer(&needed)))
+	if needed == 0 {
+		return "", fmt.Errorf("GetTokenInformation(TokenGroups): size query failed")
+	}
+	buffer := make([]uint64, (needed+7)/8) // uint64 backing keeps the header and SIDs aligned.
+	ok, _, nativeErr := advapi32.NewProc("GetTokenInformation").Call(uintptr(token), tokenGroupsClass, uintptr(unsafe.Pointer(&buffer[0])), uintptr(needed), uintptr(unsafe.Pointer(&needed)))
+	if err := checked(ok, nativeErr, "GetTokenInformation(TokenGroups)"); err != nil {
+		return "", err
+	}
+	header := (*tokenGroups)(unsafe.Pointer(&buffer[0]))
+	groups := unsafe.Slice(&header.Groups[0], header.GroupCount)
+	for _, group := range groups {
+		if group.Attributes&seGroupLogonID != seGroupLogonID {
+			continue
+		}
+		var text *uint16
+		if err := syscall.ConvertSidToStringSid(group.Sid, &text); err != nil {
+			return "", fmt.Errorf("ConvertSidToStringSid: %w", err)
+		}
+		length := 0
+		for *(*uint16)(unsafe.Add(unsafe.Pointer(text), length*2)) != 0 {
+			length++
+		}
+		sid := syscall.UTF16ToString(unsafe.Slice(text, length))
+		syscall.LocalFree(syscall.Handle(uintptr(unsafe.Pointer(text))))
+		return sid, nil
+	}
+	return "", fmt.Errorf("logon session SID not found in helper token")
+}
+
 func runContained(argv []string, options hostOptions) (uint32, error) {
 	if len(argv) == 0 {
 		return 0, fmt.Errorf("executable is required")
@@ -89,7 +167,27 @@ func runContained(argv []string, options hostOptions) (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
-	security := syscall.SecurityAttributes{Length: uint32(unsafe.Sizeof(syscall.SecurityAttributes{})), InheritHandle: 1}
+	// Fail closed: without the logon-session ACE the restricted child cannot
+	// initialise USER32 (STATUS_DLL_INIT_FAILED), so no desktop is created.
+	logon, err := logonSessionSID()
+	if err != nil {
+		return 0, err
+	}
+	sddl, err := privateDesktopSDDL(logon)
+	if err != nil {
+		return 0, err
+	}
+	sddlPtr, err := syscall.UTF16PtrFromString(sddl)
+	if err != nil {
+		return 0, err
+	}
+	var descriptor uintptr
+	converted, _, convertErr := advapi32.NewProc("ConvertStringSecurityDescriptorToSecurityDescriptorW").Call(uintptr(unsafe.Pointer(sddlPtr)), 1, uintptr(unsafe.Pointer(&descriptor)), 0)
+	if err := checked(converted, convertErr, "ConvertStringSecurityDescriptorToSecurityDescriptorW"); err != nil {
+		return 0, err
+	}
+	defer syscall.LocalFree(syscall.Handle(descriptor))
+	security := syscall.SecurityAttributes{Length: uint32(unsafe.Sizeof(syscall.SecurityAttributes{})), SecurityDescriptor: descriptor, InheritHandle: 1}
 	desktop, _, nativeErr := user32.NewProc("CreateDesktopW").Call(uintptr(unsafe.Pointer(namePtr)), 0, 0, 0, 0xff, uintptr(unsafe.Pointer(&security)))
 	if err := checked(desktop, nativeErr, "CreateDesktopW"); err != nil {
 		return 0, err

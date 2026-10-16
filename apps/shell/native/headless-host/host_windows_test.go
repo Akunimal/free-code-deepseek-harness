@@ -348,3 +348,41 @@ func TestWindowFixture(t *testing.T) {
 	user.NewProc("DestroyWindow").Call(hwnd)
 	os.Exit(37)
 }
+
+// The private desktop must admit only the restricted child's logon-session SID,
+// with the desktop rights USER32 initialisation needs, and carry a Low
+// mandatory label so Low-integrity WRITE_RESTRICTED children can write to it.
+// It must never grant switching, input hooks/journaling, ownership or DACL
+// edits, must not grant the owner, and must never widen to Everyone or
+// Authenticated Users.
+func TestPrivateDesktopDACLGrantsLogonSessionOnlyDesktopRightsAtLowIntegrity(t *testing.T) {
+	const logon = "S-1-5-5-1234567890-987654321"
+	sddl, err := privateDesktopSDDL(logon)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "D:(A;;GA;;;SY)(A;;0x000000c7;;;" + logon + ")S:(ML;;NW;;;LW)"
+	if sddl != want {
+		t.Fatalf("private desktop SDDL = %q, want %q", sddl, want)
+	}
+	const (
+		desktopSwitch, desktopHookControl, desktopJournalRecord, desktopJournalPlayback = 0x100, 0x8, 0x10, 0x20
+		writeDAC, writeOwner, deleteRight                                               = 0x40000, 0x80000, 0x10000
+	)
+	granted := uint32(privateDesktopLogonRights)
+	for _, forbidden := range []uint32{desktopSwitch, desktopHookControl, desktopJournalRecord, desktopJournalPlayback, writeDAC, writeOwner, deleteRight} {
+		if granted&forbidden != 0 {
+			t.Fatalf("logon-session ACE grants forbidden bit 0x%x", forbidden)
+		}
+	}
+	for _, sid := range []string{"WD", "AU", "BU", "IU", "OW"} {
+		if strings.Contains(sddl, ";;;"+sid+")") {
+			t.Fatalf("private desktop DACL names %s: %q", sid, sddl)
+		}
+	}
+	for _, malformed := range []string{"", "S-1-5-21-1-2-3", "S-1-5-5-1);(A;;GA;;;WD", "S-1-5-5-1-2 "} {
+		if _, err := privateDesktopSDDL(malformed); err == nil {
+			t.Fatalf("malformed logon SID %q accepted", malformed)
+		}
+	}
+}
