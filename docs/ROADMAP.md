@@ -1,15 +1,15 @@
 # Roadmap / Hoja de ruta
 
-### Current 0.9.4 candidate (alpha8)
+### Current release: v0.9.4 (Windows x64)
 
-The candidate targets `apps/shell/release-0.9.4-alpha8-20261016/`, with DSH 0.2.1-alpha.8 and opencode2api v1.4.0. It includes V094-37 catalog-loading feedback, V094-38 original Hermes-style animated backgrounds that remain on the active pattern during generation and crossfade only after completion/stop, V094-39 per-model context and supported effort, active-profile repair, documented inference routing, and V094-35's localized model-block fix. The full non-interactive release gate passed; fresh setup/portable artifacts were built and statically verified, with exact hashes in the bilingual release notes. Alpha6/alpha7 desktop artifacts are superseded. Alpha8 is unpublished; the local bundle includes the exact runtime and a CHECK ONLY preflight. To test, the user closes FreeCode and explicitly runs the preparation option before setup; this task did not install or launch FreeCode. Public-provider acceptance remains unverified. The active catalog is `profiles/web/cordis.patch.yml`. V094-21 remains included; alpha5/alpha6 desktop artifacts are superseded. No tag, upload or release is included.
+The public v0.9.4 release includes setup, portable, updater metadata and the exact DSH `0.2.1-alpha.8` runtime asset with SHA-256; the user installed it and confirmed it works. It ships opencode2api v1.4.0, the V094-37 model-catalog loading indicator, V094-38's 13 original Hermes-inspired animated backgrounds with stream-stable crossfades, V094-39 per-model context/reasoning metadata, profile/model synchronization, V094-21 catalog/Tor corrections, Tor resilience and the V094-35 composer-block recursion fix. The active catalog is `profiles/web/cordis.patch.yml`. The release gate and static asset checks passed. KI-011 (pool-status window close button) is deferred to v0.9.5. See the bilingual release notes for exact assets/hashes and alpha history.
 
-### Candidata actual 0.9.4 (alpha8)
+### Release actual: v0.9.4 (Windows x64)
 
-La candidata apunta a `apps/shell/release-0.9.4-alpha8-20261016/`, con DSH 0.2.1-alpha.8 y opencode2api v1.4.0. Incluye V094-37, indicador de carga del catálogo; V094-38, fondos animados originales inspirados en Hermes que mantienen el patrón durante la generación y transicionan solo al completar/detener; V094-39, contexto y esfuerzo admitido por modelo; arreglo del perfil activo, rutas de inferencia documentadas y V094-35, corrección del bloqueo localizado. El gate completo no interactivo pasó; setup/portable se compilaron y verificaron estáticamente, con hashes exactos en las notas bilingües. Los artefactos desktop alpha6/alpha7 están obsoletos. Alpha8 no está publicado; el bundle local incluye el runtime exacto y el preflight CHECK ONLY. Para probar, cierra FreeCode tú mismo y ejecuta explícitamente la precarga antes del setup; esta tarea no instaló ni inició FreeCode. La respuesta del proveedor público sigue sin verificarse. No se incluye tag, subida ni publicación.
+La release pública v0.9.4 incluye setup, portable, metadatos del updater y el runtime DSH exacto `0.2.1-alpha.8` con SHA-256; el usuario la instaló y confirmó que funciona. Incorpora opencode2api v1.4.0, el indicador de carga del catálogo V094-37, los 13 fondos animados originales inspirados en Hermes de V094-38 con crossfade estable durante el stream, metadata de contexto/razonamiento por modelo V094-39, sincronización de perfil/modelos, las correcciones V094-21 de catálogo/Tor, resiliencia Tor y el fix V094-35 de recursión del bloqueo del composer. El gate de release pasó y también los checks estáticos. KI-011 (botón de cerrar de estado del pool) queda para v0.9.5. Ver las notas bilingües para assets/hashes exactos e historial alpha.
 
-Baseline: `v0.9.4 candidate`
-Published baseline: `v0.9.3`
+Baseline: `v0.9.4`
+Published baseline: `v0.9.4`
 
 ## Estrategia de ahorro de contexto / Context-efficiency strategy
 
@@ -24,35 +24,30 @@ RTK and Caveman are not enabled together by default: they may complement each ot
 
 ## En curso / In progress
 
-### `v0.9.4` candidate — Model reliability, Tor and Gentle AI / Modelos, Tor y Gentle AI
-
-**Status / Estado:** local candidate; unpublished / candidata local; sin publicar.
-
-1. **Gateway / Gateway** — vendored opencode2api v1.4.0 with manual model
-   persistence, transient probe recovery, stable identities and the fork's
-   direct-first Tor policy.
-2. **Tor / Tor** — SAFECOOKIE ControlPort, readiness gated on bootstrap 100%
-   plus usable SOCKS, adaptive circuit timeouts and stable stream circuits;
-   bounded diagnostics and async startup preserve the direct route on failure.
-   The Tor-unavailable trace found a disposable-NSIS-profile leak: Chromium's
-   `--user-data-dir` did not redirect Electron's APPDATA-based `userData`.
-   Smoke now isolates all user profile/temp roots; Tor assets are hash-verified.
-3. **Conversation / Conversación** — actual MIT Hermes Phoenix patterns now
-   follow live work at 4x idle speed. Isolated Chromium verifies the production
-   panel, pixels, resize and cleanup; installed alpha5 is unchanged. A fresh
-   runtime version and passing global client typecheck/release gate remain
-   prerequisites, not claims about the currently installed app.
-4. **Agent selector / Selector de agentes** — Gentle AI restored as an explicit
-   opt-in Web mode; Standard remains the default.
-5. **Runtime integrity / Integridad runtime** — source pins DSH alpha8; the local alpha8 archive and checksum are verified, while the old alpha4/alpha6 caches cannot satisfy the current immutable pin. opencode2api version/SHA pins match the locally built artifacts, and absent optional PATH fallbacks remain optional.
-6. **Model/Tor resilience / Resiliencia de modelos/Tor** — clear stale provider
-   settings before DSH starts, use Muse Spark's minimum 16-token probe budget,
-   and keep upstream 400/401/403 responses from cooling the anonymous Direct/Tor
-   pool. HTTP 429, 5xx and transport failures still use cooldown. A real 401/403
-   still requires valid upstream access.
-7. **Release state / Estado de release** — v0.9.4 remains unpublished and v0.9.3 remains the latest release. The earlier alpha5/alpha6/alpha7 desktop artifacts are superseded. The fresh non-interactive release gate passed; setup and portable were built into `apps/shell/release-0.9.4-alpha8-20261016/` and statically verified. Exact hashes are recorded in the bilingual release notes. The local bundle includes the matching alpha8 runtime and CHECK ONLY preflight. No installer was executed and no FreeCode GUI or user cache was touched. Alpha8 remains unpublished; local first launch requires the included explicit runtime preparation after the user closes FreeCode. Public-provider acceptance remains unverified; mocks do not prove it.
+No hay tareas de release activas para v0.9.4. / There are no active v0.9.4 release tasks.
 
 ## Completado / Completed
+
+### `v0.9.4` — Model reliability, Tor, catalog UX and animated backgrounds / Fiabilidad de modelos, Tor, catálogo y fondos
+
+**Status / Estado:** published; installed and confirmed working on Windows x64 / publicada; instalada y confirmada funcionando en Windows x64.
+
+1. **Gateway:** vendored opencode2api v1.4.0 retains manual model selection, recovers from transient probe failures, preserves stable identities and keeps FreeCode's direct-first Tor policy.
+2. **Models/Tor:** seed the active provider catalog before DSH startup, use Muse Spark's minimum 16-token probe budget, and do not cool routes on upstream 400/401/403; SAFECOOKIE ControlPort readiness requires bootstrap 100% plus usable SOCKS, while 429/5xx/transport failures retain cooldown and failover.
+3. **Conversation:** 13 original Hermes-inspired CSS/ASCII patterns remain stable while streaming, accelerate during generation and crossfade only on completion/stop. Production-bundle Chromium checks cover normal/reduced motion, animation, resize and cleanup.
+4. **Model UX:** visible catalog-refresh progress and per-model context/output/reasoning metadata reach the selector and token meter; Gentle AI is selectable while Standard stays default.
+5. **Runtime/release:** exact DSH alpha8 runtime and checksum are published separately from setup/portable. The final non-interactive release gate passed; setup and portable were built in `apps/shell/release-0.9.4-final-20261016/` and statically verified. Earlier alpha5–alpha8 desktop builds remain superseded history.
+6. **Deferred issue:** KI-011, the pool-status window's close button, is tracked for v0.9.5.
+
+### `v0.9.5` — Pool-status window close lifecycle / Ciclo de cierre de estado del pool
+
+**Status / Estado:** planned follow-up / seguimiento planificado.
+
+Fix the close button on the pool-status window and add regression coverage for
+its close event and native window lifecycle. Keep this change out of v0.9.4.
+/
+Corregir el botón de cierre de la ventana de estado del pool y agregar pruebas
+de regresión para su evento y el ciclo de vida nativo. No incluirlo en v0.9.4.
 
 ### `v0.9.3` - Session recovery and release reliability / Recuperación de sesiones y fiabilidad de release
 

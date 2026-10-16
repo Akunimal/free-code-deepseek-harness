@@ -1,9 +1,10 @@
 # Changelog
 
-## 0.9.4 — Candidate — 2026-10-16
+## 0.9.4 — Published — 2026-10-16
 
-See the [bilingual v0.9.4 candidate notes](release-notes-v0.9.4.md). This is an
-unpublished candidate; v0.9.3 remains the latest published Windows x64 release.
+See the [bilingual v0.9.4 release notes](release-notes-v0.9.4.md). v0.9.4 is
+published for Windows x64; the public assets include setup, portable, updater
+metadata and the exact DSH alpha8 runtime/checksum.
 
 ### Reliability / Confiabilidad
 
@@ -12,13 +13,12 @@ unpublished candidate; v0.9.3 remains the latest published Windows x64 release.
   requests use the protocol-qualified v1.4.0 inference route. / Los modelos
   ahora actualizan el perfil activo y recargan sin reinicio; la ruta pública
   v1.4.0 usa el namespace de protocolo correcto.
-- The candidate pins DSH `0.2.1-alpha.8`. Strict Host and Client builds pass
+- The release pins DSH `0.2.1-alpha.8`. Strict Host and Client builds pass
   independently; Hermes indexed access and Spanish dictionary contracts are
-  enforced. The local alpha8 runtime archive is SHA-256 verified and paired
-  with a CHECK ONLY first-run preparation helper because it is not published.
-  / La candidata fija DSH `0.2.1-alpha.8`. Los builds estrictos de Host y
-  Client pasan; el archivo alpha8 local verifica SHA-256 y se acompaña de una
-  herramienta CHECK ONLY de precarga porque aún no está publicado.
+  enforced. Its separately published runtime archive has a verified SHA-256.
+  / La release fija DSH `0.2.1-alpha.8`. Pasan los builds estrictos de Host y
+  Client; los contratos de Hermes y del diccionario español están cubiertos.
+  El runtime publicado por separado tiene SHA-256 verificado.
 
 - Updated vendored opencode2api to v1.4.0 with persistent manual model choice,
   transient-probe recovery, and stable request/session identity contracts. The
@@ -81,11 +81,12 @@ unpublished candidate; v0.9.3 remains the latest published Windows x64 release.
   bundle real verifican ambos modos, glifos, resize, interacción y limpieza.
 
 - Fresh v0.9.4 setup and portable binaries were built and statically verified;
-  the setup was not run or installed, and v0.9.3 remains the latest published
-  release. Exact hashes live in `release-notes-v0.9.4.md`. / Setup y portable
-  0.9.4 se compilaron y verificaron estáticamente; no se ejecutó ni instaló el
-  setup, y v0.9.3 sigue siendo la última release publicada. Los hashes exactos
-  están en `release-notes-v0.9.4.md`.
+  the user installed the setup and confirmed it works. v0.9.4 is the latest
+  published release. Exact hashes and KI-011 (pool-status close button deferred
+  to v0.9.5) are recorded in `release-notes-v0.9.4.md`. / Setup y portable
+  0.9.4 se compilaron y verificaron estáticamente; el usuario instaló el setup
+  y confirmó que funciona. v0.9.4 es la última release publicada. Los hashes y
+  KI-011 (cierre de estado del pool, diferido a v0.9.5) están en las notas.
 
 ## 0.9.3 — 2026-10-12
 

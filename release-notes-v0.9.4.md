@@ -1,12 +1,24 @@
-# FreeCode DeepSeek Harness v0.9.4 — Candidate
+# FreeCode DeepSeek Harness v0.9.4 — Published
 
 ## English
 
-### Current 0.9.4 candidate (alpha8)
+### v0.9.4 published release — Windows x64
 
-The current candidate targets `apps/shell/release-0.9.4-alpha8-20261016/` and pins DSH 0.2.1-alpha.8 with opencode2api v1.4.0. V094-37 shows catalog refresh progress; V094-38 adds original animated backgrounds with 13 patterns, ASCII weather glyphs, faster motion during generation, a stable pattern while streaming, and a crossfade only after completion or stop; V094-39 preserves per-model context/output limits and supported reasoning efforts through the selector and context meter. The emitted alpha8 production bundle was rendered in Chromium: it held `aurora` during the stream, crossfaded to `ascii-stars` on stop, animated both ASCII patterns, resized correctly, and disabled canvas motion under reduced-motion preference. The inspected normal/reduced/gallery captures are in `D:/Temp/freecode-v094-alpha8-prod-render-20261016-r1/`. The candidate also includes active-profile/model synchronization, inference routing, and V094-35's composer recursion fix. The full non-interactive release gate passed; fresh setup/portable artifacts and the local runtime-preparation bundle were built, then statically verified without launching anything. The exact assets are listed below; the alpha7 executables in the following historical section are superseded. The alpha8 DSH runtime archive is local and checksum-verified but unpublished, so a clean install still needs that release asset or explicit local preparation. No setup was executed; FreeCode, its installed state and its user cache were not touched. Public-provider acceptance remains unverified. No tag, push, upload or release is included.
+FreeCode DeepSeek Harness v0.9.4 is published for Windows x64. The release includes the NSIS setup, portable executable, updater metadata and the exact DSH `0.2.1-alpha.8` runtime archive with SHA-256, so a clean first launch can fetch its pinned runtime. It ships opencode2api v1.4.0; V094-37 catalog-loading feedback; V094-38's 13 original Hermes-inspired animated backgrounds that stay stable during generation and crossfade only after completion/stop; V094-39 per-model context/output/effort metadata; active-profile/model synchronization; inference routing; Tor resilience; Gentle AI; and V094-35's composer recursion fix. The full non-interactive release gate and static asset verification passed. The user installed v0.9.4 and confirmed it works after alpha8 was locally precached; a clean-machine first-launch download was not separately exercised. KI-011, the pool-status window's close button, is deferred to v0.9.5. Exact public assets and hashes follow.
 
-### Verified local alpha8 artifacts / Artefactos alpha8 locales verificados
+Output: `apps/shell/release-0.9.4-final-20261016/`.
+
+| Asset | Bytes | SHA-256 |
+|---|---:|---|
+| Setup 0.9.4 | pending final build | pending |
+| Portable 0.9.4 | pending final build | pending |
+| DSH 0.2.1-alpha.8 runtime | 421,507,898 | `bf9f4324f0a10d6ff0861e365284d08d8f3745a3c5da49621d339629926023a6` |
+
+### Previous local 0.9.4 candidate (alpha8; superseded by the public release)
+
+The locally tested alpha8 build targeted `apps/shell/release-0.9.4-alpha8-20261016/` and was generated with electron-builder. Its production UI was rendered in Chromium: it held `aurora` during a stream, crossfaded to `ascii-stars` on stop, animated both ASCII patterns, resized correctly and disabled canvas motion under reduced-motion preference. Inspected normal/reduced/gallery captures are in `D:/Temp/freecode-v094-alpha8-prod-render-20261016-r1/`. The alpha8 setup/portable were statically verified; the user locally precached the exact runtime and confirmed the installed v0.9.4 works. This prior local bundle did not include a public runtime asset; the current public release does.
+
+### Verified local alpha8 candidate artifacts (superseded)
 
 The 0.9.4 NSIS setup and portable executable were built with electron-builder and
 statically verified by `verify:desktop-release-assets`. The included local test
@@ -28,9 +40,9 @@ Output: `apps/shell/release-0.9.4-alpha8-20261016/`.
 That prior candidate targeted `apps/shell/release-0.9.4-alpha7-20261015/`, with DSH 0.2.1-alpha.7 and opencode2api v1.4.0. Alpha5 and alpha6 desktop builds are superseded; alpha6 predates V094-35, which prevents the localized model-block reason from recursively writing the composer store. Catalog/profile synchronization, public inference protocol routing, Hermes animation and the browser-first prompt remained part of that candidate. Its release gate passed and its local setup/portable assets were statically verified; historical hashes and sizes are listed in the following table. The alpha7 runtime is unpublished and was included in that local test bundle with a CHECK ONLY preflight. That build did not install or run setup or FreeCode. Public-provider acceptance remains unverified; no tag, upload or release was included. V094-21 historical fixes remain included.
 
 
-**Status: locally built candidate; not yet published.** v0.9.3 remains the latest published
-Windows x64 release. These notes describe the local source candidate, not a
-release announcement. The latest pre-fix alpha5 setup and portable are in
+**Historical alpha5 checkpoint (superseded):** At that earlier point, v0.9.3
+was still the latest published Windows x64 release. The pre-fix alpha5 setup
+and portable were in
 `apps/shell/release-0.9.4-alpha5-candidate-20261014/` (setup: 178,630,999 bytes,
 SHA-256 `3117054ba2ee29c6c9993e7f7cdd525262f8d39e4f037e037c411142659d8a08`;
 portable: 178,255,861 bytes, SHA-256
@@ -45,7 +57,7 @@ release asset. The earlier model-resilience build and gate in
 `apps/shell/release-0.9.4-model-resilience-20261015/` ran, but the user rejected
 those model/background results. Those artifacts are superseded by V094-24/25/26
 and the current alpha7 candidate.
-The v0.9.4 candidate remains unpublished.
+That alpha5 checkpoint predates the v0.9.4 alpha8 build and public release below.
 
 ### Verified local alpha7 artifacts (superseded) / Artefactos alpha7 locales verificados (obsoletos)
 
@@ -109,7 +121,8 @@ That local-only alpha4 cache workaround did not satisfy the later alpha5 pin.
   is reserved for browser unavailability, blocked access or failed attempts,
   with the limitation disclosed. Tool scopes and user permissions remain
   respected. DSH `0.2.1-alpha.7` is locally rebuilt and its archive, SHA-256,
-  Electron ABI and Node engine are verified; it is not published remotely yet.
+  Electron ABI and Node engine were verified locally at that historical point;
+  this alpha7 archive was not published.
 - **OmniRoute removed.** No optional runtime download, automatic fallback,
   server or detector remains. Next-start migration retires only FreeCode-owned
   legacy configuration and verified caches; user providers/history are preserved.
@@ -151,7 +164,7 @@ That local-only alpha4 cache workaround did not satisfy the later alpha5 pin.
 - **Gentle AI is selectable again.** It is an explicit opt-in Web mode based on
   the Standard composition; Standard remains the default.
 
-### Candidate verification
+### Historical alpha5 and V094-21 verification
 
 Before V094-21, the alpha5 candidate's release gate and static desktop-asset
 checks passed; that evidence applies only to the superseded binaries above. For
@@ -165,15 +178,27 @@ readiness at 80.10 s). At that historical checkpoint, the full release gate and
 fresh desktop build were still pending. They have since passed; the locally
 verified alpha7 artifacts are listed above. The previous alpha5/alpha6 setup
 and portable remain superseded. The active FreeCode instance was not
-interrupted. No tag or public v0.9.4 release exists.
+interrupted. At that historical checkpoint no tag or public v0.9.4 release existed.
 
 ## Español
 
-### Candidata actual 0.9.4 (alpha8)
+### Release publicada v0.9.4 — Windows x64
 
-La candidata actual apunta a `apps/shell/release-0.9.4-alpha8-20261016/` y fija DSH 0.2.1-alpha.8 con opencode2api v1.4.0. V094-37 muestra el progreso de carga del catálogo; V094-38 incorpora 13 fondos animados originales, glifos ASCII de clima, más velocidad durante la generación, patrón estable durante el stream y transición únicamente al completar o detener. V094-39 conserva por modelo el contexto, el límite de salida y los esfuerzos de razonamiento admitidos hasta el selector y el medidor. El bundle de producción alpha8 se renderizó en Chromium: mantuvo `aurora` durante el stream, pasó con crossfade a `ascii-stars` al detener, animó ambos patrones ASCII, se adaptó al resize y desactivó el canvas con movimiento reducido. Las capturas normal/reducido/galería se inspeccionaron en `D:/Temp/freecode-v094-alpha8-prod-render-20261016-r1/`. También incluye sincronización del perfil/modelos, rutas de inferencia y V094-35, que corrige la recursión del composer. El gate completo no interactivo pasó; setup/portable y el bundle de precarga local se compilaron y verificaron estáticamente. Sus assets exactos se detallan abajo; los ejecutables alpha7 de la sección histórica siguiente están obsoletos. El runtime DSH alpha8 está verificado localmente, pero no publicado; una instalación limpia requiere publicar ese asset o prepararlo explícitamente de forma local. No se ejecutó setup ni se tocó FreeCode, su instalación o caché. La aceptación del proveedor público sigue sin verificarse. No se incluye tag, push, subida ni publicación.
+FreeCode DeepSeek Harness v0.9.4 se publicó para Windows x64. La release incluye setup NSIS, portable, metadatos del updater y el runtime DSH exacto `0.2.1-alpha.8` con SHA-256, para que el primer inicio descargue el runtime fijado. Incorpora opencode2api v1.4.0; V094-37, indicador de carga del catálogo; V094-38, 13 fondos animados originales inspirados en Hermes que mantienen el patrón durante la generación y hacen crossfade al completar/detener; V094-39, contexto/límite de salida/esfuerzos por modelo; sincronización del perfil/modelos; rutas de inferencia; resiliencia Tor; Gentle AI; y V094-35, fix de recursión del composer. El gate completo no interactivo pasó y la verificación estática de assets también. El usuario instaló v0.9.4 y confirmó que funciona después de precargar alpha8 localmente; no se probó por separado la descarga del runtime en una máquina limpia. KI-011, el botón de cerrar de estado del pool, queda para v0.9.5. Los assets públicos y hashes exactos están abajo.
 
-### Artefactos alpha8 locales verificados / Verified local alpha8 artifacts
+Salida: `apps/shell/release-0.9.4-final-20261016/`.
+
+| Asset | Bytes | SHA-256 |
+|---|---:|---|
+| Setup 0.9.4 | pendiente del build final | pendiente |
+| Portable 0.9.4 | pendiente del build final | pendiente |
+| Runtime DSH 0.2.1-alpha.8 | 421.507.898 | `bf9f4324f0a10d6ff0861e365284d08d8f3745a3c5da49621d339629926023a6` |
+
+### Candidata local anterior 0.9.4 (alpha8; sustituida por la release pública)
+
+La build local alpha8 apuntó a `apps/shell/release-0.9.4-alpha8-20261016/` y se generó con electron-builder. La UI de producción se renderizó en Chromium: mantuvo `aurora` durante el stream, pasó con crossfade a `ascii-stars` al detener, animó ambos patrones ASCII, se adaptó al resize y desactivó el canvas con movimiento reducido. Las capturas normal/reducido/galería están en `D:/Temp/freecode-v094-alpha8-prod-render-20261016-r1/`. Setup/portable alpha8 se verificaron estáticamente; el usuario precargó localmente el runtime exacto y confirmó que v0.9.4 instalada funciona. Aquel bundle local no incluía un asset runtime público; la release pública actual sí lo incluye.
+
+### Artefactos de la candidata local alpha8 (obsoletos)
 
 El setup NSIS y el portable 0.9.4 se compilaron con electron-builder y se
 verificaron estáticamente. El paquete local de prueba pasó
@@ -195,9 +220,9 @@ Salida: `apps/shell/release-0.9.4-alpha8-20261016/`.
 Esa candidata anterior apuntaba a apps/shell/release-0.9.4-alpha7-20261015/, con DSH 0.2.1-alpha.7 y opencode2api v1.4.0. Los builds desktop alpha5/alpha6 quedaron obsoletos; alpha6 precedía a V094-35, que evita que el motivo localizado del bloqueo del modelo escriba recursivamente en el store del composer. La sincronización del perfil/catálogo, el protocolo de inferencia pública, la animación Hermes y el prompt browser-first estaban incluidos. El gate de release pasó; el setup/portable se compilaron y verificaron estáticamente; los tamaños y hashes históricos están en la tabla siguiente. El runtime alpha7 no publicado se incluyó en aquel bundle local con preflight CHECK ONLY. Esa build no instaló ni ejecutó setup o FreeCode. La aceptación del proveedor público sigue sin verificarse; no se incluyó tag, subida ni publicación. Se mantienen los fixes históricos V094-21.
 
 
-**Estado: candidata local compilada; todavía no publicada.** v0.9.3 sigue siendo la última release
-publicada para Windows x64. Estas notas describen el código local, no anuncian
-una release. El setup/portable alpha5 anterior a V094-21 está en
+**Checkpoint histórico de alpha5 (obsoleto):** en ese momento v0.9.3 seguía
+siendo la última release publicada para Windows x64. El setup/portable alpha5
+anterior a V094-21 estaba en
 `apps/shell/release-0.9.4-alpha5-candidate-20261014/` (setup: 178.630.999 bytes,
 SHA-256 `3117054ba2ee29c6c9993e7f7cdd525262f8d39e4f037e037c411142659d8a08`;
 portable: 178.255.861 bytes, SHA-256
@@ -211,7 +236,7 @@ El archivo DSH alpha5 está verificado localmente, pero no publicado: una
 instalación limpia todavía necesita el asset de release correspondiente. Falta
 un nuevo build desktop y gate completo en
 `apps/shell/release-0.9.4-model-resilience-20261015/`; ambos se ejecutaron, pero el usuario rechazó el catálogo y los fondos. También quedan obsoletos frente a V094-24/25/26.
-v0.9.4 continúa sin publicarse.
+Ese checkpoint alpha5 precede a alpha8 y a la release pública v0.9.4 descrita arriba.
 
 Nota histórica del runtime: el primer arranque del setup alpha4 anterior informó
 `No harness runtime asset for packaged version 0.2.1-alpha.4 (win32-x64)`.
@@ -303,7 +328,7 @@ La precarga local alpha4 fue un workaround y no satisface el pin alpha5 posterio
 - **Gentle AI vuelve a ser seleccionable.** Es un modo Web optativo explícito
   basado en Standard; Standard sigue siendo el modo predeterminado.
 
-### Verificación de la candidata
+### Verificación histórica de alpha5 y V094-21
 
 Antes de V094-21, el gate y la verificación estática de los binarios alpha5
 pasaron; esa evidencia corresponde solo a los artefactos obsoletos de arriba.

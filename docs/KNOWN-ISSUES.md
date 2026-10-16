@@ -1,34 +1,38 @@
 # Known issues / Problemas conocidos
 
-Última sincronización documental / Last documentation sync: 2026-10-14
-Última release publicada / Latest published release: `v0.9.3`; fuente candidata / candidate source: `v0.9.4`
+Última sincronización documental / Last documentation sync: 2026-10-16
+Última release publicada / Latest published release: `v0.9.4`
 
 ## Estado actual / Current status
 
-La release publicada `v0.9.3` mantiene la resiliencia Tor (una instancia única
+La release publicada `v0.9.4` mantiene la resiliencia Tor (una instancia única
 `tor.exe` empaquetada, con rotación `NEWNYM` y failover para opencode2api),
 consolida el lane de modelos a un único `deepseek-free` sin duplicados, hace
 que el seeder respete el modelo elegido por el usuario, incorpora el modo
 Gentle AI integrado de 0.8.0, elimina freellmpool y WARP, y mantiene Engram
-como tercera fila MCP administrada con el locale español corregido. Las
+como tercera fila MCP administrada con el locale español corregido. v0.9.4
+agrega el indicador de carga del catálogo, 13 fondos animados Hermes, metadata
+de contexto/esfuerzo por modelo y el runtime DSH alpha8 publicado. Las
 limitaciones honestas restantes: la cuota del upstream gobierna el lane
 anónimo, los binarios RTK/Caveman/free-search no están empaquetados, y las
-demás plataformas no están probadas. En v0.9.3 sólo se soporta Windows x64;
-Windows ARM64, Linux y macOS no están soportados. El runtime DSH `0.2.1-alpha.2`
-se descarga de forma separada en el primer inicio sin caché válida, por lo que
-esa primera ejecución requiere Internet.
+demás plataformas no están probadas. En v0.9.4 sólo se soporta Windows x64;
+Windows ARM64, Linux y macOS no están soportados. El runtime DSH `0.2.1-alpha.8`
+se descarga por separado en el primer inicio sin caché válida, por lo que
+esa primera ejecución requiere Internet. KI-011, el botón de cierre de estado
+del pool, se difiere a v0.9.5.
 
-The published `v0.9.3` release retains Tor resilience (a single bundled
+The published `v0.9.4` release retains Tor resilience (a single bundled
 `tor.exe` instance with `NEWNYM` rotation and opencode2api failover),
 consolidates the model lane into a single duplicate-free `deepseek-free`, makes
 the seeder preserve the user-chosen model, carries the 0.8.0 Gentle AI mode,
 removes freellmpool and WARP, and keeps Engram as the third managed MCP row
 with the fixed Spanish locale. Honest limitations remain: upstream quota
 governs the anonymous lane, the RTK/Caveman/free-search binaries are not
-vendored, and other platforms are untested. v0.9.3 supports Windows x64 only;
-Windows ARM64, Linux and macOS are unsupported. The DSH `0.2.1-alpha.2` runtime
+vendored, and other platforms are untested. v0.9.4 supports Windows x64 only;
+Windows ARM64, Linux and macOS are unsupported. The DSH `0.2.1-alpha.8` runtime
 is fetched separately on first launch when no valid cache exists, so that
-launch needs Internet access.
+launch needs Internet access. KI-011, the pool-status close button, is deferred
+to v0.9.5.
 
 ## Limitaciones operativas / Operational limitations
 
@@ -40,28 +44,30 @@ La ruta OpenCode Free depende del puente local, los workers disponibles, los lí
 
 ### KI-002 — Separate first-launch runtime download / Descarga del runtime en el primer inicio
 
-The v0.9.3 setup is ~178.5 MB and portable is ~178.2 MB (~169.9 MiB); the DSH
-runtime is not inside either desktop installer. A first launch without a valid cache downloads
-the separate pinned `0.2.1-alpha.2` Windows x64 runtime archive (~421.6 MB),
+The v0.9.4 setup/portable are about 178 MB; see the bilingual release notes for
+exact hashes and sizes. The DSH runtime is not inside either desktop installer.
+A first launch without a valid cache downloads the separate pinned
+`0.2.1-alpha.8` Windows x64 runtime archive (~421.5 MB),
 then caches the validated runtime per user for offline later starts. This
 network/download step is part of the current packaging, not by itself evidence
 that the application is hung.
 
-El setup v0.9.3 pesa ~178,5 MB y el portable ~178,2 MB (~169,9 MiB); ninguno
-incluye el runtime DSH. En un primer inicio sin caché válida se descarga por separado el
-runtime Windows x64 fijado en `0.2.1-alpha.2` (~421,6 MB), y después de
+El setup/portable v0.9.4 pesan cerca de 178 MB; consulta las notas bilingües
+para tamaños y hashes exactos. Ninguno incluye el runtime DSH. En un primer
+inicio sin caché válida se descarga por separado el runtime Windows x64 fijado
+en `0.2.1-alpha.8` (~421,5 MB), y después de
 validarlo se guarda por usuario para los arranques sin conexión. Este paso de
 red/descarga forma parte del empaquetado actual y, por sí solo, no indica que
 la aplicación esté colgada.
 
 ### KI-003 — RTK/Caveman are PATH helpers, not bundled / RTK/Caveman son helpers por PATH, no empaquetados
 
-RTK and Caveman are not bundled in the published `v0.9.3` artifact. The code
+RTK and Caveman are not bundled in the published `v0.9.4` artifact. The code
 probes the user PATH and treats a missing binary as an explicit no-op, so
 the release works but is not self-contained for these helpers. Vendoring
 them with version/hash/license metadata remains deferred work.
 
-RTK y Caveman no están incluidos en el artefacto publicado de `v0.9.3`: el
+RTK y Caveman no están incluidos en el artefacto publicado de `v0.9.4`: el
 código consulta el PATH del usuario y la ausencia es un no-op explícito. La
 release funciona pero no es autocontenida para estos helpers. Empaquetarlos
 con metadata de versión/hash/licencia queda diferido.
@@ -152,11 +158,23 @@ preserva los bytes originales raw/Zstandard y rechaza abrir para escritura. No
 repara ni reconstruye el sufijo descartado; si se requiere recuperación manual,
 conservá intacto el archivo de sesión original.
 
-### KI-010 — v0.9.4 needs a published DSH alpha8 runtime asset / v0.9.4 requiere publicar el runtime DSH alpha8
+### KI-010 — DSH alpha8 first-launch runtime asset / Asset runtime DSH alpha8 del primer inicio
 
-The desktop setup intentionally excludes the separately versioned DSH runtime. First launch reuses a valid per-user cache or downloads an exact-version release asset. The current source pins 0.2.1-alpha.8; its archive is locally generated and SHA-256 verified (421,507,898 bytes; bf9f4324f0a10d6ff0861e365284d08d8f3745a3c5da49621d339629926023a6), but remains unpublished. A clean install cannot start DSH until that exact runtime is either published or prepared locally. The older alpha4 and alpha6 caches do not satisfy the alpha8 pin. For unpublished testing, the candidate bundle carries the exact tarball and the Prepare-Local-Runtime.ps1 CHECK ONLY preflight; preparation only occurs after the user closes FreeCode and explicitly runs the preparation option, retains backups, and never starts setup or the app. This user requested a local setup build, not cache preparation or installation. Public-provider acceptance and a clean first launch remain unverified; do not close KI-010 from mocks or packaging checks alone.
+Resolved in v0.9.4: the public release includes a published DSH alpha8 runtime asset, version `0.2.1-alpha.8`, and its SHA-256. First launch reuses a valid per-user cache or downloads that exact release asset; the updater validates GitHub's SHA-256 digest, runtime manifest and Electron ABI before caching it. The archive is 421,507,898 bytes; SHA-256 `bf9f4324f0a10d6ff0861e365284d08d8f3745a3c5da49621d339629926023a6`. Older alpha4/alpha6 caches do not satisfy this pin. The user's installed v0.9.4 was confirmed working after local alpha8 precache; a clean-machine first-launch download was not separately exercised, so that specific environment remains an unverified test scenario rather than a missing release asset.
 
-El setup desktop excluye el runtime DSH, que tiene versión independiente. El primer inicio reutiliza una caché válida por usuario o descarga un asset de versión exacta. La fuente actual fija 0.2.1-alpha.8; el archivo local se generó y verificó por SHA-256 (421.507.898 bytes; bf9f4324f0a10d6ff0861e365284d08d8f3745a3c5da49621d339629926023a6), pero no está publicado. Una instalación limpia no inicia DSH hasta publicar ese runtime exacto o prepararlo localmente. Las cachés antiguas alpha4 y alpha6 no satisfacen el pin alpha8. Para pruebas sin publicar, el bundle incluye el tarball exacto y el preflight CHECK ONLY de Prepare-Local-Runtime.ps1; la precarga requiere que el usuario cierre FreeCode y la solicite explícitamente, conserva backups y nunca inicia setup ni app. El usuario pidió compilar un setup local, no precargar la caché ni instalar. Siguen sin verificarse la respuesta pública y el primer inicio limpio; no cierres KI-010 solo con mocks o checks de packaging.
+Resuelto en v0.9.4: la release pública incluye el runtime DSH alpha8 para Windows x64 (`0.2.1-alpha.8`) y su SHA-256. El primer inicio reutiliza una caché válida por usuario o descarga ese asset exacto; antes de guardarlo, el updater valida el digest SHA-256 informado por GitHub, el manifest del runtime y la ABI de Electron. El archivo mide 421.507.898 bytes; SHA-256 `bf9f4324f0a10d6ff0861e365284d08d8f3745a3c5da49621d339629926023a6`. Las cachés alpha4/alpha6 no satisfacen este pin. El usuario confirmó que v0.9.4 instalada funciona después de precargar alpha8 localmente; no se probó por separado la descarga de primer inicio en una máquina limpia, así que ese escenario queda como prueba pendiente, no como asset faltante.
+
+### KI-011 — Pool-status window close button / Botón de cierre de estado del pool
+
+The close button on the pool-status window does not currently dismiss that
+window. This is a known UI issue deferred to v0.9.5; it does not block the
+v0.9.4 release. The next release should trace the window's close event and add
+a regression test for both the close control and the native window lifecycle.
+
+El botón de cerrar de la ventana de estado del pool actualmente no la cierra.
+Es un problema de UI conocido, diferido a v0.9.5; no bloquea la release v0.9.4.
+La próxima versión debe trazar el evento de cierre y agregar una regresión para
+el botón y el ciclo de vida de la ventana nativa.
 
 These entries are kept here so an old report is easy to classify:
 
