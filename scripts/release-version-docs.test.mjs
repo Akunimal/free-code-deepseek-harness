@@ -43,6 +43,12 @@ test('bilingual 0.9.4 notes identify the published release and retain candidate 
   assert.match(notes, /^## Español$/m);
   assert.match(currentEnglish, /v0\.9\.4 is published for Windows x64/i);
   assert.match(currentSpanish, /v0\.9\.4 se public[oó] para Windows x64/i);
+  assert.match(currentEnglish, /\| Setup 0\.9\.4 \| 178,757,839 bytes \| `ec1ee3b2b2ea811f72de3b90ee95d8f0292bc08440aa92956dfea7f01083f2b7` \|/i);
+  assert.match(currentEnglish, /\| Portable 0\.9\.4 \| 178,382,701 bytes \| `de3a94b3de80a48cc764bc4a99d1d906a457cd96a6db3d7010ddf9bcf1768f26` \|/i);
+  assert.match(currentEnglish, /\| DSH 0\.2\.1-alpha\.8 runtime \+ checksum asset \| 421,507,898 bytes \| `bf9f4324f0a10d6ff0861e365284d08d8f3745a3c5da49621d339629926023a6` \|/i);
+  assert.match(currentSpanish, /\| Setup 0\.9\.4 \| 178\.757\.839 bytes \| `ec1ee3b2b2ea811f72de3b90ee95d8f0292bc08440aa92956dfea7f01083f2b7` \|/i);
+  assert.match(currentSpanish, /\| Portable 0\.9\.4 \| 178\.382\.701 bytes \| `de3a94b3de80a48cc764bc4a99d1d906a457cd96a6db3d7010ddf9bcf1768f26` \|/i);
+  assert.match(currentSpanish, /\| Runtime DSH 0\.2\.1-alpha\.8 \+ archivo checksum \| 421\.507\.898 bytes \| `bf9f4324f0a10d6ff0861e365284d08d8f3745a3c5da49621d339629926023a6` \|/i);
   assert.match(notes, /opencode2api v1\.4\.0/i);
   assert.match(notes, /SAFECOOKIE[\s\S]*bootstrap/i);
   assert.match(english, /Gentle AI[\s\S]*Standard remains the default/i);
