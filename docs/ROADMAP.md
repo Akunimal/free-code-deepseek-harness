@@ -1,71 +1,15 @@
 # Roadmap / Hoja de ruta
 
-### Current 0.9.4 candidate (alpha6)
+### Current 0.9.4 candidate (alpha7)
 
-The new candidate targets `apps/shell/release-0.9.4-alpha6-20261015/` with
-DSH `0.2.1-alpha.6` and opencode2api v1.4.0. Previous alpha5 builds are
-superseded: the user reported only one model and connection/protocol errors.
-The active `profiles/web/cordis.patch.yml` now receives catalog/port changes
-through real Host HMR, not the boot-only legacy settings file. Public inference
-uses the documented OpenAI/Anthropic protocol namespace. Actual MIT Hermes
-Phoenix patterns run at 18 idle / 72 working steps per second, with reduced
-motion, visibility pause, resize and cleanup checks. Both strict compiler
-faces pass; workspace shell tests pass 346/346 and contracts 114 with 12
-configured skips. Live public completion remains unverified: two authorized
-connections were blocked by Windows before HTTP, and were not retried.
-The runtime build, exact staged visual proof and final packaging gate passed.
-Fresh setup and portable were generated and statically verified; neither was
-installed. This is not publication or live-provider acceptance. For unpublished
-local testing, the distribution includes the matching runtime archive and
-`Prepare-Local-Runtime.ps1`: default CHECK ONLY; explicit closed-app consent is
-required to prepare cache with backups. It never starts setup or FreeCode.
-No tag, upload, installed-cache mutation or active-process action is authorized.
-V094-21 historical fixes remain included.
+The candidate targets `apps/shell/release-0.9.4-alpha7-20261015/`, with DSH 0.2.1-alpha.7 and opencode2api v1.4.0. It includes the model-catalog/profile repair, documented inference routing, Hermes backgrounds and V094-35, which prevents localized composer-block writes from recursing when model availability changes. The full non-interactive release gate passed; fresh setup/portable artifacts were built and statically verified. Exact hashes are in `release-notes-v0.9.4.md`. Alpha6 desktop artifacts predate V094-35 and must not be used to test this candidate. Alpha7 is unpublished; the local bundle includes the exact runtime and a CHECK ONLY preflight. To test, the user closes FreeCode and explicitly runs the preparation option before setup; this task did not install or launch FreeCode. Public-provider acceptance remains unverified. The active catalog is `profiles/web/cordis.patch.yml`. V094-21 remains included; alpha5/alpha6 desktop artifacts are superseded. No tag, upload or release is included.
 
-### Candidata actual 0.9.4 (alpha6)
+### Candidata actual 0.9.4 (alpha7)
 
-La nueva candidata apunta a `apps/shell/release-0.9.4-alpha6-20261015/`, con
-DSH `0.2.1-alpha.6` y opencode2api v1.4.0. Los builds alpha5 anteriores quedan
-obsoletos: el usuario reportó un solo modelo y errores de conexión/protocolo.
-Ahora el catálogo/puerto se sincroniza con `profiles/web/cordis.patch.yml` y HMR
-del Host real, no con settings legado importado una sola vez. La inferencia
-pública usa el namespace OpenAI/Anthropic documentado. Los patrones MIT Hermes
-Phoenix reales funcionan a 18 pasos/s en reposo y 72 trabajando, con movimiento
-reducido, pausa al ocultar, resize y limpieza comprobados. Pasan ambos programas
-de tipado estricto, 346/346 pruebas shell y 114 contratos con 12 skips previstos.
-La respuesta pública real sigue sin verificarse: Windows bloqueó antes de HTTP
-las dos conexiones autorizadas y no se repitieron. Build runtime, evidencia
-visual del stage exacto y gate final de empaquetado pasaron. Se generaron y
-verificaron setup y portable nuevos, sin instalarlos. No equivale a publicar ni
-a validar el proveedor público. La prueba local sin publicar incluye
-el archivo runtime exacto y `Prepare-Local-Runtime.ps1`: por defecto CHECK ONLY;
-la precarga exige confirmación explícita de app cerrada y conserva backups.
-Nunca ejecuta setup ni FreeCode. No se autorizó tag, subida ni tocar caché o
-procesos activos. Se conservan los fixes históricos V094-21.
+La candidata apunta a `apps/shell/release-0.9.4-alpha7-20261015/`, con DSH 0.2.1-alpha.7 y opencode2api v1.4.0. Incluye el arreglo del catálogo/perfil, el enrutamiento de inferencia documentado, los fondos Hermes y V094-35, que evita escrituras recursivas del bloqueo localizado del composer cuando cambia la disponibilidad del modelo. El gate completo no interactivo pasó; se compilaron y verificaron estáticamente setup/portable. Los hashes exactos están en `release-notes-v0.9.4.md`. Los artefactos desktop alpha6 son anteriores a V094-35 y no deben usarse para probar esta candidata. Alpha7 no está publicado; el bundle local incluye el runtime exacto y el preflight CHECK ONLY. Para probar, cierra FreeCode tú mismo y ejecuta explícitamente la precarga antes del setup; esta tarea no instaló ni inició FreeCode. La respuesta del proveedor público sigue sin verificarse. No se incluye tag, subida ni publicación.
 
-
-Última sincronización documental / Last documentation sync: 2026-10-15
 Baseline: `v0.9.4 candidate`
 Published baseline: `v0.9.3`
-Estado / Status: objetivos sujetos a validación; no son fechas ni promesas de release.
-
-> **0.9.2** — Runtime DSH fijado descargado en el primer inicio sin caché válida y cacheado por
-> usuario; ventanas de `pwsh` Win32 headless; no se ofrecen downgrades del
-> runtime y el indicador de update vuelve a ser circular. Setup/portable bajan
-> a ~178 MB al separar el runtime de ~421,6 MB. Ver [CHANGELOG.md](../CHANGELOG.md)
-> y [release-notes-v0.9.2.md](../release-notes-v0.9.2.md).
->
-> **0.9.0** — Resiliencia Tor (instancia única `tor.exe` empaquetada, `NEWNYM`,
-> failover para opencode2api), lane único de modelos sin duplicados, seeder que
-> respeta el modelo del usuario, integración con `jasonxu114514/opencode2api`,
-> WARP/`warfleet`/`torfleet` eliminados. Ver [CHANGELOG.md](../CHANGELOG.md) y
-> [release-notes-v0.9.0.md](../release-notes-v0.9.0.md).
->
-> **0.8.0** — Gentle AI integrado, freellmpool eliminado, Engram como tercera fila MCP, Serena removida del catálogo, locale español completamente funcional (parche `141-*`, 30 archivos). Ver [CHANGELOG.md](../CHANGELOG.md) y [release-notes-v0.8.0.md](../release-notes-v0.8.0.md).
-
-FreeCode mantiene los workflows de publicación manuales para no consumir cuota gratuita de GitHub. Cada versión se publica sólo después de pasar sus contratos, pruebas relevantes y una revisión del instalador.
-
-FreeCode keeps release workflows manual so they do not consume GitHub free quota. A version ships only after its contracts, relevant tests, and installer review pass.
 
 ## Estrategia de ahorro de contexto / Context-efficiency strategy
 
@@ -100,29 +44,13 @@ RTK and Caveman are not enabled together by default: they may complement each ot
    prerequisites, not claims about the currently installed app.
 4. **Agent selector / Selector de agentes** — Gentle AI restored as an explicit
    opt-in Web mode; Standard remains the default.
-5. **Runtime integrity / Integridad runtime** — source now pins DSH alpha6 and
-   opencode2api version/SHA pins match the locally built artifacts; optional
-   PATH fallbacks do not fail the required-runtime check. The alpha6 archive and
-   checksum are locally generated/verified, not published; alpha5 cache and
-   artifacts are superseded.
+5. **Runtime integrity / Integridad runtime** — source pins DSH alpha7; the local alpha7 archive and checksum are verified, while the old alpha4/alpha6 caches cannot satisfy the current immutable pin. opencode2api version/SHA pins match the locally built artifacts, and absent optional PATH fallbacks remain optional.
 6. **Model/Tor resilience / Resiliencia de modelos/Tor** — clear stale provider
    settings before DSH starts, use Muse Spark's minimum 16-token probe budget,
    and keep upstream 400/401/403 responses from cooling the anonymous Direct/Tor
    pool. HTTP 429, 5xx and transport failures still use cooldown. A real 401/403
    still requires valid upstream access.
-7. **Release state / Estado de release** — source remains unpublished v0.9.4.
-   The earlier alpha4 setup required a runtime asset that was not published;
-   later alpha5 setup/portable and gate passed after local runtime precache. The
-   user tried the installed alpha5 candidate and reports only one model and
-   upstream/API-key, connection and protocol errors. Those pre-fix artifacts
-   are superseded. The alpha6 build and full gate now pass: shell 346/346,
-   contracts 114 with 12 configured skips, vendor 354/354, strict Host+Client,
-   packaged render and 14/14 native addons. Fresh setup/portable and the exact
-   local runtime/preflight are in
-   `apps/shell/release-0.9.4-alpha6-20261015/`. Neither was installed. The alpha6
-   runtime remains unpublished; v0.9.3 is still latest. The running app was not
-   interrupted. Public-provider acceptance and clean published first launch
-   remain pending; local fixture success does not prove them.
+7. **Release state / Estado de release** — v0.9.4 remains unpublished and v0.9.3 remains the latest release. The earlier alpha5/alpha6 desktop artifacts are superseded. The fresh non-interactive release gate passed; setup and portable were built into `apps/shell/release-0.9.4-alpha7-20261015/` and statically verified. Exact hashes are recorded in the bilingual release notes. The local bundle includes the matching alpha7 runtime and CHECK ONLY preflight. No installer was executed and no FreeCode GUI or user cache was touched. Alpha7 remains unpublished; local first launch requires the included explicit runtime preparation after the user closes FreeCode. Public-provider acceptance remains unverified; mocks do not prove it.
 
 ## Completado / Completed
 

@@ -10,7 +10,7 @@ test('runtime packaging pins an independent fork version, never the upstream pac
   const pinPath = join(root, 'apps/shell/harness-runtime.json');
   assert.equal(existsSync(pinPath), true, 'runtime version needs a tracked reproducible source pin');
   const pin = JSON.parse(readFileSync(pinPath, 'utf8'));
-  assert.equal(pin.version, '0.2.1-alpha.6', 'Hermes and live profile fixes require a new immutable runtime');
+  assert.equal(pin.version, '0.2.1-alpha.7', 'model-selection fixes require a new immutable runtime');
   const staged = JSON.parse(readFileSync(join(root, 'apps/shell/resources/freecode/runtime-manifest.json'), 'utf8'));
   assert.equal(staged.version, pin.version, 'the desktop stage must require the same DSH alpha version as the shell pin');
   const script = readFileSync(join(root, 'scripts/package-runtime.sh'), 'utf8');

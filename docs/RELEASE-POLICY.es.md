@@ -1,61 +1,17 @@
 # Política de releases
 
-### Candidata actual 0.9.4 (alpha6)
+### Candidata actual 0.9.4 (alpha7)
 
-v0.9.4 no está publicado; v0.9.3 sigue como baseline publicada.
-
-La nueva candidata apunta a `apps/shell/release-0.9.4-alpha6-20261015/`, con
-DSH `0.2.1-alpha.6` y opencode2api v1.4.0. Los builds alpha5 anteriores quedan
-obsoletos: el usuario reportó un solo modelo y errores de conexión/protocolo.
-Ahora el catálogo/puerto se sincroniza con `profiles/web/cordis.patch.yml` y HMR
-del Host real, no con settings legado importado una sola vez. La inferencia
-pública usa el namespace OpenAI/Anthropic documentado. Los patrones MIT Hermes
-Phoenix reales funcionan a 18 pasos/s en reposo y 72 trabajando, con movimiento
-reducido, pausa al ocultar, resize y limpieza comprobados. Pasan ambos programas
-de tipado estricto, 346/346 pruebas shell y 114 contratos con 12 skips previstos.
-La respuesta pública real sigue sin verificarse: Windows bloqueó antes de HTTP
-las dos conexiones autorizadas y no se repitieron. Build runtime, evidencia
-visual del stage exacto y gate final de empaquetado pasaron. Se generaron y
-verificaron setup y portable nuevos, sin instalarlos. No equivale a publicar ni
-a validar el proveedor público. La prueba local sin publicar incluye
-el archivo runtime exacto y `Prepare-Local-Runtime.ps1`: por defecto CHECK ONLY;
-la precarga exige confirmación explícita de app cerrada y conserva backups.
-Nunca ejecuta setup ni FreeCode. No se autorizó tag, subida ni tocar caché o
-procesos activos. Se conservan los fixes históricos V094-21.
-
+El runtime alpha7 y su archivo/checksum están verificados localmente; opencode2api v1.4.0 usa `profiles/web/cordis.patch.yml`. El gate completo no interactivo pasó y los artefactos setup/portable se compilaron y verificaron estáticamente en `apps/shell/release-0.9.4-alpha7-20261015/`. Incluye los fondos Hermes, la sincronización real del perfil y los fixes V094-21 del catálogo y Tor. Los artefactos desktop alpha6 son anteriores a V094-35 y no contienen la corrección de recursión del composer. Alpha7 sigue sin publicarse; el paquete local incluye el runtime exacto y el preflight CHECK ONLY. Este trabajo no instaló ni inició FreeCode. La aceptación del proveedor público sigue sin verificarse. No se incluye tag, subida ni publicación.
 
 Las releases son manuales y tienen como target Windows x64. Esta política
 describe el límite real entre la app desktop y el runtime para v0.9.3; no
 autoriza a tocar una instancia de FreeCode que esté en ejecución.
 
-La versión actual de la fuente es candidata v0.9.4. El usuario probó la alpha5
-instalada e informó que solo aparece un modelo y hay fallos de conexión/protocolo;
-esos artefactos anteriores al fix están obsoletos. Ahora pasan el runtime alpha6,
-el gate completo y la verificación estática de setup/portable. Falta la aceptación
-local del usuario y la respuesta del proveedor público. Los artefactos y hashes
-v0.9.3 son evidencia histórica publicada y no deben sobrescribirse. Publicar sigue
-siendo una operación separada que requiere autorización del usuario.
-
-## Contenido de la release y runtime fijado
-
-El candidato v0.9.4 cambia los fondos de DSH y prioriza el navegador en el prompt.
-Fija `0.2.1-alpha.6` en `apps/shell/harness-runtime.json`. El runtime se regeneró
-antes de empaquetar; el gate de stage rechaza stages obsoletos
-alpha2/alpha3/alpha4/alpha5. Los archivos runtime existentes son inmutables. El tarball
-alpha6 nuevo se generó localmente y se verificó:
-`apps/shell/release/deepseek-harness-runtime-0.2.1-alpha.6-win32-x64.tar.gz`
-(421.412.565 bytes; SHA-256
-`a6279368c40050f6def20af2f6ee6c21007f78257b3a5b7176af4d8f72c20c43`). No está
-publicado. El setup/portable anteriores se generaron y verificaron estáticamente,
-pero son previos a V094-21 y quedaron obsoletos. La caché local alpha4 no satisface
-el nuevo pin. Nunca
-presentes un archivo no subido como asset descargable de release. Se retiró
-OmniRoute: sin fallback, descarga, servidor ni detector. El próximo inicio
-elimina solo config antigua propia y cachés verificadas; conserva proveedores e
-historial ajenos.
+La candidata v0.9.4 incluye el arreglo V094-35 de recursión del bloqueo del modelo; por eso el pin de `apps/shell/harness-runtime.json` es 0.2.1-alpha.7. Alpha6 es un archivo histórico inmutable y anterior a ese código. El runtime alpha7 se regeneró y verificó localmente (421.460.196 bytes; SHA-256 `79880a1446175c20846318f478eec8d40c139b16b54a1f4d4ebc35cad39f3b3f`). No está publicado. El gate completo y el build nuevo de setup/portable pasaron; sus hashes están en `release-notes-v0.9.4.md`. Las cachés alpha4/alpha6 no satisfacen el pin alpha7. Nunca presentes un archivo no subido como asset descargable. OmniRoute sigue retirado: no se incluye fallback, descarga, servidor ni detector. En el siguiente inicio solo se retiran configuraciones propias obsoletas y cachés verificadas; se conservan proveedores e historial ajenos.
 
 La nueva salida pendiente usa el directorio único
-`apps/shell/release-0.9.4-alpha6-20261015/`; no reutilices ni
+`apps/shell/release-0.9.4-alpha7-20261015/`; no reutilices ni
 sobrescribas el directorio obsoleto de la candidata alpha5.
 
 Tras cambiar opencode2api o su overlay activo, recompilá con
@@ -100,9 +56,9 @@ nueva y aislada, y verificá exactamente esa carpeta:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha6-20261015'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha7-20261015'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha6-20261015
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha7-20261015
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 

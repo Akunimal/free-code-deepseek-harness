@@ -1,27 +1,8 @@
 # Release and packaging
 
-### Current 0.9.4 candidate (alpha6)
+### Current 0.9.4 candidate (alpha7)
 
-The new candidate targets `apps/shell/release-0.9.4-alpha6-20261015/` with
-DSH `0.2.1-alpha.6` and opencode2api v1.4.0. Previous alpha5 builds are
-superseded: the user reported only one model and connection/protocol errors.
-The active `profiles/web/cordis.patch.yml` now receives catalog/port changes
-through real Host HMR, not the boot-only legacy settings file. Public inference
-uses the documented OpenAI/Anthropic protocol namespace. Actual MIT Hermes
-Phoenix patterns run at 18 idle / 72 working steps per second, with reduced
-motion, visibility pause, resize and cleanup checks. Both strict compiler
-faces pass; workspace shell tests pass 346/346 and contracts 114 with 12
-configured skips. Live public completion remains unverified: two authorized
-connections were blocked by Windows before HTTP, and were not retried.
-The runtime build, exact staged visual proof and final packaging gate passed.
-Fresh setup and portable were generated and statically verified; neither was
-installed. This is not publication or live-provider acceptance. For unpublished
-local testing, the distribution includes the matching runtime archive and
-`Prepare-Local-Runtime.ps1`: default CHECK ONLY; explicit closed-app consent is
-required to prepare cache with backups. It never starts setup or FreeCode.
-No tag, upload, installed-cache mutation or active-process action is authorized.
-V094-21 historical fixes remain included.
-
+The candidate targets `apps/shell/release-0.9.4-alpha7-20261015/`, with DSH 0.2.1-alpha.7 and opencode2api v1.4.0. It includes the model-catalog/profile repair, documented inference routing, Hermes backgrounds and V094-35, which prevents localized composer-block writes from recursing when model availability changes. The non-interactive release gate passed; fresh setup and portable artifacts were built and statically verified in the target directory. Their hashes are recorded in `release-notes-v0.9.4.md`. Alpha6 desktop artifacts predate V094-35 and must not be used to test this candidate. Alpha7 is unpublished; the local bundle includes its exact runtime archive, checksum and `Prepare-Local-Runtime.ps1` CHECK ONLY preflight. Before testing, close FreeCode yourself and explicitly run the cache-preparation option; this task did not install or launch FreeCode. Public-provider acceptance remains unverified. The active catalog is `profiles/web/cordis.patch.yml`. Alpha5/alpha6 desktop artifacts are superseded. No tag, upload or release is included.
 
 This repository is the public Akunimal/free-code-deepseek-harness fork of
 deepseek-ai/deepseek-harness. Product code lives outside the
@@ -82,15 +63,15 @@ runtime archive.
 pnpm install --frozen-lockfile
 pnpm package:runtime:release
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha6-20261015'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha7-20261015'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha6-20261015
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha7-20261015
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 The gate runs tests, contracts, typechecks, build/prepackage validation, an
 offline MCP integration smoke using repository-owned stdio fixtures and a
-loopback mock provider, verifies the v0.2.1-alpha.6 runtime SHA-256 in place,
+loopback mock provider, verifies the v0.2.1-alpha.7 runtime SHA-256 in place,
 and builds one exact NSIS package into an OS-temporary directory for static
 validation. Smoke processes use scratch-only profile/cache/temp paths and the
 MCP smoke does not inherit maintainer credentials or execute third-party
@@ -144,7 +125,7 @@ verifies its published SHA-256 and Electron ABI, and caches it under
 offline. That download requires network access; a download or compatibility
 failure must keep the supervisor stopped and offer Retry/Close.
 
-The v0.9.4 candidate instead requires alpha6, which is not published yet. Use
+The v0.9.4 candidate instead requires alpha7, which is not published yet. Use
 the verified local runtime/preflight for testing; publish its exact archive and
 checksum before offering this setup as a clean-machine public release.
 

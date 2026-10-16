@@ -1,28 +1,8 @@
 # Release y packaging
 
-### Candidata actual 0.9.4 (alpha6)
+### Candidata actual 0.9.4 (alpha7)
 
-v0.9.4 no está publicado; v0.9.3 sigue como baseline publicada.
-
-La nueva candidata apunta a `apps/shell/release-0.9.4-alpha6-20261015/`, con
-DSH `0.2.1-alpha.6` y opencode2api v1.4.0. Los builds alpha5 anteriores quedan
-obsoletos: el usuario reportó un solo modelo y errores de conexión/protocolo.
-Ahora el catálogo/puerto se sincroniza con `profiles/web/cordis.patch.yml` y HMR
-del Host real, no con settings legado importado una sola vez. La inferencia
-pública usa el namespace OpenAI/Anthropic documentado. Los patrones MIT Hermes
-Phoenix reales funcionan a 18 pasos/s en reposo y 72 trabajando, con movimiento
-reducido, pausa al ocultar, resize y limpieza comprobados. Pasan ambos programas
-de tipado estricto, 346/346 pruebas shell y 114 contratos con 12 skips previstos.
-La respuesta pública real sigue sin verificarse: Windows bloqueó antes de HTTP
-las dos conexiones autorizadas y no se repitieron. Build runtime, evidencia
-visual del stage exacto y gate final de empaquetado pasaron. Se generaron y
-verificaron setup y portable nuevos, sin instalarlos. No equivale a publicar ni
-a validar el proveedor público. La prueba local sin publicar incluye
-el archivo runtime exacto y `Prepare-Local-Runtime.ps1`: por defecto CHECK ONLY;
-la precarga exige confirmación explícita de app cerrada y conserva backups.
-Nunca ejecuta setup ni FreeCode. No se autorizó tag, subida ni tocar caché o
-procesos activos. Se conservan los fixes históricos V094-21.
-
+La candidata apunta a `apps/shell/release-0.9.4-alpha7-20261015/`, con DSH 0.2.1-alpha.7 y opencode2api v1.4.0. Incluye el arreglo del catálogo/perfil, el enrutamiento de inferencia documentado, los fondos Hermes y V094-35, que evita escrituras recursivas del bloqueo localizado del composer cuando cambia la disponibilidad del modelo. El gate de release no interactivo pasó; los artefactos setup/portable se compilaron y verificaron estáticamente en el directorio indicado. Sus hashes están en `release-notes-v0.9.4.md`. Los artefactos desktop alpha6 son anteriores a V094-35 y no deben usarse para probar esta candidata. Alpha7 no está publicado; el bundle local incluye el runtime exacto, su checksum y el preflight CHECK ONLY `Prepare-Local-Runtime.ps1`. Antes de probar, cierra FreeCode tú mismo y ejecuta explícitamente la opción de precarga; esta tarea no instaló ni inició FreeCode. La aceptación del proveedor público sigue sin verificarse. El catálogo activo es `profiles/web/cordis.patch.yml`. Los artefactos desktop alpha5/alpha6 están obsoletos. No se incluye tag, subida ni publicación.
 
 Este repositorio es el fork público Akunimal/free-code-deepseek-harness de
 deepseek-ai/deepseek-harness. El código de producto vive fuera del subtree
@@ -83,15 +63,15 @@ tarball.
 pnpm install --frozen-lockfile
 pnpm package:runtime:release
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha6-20261015'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha7-20261015'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha6-20261015
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha7-20261015
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 El gate ejecuta tests, contratos, typechecks, build/preflight y un smoke MCP
 offline con fixtures stdio del repositorio y un proveedor mock de loopback;
-verifica in situ el SHA-256 del runtime `0.2.1-alpha.5` y compila un setup NSIS
+verifica in situ el SHA-256 del runtime `0.2.1-alpha.7` y compila un setup NSIS
 exacto en una carpeta temporal para su validación estática. Los procesos usan
 rutas scratch para perfil/caché/temporales; el smoke MCP no hereda credenciales
 de la persona mantenedora ni ejecuta servidores de terceros. La limpieza apunta
@@ -145,7 +125,7 @@ verifica el SHA-256 publicado y la ABI de Electron, y lo guarda en
 validada sin conexión. Esa descarga requiere Internet; si falla la descarga o compatibilidad, el supervisor no
 debe iniciarse y se ofrecen Reintentar/Cerrar.
 
-La candidata v0.9.4 requiere alpha6, todavía sin publicar. Para probarla usá el
+La candidata v0.9.4 requiere alpha7, todavía sin publicar. Para probarla usá el
 runtime/preflight local verificado; publicá ese archivo exacto y su checksum
 antes de ofrecer el setup como release pública para una máquina limpia.
 

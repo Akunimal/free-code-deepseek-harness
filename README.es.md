@@ -1,28 +1,8 @@
 # FreeCode DeepSeek Harness
 
-### Candidata actual 0.9.4 (alpha6)
+### Candidata actual 0.9.4 (alpha7)
 
-v0.9.4 no está publicado; v0.9.3 sigue como baseline publicada.
-
-La nueva candidata apunta a `apps/shell/release-0.9.4-alpha6-20261015/`, con
-DSH `0.2.1-alpha.6` y opencode2api v1.4.0. Los builds alpha5 anteriores quedan
-obsoletos: el usuario reportó un solo modelo y errores de conexión/protocolo.
-Ahora el catálogo/puerto se sincroniza con `profiles/web/cordis.patch.yml` y HMR
-del Host real, no con settings legado importado una sola vez. La inferencia
-pública usa el namespace OpenAI/Anthropic documentado. Los patrones MIT Hermes
-Phoenix reales funcionan a 18 pasos/s en reposo y 72 trabajando, con movimiento
-reducido, pausa al ocultar, resize y limpieza comprobados. Pasan ambos programas
-de tipado estricto, 346/346 pruebas shell y 114 contratos con 12 skips previstos.
-La respuesta pública real sigue sin verificarse: Windows bloqueó antes de HTTP
-las dos conexiones autorizadas y no se repitieron. Build runtime, evidencia
-visual del stage exacto y gate final de empaquetado pasaron. Se generaron y
-verificaron setup y portable nuevos, sin instalarlos. No equivale a publicar ni
-a validar el proveedor público. La prueba local sin publicar incluye
-el archivo runtime exacto y `Prepare-Local-Runtime.ps1`: por defecto CHECK ONLY;
-la precarga exige confirmación explícita de app cerrada y conserva backups.
-Nunca ejecuta setup ni FreeCode. No se autorizó tag, subida ni tocar caché o
-procesos activos. Se conservan los fixes históricos V094-21.
-
+La candidata apunta a `apps/shell/release-0.9.4-alpha7-20261015/`, con DSH 0.2.1-alpha.7 y opencode2api v1.4.0. Incluye el arreglo del catálogo/perfil, el enrutamiento de inferencia documentado, los fondos Hermes y V094-35, que evita escrituras recursivas del bloqueo localizado del composer cuando cambia la disponibilidad del modelo. El gate de release no interactivo pasó y se compilaron/verificaron estáticamente los artefactos setup/portable; sus tamaños y hashes exactos están en `release-notes-v0.9.4.md`. Los artefactos desktop alpha6 son anteriores a V094-35 y no deben usarse para probar esta candidata. Alpha7 no está publicado; el paquete local incluye el runtime exacto y un preflight CHECK ONLY. Para probarlo localmente, cierra FreeCode tú mismo y ejecuta explícitamente la opción de precarga antes del setup; esta tarea no instaló ni inició FreeCode. La aceptación del proveedor público sigue sin verificarse. El catálogo activo es `profiles/web/cordis.patch.yml`. Se mantienen los fixes V094-21; los artefactos desktop alpha5/alpha6 están obsoletos. No se incluye tag, subida ni publicación.
 
 Programación en Windows con modelos OpenCode Free: elegí un proyecto,
 describí el trabajo y dejá que el Harness coordine archivos, herramientas,
@@ -307,14 +287,14 @@ enumera ni termina procesos ajenos.
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha6-20261015'
+$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.4-alpha7-20261015'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha6-20261015
+pnpm verify:desktop-release-assets apps/shell/release-0.9.4-alpha7-20261015
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 `build:desktop` crea setup y portable en la nueva carpeta
-`apps/shell/release-0.9.4-alpha6-20261015/`; rechaza reemplazar una carpeta no vacía.
+`apps/shell/release-0.9.4-alpha7-20261015/`; rechaza reemplazar una carpeta no vacía.
 `verify:desktop-release-assets` valida los PE exactos, el blockmap, los metadatos
 del updater y sus hashes sin iniciar ninguno de los ejecutables. El packaging
 desktop no reconstruye ni reemplaza el runtime DSH, que tiene su propia versión.
@@ -322,8 +302,8 @@ Sólo cuando cambie el runtime DSH
 se debe subir su versión en el manifest y ejecutar `pnpm package:runtime:release`;
 las versiones existentes del runtime son inmutables.
 
-Los hashes y fallos de los instaladores alpha5 anteriores se conservan como
-historia en las notas candidatas. Usá únicamente la salida alpha6 nueva y su
+Los hashes y fallos de los instaladores alpha5/alpha6 anteriores se conservan como
+historia en las notas candidatas. Usá únicamente la salida alpha7 nueva y su
 preflight local; no se modificó la instancia activa.
 
 El usuario confirmó que la aplicación v0.9.3 instalada funciona en Windows x64.

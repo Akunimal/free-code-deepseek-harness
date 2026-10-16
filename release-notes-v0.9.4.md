@@ -2,30 +2,12 @@
 
 ## English
 
-### Current 0.9.4 candidate (alpha6)
+### Current 0.9.4 candidate (alpha7)
 
-The new candidate targets `apps/shell/release-0.9.4-alpha6-20261015/` with
-DSH `0.2.1-alpha.6` and opencode2api v1.4.0. Previous alpha5 builds are
-superseded: the user reported only one model and connection/protocol errors.
-The active `profiles/web/cordis.patch.yml` now receives catalog/port changes
-through real Host HMR, not the boot-only legacy settings file. Public inference
-uses the documented OpenAI/Anthropic protocol namespace. Actual MIT Hermes
-Phoenix patterns run at 18 idle / 72 working steps per second, with reduced
-motion, visibility pause, resize and cleanup checks. Both strict compiler
-faces pass; workspace shell tests pass 346/346 and contracts 114 with 12
-configured skips. Live public completion remains unverified: two authorized
-connections were blocked by Windows before HTTP, and were not retried.
-The runtime build, exact staged visual proof and final packaging gate passed.
-Fresh setup and portable were generated and statically verified; neither was
-installed. This is not publication or live-provider acceptance. For unpublished
-local testing, the distribution includes the matching runtime archive and
-`Prepare-Local-Runtime.ps1`: default CHECK ONLY; explicit closed-app consent is
-required to prepare cache with backups. It never starts setup or FreeCode.
-No tag, upload, installed-cache mutation or active-process action is authorized.
-V094-21 historical fixes remain included.
+The current candidate targets `apps/shell/release-0.9.4-alpha7-20261015/`, with DSH 0.2.1-alpha.7 and opencode2api v1.4.0. Alpha5 and alpha6 desktop builds are superseded; alpha6 predates V094-35, which prevents the localized model-block reason from recursively writing the composer store. Catalog/profile synchronization, public inference protocol routing, Hermes animation and the browser-first prompt remain part of this candidate. The full non-interactive release gate passed and fresh desktop setup/portable artifacts were built and statically verified; current hashes and sizes are listed below. The alpha7 runtime is unpublished but included in the local test bundle with a CHECK ONLY preflight. This build did not install or run setup or FreeCode. Public-provider acceptance remains unverified; no tag, upload or release is included. V094-21 historical fixes remain included.
 
 
-**Status: candidate; not yet published.** v0.9.3 remains the latest published
+**Status: locally built candidate; not yet published.** v0.9.3 remains the latest published
 Windows x64 release. These notes describe the local source candidate, not a
 release announcement. The latest pre-fix alpha5 setup and portable are in
 `apps/shell/release-0.9.4-alpha5-candidate-20261014/` (setup: 178,630,999 bytes,
@@ -38,9 +20,28 @@ only one model plus upstream/API-key, connection and unsupported-protocol errors
 These alpha5 desktop artifacts predate V094-21 and are superseded; do not use
 them to validate or publish this source. The alpha5 DSH archive is locally
 verified but unpublished, so clean installations still require a matching
-release asset. A fresh desktop build and release gate are pending in
-`apps/shell/release-0.9.4-model-resilience-20261015/`; both ran, but the user rejected the model and background behavior. They are also superseded by V094-24/25/26.
+release asset. The earlier model-resilience build and gate in
+`apps/shell/release-0.9.4-model-resilience-20261015/` ran, but the user rejected
+those model/background results. Those artifacts are superseded by V094-24/25/26
+and the current alpha7 candidate.
 The v0.9.4 candidate remains unpublished.
+
+### Verified local alpha7 artifacts / Artefactos alpha7 locales verificados
+
+The non-interactive release gate passed; these artifacts were statically
+verified only. / El gate no interactivo pasó; estos artefactos solo se verificaron
+estáticamente. Nothing was installed, launched or published. / No se instaló,
+ejecutó ni publicó nada. CHECK ONLY verified the bundle without reading or
+changing the installed app/runtime cache. / CHECK ONLY verificó el bundle sin
+leer ni cambiar la app instalada o su caché de runtime.
+
+Output: `apps/shell/release-0.9.4-alpha7-20261015/`.
+
+| Artifact / Artefacto | Bytes | SHA-256 |
+|---|---:|---|
+| Setup 0.9.4 | 178,750,879 bytes | `1e48c6c866a7b52d422eb62b852ffece4b6c5435aa3bbd490960e28395463440` |
+| Portable 0.9.4 | 178,375,755 bytes | `91f720be4c140477d4d8b9d62b2cc2ba4a0fe97858d7551b38de60b7a2e3cba6` |
+| DSH 0.2.1-alpha.7 | 421,460,196 bytes | `79880a1446175c20846318f478eec8d40c139b16b54a1f4d4ebc35cad39f3b3f` |
 
 Historical runtime note: the earlier alpha4 setup's first launch reported
 `No harness runtime asset for packaged version 0.2.1-alpha.4 (win32-x64)`.
@@ -55,8 +56,9 @@ That local-only alpha4 cache workaround did not satisfy the later alpha5 pin.
   emitted production panel/effect/CSS regions in isolated Chromium, check pixel
   motion, host resize, composer hit-testing, nine-pattern paint and cleanup.
   Screenshots exist locally; the installed alpha5 runtime is unchanged and does
-  not contain this source correction. Global client typecheck and release gate
-  must pass before building a newly versioned runtime or another installer.
+  not contain this source correction. The fresh alpha7 runtime and desktop
+  candidate passed the full release gate; the installed alpha5 runtime remains
+  unchanged until the user chooses to test the local candidate.
 
 
 - **Current upstream compatibility (V094-25).** Stable opencode2api v1.4.0 is
@@ -85,7 +87,7 @@ That local-only alpha4 cache workaround did not satisfy the later alpha5 pin.
   embedded `computer_use` browser before DeepSeek API `web_search`. API fallback
   is reserved for browser unavailability, blocked access or failed attempts,
   with the limitation disclosed. Tool scopes and user permissions remain
-  respected. DSH `0.2.1-alpha.6` is locally rebuilt and its archive, SHA-256,
+  respected. DSH `0.2.1-alpha.7` is locally rebuilt and its archive, SHA-256,
   Electron ABI and Node engine are verified; it is not published remotely yet.
 - **OmniRoute removed.** No optional runtime download, automatic fallback,
   server or detector remains. Next-start migration retires only FreeCode-owned
@@ -121,7 +123,7 @@ That local-only alpha4 cache workaround did not satisfy the later alpha5 pin.
 - **Background packaging guards.** Materialized/copied runtime and desktop
   packaging checks now require Hermes patterns plus actual live-turn wiring;
   the old two-gradient fixture is rejected. Alpha5 is rejected; the
-  fresh alpha6 runtime now passes the actual rendered-bundle gate.
+  fresh alpha7 runtime now passes the actual rendered-bundle gate.
 - **Runtime pins stay aligned.** The package step refreshes version/SHA-256 only
   for locally built opencode2api and DSH artifacts, leaves external Tor pins
   explicit, and treats absent optional PATH-fallback tools as optional.
@@ -138,36 +140,20 @@ passed, and `go test ./...` passed 43 tests across 13 Go packages. The full shel
 suite reported 44/46 files and 342/344 tests: the packaged Tor startup test timed
 out at 15 s and the DSH supervisor readiness smoke timed out at 120 s. Both now
 pass in isolation: Tor 1/1 (1.58 s) and supervisor 5/5 (102.47 s total, real CLI
-readiness at 80.10 s). The full release gate and fresh desktop build remain
-pending, so the previous alpha5 setup/portable are superseded and no current
-installer contains V094-21. The active FreeCode instance was not interrupted.
-No tag or public v0.9.4 release exists.
+readiness at 80.10 s). At that historical checkpoint, the full release gate and
+fresh desktop build were still pending. They have since passed; the locally
+verified alpha7 artifacts are listed above. The previous alpha5/alpha6 setup
+and portable remain superseded. The active FreeCode instance was not
+interrupted. No tag or public v0.9.4 release exists.
 
 ## Español
 
-### Candidata actual 0.9.4 (alpha6)
+### Candidata actual 0.9.4 (alpha7)
 
-La nueva candidata apunta a `apps/shell/release-0.9.4-alpha6-20261015/`, con
-DSH `0.2.1-alpha.6` y opencode2api v1.4.0. Los builds alpha5 anteriores quedan
-obsoletos: el usuario reportó un solo modelo y errores de conexión/protocolo.
-Ahora el catálogo/puerto se sincroniza con `profiles/web/cordis.patch.yml` y HMR
-del Host real, no con settings legado importado una sola vez. La inferencia
-pública usa el namespace OpenAI/Anthropic documentado. Los patrones MIT Hermes
-Phoenix reales funcionan a 18 pasos/s en reposo y 72 trabajando, con movimiento
-reducido, pausa al ocultar, resize y limpieza comprobados. Pasan ambos programas
-de tipado estricto, 346/346 pruebas shell y 114 contratos con 12 skips previstos.
-La respuesta pública real sigue sin verificarse: Windows bloqueó antes de HTTP
-las dos conexiones autorizadas y no se repitieron. Build runtime, evidencia
-visual del stage exacto y gate final de empaquetado pasaron. Se generaron y
-verificaron setup y portable nuevos, sin instalarlos. No equivale a publicar ni
-a validar el proveedor público. La prueba local sin publicar incluye
-el archivo runtime exacto y `Prepare-Local-Runtime.ps1`: por defecto CHECK ONLY;
-la precarga exige confirmación explícita de app cerrada y conserva backups.
-Nunca ejecuta setup ni FreeCode. No se autorizó tag, subida ni tocar caché o
-procesos activos. Se conservan los fixes históricos V094-21.
+La candidata actual apunta a apps/shell/release-0.9.4-alpha7-20261015/, con DSH 0.2.1-alpha.7 y opencode2api v1.4.0. Los builds desktop alpha5/alpha6 quedan obsoletos; alpha6 precede a V094-35, que evita que el motivo localizado del bloqueo del modelo escriba recursivamente en el store del composer. La sincronización del perfil/catálogo, el protocolo de inferencia pública, la animación Hermes y el prompt browser-first siguen incluidos. El gate de release no interactivo pasó; el setup/portable se compilaron y verificaron estáticamente. Los tamaños y hashes exactos están en la tabla de artefactos verificados. El runtime alpha7 no publicado se incluye en el bundle local con preflight CHECK ONLY. Esta build no instaló ni ejecutó setup o FreeCode. La aceptación del proveedor público sigue sin verificarse; no se incluye tag, subida ni publicación. Se mantienen los fixes históricos V094-21.
 
 
-**Estado: candidata; todavía no publicada.** v0.9.3 sigue siendo la última release
+**Estado: candidata local compilada; todavía no publicada.** v0.9.3 sigue siendo la última release
 publicada para Windows x64. Estas notas describen el código local, no anuncian
 una release. El setup/portable alpha5 anterior a V094-21 está en
 `apps/shell/release-0.9.4-alpha5-candidate-20261014/` (setup: 178.630.999 bytes,
@@ -227,7 +213,7 @@ La precarga local alpha4 fue un workaround y no satisface el pin alpha5 posterio
   información web, usar `computer_use` antes de DeepSeek API `web_search`.
   El fallback queda para navegador ausente, acceso bloqueado o intentos fallidos,
   informando la limitación. Se respetan scopes y permisos del usuario. DSH
-  `0.2.1-alpha.6` se recompiló localmente y se verificaron el archivo, SHA-256,
+  `0.2.1-alpha.7` se recompiló localmente y se verificaron el archivo, SHA-256,
   ABI de Electron y versión de Node; todavía no está publicado.
 - **OmniRoute retirado.** Sin descarga opcional, fallback automático, servidor
   ni detector. La migración del próximo inicio retira solo la configuración
@@ -285,12 +271,13 @@ pasaron 35/35, el typecheck shell pasó y `go test ./...` pasó 43 tests en 13
 paquetes Go. La suite shell completa informó 44/46 archivos y 342/344 tests: el
 startup Tor empaquetado agotó 15 s y el smoke de readiness DSH agotó 120 s. Ambos
 ahora pasan aislados: Tor 1/1 (1,58 s) y supervisor 5/5 (102,47 s; readiness real
-del CLI en 80,10 s). El gate completo y el nuevo build desktop siguen pendientes;
-el setup/portable alpha5 anterior quedó obsoleto y ningún instalador actual trae
-V094-21. No se interrumpió la instancia FreeCode activa. v0.9.4 no tiene tag ni
-release pública.
+del CLI en 80,10 s). En aquel punto histórico, el gate completo y el build nuevo
+seguían pendientes. Luego se completaron; los artefactos alpha7 verificados
+están en la tabla de arriba. Los setup/portable alpha5 y alpha6 siguen obsoletos.
+No se interrumpió la instancia FreeCode activa. v0.9.4 no tiene tag ni release
+pública.
 
-## Verified local artifacts / Artefactos locales verificados — 2026-10-15
+## Historical alpha6 artifacts (superseded) / Artefactos alpha6 históricos (obsoletos) — 2026-10-15
 
 Not installed or published / No instalados ni publicados.
 Output / Salida: `apps/shell/release-0.9.4-alpha6-20261015/`.
