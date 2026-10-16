@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow, shell, type WebContents } from 'electron';
+import { ipcMain, BrowserWindow, shell, type IpcMainInvokeEvent, type WebContents } from 'electron';
 import {
   IpcChannels,
   IpcPayloads,
@@ -54,6 +54,8 @@ export interface IpcDeps {
   getRendererTargets?: () => WebContents[];
   /** Close the auxiliary Pool Status window only for its own WebContents. */
   closePoolStatusOverlay: (sender: WebContents) => void;
+  /** Validate the invoking main-frame WebContents and its origin per channel. */
+  isTrustedRendererInvocation: (event: IpcMainInvokeEvent, channel: string) => boolean;
 }
 
 function defaultRendererTargets(): WebContents[] {
@@ -65,6 +67,18 @@ export function registerIpc(deps: IpcDeps): () => void {
 
   const rendererTargets = (): WebContents[] => (deps.getRendererTargets?.() ?? defaultRendererTargets())
     .filter((wc) => !wc.isDestroyed());
+
+  const handle = (
+    channel: string,
+    listener: (event: IpcMainInvokeEvent, ...args: unknown[]) => unknown,
+  ): void => {
+    ipcMain.handle(channel, async (event, ...args) => {
+      if (!deps.isTrustedRendererInvocation(event, channel)) {
+        throw new Error(`Rejected IPC invocation from an untrusted renderer (${channel})`);
+      }
+      return listener(event, ...args);
+    });
+  };
 
   // pool:status (push on change)
   const emitStatus = (): void => {
@@ -78,7 +92,7 @@ export function registerIpc(deps: IpcDeps): () => void {
 
   // models:refresh (invoke) — route through guarded path when available to
   // prevent concurrent settings.yaml writes with the timer.
-  ipcMain.handle(IpcChannels.modelsRefresh, async () => {
+  handle(IpcChannels.modelsRefresh, async () => {
     try {
       const catalog = deps.triggerRefresh
         ? await deps.triggerRefresh()
@@ -99,7 +113,7 @@ export function registerIpc(deps: IpcDeps): () => void {
 
   // The status snapshot covers refreshes that started before the Harness
   // renderer subscribed; the push keeps it current without polling.
-  ipcMain.handle(IpcChannels.modelsGetRefreshState, () =>
+  handle(IpcChannels.modelsGetRefreshState, () =>
     ModelCatalogRefreshStateSchema.parse(deps.catalogRefreshState.get()));
   const offCatalogRefreshState = deps.catalogRefreshState.subscribe((state) => {
     const payload: IpcPayloads[typeof IpcChannels.modelsRefreshState] =
@@ -109,10 +123,10 @@ export function registerIpc(deps: IpcDeps): () => void {
 
 
   // harness:restart (invoke)
-  ipcMain.handle(IpcChannels.harnessRestart, () => runtime.supervisor.restart());
+  handle(IpcChannels.harnessRestart, () => runtime.supervisor.restart());
 
   // pool:restartWorker (invoke)
-  ipcMain.handle(
+  handle(
     IpcChannels.poolRestartWorker,
     (_e, payload: unknown) => {
       const parsed = PoolRestartWorkerPayloadSchema.parse(payload);
@@ -122,27 +136,27 @@ export function registerIpc(deps: IpcDeps): () => void {
   );
 
   // pool:resize — no-op with opencode2api (provider routing is automatic)
-  ipcMain.handle(IpcChannels.poolResize, (_e, payload: unknown) => {
+  handle(IpcChannels.poolResize, (_e, payload: unknown) => {
     const parsed = PoolResizePayloadSchema.parse(payload);
     return Promise.resolve();
   });
 
   // pool:closeOverlay — the borderless data: window cannot close itself with
   // window.close(); delegate to main and let it verify the caller's WebContents.
-  ipcMain.handle(IpcChannels.poolOverlayClose, (e) => deps.closePoolStatusOverlay(e.sender));
+  handle(IpcChannels.poolOverlayClose, (e) => deps.closePoolStatusOverlay(e.sender));
 
   // settings:openFolder (invoke) — reveal DSH_HOME in the OS file manager
-  ipcMain.handle(IpcChannels.settingsOpenFolder, () => shell.openPath(homeDir));
+  handle(IpcChannels.settingsOpenFolder, () => shell.openPath(homeDir));
 
   // mcp:* — product-managed catalog controls. The renderer receives only a
   // projection; paths and patch writes stay in the main process.
-  ipcMain.handle(IpcChannels.mcpGetState, () => {
+  handle(IpcChannels.mcpGetState, () => {
     // Refresh the persisted flags, then merge the live initialize/tools/list
     // evidence maintained by the supervisor. A green toggle alone is not a
     // connection guarantee.
     return deps.runtime.refreshMcpState();
   });
-  ipcMain.handle(IpcChannels.mcpSetEnabled, async (_e, payload: unknown) => {
+  handle(IpcChannels.mcpSetEnabled, async (_e, payload: unknown) => {
     const parsed = McpSetEnabledPayloadSchema.parse(payload);
     setEmbeddedMcpEnabled(homeDir, parsed.id, parsed.enabled);
     deps.runtime.refreshMcpState();
@@ -153,7 +167,7 @@ export function registerIpc(deps: IpcDeps): () => void {
     await runtime.supervisor.restart();
     return deps.runtime.mcpState();
   });
-  ipcMain.handle(IpcChannels.mcpOpenConfig, async () => {
+  handle(IpcChannels.mcpOpenConfig, async () => {
     const state = ensureEmbeddedMcpConfig(homeDir);
     const failure = await shell.openPath(state.configPath);
     if (failure) throw new Error(failure);
@@ -164,32 +178,32 @@ export function registerIpc(deps: IpcDeps): () => void {
   });
 
   // locale:set — keep native Electron menus/tray in step with the web selector.
-  ipcMain.handle(IpcChannels.localeSet, (_e, payload: unknown) => {
+  handle(IpcChannels.localeSet, (_e, payload: unknown) => {
     const parsed = LocaleSetPayloadSchema.parse(payload);
     deps.setLocale(parsed.locale);
   });
 
   // ocr:status — check if Tesseract is available
-  ipcMain.handle(IpcChannels.ocrStatus, () => ({
+  handle(IpcChannels.ocrStatus, () => ({
     available: isOcrAvailable(),
     binaryPath: null, // not exposed to renderer for security
   }));
 
   // gentle-ai:status — bounded presence probe (no secrets)
-  ipcMain.handle(IpcChannels.gentleAiStatus, () => {
+  handle(IpcChannels.gentleAiStatus, () => {
     const resourcesDir = deps.resourcesDir ?? userDataDir;
     const status = getGentleAiStatus(resourcesDir);
     return GentleAiStatusSchema.parse({ ...status, binaryPath: status.binaryPath });
   });
 
   // gentle-ai:doctor — bounded checks (presence, --version, DSH_HOME, Engram)
-  ipcMain.handle(IpcChannels.gentleAiDoctor, async () => {
+  handle(IpcChannels.gentleAiDoctor, async () => {
     const resourcesDir = deps.resourcesDir ?? userDataDir;
     return runGentleAiDoctor(resourcesDir, homeDir);
   });
 
   // gentle-ai:run — Zod-validated pre-spawn; size/timeout/DSH_HOME guard
-  ipcMain.handle(IpcChannels.gentleAiRun, async (_e, payload: unknown) => {
+  handle(IpcChannels.gentleAiRun, async (_e, payload: unknown) => {
     const parsed = GentleAiRunRequestSchema.parse(payload);
     const resourcesDir = deps.resourcesDir ?? userDataDir;
     return runGentleAi(
@@ -202,7 +216,7 @@ export function registerIpc(deps: IpcDeps): () => void {
   // ocr:extract — extract text from a bounded base64-encoded image. The
   // canonical round-trip check rejects malformed base64 instead of silently
   // turning it into a different/empty image.
-  ipcMain.handle(IpcChannels.ocrExtract, async (_e, payload: unknown) => {
+  handle(IpcChannels.ocrExtract, async (_e, payload: unknown) => {
     const parsed = OcrPayloadSchema.parse(payload);
     const buffer = Buffer.from(parsed.imageBase64, 'base64');
     if (buffer.length === 0 || buffer.length > 25 * 1024 * 1024) throw new Error('OCR image exceeds the 25MB limit');
@@ -214,7 +228,7 @@ export function registerIpc(deps: IpcDeps): () => void {
 
   // tor:getStatus — snapshot for surfaces opened after the last push
   // (e.g. the pool overlay). Returns null when Tor is not configured.
-  ipcMain.handle(IpcChannels.torGetStatus, () => {
+  handle(IpcChannels.torGetStatus, () => {
     if (!deps.torManager) return null;
     return deps.torManager.getStatus();
   });
@@ -223,12 +237,12 @@ export function registerIpc(deps: IpcDeps): () => void {
   // Stopping only removes the failover leg: the gateway keeps serving
   // direct, and its proxy health tracking steers around the dead SOCKS
   // leg until a restart recovers it.
-  ipcMain.handle(IpcChannels.torStart, async () => {
+  handle(IpcChannels.torStart, async () => {
     if (!deps.torManager) return false;
     await deps.torManager.start();
     return deps.torManager.isReady;
   });
-  ipcMain.handle(IpcChannels.torStop, async () => {
+  handle(IpcChannels.torStop, async () => {
     if (!deps.torManager) return false;
     await deps.torManager.stop();
     return true;

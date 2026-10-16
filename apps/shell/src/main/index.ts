@@ -11,6 +11,7 @@ import { refreshModels, ModelCatalog, shouldRetryModelRefresh } from './model-re
 import { createModelCatalogRefreshState } from './model-refresh-state.js';
 import { registerIpc } from './ipc.js';
 import { canClosePoolStatusOverlay } from './pool-overlay-close.js';
+import { isTrustedHarnessNavigation, isTrustedRendererInvocation as isTrustedRendererCall } from './renderer-security.js';
 import { nodeRuntimeEnv, resolveHarnessRuntimeDir, resolveNodePath, resolveResourcesDir } from './resource-paths.js';
 import { createAppLogger, type AppLogger } from './logger.js';
 import { createUpdateService, isNewerVersion, type UpdateCheckResult, type UpdateService } from './updater.js';
@@ -375,6 +376,12 @@ function createMainWindow(harnessUrl: string): void {
     appLogger?.logger.warn({}, 'denied harness popup window.open');
     return { action: 'deny' };
   });
+  const trustedHarnessUrl = (): string => runtime?.supervisor.currentUrl ?? harnessUrl;
+  const blockUntrustedNavigation = (event: Electron.Event, url: string): void => {
+    if (!isTrustedHarnessNavigation(url, trustedHarnessUrl())) event.preventDefault();
+  };
+  harnessView.webContents.on('will-navigate', blockUntrustedNavigation);
+  harnessView.webContents.on('will-redirect', blockUntrustedNavigation);
   void harnessView.webContents.loadURL(harnessUrl);
   embeddedBrowser?.attachWindow(mainWindow, harnessView);
   ensureUpdateIndicator();
@@ -564,6 +571,8 @@ function createOverlayWindow(): void {
       preload: resolve(import.meta.dirname, '../preload/index.js'),
     },
   });
+  overlayWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  overlayWindow.webContents.on('will-navigate', (event) => event.preventDefault());
   overlayWindow.loadURL('data:text/html,' + encodeURIComponent(renderOverlayHtml()));
   overlayWindow.on('closed', () => {
     overlayWindow = null;
@@ -1232,7 +1241,15 @@ app.whenReady().then(async () => {
   runtime.supervisor.onReady((h) => {
     appLogger?.logger.info({ url: h.url, pid: h.pid, restarts: h.restarts }, 'harness ready');
     closeSplash();
-    if (!mainWindow) createMainWindow(h.url);
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      createMainWindow(h.url);
+    } else if (harnessView && !harnessView.webContents.isDestroyed()) {
+      // DSH chooses a new ephemeral loopback port on restart. Move the
+      // existing trusted view to that generation before accepting its IPC.
+      void harnessView.webContents.loadURL(h.url).catch((error: unknown) => {
+        appLogger?.logger.error({ error }, 'failed to reload restarted harness view');
+      });
+    }
     if (process.platform !== 'darwin') {
       try {
         new Notification({ title: t('notify.ready.title'), body: t('notify.ready.body') }).show();
@@ -1354,6 +1371,11 @@ app.whenReady().then(async () => {
     catalogRefreshState,
     reportModelRefreshFailure,
     triggerRefresh: async () => { await doRefresh(); return catalog!; },
+    isTrustedRendererInvocation: (event, channel) => isTrustedRendererCall(event, {
+      harnessWebContents: harnessView?.webContents ?? null,
+      overlayWebContents: overlayWindow?.webContents ?? null,
+      harnessUrl: runtime?.supervisor.currentUrl ?? '',
+    }, channel),
     setLocale: applyNativeLocale,
     // The harness page renders in a nested WebContentsView, so
     // mainWindow.webContents (the default target) is blank. Route pushes

@@ -17,11 +17,15 @@ vi.mock('electron', () => ({
 
 const catalog: ModelCatalog = { refreshedAt: 123, providers: {} };
 
-function createBridgeFixture() {
+function createBridgeFixture(isTrustedRendererInvocation = () => true) {
   handlers.clear();
   const catalogRefreshState = createModelCatalogRefreshState();
   const sent: Array<{ channel: string; payload: unknown }> = [];
   const closeRequests: unknown[] = [];
+  const triggerRefresh = vi.fn(async () => {
+    await catalogRefreshState.run(async () => undefined);
+    return catalog;
+  });
   const target = {
     isDestroyed: () => false,
     send: (channel: string, payload: unknown) => sent.push({ channel, payload }),
@@ -41,29 +45,27 @@ function createBridgeFixture() {
     lbBaseUrl: 'http://127.0.0.1',
     catalogStore: { get: () => catalog },
     catalogRefreshState,
-    triggerRefresh: async () => {
-      await catalogRefreshState.run(async () => undefined);
-      return catalog;
-    },
+    triggerRefresh,
+    isTrustedRendererInvocation,
     setLocale: () => undefined,
     closePoolStatusOverlay: (sender) => closeRequests.push(sender),
     getRendererTargets: () => [target] as never,
   });
-  return { catalogRefreshState, closeRequests, dispose, sent };
+  return { catalogRefreshState, closeRequests, dispose, sent, target, triggerRefresh };
 }
 
 afterEach(() => handlers.clear());
 
 describe('model catalog refresh IPC', () => {
   it('returns the current snapshot and pushes loading through completion for a manual refresh', async () => {
-    const { catalogRefreshState, dispose, sent } = createBridgeFixture();
+    const { catalogRefreshState, dispose, sent, target } = createBridgeFixture();
     await catalogRefreshState.run(async () => undefined);
     const snapshot = handlers.get(IpcChannels.modelsGetRefreshState);
-    expect(snapshot?.()).toEqual({ revision: 2, status: 'idle', startedAt: null });
+    await expect(snapshot?.({ sender: target, senderFrame: {} })).resolves.toEqual({ revision: 2, status: 'idle', startedAt: null });
     sent.length = 0;
 
     const refresh = handlers.get(IpcChannels.modelsRefresh);
-    await expect(refresh?.(undefined)).resolves.toEqual(catalog);
+    await expect(refresh?.({ sender: target, senderFrame: {} })).resolves.toEqual(catalog);
     expect(sent.map(event => event.channel)).toEqual([
       IpcChannels.modelsRefreshState,
       IpcChannels.modelsRefreshState,
@@ -76,6 +78,15 @@ describe('model catalog refresh IPC', () => {
     await catalogRefreshState.run(async () => undefined);
     expect(sent).toHaveLength(3);
     expect(handlers.has(IpcChannels.modelsGetRefreshState)).toBe(false);
+  });
+
+  it('rejects an untrusted renderer before running a privileged handler', async () => {
+    const { dispose, target, triggerRefresh } = createBridgeFixture(() => false);
+    const refresh = handlers.get(IpcChannels.modelsRefresh);
+
+    await expect(refresh?.({ sender: target, senderFrame: {} })).rejects.toThrow('untrusted renderer');
+    expect(triggerRefresh).not.toHaveBeenCalled();
+    dispose();
   });
 });
 

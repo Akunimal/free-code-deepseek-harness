@@ -17,6 +17,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { canClosePoolStatusOverlay } from '../src/main/pool-overlay-close.js';
 
 // -----------------------------------------------------------------
@@ -188,6 +189,23 @@ describe('composition contract on production source', () => {
     expect(ipc).toMatch(/getRendererTargets/);
   });
 
+  it('guards privileged harness navigation and every IPC handler', async () => {
+    const index = readFileSync(new URL('../src/main/index.ts', import.meta.url), 'utf8');
+    const ipc = readFileSync(new URL('../src/main/ipc.ts', import.meta.url), 'utf8');
+    expect(index).toMatch(/harnessView\.webContents\.on\(\s*'will-navigate'/);
+    expect(index).toMatch(/harnessView\.webContents\.on\(\s*'will-redirect'/);
+    expect(index).toMatch(/isTrustedRendererInvocation/);
+    expect(ipc).toMatch(/if\s*\(!deps\.isTrustedRendererInvocation\(event,\s*channel\)\)/);
+    // All route registration flows through the authenticated wrapper; no
+    // individual channel can accidentally bypass its sender/frame check.
+    expect(ipc.match(/ipcMain\.handle\(/gu) ?? []).toHaveLength(1);
+  });
+
+  it('reloads the existing harness view when the supervisor publishes a new loopback port', async () => {
+    const src = readFileSync(new URL('../src/main/index.ts', import.meta.url), 'utf8');
+    expect(src).toMatch(/harnessView\.webContents\.loadURL\(h\.url\)/);
+  });
+
   it('embedded browser surfaces navigation failures instead of swallowing them', async () => {
     const { readFileSync } = await import('node:fs');
     const src = readFileSync(new URL('../src/main/embedded-browser.ts', import.meta.url), 'utf8');
@@ -216,7 +234,7 @@ describe('composition contract on production source', () => {
     expect(index).not.toMatch(/onclick="window\.close\(\)"/);
     expect(sharedTypes).toContain("poolOverlayClose: 'pool:closeOverlay'");
     expect(preload).toMatch(/closeOverlay:\s*\(\):\s*Promise<void>\s*=>\s*ipcRenderer\.invoke\(IpcChannels\.poolOverlayClose\)/);
-    expect(ipc).toMatch(/ipcMain\.handle\(IpcChannels\.poolOverlayClose,\s*\(e\)\s*=>\s*deps\.closePoolStatusOverlay\(e\.sender\)\)/);
+    expect(ipc).toMatch(/handle\(IpcChannels\.poolOverlayClose,\s*\(e\)\s*=>\s*deps\.closePoolStatusOverlay\(e\.sender\)\)/);
     expect(index).toMatch(/closePoolStatusOverlay:\s*\(sender\)\s*=>/);
     expect(index).toMatch(/canClosePoolStatusOverlay\(sender,\s*target\)/);
     expect(index).toMatch(/target\.close\(\)/);
