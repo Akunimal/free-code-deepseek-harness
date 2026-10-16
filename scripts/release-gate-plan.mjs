@@ -65,7 +65,10 @@ export function createReleaseGatePlan({ version, outputDir }) {
     step('offline-mcp-contract', ['exec', 'node', 'scripts/verify-offline-mcp.mjs']),
     step('windows-acl-tests', [
       '--dir', 'vendor/deepseek-harness', 'exec', 'vitest', 'run',
-      'packages/sandbox/sandbox-windows-acl/tests/failure-paths.spec.ts',
+      'packages/sandbox/sandbox-windows-acl/tests/acl-failure-paths.spec.ts',
+      'packages/sandbox/sandbox-windows-acl/tests/grant-failure-paths.spec.ts',
+      'packages/sandbox/sandbox-windows-acl/tests/index-failure-paths.spec.ts',
+      'packages/sandbox/sandbox-windows-acl/tests/token-failure-paths.spec.ts',
       'packages/sandbox/sandbox-windows-acl/tests/runner.spec.ts',
     ]),
     step('workspace-build', ['build']),
