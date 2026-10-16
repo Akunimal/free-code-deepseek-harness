@@ -299,6 +299,8 @@ test('current release policy and EN/ES build guidance match the separate-runtime
   }
   assert.match(policyEn, /v0\.9\.5 public release/i);
   assert.match(policyEs, /release p[uú]blica v0\.9\.5/i);
+  assert.match(policyEs, /La salida final verificada usa el directorio único/i);
+  assert.doesNotMatch(policyEs, /La nueva salida pendiente usa el directorio único/i);
   assert.match(policyEn, /disposable/i);
   assert.match(policyEs, /desechable/i);
   assert.match(policyEn, /does not install or\s+launch/i);

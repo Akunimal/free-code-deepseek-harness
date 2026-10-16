@@ -27,7 +27,7 @@ La release v0.9.5 conserva el arreglo V094-35 de recursión del bloqueo del mode
 Nota histórica: v0.9.2 publicó el runtime DSH inmutable `0.2.1-alpha.2`;
 v0.9.4 publicó alpha8 y v0.9.5 prueba ese asset público con caché vacía.
 
-La nueva salida pendiente usa el directorio único
+La salida final verificada usa el directorio único
 `apps/shell/release-0.9.5-final-20261016/`; no reutilices ni
 sobrescribas el directorio obsoleto de la candidata alpha5.
 
