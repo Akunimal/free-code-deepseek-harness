@@ -2,12 +2,14 @@
 
 ## English
 
-### Candidate — not published yet
+### Verified release candidate
 
 The user confirmed the local containment candidate works. The final 0.9.6
-setup/portable and public clean-cache runtime gate are pending. A local runtime
-preload is not proof of a working first installation; publication stays blocked
-until the real public first-run test passes.
+setup and portable were built with publishing disabled, and the full release
+gate passed on the final source: exit 0, including the public empty-cache
+runtime download (`first-run-runtime-download: PASS`). A local runtime preload
+is not proof of a working first installation; that proof is the public
+empty-cache run recorded below.
 
 ### What changed
 
@@ -53,12 +55,25 @@ the existing v0.9.5 release, without replacing any previous asset or tag:
 The required clean-cache gate creates an empty isolated profile/cache, uses the
 production bootstrap/updater and public GitHub asset, verifies SHA-256,
 extraction layout, manifest and packaged Electron ABI, then starts the
-downloaded DSH CLI hidden. This gate is currently pending for v0.9.6.
+downloaded DSH CLI hidden. It passed in the final v0.9.6 release-gate run.
 
 ### Desktop artifacts and limits
 
-Final setup, portable, blockmap and `latest.yml` hashes will be recorded here
-after verification. Output: `apps/shell/release-0.9.6-final-20261016/`.
+Output of the final build: `apps/shell/release-0.9.6-final-20261016/`. Built
+from source commit `08b9731b0c`; publishing disabled (`--publish never`).
+
+| Asset | Size | SHA-256 |
+| --- | ---: | --- |
+| `FreeCode-DeepSeek-Harness-0.9.6-win-x64-setup.exe` | 179,612,122 bytes | `443695783a98e1b1e94996de15a3a85fbae0410d761683cf2f9d3f422d7bb6de` |
+| `FreeCode-DeepSeek-Harness-0.9.6-win-x64-portable.exe` | 179,236,984 bytes | `3414dc81aa4a900a19c9887614db82390f908cd7df46be6af9d1d301681b8f5a` |
+| `FreeCode-DeepSeek-Harness-0.9.6-win-x64-setup.exe.blockmap` | 190,053 bytes | `81e39143252856eb4fc98f86aab4a8aa5fa33dd431cc53bb04ad18b981f3602c` |
+| `latest.yml` | 395 bytes | `8a006c735b3df9bfc423d0e716097524334d3a98cb6794a7c709fba8f625dfef` |
+
+`latest.yml` points to the setup with `sha512` `g8vhBkm9pVA29tU0SGkhLr9bGNVFAoMlFOvYZhgtlAzoce7o43ZQupT6skEKkPfYmz2dA0wH1LnYLfXV6MXAWg==`.
+The packaged helper `headless-host.exe` has SHA-256
+`2906380678daaf025f9f65fbccc0def615f9729eb5e8a1ddb6802c4a3107a69f`, identical to
+the staged helper. The packaged native containment and Job-lifetime tests pass
+against that exact file.
 
 Windows x64 only. Binaries are **unsigned**; no signing identity is supplied.
 Windows ARM64, Linux and macOS are not tested or supported. The private desktop
@@ -70,12 +85,14 @@ Portable execution is not separately claimed as a manual usability test.
 
 ## Español
 
-### Candidata — todavía no publicada
+### Candidata verificada
 
-El usuario confirmó funcionando el candidato local de contención. Faltan los
-artefactos finales 0.9.6 y el gate público de caché vacía. Una precarga local
-no demuestra una primera instalación funcional; la publicación queda bloqueada
-hasta pasar la prueba pública real.
+El usuario confirmó funcionando el candidato local de contención. Los artefactos
+finales 0.9.6 (setup y portable) se construyeron con publicación desactivada, y
+el gate completo de release pasó sobre la fuente final: código de salida 0,
+incluida la descarga pública con caché vacía (`first-run-runtime-download: PASS`).
+Una precarga local no demuestra una primera instalación funcional; esa prueba es
+la corrida pública con caché vacía registrada abajo.
 
 ### Cambios
 
@@ -121,13 +138,25 @@ release v0.9.5 existente, sin reemplazar ningún asset ni tag anterior:
 El gate obligatorio de caché vacía crea un perfil/caché aislados, usa el
 bootstrap/updater de producción y el asset público de GitHub, verifica SHA-256,
 extracción, manifest y ABI Electron empaquetada, y luego inicia el CLI DSH
-descargado en modo oculto. Ese gate sigue pendiente para v0.9.6.
+descargado en modo oculto. Pasó en la corrida final del gate de release v0.9.6.
 
 ### Artefactos desktop y límites
 
-Se registrarán aquí los hashes finales de setup, portable, blockmap y
-`latest.yml` después de verificarlos. Salida:
-`apps/shell/release-0.9.6-final-20261016/`.
+Salida del build final: `apps/shell/release-0.9.6-final-20261016/`. Construido
+desde el commit de fuente `08b9731b0c`; publicación desactivada (`--publish never`).
+
+| Artefacto | Tamaño | SHA-256 |
+| --- | ---: | --- |
+| `FreeCode-DeepSeek-Harness-0.9.6-win-x64-setup.exe` | 179.612.122 bytes | `443695783a98e1b1e94996de15a3a85fbae0410d761683cf2f9d3f422d7bb6de` |
+| `FreeCode-DeepSeek-Harness-0.9.6-win-x64-portable.exe` | 179.236.984 bytes | `3414dc81aa4a900a19c9887614db82390f908cd7df46be6af9d1d301681b8f5a` |
+| `FreeCode-DeepSeek-Harness-0.9.6-win-x64-setup.exe.blockmap` | 190.053 bytes | `81e39143252856eb4fc98f86aab4a8aa5fa33dd431cc53bb04ad18b981f3602c` |
+| `latest.yml` | 395 bytes | `8a006c735b3df9bfc423d0e716097524334d3a98cb6794a7c709fba8f625dfef` |
+
+`latest.yml` apunta al setup con `sha512` `g8vhBkm9pVA29tU0SGkhLr9bGNVFAoMlFOvYZhgtlAzoce7o43ZQupT6skEKkPfYmz2dA0wH1LnYLfXV6MXAWg==`.
+El helper empaquetado `headless-host.exe` tiene SHA-256
+`2906380678daaf025f9f65fbccc0def615f9729eb5e8a1ddb6802c4a3107a69f`, idéntico al
+helper preparado. Las pruebas nativas de contención y de vida del Job pasan contra
+ese archivo exacto.
 
 Solo Windows x64. Binarios **sin firma**; no se proporcionó identidad de firma.
 Windows ARM64, Linux y macOS no están probados ni soportados. El escritorio

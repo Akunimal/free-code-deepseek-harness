@@ -4,7 +4,7 @@
 
 FreeCode DeepSeek Harness v0.9.6 contains the Windows background-window containment and harness audit fixes. Background process trees use the verified GUI-subsystem `headless-host` helper, a private noninteractive desktop and a Job attached before execution. Explicit user GUI actions use an authenticated Electron broker. Renderer IPC/navigation is restricted, concurrent catalog refreshes are coalesced, Tor status reaches the Pool overlay, and the legacy adapter preserves large requests and complete retry responses. DSH `0.2.1-alpha.9` is a separate first-launch download, not bundled in setup/portable. See the [bilingual v0.9.6 release notes](release-notes-v0.9.6.md).
 
-**Candidate status:** v0.9.6 is not published yet. Public clean-cache proof and final setup/portable verification are pending; do not substitute a local preload.
+**Release status:** the final Windows x64 setup and portable for v0.9.6 are verified. The full release gate passed on the final source, including the public empty-cache runtime download. Publication evidence is recorded in the GitHub release; do not substitute a local preload.
 
 Windows-first coding with OpenCode Free models: choose a project, describe the
 work, and let the local Harness coordinate files, tools, MCP servers and model
@@ -18,7 +18,7 @@ calls.
 
 Source version: 0.9.6; pinned runtime: `0.2.1-alpha.9`.
 
-**Candidate status:** v0.9.6 is not published yet. Public clean-cache proof and final setup/portable verification are pending; do not substitute a local preload.
+**Release status:** the final Windows x64 setup and portable for v0.9.6 are verified. The full release gate passed on the final source, including the public empty-cache runtime download. Publication evidence is recorded in the GitHub release; do not substitute a local preload.
 
 Inherited behavior remains: opencode2api v1.4.0, catalog/Tor fixes V094-21, composer fix V094-35, catalog-loading indicator V094-37, 13 Hermes-inspired CSS/ASCII backgrounds V094-38, context/effort metadata V094-39, Gentle AI and the active `profiles/web/cordis.patch.yml` catalog.
 

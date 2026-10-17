@@ -230,7 +230,13 @@ the user's active FreeCode instance. Existing artifact build/evidence helper:
   - Runtime pin check: `apps/shell/harness-runtime.json` (`0.2.1-alpha.9`) unchanged. `scripts/verify-pinned-runtime-asset.mjs` verifies SHA-256 `7c1d8cb1…c4ca5` against the manifest; archive untouched. The vendor spec is a test file, not part of the runtime archive.
   - Contract tests of gate step 1 (`release-gate-contract-tests`): 62/62 PASS.
   - Commits on `codex/v0.9.5-clean-runtime-bootstrap`: `debe96c0a4` (native private desktop integrity fix + Go test + docs), `00a95a868e` (vendor runner.spec on resolved pwsh), `3c8617a74b` (gate plan failure-path specs).
-  - Gate 4 relaunch pending. Gate not yet relaunched in this pass.
+  - Gate 4 (`D:/Temp/freecode-v0.9.6-gate-2026-10-16T23-37-50-906Z.*`) exit 1 at `workspace-tests`: 4 `contract.test.ts` cases timed out. Diagnosed as transient: the same file PASS 5/5 under the helper afterwards (23 s), and `dsh web --help` was 3-4 s on repeat runs. No code change.
+  - Gate 5 (`D:/Temp/freecode-v0.9.6-gate-2026-10-16T23-48-25-335Z.*`) exit 0 on `08b9731b0c`. Includes ACL 122/122, workspace 384/384, contracts, packaging and `first-run-runtime-download: PASS` (public empty cache, hidden CLI exit 0).
+  - Final build attempt 1 (`D:/Temp/freecode-v0.9.6-build-2026-10-17T00-16-11-149Z.*`) exit 1 in `prepackage:verify` at `verify-conversation-render` (one canvas 0 px). Standalone it passed 3/3 under the helper (26 s). Retry (`D:/Temp/freecode-v0.9.6-build-2026-10-17T00-19-45-642Z.*`) exit 0.
+  - Final artifacts in `apps/shell/release-0.9.6-final-20261016/` (publishing disabled, `--publish never`): setup 179,612,122 B, portable 179,236,984 B, blockmap 190,053 B, `latest.yml` 395 B. SHA-256 and sizes are in [release-notes-v0.9.6.md](release-notes-v0.9.6.md).
+  - Packaged helper SHA-256 `2906380678…` = staged helper. Native containment and Job-lifetime tests pass against the packaged file. NSIS static output verified.
+  - Docs updated from "pending" to verified: release notes, README(.es), docs/RELEASE(.es), CHANGELOG.
+  - Next: Graphify refresh (report only, do not stage pre-existing `graphify-out` changes), commit evidence, push `main`, tag `v0.9.6`, public release, then a closing commit with publication evidence.
 
 ## Relevant files
 

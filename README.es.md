@@ -4,7 +4,7 @@
 
 FreeCode DeepSeek Harness v0.9.6 incorpora la contención de ventanas Windows y las correcciones de auditoría del harness. Los árboles de procesos de fondo usan `headless-host` verificado, un escritorio privado no interactivo y un Job asignado antes de ejecutar. Las acciones GUI explícitas usan un broker Electron autenticado. Se restringen IPC/navegación, se unifican refrescos concurrentes del catálogo, llega el estado Tor al overlay y el adaptador antiguo conserva requests grandes y respuestas completas. DSH `0.2.1-alpha.9` se descarga por separado al primer inicio; no viene dentro del setup/portable. Ver las [notas bilingües v0.9.6](release-notes-v0.9.6.md).
 
-**Estado candidato:** v0.9.6 aún no está publicada. Faltan la prueba pública de caché vacía y la verificación final de setup/portable; una precarga local no las reemplaza.
+**Estado de la release:** el setup y el portable finales de v0.9.6 para Windows x64 están verificados. El gate completo de release pasó sobre la fuente final, incluida la descarga pública con caché vacía. La evidencia de publicación queda en la release de GitHub; no reemplazar por una precarga local.
 
 Programación en Windows con modelos OpenCode Free: elegí un proyecto,
 describí el trabajo y dejá que el Harness coordine archivos, herramientas,
@@ -18,7 +18,7 @@ servidores MCP y llamadas al modelo.
 
 Versión de la fuente: 0.9.6; runtime fijado: `0.2.1-alpha.9`.
 
-**Estado candidato:** v0.9.6 aún no está publicada. Faltan la prueba pública de caché vacía y la verificación final de setup/portable; una precarga local no las reemplaza.
+**Estado de la release:** el setup y el portable finales de v0.9.6 para Windows x64 están verificados. El gate completo de release pasó sobre la fuente final, incluida la descarga pública con caché vacía. La evidencia de publicación queda en la release de GitHub; no reemplazar por una precarga local.
 
 Se conservan opencode2api v1.4.0, correcciones catálogo/Tor V094-21, composer V094-35, indicador de carga V094-37, 13 fondos CSS/ASCII Hermes V094-38, contexto/esfuerzo V094-39, Gentle AI y el catálogo activo `profiles/web/cordis.patch.yml`.
 

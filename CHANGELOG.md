@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.6 — Candidate / Candidata — 2026-10-16
+## 0.9.6 — Verified / Verificada — 2026-10-16
 
 See [bilingual release notes / notas bilingües](release-notes-v0.9.6.md).
 
@@ -17,9 +17,9 @@ See [bilingual release notes / notas bilingües](release-notes-v0.9.6.md).
   native adversarial and public clean-cache gates cannot be substituted by a
   local preload. / Runtime alpha9 separado compatible con broker GUI; los gates
   nativos adversarios y de descarga pública limpia no se reemplazan por precarga.
-- Final Windows x64 setup, portable and updater metadata are pending their
-  checks; no older tag or desktop asset is overwritten. / Pendiente verificar
-  setup, portable y metadatos; no se reemplazan tags ni assets desktop anteriores.
+- Final Windows x64 setup, portable and updater metadata are verified; no older
+  tag or desktop asset is overwritten. / Setup, portable y metadatos finales
+  verificados; no se reemplazan tags ni assets desktop anteriores.
 
 ## 0.9.5 — Published — 2026-10-16
 
