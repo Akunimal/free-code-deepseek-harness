@@ -46,11 +46,6 @@ function criticalPaths(resourcesDir: string, harnessDir: string, platform: NodeJ
     { path: join(dsh, 'node_modules', '@deepseek-ai', 'dsh-host-directory-picker-native', 'lib', 'index.js'),
       label: 'directory-picker-native bundle' },
   ];
-  if (platform === 'win32') {
-    paths.push({ path: join(resourcesDir, 'opencode2api', 'opencode2api-win-x64.exe'), label: 'opencode2api worker binary' });
-  } else if (platform === 'linux') {
-    paths.push({ path: join(resourcesDir, 'opencode2api', 'opencode2api-linux-x64'), label: 'opencode2api worker binary' });
-  }
   return paths;
 }
 

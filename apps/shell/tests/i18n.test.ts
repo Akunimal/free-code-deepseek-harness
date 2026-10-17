@@ -25,20 +25,6 @@ describe('native shell locale', () => {
 
   it('covers the Tor overlay block in all three locales', () => {
     const keys = [
-      'overlay.torTitle',
-      'overlay.torLoading',
-      'overlay.torOperationFailed',
-      'overlay.torUnavailable',
-      'overlay.torCancelStarting',
-      'overlay.directOnly',
-      'overlay.routeDirect',
-      'overlay.routeTor',
-      'overlay.torEnable',
-      'overlay.torDisable',
-      'overlay.torStarting',
-      'overlay.torStopping',
-      'tor.status.ready',
-      'tor.status.failed',
       'stuck.timeout.message',
       'stuck.timeout.detail',
     ] as const;

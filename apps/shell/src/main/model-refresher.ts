@@ -107,6 +107,8 @@ export interface RefresherConfig {
   homeDir: string; // DSH_HOME (profiles/web/cordis.patch.yml is watched by DSH)
   userDataDir: string; // model-catalog.json lives here
   authHeader?: string; // e.g. 'Bearer public'
+  /** Exact free-lane allowlist; the selector shows only these ids. */
+  freeModelIds?: readonly string[];
   providers?: readonly ProviderRefreshTarget[];
   probeTimeoutMs?: number; // default 120000; free models can take >60s to answer
   onUpdate?: (catalog: ModelCatalog) => void;
@@ -118,6 +120,21 @@ const CATALOG_FILE = 'model-catalog.json';
 // user's selector while an in-flight request is still viable.
 const PROBE_TIMEOUT_MS = 120_000;
 const FREE_PROVIDER = 'deepseek-free';
+
+/** Free Kilo gateway models that answered a live tool-call probe (2026-10-17).
+ *  The selector exposes only these; everything else on the lane is hidden. */
+export const KILO_TOOLCALL_FREE_MODEL_IDS: readonly string[] = [
+  'kilo-auto/free',
+  'nvidia/nemotron-3.5-super-vl:free',
+  'xingchen-agi/xing4.0-29b-a4b:free',
+  'dots-studio/dots-3-note-preview:free',
+  'liquid/lfm-2.5-2.6b:free',
+  'nvidia/nemotron-3.5-lightning:free',
+  'cohere/north-mini-code:free',
+  'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+  'nvidia/nemotron-3-super-120b-a12b:free',
+  'openrouter/free',
+];
 const REASONING_LEVELS = new Set<ModelReasoningLevel>(['minimal', 'low', 'medium', 'high', 'xhigh', 'max']);
 const DEEPSEEK_V4_CAPABILITIES: ListedModel = {
   id: '',
@@ -145,6 +162,7 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
       provider: FREE_PROVIDER,
       baseUrl: cfg.lbBaseUrl,
       authHeader: cfg.authHeader,
+      exactModelIds: cfg.freeModelIds,
       // 0.9.1: the anonymous lane exposes ONLY 200 responders. With zero
       // responders the synced list is erased (never stale/dead models in
       // the selector); bounded refresh retries repopulate it on recovery.

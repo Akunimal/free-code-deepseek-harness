@@ -48,14 +48,12 @@ const legacyLayoutIsPopulated = () => {
   const required = [
     join(dsh(), 'apps/cli/lib/bin.js'),
     join(installDir, 'resources/freecode/runtime-manifest.json'),
-    join(installDir, 'resources/freecode/opencode2api/opencode2api-win-x64.exe'),
   ];
   const dirs = [join(dsh(), 'packages'), join(dsh(), 'node_modules')];
   return required.every((target) => existsSync(target))
     && dirs.every((target) => existsSync(target) && readdirSync(target).length > 0);
 };
-const layoutIsPopulated = () => existsSync(join(installDir, 'resources/freecode/opencode2api/opencode2api-win-x64.exe'))
-  && !existsSync(dsh())
+const layoutIsPopulated = () => !existsSync(dsh())
   && existsSync(join(installDir, 'resources/freecode/runtime-manifest.json'));
 
 const stopProcessTree = (pid) => {
@@ -131,19 +129,17 @@ const runSetup = async (setup, label, isComplete = layoutIsPopulated) => {
 
 const dsh = () => join(installDir, 'resources/freecode/dsh');
 const assertPopulated = (label) => {
-  const opencode = join(installDir, 'resources/freecode/opencode2api/opencode2api-win-x64.exe');
   const forbidden = [dsh()]
     .filter((target) => existsSync(target));
   const manifest = join(installDir, 'resources/freecode/runtime-manifest.json');
-  if (!existsSync(opencode) || !existsSync(manifest) || forbidden.length) {
-    throw new Error(`${label} layout invalid; missing=${existsSync(opencode) ? '' : opencode}${existsSync(manifest) ? '' : `,${manifest}`} unexpectedlyBundled=${forbidden.join(',')}`);
+  if (!existsSync(manifest) || forbidden.length) {
+    throw new Error(`${label} layout invalid; missing=${existsSync(manifest) ? '' : manifest} unexpectedlyBundled=${forbidden.join(',')}`);
   }
 };
 const assertLegacyPopulated = (label) => {
   const required = [
     join(dsh(), 'apps/cli/lib/bin.js'),
     join(installDir, 'resources/freecode/runtime-manifest.json'),
-    join(installDir, 'resources/freecode/opencode2api/opencode2api-win-x64.exe'),
   ];
   const empty = [join(dsh(), 'packages'), join(dsh(), 'node_modules')]
     .filter((target) => !existsSync(target) || readdirSync(target).length === 0);

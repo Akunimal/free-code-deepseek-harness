@@ -5,7 +5,6 @@ import { tmpdir } from 'node:os';
 import {
   nodeRuntimeEnv,
   resolveNodePath,
-  resolveOpencodeBinary,
   resolveResourcesDir,
   resolveHarnessRuntimeDir,
 } from '../src/main/resource-paths.js';
@@ -34,34 +33,10 @@ describe('resource-paths', () => {
       .toBe(resolve('/repo/resources/freecode'));
   });
 
-  it('supports both the dev nested binary and the packaged root fallback', () => {
-    const base = mkdtempSync(join(tmpdir(), 'freecode-binary-'));
-    try {
-      const nested = join(base, 'opencode2api');
-      mkdirSync(nested);
-      writeFileSync(join(nested, 'opencode2api-linux-x64'), 'fixture');
-      expect(resolveOpencodeBinary(base, 'linux')).toBe(join(nested, 'opencode2api-linux-x64'));
-    } finally {
-      rmSync(base, { recursive: true, force: true });
-    }
-  });
-
   it('uses Electron executable plus run-as-node only when packaged', () => {
     expect(resolveNodePath({ packaged: true, executablePath: 'electron.exe' })).toBe('electron.exe');
     expect(nodeRuntimeEnv(true)).toEqual({ ELECTRON_RUN_AS_NODE: '1' });
     expect(nodeRuntimeEnv(false)).toEqual({});
-  });
-
-  it('selects the native macOS worker binary', () => {
-    const base = mkdtempSync(join(tmpdir(), 'freecode-mac-binary-'));
-    try {
-      const nested = join(base, 'opencode2api');
-      mkdirSync(nested);
-      writeFileSync(join(nested, 'opencode2api-mac-x64'), 'fixture');
-      expect(resolveOpencodeBinary(base, 'darwin', 'x64')).toBe(join(nested, 'opencode2api-mac-x64'));
-    } finally {
-      rmSync(base, { recursive: true, force: true });
-    }
   });
 
 });

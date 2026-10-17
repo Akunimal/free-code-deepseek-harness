@@ -1,11 +1,3 @@
-/** IPC calls accepted from the static Pool Status data page. */
-export const OVERLAY_IPC_CHANNELS = new Set([
-  'pool:closeOverlay',
-  'tor:getStatus',
-  'tor:start',
-  'tor:stop',
-]);
-
 interface RendererFrame {
   url: string;
 }
@@ -21,7 +13,6 @@ export interface RendererInvokeEvent {
 
 export interface TrustedRendererTargets {
   harnessWebContents: object | null;
-  overlayWebContents: object | null;
   harnessUrl: string;
 }
 
@@ -46,9 +37,7 @@ export function isTrustedHarnessNavigation(candidateUrl: string, expectedUrl: st
 }
 
 /**
- * Bind privileged IPC to an owned top-level renderer and its expected origin.
- * The overlay gets only its four static-page operations; it cannot invoke the
- * broader harness API even though both renderers use the same preload file.
+ * Bind privileged IPC to the owned top-level harness renderer and its expected origin.
  */
 export function isTrustedRendererInvocation(
   event: RendererInvokeEvent,
@@ -62,7 +51,5 @@ export function isTrustedRendererInvocation(
     return isTrustedHarnessNavigation(frame.url, targets.harnessUrl);
   }
 
-  return event.sender === targets.overlayWebContents
-    && OVERLAY_IPC_CHANNELS.has(channel)
-    && frame.url.startsWith('data:text/html,');
+  return false;
 }

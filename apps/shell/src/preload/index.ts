@@ -4,21 +4,15 @@ import type {
   IpcPayloads,
   ModelCatalog,
   ModelCatalogRefreshState,
-  WorkerHandle,
   OcrResult,
   EmbeddedMcpState,
   McpRuntimeStatus,
-  TorStatus,
   GentleAiStatus,
   GentleAiDoctor,
   GentleAiRunResponse,
 } from '@freecode/shared-types';
 
 const IpcChannels = {
-  poolStatus: 'pool:status',
-  poolRestartWorker: 'pool:restartWorker',
-  poolResize: 'pool:resize',
-  poolOverlayClose: 'pool:closeOverlay',
   modelsCatalog: 'models:catalog',
   modelsRefresh: 'models:refresh',
   modelsRefreshState: 'models:refreshState',
@@ -29,10 +23,6 @@ const IpcChannels = {
   mcpOpenConfig: 'mcp:openConfig',
   mcpStatus: 'mcp:status',
   harnessRestart: 'harness:restart',
-  torStatus: 'tor:status',
-  torGetStatus: 'tor:getStatus',
-  torStart: 'tor:start',
-  torStop: 'tor:stop',
   localeSet: 'locale:set',
   ocrExtract: 'ocr:extract',
   ocrStatus: 'ocr:status',
@@ -48,17 +38,6 @@ const IpcChannels = {
  */
 
 const api: FreeCodeApi = {
-  pool: {
-    onStatus(cb: (payload: IpcPayloads[typeof IpcChannels.poolStatus]) => void): () => void {
-      const listener = (_e: unknown, payload: IpcPayloads[typeof IpcChannels.poolStatus]): void =>
-        cb(payload);
-      ipcRenderer.on(IpcChannels.poolStatus, listener);
-      return () => ipcRenderer.removeListener(IpcChannels.poolStatus, listener);
-    },
-    resize: (size: number): Promise<void> => ipcRenderer.invoke(IpcChannels.poolResize, { size }),
-    restartWorker: (id: string): Promise<void> => ipcRenderer.invoke(IpcChannels.poolRestartWorker, { id }),
-    closeOverlay: (): Promise<void> => ipcRenderer.invoke(IpcChannels.poolOverlayClose),
-  },
   models: {
     refresh: (): Promise<ModelCatalog> => ipcRenderer.invoke(IpcChannels.modelsRefresh),
     onCatalog(cb: (catalog: ModelCatalog) => void): () => void {
@@ -91,16 +70,6 @@ const api: FreeCodeApi = {
       return () => ipcRenderer.removeListener(IpcChannels.mcpStatus, listener);
     },
   },
-  tor: {
-    getStatus: (): Promise<TorStatus | null> => ipcRenderer.invoke(IpcChannels.torGetStatus),
-    start: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.torStart),
-    stop: (): Promise<boolean> => ipcRenderer.invoke(IpcChannels.torStop),
-    onStatus(cb: (status: TorStatus) => void): () => void {
-      const listener = (_e: unknown, status: TorStatus): void => cb(status);
-      ipcRenderer.on(IpcChannels.torStatus, listener);
-      return () => ipcRenderer.removeListener(IpcChannels.torStatus, listener);
-    },
-  },
   locale: {
     set: (locale: 'zh' | 'en' | 'es'): Promise<void> =>
       ipcRenderer.invoke(IpcChannels.localeSet, { locale }),
@@ -123,4 +92,4 @@ const api: FreeCodeApi = {
 
 contextBridge.exposeInMainWorld('freecode', api);
 
-export type { FreeCodeApi, IpcPayloads, ModelCatalog, ModelCatalogRefreshState, WorkerHandle, OcrResult, EmbeddedMcpState, McpRuntimeStatus };
+export type { FreeCodeApi, IpcPayloads, ModelCatalog, ModelCatalogRefreshState, OcrResult, EmbeddedMcpState, McpRuntimeStatus };

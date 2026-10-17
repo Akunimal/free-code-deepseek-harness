@@ -82,8 +82,6 @@ if (!manifest || typeof manifest !== 'object' || typeof manifest.version !== 'st
   fail('runtime-manifest.json does not satisfy the version/nodeModuleVersion/cli contract');
 }
 
-const linuxWorker = catSquashfs(artifactPath, offset, 'resources/freecode/opencode2api/opencode2api-linux-x64');
-if (linuxWorker.subarray(0, 4).toString('hex') !== '7f454c46') fail('Linux opencode2api worker is not an ELF binary');
 
 const tray = catSquashfs(artifactPath, offset, 'resources/freecode/tray.png');
 if (tray.length === 0 || tray.subarray(0, 8).toString('hex') !== '89504e470d0a1a0a') fail('tray.png is empty or not a PNG');
