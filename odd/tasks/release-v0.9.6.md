@@ -247,3 +247,16 @@ the user's active FreeCode instance. Existing artifact build/evidence helper:
 - `odd/tasks/headless-desktop-containment.md` — prior native fix and local test.
 - `apps/shell/release/` — immutable alpha9 archive/checksum (ignored binaries).
 - `apps/shell/release-0.9.6-final-20261016/` — new final output, not older setup.
+
+## Publication evidence (REL096-4)
+
+- Tag `v0.9.6` annotated object `4db2d16cd4` on source commit `08b9731b0c` (pushed).
+- `main` fast-forwarded to `626ba33246` (pushed).
+- GitHub release: https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.6 (not draft, not prerelease).
+- Remote asset digests equal local SHA-256:
+  - setup 179,612,122 B `443695783a98e1b1e94996de15a3a85fbae0410d761683cf2f9d3f422d7bb6de`
+  - portable 179,236,984 B `3414dc81aa4a900a19c9887614db82390f908cd7df46be6af9d1d301681b8f5a`
+  - blockmap 190,053 B `81e39143252856eb4fc98f86aab4a8aa5fa33dd431cc53bb04ad18b981f3602c`
+  - latest.yml 395 B `8a006c735b3df9bfc423d0e716097524334d3a98cb6794a7c709fba8f625dfef`
+- Local install test: setup run by user; installed `DisplayVersion 0.9.6` (HKCU). Previous install backed up to `D:/Temp/freecodeshell-backup-pre-0.9.6`.
+- Graphify refresh failed (process killed by user, ~5 GB memory); not blocking.
