@@ -108,6 +108,7 @@ try {
     exitCode = 2;
   } else {
     const REQUIRED_FILES = [
+      'resources/freecode/opencode2api/opencode2api-win-x64.exe',
       'resources/freecode/runtime-manifest.json',
        'resources/freecode/tor/tor.exe',
        'resources/freecode/tor/geoip',

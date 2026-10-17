@@ -2,13 +2,13 @@ import { HarnessSupervisor, HarnessInstance } from './harness-supervisor.js';
 import { SecretStore, resolveSecrets } from './secret-store.js';
 import { join, resolve } from 'node:path';
 import { retireRemovedRuntime } from './retired-runtime.js';
-import { startKiloLane, type KiloLaneInstance } from './kilo-lane.js';
+import { startOpencode2api, type Opencode2apiInstance } from './opencode2api.js';
 import { embeddedMcpEnvironment, ensureEmbeddedMcpConfig } from './mcp-home.js';
 import type { EmbeddedMcpState, McpRuntimeStatus, WorkerHandle } from '@freecode/shared-types';
 
 /**
  * Shell runtime — owns the full backend stack of the desktop app:
- *   kilo lane (Kilo free gateway, loopback) -> dsh web supervisor.
+ *   opencode2api (anonymous Zen) -> dsh web supervisor.
  */
 
 export interface ShellRuntimeConfig {
@@ -30,6 +30,8 @@ export interface ShellRuntimeConfig {
   log?: (level: string, msg: string, meta?: Record<string, unknown>) => void;
   /** Additional stable environment for the bundled Harness web client. */
   extraEnv?: Record<string, string>;
+  /** Optional egress proxies passed to opencode2api (e.g. ['direct', 'socks5://127.0.0.1:9050']). */
+  proxies?: string[];
   /** Authenticated loopback bridge for the visible persistent browser. */
   browserBridge?: { endpoint: string; token: string };
   /** Absolute uvx executable selected by the platform bootstrap. */
@@ -39,8 +41,8 @@ export interface ShellRuntimeConfig {
 export type McpStatusListener = (status: McpRuntimeStatus) => void;
 
 export interface ShellRuntime {
-  /** Kilo free-gateway lane; undefined when it failed to bind. */
-  kiloLane?: KiloLaneInstance;
+  /** opencode2api anonymous-Zen instance; undefined when unavailable. */
+  opencode2api?: Opencode2apiInstance;
   supervisor: HarnessSupervisor;
   /** No per-worker handles; returns empty array. */
   workers: () => WorkerHandle[];
@@ -158,11 +160,14 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
   // harness route uses, so server_keys and apiKeyEnv always agree even when
   // the operator overrode FREECODE_PUBLIC_KEY.
   const publicKey = extraEnv.FREECODE_PUBLIC_KEY ?? process.env.FREECODE_PUBLIC_KEY ?? 'public';
-  const kiloLane = await startKiloLane({
+  const opencode2api = await startOpencode2api({
+    resourcesDir: join(cfg.resourcesDir),
+    userDataDir: cfg.userDataDir,
     apiKey: publicKey,
+    proxies: cfg.proxies,
     log,
   }).catch((error: unknown) => {
-    cfg.log?.('warn', 'kilo lane failed to start', {
+    cfg.log?.('warn', 'opencode2api sidecar failed to start', {
       error: error instanceof Error ? error.message : String(error),
     });
     return undefined;
@@ -171,7 +176,7 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
     nodePath: cfg.nodePath,
     cliEntry,
     homeDir: join(cfg.userDataDir, 'dsh-home'),
-    lbUrl: kiloLane?.url ?? 'http://127.0.0.1:55405',
+    lbUrl: opencode2api?.url ?? 'http://127.0.0.1:55405',
     // Product-managed MCP values are authoritative for the child process:
     // they are derived from the persisted catalog, not inherited from the
     // Electron environment. A new harness process reads the current toggles.
@@ -183,7 +188,7 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
   });
 
   return {
-    kiloLane,
+    opencode2api,
     supervisor,
     workers: () => [],
     mcpState,
@@ -214,7 +219,7 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
     },
     stop: async () => {
       await supervisor.stop();
-      await kiloLane?.stop();
+      await opencode2api?.stop();
     },
   };
 }

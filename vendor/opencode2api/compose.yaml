@@ -1,0 +1,32 @@
+services:
+  opencode2api:
+    image: ghcr.io/jasonxu114514/opencode2api:${OPENCODE2API_VERSION:-latest}
+    pull_policy: always
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      CONFIG_PATH: /var/lib/opencode2api/config.json
+      CONFIG_SEED_PATH: /run/config/opencode2api.json
+      # Empty defers to the listen addresses in config.json. Export
+      # OPENCODE2API_LISTEN / OPENCODE2API_WEBUI_LISTEN to override them.
+      LISTEN_ADDRESS: ${OPENCODE2API_LISTEN:-}
+      WEBUI_LISTEN_ADDRESS: ${OPENCODE2API_WEBUI_LISTEN:-}
+    ports:
+      - "${OPENCODE2API_PORT:-8080}:8080"
+      - "${OPENCODE2API_WEBUI_PORT:-8081}:8081"
+    configs:
+      - source: opencode2api_config
+        target: /run/config/opencode2api.json
+    volumes:
+      - opencode2api-state:/var/lib/opencode2api
+    tmpfs:
+      - /tmp
+
+configs:
+  opencode2api_config:
+    file: ./config.json
+
+volumes:
+  opencode2api-state:

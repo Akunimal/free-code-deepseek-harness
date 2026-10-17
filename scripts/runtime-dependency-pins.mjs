@@ -25,10 +25,22 @@ export function refreshRuntimeDependencyPins(manifest, payloadRoot) {
   }
   const root = resolve(payloadRoot);
   const result = JSON.parse(JSON.stringify(manifest));
+  const opencode = result.dependencies.find((dependency) => dependency.id === 'opencode2api');
   const dsh = result.dependencies.find((dependency) => dependency.id === 'dsh-cli');
-  if (!dsh?.required) {
-    throw new Error('runtime dependency pin refresh: required dsh-cli entry must exist');
+  if (!opencode?.required || !dsh?.required) {
+    throw new Error('runtime dependency pin refresh: required opencode2api and dsh-cli entries must exist');
   }
+
+  const opencodePath = join(root, opencode.path);
+  const opencodeBytes = readRequiredFile(opencodePath, 'opencode2api artifact');
+  const receiptPath = join(root, 'opencode2api', 'freecode-build-receipt.json');
+  const receipt = JSON.parse(readRequiredFile(receiptPath, 'opencode2api build receipt').toString('utf8'));
+  const opencodeVersion = typeof receipt.version === 'string' ? receipt.version.replace(/^v/u, '') : '';
+  if (!/^\d+\.\d+\.\d+$/u.test(opencodeVersion)) {
+    throw new Error(`runtime dependency pin refresh: invalid opencode2api build version ${String(receipt.version)}`);
+  }
+  opencode.version = opencodeVersion;
+  opencode.sha256 = sha256(opencodeBytes);
 
   const dshPath = join(root, dsh.path);
   const dshBytes = readRequiredFile(dshPath, 'dsh-cli artifact');

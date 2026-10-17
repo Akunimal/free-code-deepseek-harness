@@ -25,6 +25,7 @@ export function createReleaseGatePlan({ version, outputDir }) {
       'scripts/vendor-runtime-build.test.mjs',
       'scripts/harness-runtime-pin.test.mjs',
       'scripts/browser-prompt-policy.test.mjs',
+      'scripts/opencode2api-staging.test.mjs',
       'scripts/local-candidate-bundle.test.mjs',
       'scripts/conversation-render-fixture.test.mjs',
       'scripts/headless-containment-gate.test.mjs',

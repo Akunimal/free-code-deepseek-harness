@@ -67,6 +67,7 @@ function createBridgeFixture(isTrustedRendererInvocation = () => true) {
   } as unknown as ShellRuntime;
   const dispose = registerIpc({
     runtime,
+    torManager,
     userDataDir: 'test-data',
     homeDir: 'test-home',
     lbBaseUrl: 'http://127.0.0.1',
@@ -75,7 +76,9 @@ function createBridgeFixture(isTrustedRendererInvocation = () => true) {
     triggerRefresh,
     isTrustedRendererInvocation,
     setLocale: () => undefined,
+    closePoolStatusOverlay: (sender) => closeRequests.push(sender),
     getRendererTargets: () => [target] as never,
+    getTorRendererTargets: () => [target, overlayTarget] as never,
   });
   return {
     catalogRefreshState,
@@ -121,6 +124,32 @@ describe('model catalog refresh IPC', () => {
 
     await expect(refresh?.({ sender: target, senderFrame: {} })).rejects.toThrow('untrusted renderer');
     expect(triggerRefresh).not.toHaveBeenCalled();
+    dispose();
+  });
+});
+
+describe('Pool Status overlay close IPC', () => {
+  it('forwards the invoking WebContents to the main-process ownership guard', () => {
+    const { closeRequests, dispose } = createBridgeFixture();
+    const sender = { id: 'pool-overlay-webcontents' };
+    const handler = handlers.get(IpcChannels.poolOverlayClose);
+
+    handler?.({ sender });
+
+    expect(closeRequests).toEqual([sender]);
+    dispose();
+    expect(handlers.has(IpcChannels.poolOverlayClose)).toBe(false);
+  });
+});
+
+describe('Tor status IPC fan-out', () => {
+  it('pushes asynchronous Tor state changes to the harness and Pool Status overlay only', () => {
+    const { dispose, emitTorChange, overlaySent, sent } = createBridgeFixture();
+
+    emitTorChange();
+
+    expect(sent).toEqual([{ channel: IpcChannels.torStatus, payload: expect.objectContaining({ status: 'ready' }) }]);
+    expect(overlaySent).toEqual([{ channel: IpcChannels.torStatus, payload: expect.objectContaining({ status: 'ready' }) }]);
     dispose();
   });
 });

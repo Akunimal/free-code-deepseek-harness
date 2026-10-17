@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isTrustedHarnessNavigation,
   isTrustedRendererInvocation,
+  OVERLAY_IPC_CHANNELS,
 } from '../src/main/renderer-security.js';
 
 const harnessUrl = 'http://127.0.0.1:43125/?token=one-time-token';
@@ -29,8 +30,10 @@ describe('trusted harness navigation', () => {
 
 describe('trusted renderer IPC policy', () => {
   const harnessContents = { id: 'harness', mainFrame: { url: harnessUrl } };
+  const overlayContents = { id: 'overlay', mainFrame: { url: 'data:text/html,overlay' } };
   const base = {
     harnessWebContents: harnessContents,
+    overlayWebContents: overlayContents,
     harnessUrl,
   };
 
@@ -45,4 +48,11 @@ describe('trusted renderer IPC policy', () => {
     expect(isTrustedRendererInvocation(invokeEvent(harnessContents, 'http://127.0.0.1:43125/iframe', false), base, 'models:refresh')).toBe(false);
   });
 
+  it('limits the overlay to close and Tor controls, never broad harness IPC', () => {
+    for (const channel of OVERLAY_IPC_CHANNELS) {
+      expect(isTrustedRendererInvocation(invokeEvent(overlayContents, 'data:text/html,overlay'), base, channel)).toBe(true);
+    }
+    expect(isTrustedRendererInvocation(invokeEvent(overlayContents, 'data:text/html,overlay'), base, 'mcp:setEnabled')).toBe(false);
+    expect(isTrustedRendererInvocation(invokeEvent(overlayContents, 'https://attacker.example/'), base, 'tor:start')).toBe(false);
+  });
 });

@@ -26,7 +26,6 @@ extraResources:
       - '**/*'
       - '!dsh'
       - '!dsh/**'
-      - '!opencode2api/**'
       - '!omniroute-runtime*'
       - '!.uv-cache/**'
       - '!.uv-cache'

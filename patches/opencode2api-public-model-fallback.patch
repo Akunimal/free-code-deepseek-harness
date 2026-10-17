@@ -1,0 +1,63 @@
+diff --git a/vendor/opencode2api/internal/app/auth.go b/vendor/opencode2api/internal/app/auth.go
+index 0f5b3b104f..45906d18cb 100644
+--- a/vendor/opencode2api/internal/app/auth.go
++++ b/vendor/opencode2api/internal/app/auth.go
+@@ -207,6 +207,13 @@ func mapPublicToFreeModel(auth UpstreamAuth, modelID string) string {
+ 	if freeID := modelID + "-free"; modelExistsInCaches(freeID) {
+ 		return freeID
+ 	}
++	// The model catalog is loaded asynchronously. A transient catalog failure
++	// must not turn a public model id into a misleading auth error: the public
++	// catalog intentionally strips the -free suffix, so the upstream id is
++	// still deterministic while the cache is unavailable.
++	if modelCatalogUnavailable() {
++		return modelID + "-free"
++	}
+ 	return modelID
+ }
+ 
+@@ -215,3 +222,9 @@ func modelExistsInCaches(modelID string) bool {
+ 	defer modelMu.RUnlock()
+ 	return containsModelWithID(modelsCache, modelID) || containsModelWithID(goModelsCache, modelID)
+ }
++
++func modelCatalogUnavailable() bool {
++	modelMu.RLock()
++	defer modelMu.RUnlock()
++	return !modelsLoaded && len(modelsCache) == 0 && len(goModelsCache) == 0
++}
+diff --git a/vendor/opencode2api/internal/app/main_test.go b/vendor/opencode2api/internal/app/main_test.go
+index f4cf7211ca..73a8fd697b 100644
+--- a/vendor/opencode2api/internal/app/main_test.go
++++ b/vendor/opencode2api/internal/app/main_test.go
+@@ -791,4 +791,30 @@ func TestMapPublicToFreeModel(t *testing.T) {
+ 	}
+ }
+ 
++func TestMapPublicToFreeModelFallsBackWhenCatalogUnavailable(t *testing.T) {
++	oldModelsCache := modelsCache
++	oldGoModelsCache := goModelsCache
++	oldModelsLoaded := modelsLoaded
++	modelMu.Lock()
++	modelsCache = nil
++	goModelsCache = nil
++	modelsLoaded = false
++	modelMu.Unlock()
++	t.Cleanup(func() {
++		modelMu.Lock()
++		modelsCache = oldModelsCache
++		goModelsCache = oldGoModelsCache
++		modelsLoaded = oldModelsLoaded
++		modelMu.Unlock()
++	})
++
++	public := UpstreamAuth{Mode: AuthRoutePublic}
++	if got := mapPublicToFreeModel(public, "x-preview-f"); got != "x-preview-f-free" {
++		t.Fatalf("mapPublicToFreeModel() = %q, want x-preview-f-free", got)
++	}
++	if got := mapPublicToFreeModel(public, "x-preview-f-free"); got != "x-preview-f-free" {
++		t.Fatalf("free model was changed to %q", got)
++	}
++}
++
+ func TestExtractUpstreamAuthKeyValidation(t *testing.T) {

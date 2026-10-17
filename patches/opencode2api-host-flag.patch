@@ -1,0 +1,33 @@
+diff --git a/vendor/opencode2api/internal/app/config.go b/vendor/opencode2api/internal/app/config.go
+index cedaea0f58..3fe553bebf 100644
+--- a/vendor/opencode2api/internal/app/config.go
++++ b/vendor/opencode2api/internal/app/config.go
+@@ -13,6 +13,7 @@ import (
+ 
+ var (
+ 	port                 string
++	hostAddr             string
+ 	configPath           = "config.json"
+ 	modelAlias           = map[string]string{}
+ 	reasoningEffortMap   = map[string]string{}
+diff --git a/vendor/opencode2api/internal/app/server.go b/vendor/opencode2api/internal/app/server.go
+index b8740c161d..927ba8f98c 100644
+--- a/vendor/opencode2api/internal/app/server.go
++++ b/vendor/opencode2api/internal/app/server.go
+@@ -17,6 +17,7 @@ import (
+ func Run() {
+ 	var showVersion bool
+ 	flag.StringVar(&port, "port", "8000", "服务端口")
++	flag.StringVar(&hostAddr, "host", "", "监听地址 (留空=所有接口)")
+ 	flag.StringVar(&configPath, "config", "config.json", "配置文件路径")
+ 	flag.StringVar(&adminPassword, "password", "123456", "管理面板密码（留空则不启用登录验证）")
+ 	flag.BoolVar(&debugMode, "debug", false, "启用调试日志")
+@@ -103,7 +104,7 @@ func Run() {
+ 		http.NotFound(w, r)
+ 	}))
+ 
+-	addr := ":" + port
++	addr := hostAddr + ":" + port
+ 	server := &http.Server{Addr: addr, Handler: mux}
+ 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+ 	defer stop()

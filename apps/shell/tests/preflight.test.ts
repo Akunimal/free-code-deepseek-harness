@@ -114,6 +114,13 @@ describe('verifyHarnessLayout', () => {
     expect(result.warnings.some(w => w.includes('valid cli'))).toBe(true);
   });
 
+  it('linux does not require the win32 opencode2api binary', () => {
+    makeFullLayout(root);
+    rmSync(join(root, 'opencode2api', 'opencode2api-win-x64.exe'));
+    const result = verifyHarnessLayout({ resourcesDir: root, platform: 'linux' });
+    expect(result.ok).toBe(true);
+  });
+
   it('awaitHarnessLayout absorbs a settling window: empty now, filled after 2 attempts', async () => {
     // Simulate the auto-update race: packages/ starts empty (NSIS still
     // extracting) then becomes populated by the 3rd check. The retry must

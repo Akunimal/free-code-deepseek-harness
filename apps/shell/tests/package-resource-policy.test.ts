@@ -77,7 +77,7 @@ describe('desktop package payload policy', () => {
     const installSmoke = readFileSync(installedSmokeScript, 'utf8');
     const runtimeSmoke = readFileSync(installedRuntimeScript, 'utf8');
 
-    expect(installSmoke).not.toContain('opencode2api');
+    expect(installSmoke).toContain('resources/freecode/opencode2api/opencode2api-win-x64.exe');
     expect(installSmoke).toContain('resources/freecode/tor/tor.exe');
     expect(installSmoke).toContain('resources/freecode/tor/geoip');
     expect(installSmoke).toContain('resources/freecode/tor/geoip6');

@@ -1,15 +1,5 @@
 # Changelog
 
-## 0.9.7 — Local candidate / Candidata local — 2026-10-17
-
-See [bilingual release notes / notas bilingües](release-notes-v0.9.7.md).
-
-- The opencode2api sidecar (Go, v1.4.0) is replaced by a loopback Kilo lane
-  that forwards to Kilo's free gateway. No gateway binary is bundled.
-- The selector exposes only the 10 free Kilo models that answered a live
-  tool-call probe.
-- Tor and the Pool Status overlay are removed from the GUI.
-
 ## 0.9.6 — Verified / Verificada — 2026-10-16
 
 See [bilingual release notes / notas bilingües](release-notes-v0.9.6.md).

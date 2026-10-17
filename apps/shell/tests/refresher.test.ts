@@ -3,12 +3,7 @@ import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { readHarnessSettings } from '../src/main/harness-settings.js';
-import {
-  refreshModels,
-  ModelCatalog,
-  shouldRetryModelRefresh,
-  KILO_TOOLCALL_FREE_MODEL_IDS,
-} from '../src/main/model-refresher.js';
+import { refreshModels, ModelCatalog, shouldRetryModelRefresh } from '../src/main/model-refresher.js';
 
 const LB = 'http://127.0.0.1:41234';
 const REASONING_EFFORTS = { off: null, low: 'low', high: 'high', max: 'max' };
@@ -494,25 +489,6 @@ describe('model-refresher', () => {
         defaultReasoningEffort: 'high',
       },
     ]);
-    rmSync(dirname(home), { recursive: true, force: true });
-  });
-
-  it('selector exposes only the verified free tool-calling Kilo models', async () => {
-    expect(KILO_TOOLCALL_FREE_MODEL_IDS).toHaveLength(10);
-    expect(KILO_TOOLCALL_FREE_MODEL_IDS).not.toContain('thinkingmachines/inkling-small:free');
-    expect(KILO_TOOLCALL_FREE_MODEL_IDS).not.toContain('poolside/laguna-s-2.1:free');
-    mockFetchWithModels(['kilo-auto/free', 'poolside/laguna-s-2.1:free'], ['kilo-auto/free', 'poolside/laguna-s-2.1:free']);
-    const { home, data } = tmpDirs();
-    await refreshModels({
-      lbBaseUrl: LB,
-      homeDir: home,
-      userDataDir: data,
-      freeModelIds: KILO_TOOLCALL_FREE_MODEL_IDS,
-    });
-    const settings = readHarnessSettings(home);
-    // laguna-s answers 200 but never emits tool calls: excluded before probing.
-    expect(settings['llm-pi-ai'].providers['deepseek-free'].models.map((m: { id: string }) => m.id))
-      .toEqual(['kilo-auto/free']);
     rmSync(dirname(home), { recursive: true, force: true });
   });
 

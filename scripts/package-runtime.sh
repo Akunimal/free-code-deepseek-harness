@@ -213,6 +213,15 @@ remove_tree "$OUT/dsh" "$OUT/opencode2api" "$OUT/gemini-web2api" "$OUT/perplexit
 # after materialization and should not enter the installer payload.
 node "$ROOT/scripts/copy-runtime-stage.mjs" "$STAGE" "$OUT/dsh"
 node "$ROOT/scripts/verify-conversation-bundle.mjs" "$OUT/dsh"
+mkdir -p "$OUT/opencode2api"
+if [[ ! -f "$ROOT/apps/shell/resources/opencode2api/opencode2api-win-x64.exe" ]]; then
+  echo "package-runtime: missing Windows opencode2api binary" >&2
+  exit 3
+fi
+cp "$ROOT/apps/shell/resources/opencode2api/opencode2api-win-x64.exe" "$OUT/opencode2api/"
+cp "$ROOT/apps/shell/resources/opencode2api/freecode-build-receipt.json" "$OUT/opencode2api/"
+cp "$ROOT/apps/shell/resources/opencode2api/LICENSE" "$OUT/opencode2api/"
+node "$ROOT/scripts/opencode2api-staging.mjs" --verify
 # The Windows release owns its OCR runtime. The helper copies only the native
 # executable/DLLs and language data, and fails closed when a release build host
 # does not provide the expected Tesseract installation.

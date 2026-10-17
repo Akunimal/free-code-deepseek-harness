@@ -58,6 +58,10 @@ export type TorStatus = z.infer<typeof TorStatusSchema>;
 
 /** IPC channel names (single source of truth for main + preload + renderer). */
 export const IpcChannels = {
+  poolStatus: 'pool:status',
+  poolRestartWorker: 'pool:restartWorker',
+  poolResize: 'pool:resize',
+  poolOverlayClose: 'pool:closeOverlay',
   modelsCatalog: 'models:catalog',
   modelsRefresh: 'models:refresh',
   modelsRefreshState: 'models:refreshState',
@@ -68,6 +72,10 @@ export const IpcChannels = {
   mcpOpenConfig: 'mcp:openConfig',
   mcpStatus: 'mcp:status',
   harnessRestart: 'harness:restart',
+  torStatus: 'tor:status',
+  torGetStatus: 'tor:getStatus',
+  torStart: 'tor:start',
+  torStop: 'tor:stop',
   localeSet: 'locale:set',
   ocrExtract: 'ocr:extract',
   ocrStatus: 'ocr:status',
@@ -80,6 +88,10 @@ export type IpcChannels = typeof IpcChannels;
 
 /** Payloads per channel. */
 export interface IpcPayloads {
+  [IpcChannels.poolStatus]: { workers: WorkerHandle[] };
+  [IpcChannels.poolRestartWorker]: { id: string };
+  [IpcChannels.poolResize]: { size: number };
+  [IpcChannels.poolOverlayClose]: void;
   [IpcChannels.modelsCatalog]: ModelCatalog;
   [IpcChannels.modelsRefresh]: void;
   [IpcChannels.modelsRefreshState]: ModelCatalogRefreshState;
@@ -90,6 +102,10 @@ export interface IpcPayloads {
   [IpcChannels.mcpOpenConfig]: void;
   [IpcChannels.mcpStatus]: McpRuntimeStatus;
   [IpcChannels.harnessRestart]: void;
+  [IpcChannels.torStatus]: TorStatus;
+  [IpcChannels.torGetStatus]: void;
+  [IpcChannels.torStart]: void;
+  [IpcChannels.torStop]: void;
   [IpcChannels.localeSet]: { locale: 'zh' | 'en' | 'es' };
   [IpcChannels.ocrExtract]: { imageBase64: string; lang?: string };
   [IpcChannels.ocrStatus]: { available: boolean; binaryPath: string | null };
@@ -149,6 +165,12 @@ export interface OcrResult {
 
 /** The API surface exposed on window.freecode by the preload bridge. */
 export interface FreeCodeApi {
+  pool: {
+    onStatus(cb: (payload: IpcPayloads[typeof IpcChannels.poolStatus]) => void): () => void;
+    resize(size: number): Promise<void>;
+    restartWorker(id: string): Promise<void>;
+    closeOverlay(): Promise<void>;
+  };
   models: {
     refresh(): Promise<ModelCatalog>;
     onCatalog(cb: (catalog: ModelCatalog) => void): () => void;
@@ -166,6 +188,12 @@ export interface FreeCodeApi {
     setEnabled(id: string, enabled: boolean): Promise<EmbeddedMcpState>;
     openConfig(): Promise<void>;
     onStatus(cb: (status: McpRuntimeStatus) => void): () => void;
+  };
+  tor: {
+    getStatus(): Promise<TorStatus | null>;
+    start(): Promise<boolean>;
+    stop(): Promise<boolean>;
+    onStatus(cb: (status: TorStatus) => void): () => void;
   };
   locale: {
     set(locale: 'zh' | 'en' | 'es'): Promise<void>;
