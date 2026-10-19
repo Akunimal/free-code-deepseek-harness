@@ -3,7 +3,11 @@ import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { readHarnessSettings } from '../src/main/harness-settings.js';
-import { refreshModels, ModelCatalog, shouldRetryModelRefresh } from '../src/main/model-refresher.js';
+import {
+  refreshModels,
+  ModelCatalog,
+  shouldRetryModelRefresh,
+} from '../src/main/model-refresher.js';
 
 const LB = 'http://127.0.0.1:41234';
 const REASONING_EFFORTS = { off: null, low: 'low', high: 'high', max: 'max' };
@@ -259,6 +263,24 @@ describe('model-refresher', () => {
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
+  it('prefers deepseek-v4.1-flash-free as the default when it responds', async () => {
+    mockFetchWithModels(['other-free', 'deepseek-v4.1-flash-free'], ['other-free', 'deepseek-v4.1-flash-free']);
+    const { home, data } = tmpDirs();
+    await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
+    const settings = readHarnessSettings(home);
+    expect(settings['agent-default-model']).toEqual({ provider: 'deepseek-free', model: 'deepseek-v4.1-flash-free' });
+    rmSync(dirname(home), { recursive: true, force: true });
+  });
+
+  it('falls back to a fastest responder when the preferred default is not served', async () => {
+    mockFetchWithModels(['only-model'], ['only-model']);
+    const { home, data } = tmpDirs();
+    await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
+    const settings = readHarnessSettings(home);
+    expect(settings['agent-default-model']).toEqual({ provider: 'deepseek-free', model: 'only-model' });
+    rmSync(dirname(home), { recursive: true, force: true });
+  });
+
   it('refreshes MiMo models with binary thinking and no reasoning_effort support', async () => {
     mockFetchWithModels(['mimo-v2.5-pro'], ['mimo-v2.5-pro']);
     const { home, data } = tmpDirs();
@@ -486,7 +508,6 @@ describe('model-refresher', () => {
         ...deepseekModel('deepseek-v4-flash-free'),
         contextWindow: 1_048_576,
         outputMaxTokens: 393_216,
-        defaultReasoningEffort: 'high',
       },
     ]);
     rmSync(dirname(home), { recursive: true, force: true });
@@ -579,6 +600,24 @@ describe('model-refresher', () => {
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
+  it('prefers the free zen lane over other lanes advertising the same id', async () => {
+    mockFetchWithModels(['shared-free'], ['shared-free']);
+    const { home, data } = tmpDirs();
+    const { mkdirSync, writeFileSync } = await import('node:fs');
+    mkdirSync(join(data, 'opencode2api'), { recursive: true });
+    writeFileSync(
+      join(data, 'opencode2api', 'config.json.models.catalog.json'),
+      JSON.stringify({ metadata: {
+        go: { 'shared-free': { context_window: 1_000_000, max_output: 100_000 } },
+        zen: { 'shared-free': { context_window: 200_000, max_output: 32_000 } },
+      } }),
+    );
+    await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
+    const models = readHarnessSettings(home)['llm-pi-ai'].providers['deepseek-free'].models;
+    expect(models).toContainEqual(expect.objectContaining({ id: 'shared-free', contextWindow: 200_000, outputMaxTokens: 32_000 }));
+    rmSync(dirname(home), { recursive: true, force: true });
+  });
+
   it('carries gateway-declared context, output capability, supported efforts and defaults into each route', async () => {
     const { home, data } = tmpDirs();
     vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
@@ -625,7 +664,7 @@ describe('model-refresher', () => {
     }
   });
 
-  it('uses the verified 1M context and V4 effort defaults only for an unambiguous DeepSeek V4 id', async () => {
+  it('uses the verified 1M context and V4 efforts (no fabricated default) only for an unambiguous DeepSeek V4 id', async () => {
     const { home, data } = tmpDirs();
     vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
       const endpoint = String(url);
@@ -645,7 +684,6 @@ describe('model-refresher', () => {
         contextWindow: 1_048_576,
         outputMaxTokens: 393_216,
         reasoningEfforts: { off: null, low: 'low', high: 'high', max: 'max' },
-        defaultReasoningEffort: 'high',
       });
       expect(models).toContainEqual({ id: 'other-v4-provider-model', reasoningEfforts: false });
     } finally {

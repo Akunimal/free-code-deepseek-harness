@@ -18,7 +18,9 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
   const section = settings['llm-pi-ai'] ?? (settings['llm-pi-ai'] = {});
   const providers = section.providers ?? (section.providers = {});
   delete providers['deepseek-free'];
-  const removed = new Set(['deepseek-free', 'gemini-web']);
+  // kilo-free was a 0.9.8 selector group that is no longer shipped.
+  delete providers['kilo-free'];
+  const removed = new Set(['deepseek-free', 'kilo-free', 'gemini-web']);
   delete providers['gemini-web'];
   if (providers['opencode-free']?.displayName === 'OpenCode No-Auth') {
     delete providers['opencode-free']; removed.add('opencode-free');

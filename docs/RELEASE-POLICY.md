@@ -1,11 +1,11 @@
 # Release policy
 
-### Current release: v0.9.6 (Windows x64)
+### Current release: v1.0.0 (Windows x64)
 
 Releases are manual and target Windows x64. This policy never authorizes
 touching the maintainer's running FreeCode instance.
 
-**Candidate status:** v0.9.6 is not published yet. Public clean-cache proof and final setup/portable verification are pending; do not substitute a local preload.
+**Release status:** the final Windows x64 setup and portable for v1.0.0 passed the full release gate on the final source, including the public empty-cache runtime download; do not substitute a local preload.
 
 ## Mandatory fresh-install proof
 
@@ -23,19 +23,20 @@ inspect, stop, or restart unrelated processes.
 
 ## Windows containment and runtime
 
-v0.9.6 requires the GUI-subsystem `headless-host`, a private desktop and Job
+v1.0.0 requires the GUI-subsystem `headless-host`, a private desktop and Job
 assignment while the child is suspended, with no direct-spawn fallback.
 Explicit GUI actions use the authenticated broker. Native adversarial window,
 descendant and Job-lifetime tests run against the exact staged and packaged
 helper; source strings are not sufficient. See [scope/limits](HEADLESS-DESKTOP.md).
 
-The current pin is `0.2.1-alpha.9` (ABI 149), 421,541,194 bytes, SHA-256
-`7c1d8cb1b53e2a88a7549941afacf423a1345353b9c3aa6fd53d95d3f49c4ca5`.
-It is appended as a dependency asset to v0.9.5 before the gate; no prior asset
-is replaced. v0.9.4 published alpha8 and v0.9.2 alpha2; both remain history.
+The current pin is `0.2.1-alpha.11` (ABI 149), 423,195,661 bytes, SHA-256
+`396bc019a74ad71be0fa0e3074298fc41f1621713080d31cf990ae64b3282473`.
+It is published in the [runtime-0.2.1-alpha.11](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/runtime-0.2.1-alpha.11) pre-release before the
+gate; no prior asset is replaced. v0.9.5 published alpha9, v0.9.4 alpha8 and
+v0.9.2 alpha2; they remain history.
 OmniRoute remains removed. Preserve user sessions and providers. Fresh output:
-`apps/shell/release-0.9.6-final-20261016/`; final sizes/hashes are recorded in
-the [bilingual notes](../release-notes-v0.9.6.md).
+`apps/shell/release-1.0.0-final-20261019/`; final sizes/hashes are recorded in
+the [bilingual notes](../release-notes-v1.0.0.md).
 
 After changing opencode2api source or its active fork overlay, rebuild with
 `bash scripts/build-opencode2api.sh`. It also stages the new Windows sidecar
@@ -53,21 +54,20 @@ frames; each must move at least 8 CSS pixels in 1.65 seconds. Reduced motion
 must stop both animations without dimming either wash. Set FREECODE_CHROME_PATH
 if Chromium is not installed at a standard Windows location. This test uses a
 disposable browser profile and does not launch FreeCode or reuse a user browser
-profile. Tor's loopback SOCKS proxy is checked locally every 10 seconds
-when unhealthy; remote proxies retain the slower external health-check cadence.
-Tor daemon failure diagnostics exposed to the UI must remain bounded and redact
-cookie/password/token-like values. NSIS runtime smoke must isolate APPDATA,
+profile. Egress proxies are verified with strict TLS before use and re-harvested
+every 15 minutes only while the direct lane is blocked; user-visible proxy
+status stays bounded and never shows credentials. NSIS runtime smoke must isolate APPDATA,
 LOCALAPPDATA, USERPROFILE, HOME and temporary roots: Chromium's
 `--user-data-dir` alone does not redirect Electron `app.getPath('userData')`.
-Without the private profile, the smoke can leave Tor config pointing into its
-deleted temporary install tree.
+Without the private profile, the smoke can leave gateway config pointing into
+its deleted temporary install tree.
 
 ## Release contents and pinned runtime
 
-The v0.9.6 desktop release contains the NSIS setup, portable executable,
+The v1.0.0 desktop release contains the NSIS setup, portable executable,
 setup blockmap and `latest.yml`. The separate DSH runtime has an independent
-version: v0.9.6 downloads the exact `0.2.1-alpha.9` Windows x64 runtime from
-the public v0.9.5 runtime dependency release, which also provides its SHA-256 checksum. The release gate
+version: v1.0.0 downloads the exact `0.2.1-alpha.11` Windows x64 runtime from
+the public runtime-0.2.1-alpha.11 pre-release, which also provides its SHA-256 checksum. The release gate
 verifies the pinned local archive and packaged runtime manifest; it never
 rebuilds, removes or replaces that immutable archive. Ordinary `build:desktop`
 packaging also does not run `package:runtime`.
@@ -84,9 +84,9 @@ artifacts into a new, isolated output directory and verify that exact directory:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.6-final-20261016'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.0-final-20261019'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.6-final-20261016
+pnpm verify:desktop-release-assets apps/shell/release-1.0.0-final-20261019
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
@@ -133,7 +133,7 @@ setup selected explicitly:
 ```powershell
 $env:FREECODE_ALLOW_INTERACTIVE_NSIS_SMOKE = '1'
 $env:FREECODE_NSIS_SMOKE_ENV = 'disposable-vm'
-$env:FREECODE_NSIS_SETUP_PATH = 'C:\path\to\exact\FreeCode-DeepSeek-Harness-0.9.6-win-x64-setup.exe'
+$env:FREECODE_NSIS_SETUP_PATH = 'C:\path\to\exact\FreeCode-DeepSeek-Harness-1.0.0-win-x64-setup.exe'
 pnpm --filter @freecode/shell smoke:nsis
 ```
 

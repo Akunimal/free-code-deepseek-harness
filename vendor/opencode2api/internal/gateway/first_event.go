@@ -7,12 +7,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptrace"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"opencode2api/internal/config"
 )
 
 var (
@@ -68,6 +71,38 @@ type phasedError struct {
 
 func (e *phasedError) Error() string { return fmt.Sprintf("%s [phase=%s]", e.err.Error(), e.phase) }
 func (e *phasedError) Unwrap() error { return e.err }
+
+// errProxyUnavailable marks an attempt that never reached the upstream because
+// the proxy route itself failed. When it is the final error of a request, the
+// client gets a proxy error instead of a generic bad gateway.
+var errProxyUnavailable = errors.New("proxy unavailable")
+
+type proxyUnavailableError struct {
+	proxy string
+	err   error
+}
+
+func (e *proxyUnavailableError) Error() string {
+	return fmt.Sprintf("proxy %s unavailable: %s", e.proxy, e.err.Error())
+}
+func (e *proxyUnavailableError) Unwrap() []error { return []error{errProxyUnavailable, e.err} }
+
+// asProxyUnavailable tags an attempt error that died before a connection to the
+// upstream existed. Through a real proxy that phase covers the proxy dial, the
+// CONNECT/SOCKS handshake and the TLS handshake tunnelled through it, so the
+// failure belongs to the proxy rather than the upstream. Direct transports are
+// left untouched: there a dial failure is an upstream reachability problem.
+func asProxyUnavailable(proxy *proxyTransport, err error) error {
+	if err == nil || proxy == nil || proxy.name == "direct" {
+		return err
+	}
+	var pe *phasedError
+	var op *net.OpError
+	if errors.As(err, &pe) && pe.phase == "dial" || errors.As(err, &op) && (op.Op == "proxyconnect" || strings.HasPrefix(op.Op, "socks")) {
+		return &proxyUnavailableError{proxy: config.RedactURL(proxy.name), err: err}
+	}
+	return err
+}
 
 // classifyAttemptError renders a leg token for the request log. The phase is
 // appended for the attempt-deadline and transport cases so a hung exit can be

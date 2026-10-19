@@ -355,6 +355,9 @@ export async function installHarnessRuntime(
     const nextHarness = resolve(extractRoot, 'dsh');
     const nextManifest = resolve(extractRoot, 'runtime-manifest.json');
     validateHarnessRuntime(nextHarness, nextManifest, process.platform, requirements);
+    // The promotion renames into targetRoot. Recreate it right before the
+    // rename: a missing destination parent surfaces as a bare ENOENT rename.
+    mkdirSync(targetRoot, { recursive: true });
     promoteHarnessRuntime(
       nextHarness,
       nextManifest,

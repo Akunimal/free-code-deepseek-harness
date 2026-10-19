@@ -11,15 +11,13 @@ flowchart LR
   UI[DSH web conversation UI] -->|HTTP / API RPC| DSH[dsh web child]
   DSH -->|OPENCODE2API_URL| GW[opencode2api gateway]
   GW --> O[OpenCode Free providers]
-  GW -->|failover proxy| TOR[tor.exe SOCKS 9050]
-  DSH -->|stdio MCP| ENGRAM[Engram]
+  GW -->|direct first, then rotated SOCKS5| PX[verified public proxies]
   DSH -->|stdio MCP| SEARCH[free-search]
   SHELL[Electron main + preload] --> DSH
   SHELL --> GW
-  SHELL --> TOR
+  SHELL -->|proxy rotator| PX
   SHELL --> VAULT[secret store]
   SHELL --> DATA[userData / dsh-home / logs]
-  SHELL --> GAI[gentle-ai binary]
 ```
 
 ## Runtime sequence
@@ -33,13 +31,11 @@ network access on later launches; download/compatibility failures are visible
 and retryable rather than consuming the supervisor restart budget.
 
 1. Electron resolves development resources or packaged `resources/freecode`.
-2. The shell starts the single bundled Tor instance (`tor-manager.ts`) on
-   loopback (preferred SOCKS/control ports `9050`/`9051`, incremented together
-   if occupied). Tor bootstrap is monitored asynchronously; direct traffic stays
-   usable until authenticated ControlPort progress reaches 100% and SOCKS is ready.
+2. The shell picks a free loopback port for the gateway; a busy port is
+   skipped, never taken over. No Tor process is shipped or started.
 3. The shell starts the opencode2api gateway (sole model gateway — freellmpool
-   was removed in 0.8.0) with `proxies: [direct, socks5://127.0.0.1:<stable port>]`
-   so model traffic can fail over through Tor when direct egress is blocked.
+   was removed in 0.8.0) with `proxies: [direct]` plus a `proxyfile` that the
+   proxy rotator fills only when the direct lane is blocked (step 8).
 4. The supervisor starts `dsh web --host 127.0.0.1 --port 0 --no-open` with a
    whitelisted environment and waits for its authenticated readiness URL.
 5. The shell opens one hardened `BrowserWindow` with context isolation, no Node
@@ -49,15 +45,14 @@ and retryable rather than consuming the supervisor restart budget.
    removes only the managed legacy `gemini-web` route. Gemini2API is not
    started, packaged or exposed.
 7. The managed MCP catalog is materialized under `dsh-home/mcp/servers.json`.
-   Standard mounts Engram (on by default) and free-search (disabled until its
-   binary is vendored) only when their persisted flags are enabled. The bridge
+   Standard mounts free-search (disabled until its binary is vendored) only
+   when its persisted flag is enabled. The bridge
    reports a server ready only after
    `initialize → tools/list → schema validation → registration`.
-8. The Gentle AI binary is resolved from `resources/gentle-ai/gentle-ai.exe`
-   with a PATH fallback. The `gentle-ai:status`, `gentle-ai:doctor`, and
-   `gentle-ai:run` IPC channels are registered with Zod validation and exposed
-   to the renderer via `window.freecode.gentleAi`. The `gentle-ai` preset
-   activates automatically when the binary is detected.
+8. When Zen persistently blocks the direct lane (non-retryable empty catalog),
+   the proxy rotator harvests public SOCKS5 proxies, keeps only those that pass
+   strict TLS to cloudflare.com and opencode.ai, writes the gateway proxyfile
+   and restarts the gateway on the same port. Direct always stays first.
 
 ## Process ownership and headless policy
 
@@ -65,18 +60,14 @@ and retryable rather than consuming the supervisor restart budget.
   menus, notifications, updater and logging.
 - `apps/shell/src/main/runtime.ts`: composition of opencode2api gateway,
   supervisor and live MCP status projection.
-- `apps/shell/src/main/tor-manager.ts`: single bundled `tor.exe` daemon —
-  bootstrap wait, SOCKS/control ports, `SIGNAL NEWNYM` identity rotation,
-  graceful stop on `before-quit`.
+- `apps/shell/src/main/proxy-rotator.ts`: demand-driven egress proxy pool
+  (strict-TLS verification, fastest first, 15 min re-harvest).
+- `apps/shell/src/main/port-allocator.ts`: loopback ports; busy ports are
+  skipped, never taken over.
 - `apps/shell/src/main/opencode2api.ts`: gateway config generator
-  (`-config`/`-listen`) including the `proxies` array.
+  (`-config`/`-listen`) including `proxies` (`direct`) and the `proxyfile`.
 - `apps/shell/src/main/harness-supervisor.ts`: readiness, generations, restart
   budget, tree termination and no-window child spawning.
-- `apps/shell/src/main/gentle-ai.ts`: bounded IPC wrapper for gentle-ai binary
-  (status/doctor/run channels).
-- `apps/shell/src/main/gentle-ai-resolver.ts`: bundled-to-PATH binary resolver,
-  cached, null-safe.
-- `apps/shell/src/main/rdd.ts`: RDD v2 verbatim transition enforcer.
 - `packages/opencode-adapter`: worker spawn, health, respawn, round-robin and
   process-tree termination.
 - `packages/shared-types`: zod-backed IPC and runtime status contracts.
@@ -134,10 +125,6 @@ the helper is unavailable or returns empty/invalid output.
 ```text
 resources/freecode/
   opencode2api/<windows-binary>
-  tor/tor.exe
-  tor/geoip
-  tor/geoip6
-  gentle-ai/gentle-ai.exe
   tesseract/tesseract.exe
   tesseract/*.dll
   tesseract/tessdata/eng.traineddata
@@ -156,9 +143,8 @@ per-user Windows application data path.
 - The renderer receives only `window.freecode` from the isolated preload.
 - Secrets are read from the host vault and injected into child environments;
   they are not copied into global `process.env`.
-- Local services bind to loopback. Tor prefers SOCKS `9050` and control `9051`,
-  allocates a stable alternate pair if they are occupied, and binds only to
-  `127.0.0.1`; the authenticated control port is never exposed off-host.
+- Local services bind to `127.0.0.1` on free ports; occupied ports are skipped.
+  Public proxies only tunnel verified TLS; they see host, timing and volume.
 - MCP server arguments are arrays, not shell strings, and their stderr is
   bounded. Tool-call logs omit arguments and image data.
 - OCR validates paths, size and output and does not log sensitive content.

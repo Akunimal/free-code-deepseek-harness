@@ -15,12 +15,11 @@ marked FreeCode block; user-owned rows survive upgrades and toggles.
 
 | ID | Server process | Purpose | Default |
 |---|---|---|---|
-| `engram` | Engram MCP server | Persistent memory and knowledge storage across sessions. Used by Gentle AI for skill registry and cross-session context. | Enabled |
 | `free-search` | `uvx free-search-mcp` | HTTP-first search/fetch for agent research without opening a browser. | Disabled (binary not vendored) |
 
-Serena was removed from the managed catalog in 0.8.0. Independent LSP MCP rows
-are intentionally not included. Engram provides the persistent memory surface
-and avoids competing semantic-retrieval entries.
+Serena was removed from the managed catalog in 0.8.0 and Engram in 1.0.0.
+Independent LSP MCP rows are intentionally not included. A row persisted by an
+older build (for example `engram`) is dropped on the next boot.
 
 ## Configuration and status
 
@@ -44,7 +43,6 @@ Example:
 {
   "version": 1,
   "servers": [
-    { "id": "engram", "enabled": true },
     { "id": "free-search", "enabled": false }
   ]
 }
@@ -58,17 +56,6 @@ pnpm setup:mcp --all
 
 It uses argument arrays, restrictive file permissions where supported and
 fails closed for a selected server whose prerequisite cannot be installed.
-
-## Engram
-
-Engram is the third managed MCP row, on by default. It provides persistent
-memory and knowledge storage across agent sessions. Gentle AI uses
-`.atl/skill-registry.md` as its skill index and enforces RDD v2 verbatim
-transitions (`status → START → next_transition`).
-
-The Engram server process runs under the `dsh` child tree using
-`shell:false`/`windowsHide:true`. It reconnects with bounded attempts on
-failure. Activation and tool calls share one serialized queue per session.
 
 ## free-search and uvx
 
@@ -84,8 +71,8 @@ mutate `PATH`, require administrator rights or open a console. Failure is
 recoverable: the application still boots, and the MCP tab/log reports the
 missing prerequisite.
 
-The uv bootstrap is a product dependency for MCP startup; Engram and
-free-search remain separately toggleable. It is not a reason to install a
+The uv bootstrap is a product dependency for MCP startup; free-search remains
+separately toggleable. It is not a reason to install a
 second FreeCode application instance.
 
 ## Serena (removed in 0.8.0)

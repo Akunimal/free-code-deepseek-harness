@@ -340,8 +340,9 @@ describe('ModelSelect reasoning effort', () => {
       t={t}
     />)
 
-    expect(screen.getByRole('button', { name: '正在加载模型…' }).textContent)
-      .toContain('正在加载模型…')
+    // No model is known yet, so the trigger names the free models as loading.
+    expect(screen.getByRole('button', { name: '正在加载免费模型…' }).textContent)
+      .toContain('正在加载免费模型…')
     directory.set(state())
     await waitFor(() => {
       expect(screen.getByRole('button', {
@@ -706,6 +707,20 @@ describe('ModelSelect keyboard walk', () => {
     expect(rows.every(row => row.getAttribute('aria-checked') === 'false')).toBe(true)
     expect(screen.queryByRole('searchbox')).toBeNull()
     expect(document.activeElement).toBe(rows[0])
+  })
+})
+
+describe('ModelSelect free model loading', () => {
+  it('names the free models as loading in the trigger and the open menu until one is verified', () => {
+    const loading = zh['status.freeModelsLoading']
+    const directory = createSnapshotStore(state({ groups: [], status: 'loading' }))
+    render(<ModelSelect locked={false} available directory={directory} load={vi.fn()} select={vi.fn()} t={t} />)
+    fireEvent.click(screen.getByRole('button', { name: loading }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /模型/ }))
+    expect(screen.getByRole('status').textContent).toBe(loading)
+    expect(screen.queryByText(zh['empty.models'])).toBeNull()
+    act(() => { directory.set(state({ groups: modelGroups(1), status: 'ready' })) })
+    expect(screen.queryByText(loading)).toBeNull()
   })
 })
 

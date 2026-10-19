@@ -57,15 +57,14 @@ const mcpHomeUrl = pathToFileURL(resolve(root, 'apps', 'shell', 'dist', 'src', '
 const { ensureEmbeddedMcpConfig } = await import(mcpHomeUrl)
 ensureEmbeddedMcpConfig(home, {
   serverOverrides: {
-    engram: { command: process.execPath, args: [fixturePath, 'engram'] },
     'free-search': { command: process.execPath, args: [fixturePath, 'free-search'] },
   },
 })
-// The built-in web preset fixes the MCP argument vectors to `mcp` and
-// `free-search-mcp`. Route those two commands to Node and place extensionless
+// The built-in web preset fixes the MCP argument vector to
+// `free-search-mcp`. Route that command to Node and place extensionless
 // test-owned entrypoints in the scratch project; no YAML profile override or
 // external executable is needed.
-for (const [command, serverId] of [['mcp', 'engram'], ['free-search-mcp', 'free-search']]) {
+for (const [command, serverId] of [['free-search-mcp', 'free-search']]) {
   writeFileSync(join(project, command), [
     `process.argv[2] = ${JSON.stringify(serverId)}`,
     `import(${JSON.stringify(pathToFileURL(fixturePath).href)})`,
@@ -113,7 +112,6 @@ async function probeFixture({ id, toolName }) {
   }
 }
 
-await probeFixture({ id: 'engram', toolName: 'smoke_status' })
 await probeFixture({ id: 'free-search', toolName: 'engines' })
 
 function cleanupScratch() {
@@ -196,9 +194,7 @@ try {
       ...smokeEnvironment,
       DSH_HOME: home,
       FREECODE_WEB_MODE: '1',
-      FREECODE_MCP_ENGRAM_ENABLED: 'true',
       FREECODE_MCP_FREE_SEARCH_ENABLED: 'true',
-      FREECODE_ENGRAM_COMMAND: process.execPath,
       FREECODE_UVX_COMMAND: process.execPath,
       FREECODE_MCP_STATUS_STREAM: 'stderr',
       DEEPSEEK_API_KEY: 'freecode-offline-mcp-smoke-key',
@@ -212,7 +208,7 @@ try {
 
   const append = (chunk) => {
     output = `${output}${String(chunk)}`.slice(-12_000)
-    for (const id of ['engram', 'free-search']) {
+    for (const id of ['free-search']) {
       if (!reportedReady.has(id) && new RegExp(`"serverId"\\s*:\\s*"${id}"\\s*,\\s*"state"\\s*:\\s*"ready"`).test(output)) {
         reportedReady.add(id)
         console.log(`mcp-offline-smoke: DSH ${id} fixture ready`)
@@ -240,7 +236,7 @@ try {
 
   await timeout(new Promise((resolveMcp, reject) => {
     const poll = setInterval(() => {
-      if (reportedReady.has('engram') && reportedReady.has('free-search')) {
+      if (reportedReady.has('free-search')) {
         clearInterval(poll)
         resolveMcp()
       }
@@ -307,7 +303,7 @@ try {
       const toolNames = providerRequests.flatMap((request) => (
         Array.isArray(request.tools) ? request.tools : []
       )).map((tool) => tool?.name).filter((name) => typeof name === 'string')
-      if (toolNames.includes('mcp__engram__smoke_status') && toolNames.includes(targetTool)) {
+      if (toolNames.includes(targetTool)) {
         clearInterval(poll)
         resolveIntegration()
       }
@@ -323,10 +319,10 @@ try {
   const tools = providerRequests.flatMap((request) => (
     Array.isArray(request.tools) ? request.tools : []
   )).map((tool) => tool?.name).filter((name) => typeof name === 'string')
-  for (const required of ['mcp__engram__smoke_status', targetTool]) {
+  for (const required of [targetTool]) {
     if (!tools.includes(required)) throw new Error(`dsh model request did not include ${required}: ${JSON.stringify(tools)}`)
   }
-  console.log('mcp-offline-smoke: DSH registered both local fixtures with the loopback mock provider')
+  console.log('mcp-offline-smoke: DSH registered the local fixture with the loopback mock provider')
 } catch (error) {
   const detail = error instanceof Error ? error.message : String(error)
   preserveScratchOnFailure = true

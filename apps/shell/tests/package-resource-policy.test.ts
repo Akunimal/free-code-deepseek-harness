@@ -5,7 +5,6 @@ const builderConfig = new URL('../electron-builder.yml', import.meta.url);
 const runtimeArchiveScript = new URL('../../../scripts/package-harness-update.mjs', import.meta.url);
 const installedSmokeScript = new URL('../../../scripts/verify-nsis-install-layout.mjs', import.meta.url);
 const installedRuntimeScript = new URL('../../../scripts/verify-installed-runtime.mjs', import.meta.url);
-const torAssetVerifier = new URL('../../../scripts/verify-tor-runtime-assets.mjs', import.meta.url);
 const packagedElectronVerifier = new URL('../build/verify-packaged-electron.cjs', import.meta.url);
 const rootPackage = new URL('../../../package.json', import.meta.url);
 const shellPackage = new URL('../package.json', import.meta.url);
@@ -62,15 +61,13 @@ describe('desktop package payload policy', () => {
     expect(config).toContain('afterPack: build/verify-packaged-electron.cjs');
   });
 
-  it('verifies the bundled Tor executable and GeoIP databases before and after electron-builder copying', () => {
+  it('ships no Tor runtime in the packaged desktop payload', () => {
     const shellScripts = JSON.parse(readFileSync(shellPackage, 'utf8')).scripts;
-    const torVerifier = readFileSync(torAssetVerifier, 'utf8');
     const packagedVerifier = readFileSync(packagedElectronVerifier, 'utf8');
 
-    expect(shellScripts['prepackage:verify']).toContain('verify-tor-runtime-assets.mjs resources/freecode');
-    expect(torVerifier).toContain('verifyTorRuntimeAssets');
-    expect(packagedVerifier).toContain('verifyTorRuntimeAssets');
-    expect(packagedVerifier).toContain("'resources', 'freecode'");
+    expect(shellScripts['prepackage:verify']).not.toContain('verify-tor-runtime-assets');
+    expect(packagedVerifier).not.toContain('verifyTorRuntimeAssets');
+    expect(readFileSync(builderConfig, 'utf8')).not.toMatch(/'!tor(\/\*\*)?'/);
   });
 
   it('smokes the downloaded user-data runtime instead of expecting DSH inside the installer', () => {
@@ -78,9 +75,7 @@ describe('desktop package payload policy', () => {
     const runtimeSmoke = readFileSync(installedRuntimeScript, 'utf8');
 
     expect(installSmoke).toContain('resources/freecode/opencode2api/opencode2api-win-x64.exe');
-    expect(installSmoke).toContain('resources/freecode/tor/tor.exe');
-    expect(installSmoke).toContain('resources/freecode/tor/geoip');
-    expect(installSmoke).toContain('resources/freecode/tor/geoip6');
+    expect(installSmoke).not.toContain('resources/freecode/tor/');
     expect(installSmoke).not.toContain('resources/freecode/dsh/apps/cli/lib/bin.js');
     expect(runtimeSmoke).toContain('harness-runtime');
     expect(runtimeSmoke).not.toContain("'resources', 'freecode', 'dsh'");

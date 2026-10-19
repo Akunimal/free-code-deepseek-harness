@@ -11,36 +11,16 @@
     {
       "id": "opencode2api",
       "name": "opencode2api",
-      "version": "1.4.0",
+      "version": "1.4.1",
       "arch": "win-x64",
       "source": "jasonxu114514/opencode2api",
       "license": "GPL-3.0-or-later",
-      "sha256": "e16e2cf2fa1155b543a5c4f88c475dddf1ea552021e696046f46848c5e547e2d",
+      "sha256": "e64607e0769ae198912101897a90fd42bd1afef363ebe30951a279237928703f",
       "path": "opencode2api/opencode2api-win-x64.exe",
       "launch": {
         "type": "exec",
         "args": [],
         "cwd": "$DSH_HOME"
-      },
-      "network": false,
-      "required": true
-    },
-    {
-      "id": "tor",
-      "name": "Tor Expert Bundle",
-      "version": "13.5.7",
-      "arch": "win-x64",
-      "source": "torproject.org/tor-expert-bundle",
-      "license": "BSD-3-Clause",
-      "sha256": "6b866c187a0dee2fb751a8990d50dc1ed83f68e025720081e4d8e27097067dc8",
-      "path": "tor/tor.exe",
-      "launch": {
-        "type": "exec",
-        "args": [
-          "-f",
-          "$DSH_HOME/tor/torrc"
-        ],
-        "cwd": "$DSH_HOME/tor"
       },
       "network": false,
       "required": true
@@ -208,26 +188,6 @@
       "network": false,
       "required": false,
       "notes": "Optional; not bundled; resolves from PATH only; code checks cavemanInstalled at runtime"
-    },
-    {
-      "id": "gentle-ai",
-      "name": "Gentle AI",
-      "version": "2.6.0",
-      "arch": "win-x64",
-      "source": "gentle-ai",
-      "license": "N/A",
-      "sha256": "N/A",
-      "path": "gentle-ai/gentle-ai.exe",
-      "launch": {
-        "type": "exec",
-        "args": [
-          "$COMMAND"
-        ],
-        "cwd": "$DSH_HOME"
-      },
-      "network": false,
-      "required": false,
-      "notes": "Optional; bundled when approved else PATH-only; resolver prefers resources/gentle-ai/gentle-ai.exe then PATH; caveman/RTK extras PATH-only (size gate)"
     }
   ]
 }

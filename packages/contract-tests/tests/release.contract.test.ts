@@ -178,17 +178,14 @@ describe('release and runtime packaging contracts', () => {
     // package boundary Node uses at runtime.
     const sdkStdio = readFileSync(resolveMcpSdk.resolve('@modelcontextprotocol/sdk/client/stdio.js'), 'utf8');
 
-    // Two distinct managed rows must remain present in the shell catalog;
-    // the scripts catalog (scripts/mcp-config.mjs) still pins serena +
-    // free-search (pre-existing drift, out of scope for 0.8.0 gentle-ai
-    // migration which owns apps/shell/src/main/mcp-home.ts). The shell
-    // catalog migrated serena -> engram per the gentle-ai MCP spec.
+    // The scripts catalog (scripts/mcp-config.mjs) still pins serena +
+    // free-search (pre-existing drift). The shell catalog ships only
+    // free-search: Serena and Engram were both retired.
     for (const id of ['serena', 'free-search']) {
       expect(mcpConfig, id).toContain(`id: '${id}'`);
     }
-    for (const id of ['engram', 'free-search']) {
-      expect(mcpHome, id).toContain(`id: '${id}'`);
-    }
+    expect(mcpHome).toContain(`id: 'free-search'`);
+    expect(mcpHome).not.toContain(`id: 'engram'`);
     expect(mcpHome).not.toContain(`id: 'serena'`);
     expect(mcpHome).not.toContain('FREECODE_MCP_SERENA_ENABLED');
     expect(mcpConfig).not.toContain('mcp-language-server');
@@ -208,8 +205,7 @@ describe('release and runtime packaging contracts', () => {
     expect(mcpTransport).toContain('new StdioClientTransport');
     expect(mcpTransport).toContain("stderr: 'pipe'");
     expect(sdkStdio).toMatch(/windowsHide:\s+(?:process|node_process_1\.default)\.platform === 'win32'/);
-    // Serena launcher retired from the runtime path with the Engram
-    // migration (mcp-home no longer passes serenaLauncherPath). The
+    // Serena launcher retired from the runtime path (mcp-home no longer passes serenaLauncherPath). The
     // launcher file itself still ships until packaging cleanup.
     expect(runtime).not.toContain('serena-headless-launcher.py');
     expect(serenaLauncher).toContain('shell=False');
@@ -275,24 +271,15 @@ describe('release and runtime packaging contracts', () => {
     expect(preflight).not.toContain("require('node:fs')");
   });
 
-  it('mounts a Tor pill at the composer leading seat', () => {
-    const pill = readFileSync(
-      join(ROOT, 'vendor/deepseek-harness/packages/client/ui-conversation/src/client/input/TorPill.tsx'),
+  it('ships no Tor pill at the composer leading seat', () => {
+    const input = join(ROOT, 'vendor/deepseek-harness/packages/client/ui-conversation/src/client/input');
+    expect(existsSync(join(input, 'TorPill.tsx'))).toBe(false);
+    expect(existsSync(join(input, 'TorPill.module.css'))).toBe(false);
+    const apply = readFileSync(
+      join(ROOT, 'vendor/deepseek-harness/packages/client/ui-conversation/src/client/apply.ts'),
       'utf8',
     );
-    expect(pill).toContain('conversation.input.left');
-    expect(pill).toContain('freecode-tor');
-    expect(pill).toContain('window.freecode?.tor');
-    expect(pill).toContain('torPillEntry');
-    const css = readFileSync(
-      join(ROOT, 'vendor/deepseek-harness/packages/client/ui-conversation/src/client/input/TorPill.module.css'),
-      'utf8',
-    );
-    expect(css).toContain('text-shadow');
-    expect(css).toContain('00bfff');
-    expect(css).toContain('background: transparent; border: none;');
-    expect(css).toContain('tor-breathe');
-    expect(css).toContain('prefers-reduced-motion');
+    expect(apply).not.toMatch(/TorPill|torPill|freecode-tor/);
   });
 
   it('keeps one-shot pwsh grandchildren headless', () => {

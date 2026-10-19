@@ -1,10 +1,10 @@
 # FreeCode DeepSeek Harness
 
-### Current release: v0.9.6 (Windows x64)
+### Current release: v1.0.0 (Windows x64)
 
-FreeCode DeepSeek Harness v0.9.6 contains the Windows background-window containment and harness audit fixes. Background process trees use the verified GUI-subsystem `headless-host` helper, a private noninteractive desktop and a Job attached before execution. Explicit user GUI actions use an authenticated Electron broker. Renderer IPC/navigation is restricted, concurrent catalog refreshes are coalesced, Tor status reaches the Pool overlay, and the legacy adapter preserves large requests and complete retry responses. DSH `0.2.1-alpha.9` is a separate first-launch download, not bundled in setup/portable. See the [bilingual v0.9.6 release notes](release-notes-v0.9.6.md).
+FreeCode DeepSeek Harness v1.0.0 runs the free OpenCode models through the bundled opencode2api gateway with no Tor: direct first, and a demand-driven egress proxy lane only when OpenCode Zen blocks your connection. Busy local ports are skipped, the DeepSeek API-key prompt is gone, `deepseek-v4.1-flash-free` is the preferred default, the selector shows a spinner while the free models load, and the reasoning effort starts at each model's own default. Engram and the Gentle AI mode were removed. DSH `0.2.1-alpha.11` is a separate first-launch download, not bundled in setup/portable. See the [bilingual v1.0.0 release notes](release-notes-v1.0.0.md).
 
-**Release status:** the final Windows x64 setup and portable for v0.9.6 are verified. The full release gate passed on the final source, including the public empty-cache runtime download. Publication evidence is recorded in the GitHub release; do not substitute a local preload.
+**Free models take a while to load.** On first launch and after each restart the app probes every free model before it appears in the selector; this usually takes from a few seconds to about two minutes, longer when your connection needs the proxy lane. The selector shows "Loading free models…" with a spinner meanwhile. Responses through free models can also be slower than paid APIs.
 
 Windows-first coding with OpenCode Free models: choose a project, describe the
 work, and let the local Harness coordinate files, tools, MCP servers and model
@@ -14,34 +14,33 @@ calls.
 
 ## English
 
-## Current status: v0.9.6 (Windows x64)
+## Current status: v1.0.0 (Windows x64)
 
-Source version: 0.9.6; pinned runtime: `0.2.1-alpha.9`.
+Source version: 1.0.0; pinned runtime: `0.2.1-alpha.11`.
 
-**Release status:** the final Windows x64 setup and portable for v0.9.6 are verified. The full release gate passed on the final source, including the public empty-cache runtime download. Publication evidence is recorded in the GitHub release; do not substitute a local preload.
+**Release status:** the final Windows x64 setup and portable for v1.0.0 passed the full release gate on the final source, including the public empty-cache runtime download.
 
-Inherited behavior remains: opencode2api v1.4.0, catalog/Tor fixes V094-21, composer fix V094-35, catalog-loading indicator V094-37, 13 Hermes-inspired CSS/ASCII backgrounds V094-38, context/effort metadata V094-39, Gentle AI and the active `profiles/web/cordis.patch.yml` catalog.
+Inherited behavior remains: opencode2api v1.4.0 (FreeCode-patched v1.4.1 gateway), catalog fixes V094-21, composer fix V094-35, catalog-loading indicator V094-37, 13 Hermes-inspired CSS/ASCII backgrounds V094-38, context/effort metadata V094-39 and the active `profiles/web/cordis.patch.yml` catalog.
 
 The release consists of NSIS setup, a portable Windows executable, blockmap
-and `latest.yml`. The separate alpha9 runtime (~421.5 MB) and its SHA-256
-are published as dependency assets in v0.9.5 before testing v0.9.6 first launch.
+and `latest.yml`. The separate alpha.11 runtime (~423 MB) and its SHA-256
+are published in the [runtime-0.2.1-alpha.11 pre-release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/runtime-0.2.1-alpha.11).
 Internet is required without a valid cache. The mandatory gate uses production
 bootstrap/updater, an empty profile/cache, SHA-256, manifest, Electron ABI and
-hidden CLI startup. Failure blocks publication. Older runtimes do not satisfy alpha9.
+hidden CLI startup. Failure blocks publication. Older runtimes do not satisfy alpha.11.
+
+**Privacy of the proxy lane:** when Zen blocks your IP, FreeCode tunnels the
+gateway through public SOCKS5 proxies that passed strict TLS verification to
+cloudflare.com and opencode.ai. They cannot read or alter your requests, but
+they see the destination host, timing and volume. Free models and OpenCode
+have their own telemetry; nothing here is private.
 
 **Platform support: Windows x64 only**; Windows ARM64, Linux and macOS are
 untested and unsupported. Builds are local without GitHub Actions; binaries are unsigned.
-The user confirmed the local containment candidate works before this version
-bump; that local preload is not public clean-install evidence. v0.9.5 and
-earlier releases retain their historical tags and binaries.
+Earlier releases retain their historical tags and binaries.
 
 ## What is included
 
-- **Gentle AI integrated mode** — a selectable, opt-in `gentle-ai` agent preset
-  that reuses the Standard composition, permissions, sandbox and plan mode.
-  Standard remains the default; Gentle AI must be selected explicitly.
-  A bounded `gentle-ai:*` IPC bridge (`status`, `doctor`, `run`) with Zod
-  contract is exposed to the renderer via `window.freecode.gentleAi`.
 - **Single model lane** (`deepseek-free`, labeled *OpenCode Free*) served by
   the bundled opencode2api gateway — anonymous free models, no keys. This is
   the sole model gateway: freellmpool was removed in 0.8.0 and the
@@ -49,16 +48,11 @@ earlier releases retain their historical tags and binaries.
   every model appears exactly once in the selector. Only models that answer
   a real 200 probe reach the selector; dead models are hidden and the lane
   self-heals after quota recovery.
-- **Bundled Tor for egress failover** — a single `tor.exe` instance
-  (`resources/freecode/tor/`, hardened fast-node `torrc`) runs on
-  `127.0.0.1:9050` (SOCKS) and `:9051` (control). opencode2api is launched
-  with `[direct, socks5://127.0.0.1:9050]` so model traffic can fail over
-  through Tor when direct egress is blocked. The status overlay exposes a
-  **Resiliencia Tor** block with readiness and bounded startup diagnostics;
-  manual `NEWNYM` rotation remains in the Pool menu, not the overlay.
-  Tor keeps its SOCKS endpoint across retries; the gateway rechecks local SOCKS
-  availability every 10 seconds, while direct remains first. It replaces the old Cloudflare WARP dependency; there is no WARP
-  service, no `warfleet` and no `torfleet` sidecar.
+- **Egress proxy lane, no Tor** — opencode2api always tries `direct`
+  first. Only when the catalog shows Zen persistently blocking your connection
+  does the shell harvest public SOCKS5 proxies, keep those that pass strict TLS,
+  and restart the gateway on the same port. Notifications appear only when the
+  routes go to zero or come back.
 - The upstream DeepSeek Harness web UI, sessions, workspaces, permissions and
   file tools.
 - A single Electron shell and a single `dsh` child generation.
@@ -66,9 +60,8 @@ earlier releases retain their historical tags and binaries.
   with a private desktop and Job, not only `windowsHide`. Explicit user GUI
   actions use an authenticated broker. This is not a sandbox against malicious
   code, UAC, services or OS brokers.
-- Engram and free-search as managed MCP entries. Engram is on by default as
-  the third managed row; free-search starts disabled until its binary is
-  vendored. Entries whose command cannot spawn start disabled instead of
+- free-search as the managed MCP entry; it starts disabled until its binary
+  is vendored. Entries whose command cannot spawn start disabled instead of
   burning the reconnect budget.
 - A visible MCP settings tab with toggles, connection state, registered tool
   count, errors and the generated config path.
@@ -86,29 +79,29 @@ earlier releases retain their historical tags and binaries.
 
 Gemini2API was removed from the 0.6.0 runtime. There is no Gemini process,
 provider, selector model, resource payload or fallback route to configure.
-Serena was removed from the managed MCP catalog in 0.8.0; Engram is the
-semantic memory surface.
+Serena was removed from the managed MCP catalog in 0.8.0. Engram and the
+Gentle AI mode were removed in 1.0.0; the Standard modes cover their use.
 
 ## Install and first run
 
 1. Download the Windows setup or portable artifact from the
-   [v0.9.6 GitHub release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.6).
+   [v1.0.0 GitHub release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
 2. Install or unpack it and launch the real shortcut/executable.
 3. Select a project directory in the picker.
-4. Ask the model to inspect or change the project.
+4. Wait for the free models to load (spinner in the selector), then ask the
+   model to inspect or change the project.
 
-The v0.9.6 installer includes Electron, the opencode2api gateway, bundled Tor,
+The v1.0.0 installer includes Electron, the opencode2api gateway,
 native dependencies and Tesseract (~178 MB). The large DSH runtime is a
 separate release asset: on first launch, FreeCode downloads the pinned
-`0.2.1-alpha.9` Windows x64 archive (~421.5 MB), verifies GitHub's SHA-256 and
+`0.2.1-alpha.11` Windows x64 archive (~423 MB), verifies GitHub's SHA-256 and
 Electron ABI, then caches it under `<userData>/harness-runtime`. Later starts
 reuse the verified cache offline. Any first launch without a valid cache needs
 network access; a failed download or validation offers Retry/Close and does not
-start the Harness. The mandatory v0.9.6 release gate must prove this first-run path from
-a newly empty isolated cache and public GitHub asset. Managed MCP servers still resolve `uvx` (vendored, with
+start the Harness. Managed MCP servers still resolve `uvx` (vendored, with
 user-PATH and pinned-download fallbacks). If an incomplete installation is
 detected, the diagnostic points to the app log and recommends reinstalling
-from the official v0.9.6 release.
+from the official v1.0.0 release.
 
 The Windows bootstrap silently reuses a user-installed `uvx.exe`, or downloads
 the pinned official uv ZIP into a per-user tools directory after HTTPS and
@@ -116,7 +109,7 @@ SHA-256 verification. It does not modify `PATH`, require administrator rights
 or open a console. A failed bootstrap leaves the main app recoverable and
 surfaces the MCP problem in the tab/log.
 
-## MCP: Engram and free-search
+## MCP: free-search
 
 On first boot FreeCode atomically creates:
 
@@ -125,17 +118,12 @@ On first boot FreeCode atomically creates:
 <userData>/dsh-home/cordis.patch.yml
 ```
 
-Three managed entries are enabled when their command can spawn. Open
-Settings → Plugins → MCP to toggle them or open the exact JSON file. Only
+The managed entry is enabled when its command can spawn. Open
+Settings → Plugins → MCP to toggle it or open the exact JSON file. Only
 the marked FreeCode block in the Cordis patch is regenerated; unrelated user
 rows are preserved. A toggle updates the child environment and restarts only
 the Harness child, never a second Electron instance. Servers whose binary is
 missing (currently free-search) start disabled automatically.
-
-**Engram** is the third managed MCP row, on by default. It provides persistent
-memory and knowledge storage across sessions through the Engram MCP server.
-Gentle AI uses `.atl/skill-registry.md` as its skill index and RDD v2 for
-receipt-driven development.
 
 The target readiness contract is real, not just configuration:
 
@@ -211,12 +199,12 @@ distinguishes permission failures from tool/MCP failures.
 
 ## Updater and versioning
 
-About reads `app.getVersion()`, so the packaged v0.9.6 binary says 0.9.6.
+About reads `app.getVersion()`, so the packaged v1.0.0 binary says 1.0.0.
 The app checks for updates at startup and every six hours. The update control
 is the same circular primary button as Send, with the arrow pointing down.
 When downloading, the tray tooltip/menu and a native notification say so; the
-install/restart phase is also visible. v0.9.6 prevents the updater from
-offering an older DSH runtime as an upgrade; installing the desktop release and
+install/restart phase is also visible. The updater never offers
+an older DSH runtime as an upgrade; installing the desktop release and
 bootstrapping its pinned runtime are separate steps.
 
 ## Root cause of the previous regressions and 0.7.0 closure
@@ -274,7 +262,7 @@ Every product feature must have an owner file, a modular patch or shell-layer
 implementation, a contract test and a replay/idempotence check. See
 [docs/UPSTREAM-PATCHING.md](docs/UPSTREAM-PATCHING.md).
 
-## Windows local release gate: v0.9.6
+## Windows local release gate: v1.0.0
 
 Run from PowerShell on Windows x64. The gate is non-interactive at the desktop
 UI boundary: it builds an NSIS package in a unique temporary directory,
@@ -286,27 +274,28 @@ the recorded child PID tree and never enumerates or kills unrelated processes.
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.6-final-20261016'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.0-final-20261019'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.6-final-20261016
+pnpm verify:desktop-release-assets apps/shell/release-1.0.0-final-20261019
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 `build:desktop` creates setup and portable artifacts in the new
-`apps/shell/release-0.9.6-final-20261016/` output directory; it refuses to replace an
+`apps/shell/release-1.0.0-final-20261019/` output directory; it refuses to replace an
 existing non-empty folder. `verify:desktop-release-assets` checks the exact PE
 files, setup blockmap, updater metadata and hashes without launching either
 executable. Desktop packaging does not rebuild or replace the separately versioned DSH runtime. Only when the DSH
 runtime itself changes should maintainers bump its manifest version and run
 `pnpm package:runtime:release`; existing runtime versions are immutable.
 
-Previous alpha5–alpha8 builds and their hashes remain historical in v0.9.4 notes.
-The current runtime is alpha9, fetched from separate v0.9.5 assets; a local
-preload is not public first-install evidence.
+Previous runtime builds remain historical in their releases.
+The current runtime is alpha.11, fetched from the separate
+[runtime-0.2.1-alpha.11 pre-release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/runtime-0.2.1-alpha.11); a local preload is not public
+first-install evidence.
 
-The [v0.9.6 GitHub release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v0.9.6)
+The [v1.0.0 GitHub release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0)
 contains the final artifacts listed in the bilingual notes. The fresh output is
-`apps/shell/release-0.9.6-final-20261016/`; historical folders are not overwritten.
+`apps/shell/release-1.0.0-final-20261019/`; historical folders are not overwritten.
 The gate does not install or launch the FreeCode GUI. The interactive installer
 smoke installs, launches and uninstalls, so it is only allowed in a disposable
 Windows VM, never on the workstation or beside the user's instance.
@@ -314,7 +303,7 @@ See the [release policy](docs/RELEASE-POLICY.md).
 
 ## Manual contributor builds for other operating systems
 
-Linux and macOS are not release targets for v0.9.6, and Windows ARM64 is not
+Linux and macOS are not release targets for v1.0.0, and Windows ARM64 is not
 tested either. A contributor may work on a native host with its own Node,
 pnpm, Git, Electron build tools and native dependencies:
 
@@ -342,8 +331,7 @@ MIT — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 Related projects: [OpenCode2API](https://github.com/jasonxu114514/opencode2api),
 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness),
 [RTK](https://github.com/rtk-ai/rtk),
-[Caveman](https://github.com/JuliusBrussee/caveman),
-[Gentle AI](https://github.com/Gentleman-Programming/gentle-ai) and
+[Caveman](https://github.com/JuliusBrussee/caveman) and
 [free-search-mcp](https://github.com/sweetcornna/free-search-mcp).
 
 ## Español
@@ -355,6 +343,7 @@ hardening y release local en ambos idiomas.
 ## Documentation index
 
 - [Upstream feature inventory](docs/UPSTREAM-FEATURES.md)
+- [v1.0.0 release notes](release-notes-v1.0.0.md)
 - [v0.9.6 release notes](release-notes-v0.9.6.md)
 - [v0.9.5 — history / historial](release-notes-v0.9.5.md)
 - [v0.9.4 release notes](release-notes-v0.9.4.md)

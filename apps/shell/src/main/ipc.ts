@@ -5,15 +5,11 @@ import {
   ModelCatalogSchema,
   ModelCatalogRefreshStateSchema,
   WorkerHandleSchema,
-  GentleAiRunRequestSchema,
-  GentleAiStatusSchema,
   type ModelCatalog,
 } from '@freecode/shared-types';
 import { ShellRuntime } from './runtime.js';
-import type { TorManager } from './tor-manager.js';
 import { refreshModels } from './model-refresher.js';
 import { isOcrAvailable, extractText } from './ocr.js';
-import { getGentleAiStatus, runGentleAi, runGentleAiDoctor } from './gentle-ai.js';
 import { z } from 'zod';
 import { ensureEmbeddedMcpConfig, setEmbeddedMcpEnabled } from './mcp-home.js';
 import type { ModelCatalogRefreshStateStore } from './model-refresh-state.js';
@@ -34,7 +30,6 @@ const OcrPayloadSchema = z.object({
 
 export interface IpcDeps {
   runtime: ShellRuntime;
-  torManager?: TorManager | null;
   userDataDir: string;
   homeDir: string;
   lbBaseUrl: string;
@@ -52,10 +47,6 @@ export interface IpcDeps {
    *  nested WebContentsView, the shell provides this so pushes reach the
    *  actual harness page, not the (blank) window container webContents. */
   getRendererTargets?: () => WebContents[];
-  /** Tor status also belongs to the static Pool Status overlay, not just the harness. */
-  getTorRendererTargets?: () => WebContents[];
-  /** Close the auxiliary Pool Status window only for its own WebContents. */
-  closePoolStatusOverlay: (sender: WebContents) => void;
   /** Validate the invoking main-frame WebContents and its origin per channel. */
   isTrustedRendererInvocation: (event: IpcMainInvokeEvent, channel: string) => boolean;
 }
@@ -69,8 +60,6 @@ export function registerIpc(deps: IpcDeps): () => void {
 
   const rendererTargets = (): WebContents[] => (deps.getRendererTargets?.() ?? defaultRendererTargets())
     .filter((wc) => !wc.isDestroyed());
-  const torRendererTargets = (): WebContents[] => (deps.getTorRendererTargets?.() ?? rendererTargets())
-    .filter((wc) => !wc.isDestroyed());
 
   const handle = (
     channel: string,
@@ -83,16 +72,6 @@ export function registerIpc(deps: IpcDeps): () => void {
       return listener(event, ...args);
     });
   };
-
-  // pool:status (push on change)
-  const emitStatus = (): void => {
-    const payload: IpcPayloads[typeof IpcChannels.poolStatus] = {
-      workers: runtime.workers().map((w) => WorkerHandleSchema.parse(w)),
-    };
-    for (const wc of rendererTargets()) wc.send(IpcChannels.poolStatus, payload);
-  };
-  // opencode2api routes requests internally; no per-worker change events
-  // emitStatus can be called manually if needed
 
   // models:refresh (invoke) — route through guarded path when available to
   // prevent concurrent settings.yaml writes with the timer.
@@ -129,25 +108,6 @@ export function registerIpc(deps: IpcDeps): () => void {
   // harness:restart (invoke)
   handle(IpcChannels.harnessRestart, () => runtime.supervisor.restart());
 
-  // pool:restartWorker (invoke)
-  handle(
-    IpcChannels.poolRestartWorker,
-    (_e, payload: unknown) => {
-      const parsed = PoolRestartWorkerPayloadSchema.parse(payload);
-      // opencode2api routes internally; individual worker restart is not applicable
-      return Promise.resolve();
-    },
-  );
-
-  // pool:resize — no-op with opencode2api (provider routing is automatic)
-  handle(IpcChannels.poolResize, (_e, payload: unknown) => {
-    const parsed = PoolResizePayloadSchema.parse(payload);
-    return Promise.resolve();
-  });
-
-  // pool:closeOverlay — the borderless data: window cannot close itself with
-  // window.close(); delegate to main and let it verify the caller's WebContents.
-  handle(IpcChannels.poolOverlayClose, (e) => deps.closePoolStatusOverlay(e.sender));
 
   // settings:openFolder (invoke) — reveal DSH_HOME in the OS file manager
   handle(IpcChannels.settingsOpenFolder, () => shell.openPath(homeDir));
@@ -193,30 +153,6 @@ export function registerIpc(deps: IpcDeps): () => void {
     binaryPath: null, // not exposed to renderer for security
   }));
 
-  // gentle-ai:status — bounded presence probe (no secrets)
-  handle(IpcChannels.gentleAiStatus, () => {
-    const resourcesDir = deps.resourcesDir ?? userDataDir;
-    const status = getGentleAiStatus(resourcesDir);
-    return GentleAiStatusSchema.parse({ ...status, binaryPath: status.binaryPath });
-  });
-
-  // gentle-ai:doctor — bounded checks (presence, --version, DSH_HOME, Engram)
-  handle(IpcChannels.gentleAiDoctor, async () => {
-    const resourcesDir = deps.resourcesDir ?? userDataDir;
-    return runGentleAiDoctor(resourcesDir, homeDir);
-  });
-
-  // gentle-ai:run — Zod-validated pre-spawn; size/timeout/DSH_HOME guard
-  handle(IpcChannels.gentleAiRun, async (_e, payload: unknown) => {
-    const parsed = GentleAiRunRequestSchema.parse(payload);
-    const resourcesDir = deps.resourcesDir ?? userDataDir;
-    return runGentleAi(
-      { prompt: parsed.prompt, timeoutMs: parsed.timeoutMs, allowGlobal: parsed.allowGlobal },
-      resourcesDir,
-      homeDir,
-    );
-  });
-
   // ocr:extract — extract text from a bounded base64-encoded image. The
   // canonical round-trip check rejects malformed base64 instead of silently
   // turning it into a different/empty image.
@@ -230,60 +166,18 @@ export function registerIpc(deps: IpcDeps): () => void {
     return extractText(buffer, { lang: parsed.lang });
   });
 
-  // tor:getStatus — snapshot for surfaces opened after the last push
-  // (e.g. the pool overlay). Returns null when Tor is not configured.
-  handle(IpcChannels.torGetStatus, () => {
-    if (!deps.torManager) return null;
-    return deps.torManager.getStatus();
-  });
-
-  // tor:start / tor:stop — manual Tor daemon control from the overlay.
-  // Stopping only removes the failover leg: the gateway keeps serving
-  // direct, and its proxy health tracking steers around the dead SOCKS
-  // leg until a restart recovers it.
-  handle(IpcChannels.torStart, async () => {
-    if (!deps.torManager) return false;
-    await deps.torManager.start();
-    return deps.torManager.isReady;
-  });
-  handle(IpcChannels.torStop, async () => {
-    if (!deps.torManager) return false;
-    await deps.torManager.stop();
-    return true;
-  });
-
-  const emitTorStatus = (): void => {
-    if (!deps.torManager) return;
-    const status = deps.torManager.getStatus();
-    for (const wc of torRendererTargets()) wc.send(IpcChannels.torStatus, status);
-  };
-
-  let offTorChange: (() => void) | null = null;
-  if (deps.torManager) {
-    offTorChange = deps.torManager.onChange(() => emitTorStatus());
-  }
 
   return () => {
-    offTorChange?.();
     ipcMain.removeHandler(IpcChannels.modelsRefresh);
     ipcMain.removeHandler(IpcChannels.modelsGetRefreshState);
     ipcMain.removeHandler(IpcChannels.harnessRestart);
-    ipcMain.removeHandler(IpcChannels.poolRestartWorker);
-    ipcMain.removeHandler(IpcChannels.poolResize);
-    ipcMain.removeHandler(IpcChannels.poolOverlayClose);
     ipcMain.removeHandler(IpcChannels.settingsOpenFolder);
     ipcMain.removeHandler(IpcChannels.mcpGetState);
     ipcMain.removeHandler(IpcChannels.mcpSetEnabled);
     ipcMain.removeHandler(IpcChannels.mcpOpenConfig);
-    ipcMain.removeHandler(IpcChannels.torGetStatus);
-    ipcMain.removeHandler(IpcChannels.torStart);
-    ipcMain.removeHandler(IpcChannels.torStop);
     ipcMain.removeHandler(IpcChannels.localeSet);
     ipcMain.removeHandler(IpcChannels.ocrExtract);
     ipcMain.removeHandler(IpcChannels.ocrStatus);
-    ipcMain.removeHandler(IpcChannels.gentleAiStatus);
-    ipcMain.removeHandler(IpcChannels.gentleAiDoctor);
-    ipcMain.removeHandler(IpcChannels.gentleAiRun);
     offMcpStatus();
     offCatalogRefreshState();
   };

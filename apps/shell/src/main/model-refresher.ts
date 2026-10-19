@@ -118,6 +118,10 @@ const CATALOG_FILE = 'model-catalog.json';
 // user's selector while an in-flight request is still viable.
 const PROBE_TIMEOUT_MS = 120_000;
 const FREE_PROVIDER = 'deepseek-free';
+
+/** Free models preferred as the out-of-the-box default, first match wins.
+ *  Only applied when the model actually responds this refresh. */
+export const PREFERRED_DEFAULT_MODELS: readonly string[] = ['deepseek-v4.1-flash-free'];
 const REASONING_LEVELS = new Set<ModelReasoningLevel>(['minimal', 'low', 'medium', 'high', 'xhigh', 'max']);
 const DEEPSEEK_V4_CAPABILITIES: ListedModel = {
   id: '',
@@ -125,7 +129,9 @@ const DEEPSEEK_V4_CAPABILITIES: ListedModel = {
   maxOutputTokens: 393_216,
   reasoning: true,
   reasoningEfforts: { off: null, low: 'low', high: 'high', max: 'max' },
-  defaultReasoningEffort: 'high',
+  // No defaultReasoningEffort: unless the gateway declares one, no effort is
+  // sent and the model answers with its own default. The user can still pick
+  // any level the model allows in the selector.
 };
 
 interface ListedModel {
@@ -233,13 +239,16 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
   }
   const responders = results.find(({ target }) => target.provider === FREE_PROVIDER)?.entries
     .filter(model => model.responds).map(model => model.id) ?? [];
+  // Prefer the DeepSeek V4.1 free model as the out-of-the-box default when it
+  // responds; otherwise fall back to the fastest responder (responders[0]).
+  const preferredDefault = responders.find(id => PREFERRED_DEFAULT_MODELS.includes(id)) ?? responders[0];
   const defaultModel = settings['agent-default-model'] as { provider?: unknown; model?: unknown } | undefined;
   const hasValidDefault = typeof defaultModel?.provider === 'string' && typeof defaultModel.model === 'string';
-  if (responders[0] !== undefined && (!hasValidDefault
+  if (preferredDefault !== undefined && (!hasValidDefault
     || (defaultModel.provider === FREE_PROVIDER && !responders.includes(defaultModel.model as string)))) {
     // New Sessions get a verified route after migration or when their old
     // selection is no longer served. Existing Session history stays intact.
-    settings['agent-default-model'] = { provider: FREE_PROVIDER, model: responders[0] };
+    settings['agent-default-model'] = { provider: FREE_PROVIDER, model: preferredDefault };
   }
   writeHarnessSettings(cfg.homeDir, settings);
 
@@ -416,11 +425,16 @@ export function loadGatewayModelCapabilities(userDataDir: string): Map<string, L
     const metadata = (parsed as { metadata?: unknown }).metadata;
     if (!metadata || typeof metadata !== 'object') return null;
     const out = new Map<string, ListedModel>();
-    for (const lane of Object.values(metadata as Record<string, unknown>)) {
+    // The free, no-auth `zen` lane is what this app serves, so its metadata
+    // wins over any other lane (e.g. `go`) advertising the same id.
+    const lanes = metadata as Record<string, unknown>;
+    const laneOrder = ['zen', ...Object.keys(lanes).filter((name) => name !== 'zen')];
+    for (const laneName of laneOrder) {
+      const lane = lanes[laneName];
       if (!lane || typeof lane !== 'object') continue;
       for (const [id, info] of Object.entries(lane as Record<string, unknown>)) {
         const record = asRecord(info);
-        if (record === undefined) continue;
+        if (record === undefined || out.has(id)) continue;
         const contextWindow = positiveSafeInteger(record.context_window, record.contextWindow);
         const maxOutputTokens = positiveSafeInteger(record.max_output, record.maxOutputTokens);
         const reasoning = typeof record.reasoning === 'boolean' ? record.reasoning : undefined;

@@ -1,78 +1,6 @@
---- a/vendor/opencode2api/internal/gateway/gateway.go
-+++ b/vendor/opencode2api/internal/gateway/gateway.go
-@@ -209,7 +209,10 @@
- 			copyErrorResponse(w, external, resp, ids.Request)
- 			return
- 		}
-+		repair := wire.NewToolNameRepair(external, payload)
- 		if stream {
-+			filtered := repair.FilterStream(resp.Body, upstreamRoute.Protocol)
-+			defer filtered.Close()
- 			if meta != nil {
- 				meta.Stream = true
- 			}
-@@ -224,9 +227,9 @@
- 			var usage wire.Usage
- 			var usageReported bool
- 			if external == upstreamRoute.Protocol {
--				usage, usageReported, err = wire.ForwardStream(r.Context(), w, resp.Body, upstreamRoute.Protocol, model)
-+				usage, usageReported, err = wire.ForwardStream(r.Context(), w, filtered, upstreamRoute.Protocol, model)
- 			} else {
--				usage, usageReported, err = wire.TranscodeStream(r.Context(), w, resp.Body, upstreamRoute.Protocol, external, model)
-+				usage, usageReported, err = wire.TranscodeStream(r.Context(), w, filtered, upstreamRoute.Protocol, external, model)
- 			}
- 			if meta != nil {
- 				meta.Usage, meta.UsageReported = usage, usageReported
-@@ -272,6 +275,11 @@
- 				return
- 			}
- 		}
-+		responseBody, err = repair.RepairResponse(responseBody, external)
-+		if err != nil {
-+			wire.WriteError(w, external, http.StatusBadGateway, "invalid upstream tool response", "upstream_error", ids.Request)
-+			return
-+		}
- 		w.Header().Set("Content-Type", "application/json")
- 		w.WriteHeader(resp.StatusCode)
- 		_, _ = w.Write(responseBody)
---- a/vendor/opencode2api/internal/gateway/rotation.go
-+++ b/vendor/opencode2api/internal/gateway/rotation.go
-@@ -239,6 +239,7 @@
- 		}
- 		return result
- 	}
-+	repair := wire.NewToolNameRepair(external, payload)
- 	stream := jsonutil.BoolAt(payload, "stream")
- 	ready := func() error {
- 		if !timer.Stop() || ctx.Err() != nil {
-@@ -253,6 +254,8 @@
- 	}
- 	meta := telemetry.MetaFromContext(parent)
- 	if stream {
-+		filtered := repair.FilterStream(resp.Body, route.Protocol)
-+		defer filtered.Close()
- 		if meta != nil {
- 			meta.Stream = true
- 		}
-@@ -260,7 +263,7 @@
- 			g.monitor.BeginStream()
- 			defer g.monitor.EndStream()
- 		}
--		usage, reported, committed, err := wire.RotationStream(original.Context(), w, resp.Body, route.Protocol, external, alias, ready)
-+		usage, reported, committed, err := wire.RotationStream(original.Context(), w, filtered, route.Protocol, external, alias, ready)
- 		if meta != nil {
- 			meta.Usage = usage
- 			meta.UsageReported = reported
-@@ -324,6 +327,9 @@
- 	if err == nil && external != route.Protocol {
- 		b, err = wire.ConvertResponse(route.Protocol, external, b)
- 	}
-+	if err == nil {
-+		b, err = repair.RepairResponse(b, external)
-+	}
- 	if err != nil {
- 		result.err = err
- 		result.reason = "response_conversion_error"
+diff --git a/vendor/opencode2api/internal/gateway/freecode_tool_name_test.go b/vendor/opencode2api/internal/gateway/freecode_tool_name_test.go
+new file mode 100644
+index 0000000..753b9ee
 --- /dev/null
 +++ b/vendor/opencode2api/internal/gateway/freecode_tool_name_test.go
 @@ -0,0 +1,87 @@
@@ -163,6 +91,100 @@
 +		}
 +	}
 +}
+diff --git a/vendor/opencode2api/internal/gateway/gateway.go b/vendor/opencode2api/internal/gateway/gateway.go
+index 26f1889..4c26ad1 100644
+--- a/vendor/opencode2api/internal/gateway/gateway.go
++++ b/vendor/opencode2api/internal/gateway/gateway.go
+@@ -257,11 +257,16 @@ func (g *Gateway) handleInference(external wire.Protocol) http.HandlerFunc {
+ 			copyErrorResponse(w, external, resp, ids.Request)
+ 			return
+ 		}
++		repair := wire.NewToolNameRepair(external, payload)
+ 		var toolAlias string
+ 		if meta != nil {
+ 			toolAlias = meta.ToolAlias
+ 		}
+ 		if stream {
++			// Upstream legacy read-tool alias first, then FreeCode name repair.
++			streamBody := wire.RenameStreamReader(resp.Body, upstreamRoute.Protocol, legacyAnonymousReadTool, toolAlias)
++			filtered := repair.FilterStream(streamBody, upstreamRoute.Protocol)
++			defer filtered.Close()
+ 			if meta != nil {
+ 				meta.Stream = true
+ 			}
+@@ -273,13 +278,12 @@ func (g *Gateway) handleInference(external wire.Protocol) http.HandlerFunc {
+ 			w.Header().Set("Cache-Control", "no-cache")
+ 			w.Header().Set("X-Accel-Buffering", "no")
+ 			w.WriteHeader(resp.StatusCode)
+-			streamBody := wire.RenameStreamReader(resp.Body, upstreamRoute.Protocol, legacyAnonymousReadTool, toolAlias)
+ 			var usage wire.Usage
+ 			var usageReported bool
+ 			if external == upstreamRoute.Protocol {
+-				usage, usageReported, err = wire.ForwardStream(r.Context(), w, streamBody, upstreamRoute.Protocol, model)
++				usage, usageReported, err = wire.ForwardStream(r.Context(), w, filtered, upstreamRoute.Protocol, model)
+ 			} else {
+-				usage, usageReported, err = wire.TranscodeStream(r.Context(), w, streamBody, upstreamRoute.Protocol, external, model)
++				usage, usageReported, err = wire.TranscodeStream(r.Context(), w, filtered, upstreamRoute.Protocol, external, model)
+ 			}
+ 			if meta != nil {
+ 				meta.Usage, meta.UsageReported = usage, usageReported
+@@ -326,6 +330,11 @@ func (g *Gateway) handleInference(external wire.Protocol) http.HandlerFunc {
+ 				return
+ 			}
+ 		}
++		responseBody, err = repair.RepairResponse(responseBody, external)
++		if err != nil {
++			wire.WriteError(w, external, http.StatusBadGateway, "invalid upstream tool response", "upstream_error", ids.Request)
++			return
++		}
+ 		w.Header().Set("Content-Type", "application/json")
+ 		w.WriteHeader(resp.StatusCode)
+ 		_, _ = w.Write(responseBody)
+diff --git a/vendor/opencode2api/internal/gateway/rotation.go b/vendor/opencode2api/internal/gateway/rotation.go
+index 9f1f6dd..b950387 100644
+--- a/vendor/opencode2api/internal/gateway/rotation.go
++++ b/vendor/opencode2api/internal/gateway/rotation.go
+@@ -243,6 +243,7 @@ func (g *Gateway) rotationAttempt(parent context.Context, w http.ResponseWriter,
+ 		}
+ 		return result
+ 	}
++	repair := wire.NewToolNameRepair(external, payload)
+ 	stream := jsonutil.BoolAt(payload, "stream")
+ 	ready := func() error {
+ 		if !timer.Stop() || ctx.Err() != nil {
+@@ -257,6 +258,9 @@ func (g *Gateway) rotationAttempt(parent context.Context, w http.ResponseWriter,
+ 	}
+ 	meta := telemetry.MetaFromContext(parent)
+ 	if stream {
++		streamBody := wire.RenameStreamReader(resp.Body, route.Protocol, legacyAnonymousReadTool, toolAlias)
++		filtered := repair.FilterStream(streamBody, route.Protocol)
++		defer filtered.Close()
+ 		if meta != nil {
+ 			meta.Stream = true
+ 		}
+@@ -264,8 +268,7 @@ func (g *Gateway) rotationAttempt(parent context.Context, w http.ResponseWriter,
+ 			g.monitor.BeginStream()
+ 			defer g.monitor.EndStream()
+ 		}
+-		streamBody := wire.RenameStreamReader(resp.Body, route.Protocol, legacyAnonymousReadTool, toolAlias)
+-		usage, reported, committed, err := wire.RotationStream(original.Context(), w, streamBody, route.Protocol, external, alias, ready)
++		usage, reported, committed, err := wire.RotationStream(original.Context(), w, filtered, route.Protocol, external, alias, ready)
+ 		if meta != nil {
+ 			meta.Usage = usage
+ 			meta.UsageReported = reported
+@@ -332,6 +335,9 @@ func (g *Gateway) rotationAttempt(parent context.Context, w http.ResponseWriter,
+ 	if err == nil && external != route.Protocol {
+ 		b, err = wire.ConvertResponse(route.Protocol, external, b)
+ 	}
++	if err == nil {
++		b, err = repair.RepairResponse(b, external)
++	}
+ 	if err != nil {
+ 		result.err = err
+ 		result.reason = "response_conversion_error"
+diff --git a/vendor/opencode2api/internal/protocol/freecode_tool_name.go b/vendor/opencode2api/internal/protocol/freecode_tool_name.go
+new file mode 100644
+index 0000000..ba4aaf6
 --- /dev/null
 +++ b/vendor/opencode2api/internal/protocol/freecode_tool_name.go
 @@ -0,0 +1,367 @@
@@ -533,6 +555,9 @@
 +	}
 +	return changed, nil
 +}
+diff --git a/vendor/opencode2api/internal/protocol/freecode_tool_name_test.go b/vendor/opencode2api/internal/protocol/freecode_tool_name_test.go
+new file mode 100644
+index 0000000..a27412e
 --- /dev/null
 +++ b/vendor/opencode2api/internal/protocol/freecode_tool_name_test.go
 @@ -0,0 +1,249 @@

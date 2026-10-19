@@ -86,9 +86,18 @@ func TestAnonymousPoolStillCoolsRateLimitedAndUnavailableRoutes(t *testing.T) {
 		if got := node.failures.Load(); got != 1 {
 			t.Errorf("HTTP %d failure count = %d, want 1", status, got)
 		}
+		if node.cooldownUntil.Load() <= time.Now().UnixNano() {
+			t.Errorf("HTTP %d did not start a cooldown", status)
+		}
+		// v1.4.1: when every route is cooling, a cursor falls back once to the
+		// earliest-expiring untried route instead of failing the request with
+		// "no healthy anonymous proxies available".
 		cursor := pool.CursorFor("")
+		if got := cursor.Next(); got != node {
+			t.Errorf("HTTP %d cooling route was not the last-resort fallback: %+v", status, got)
+		}
 		if got := cursor.Next(); got != nil {
-			t.Errorf("HTTP %d route remained selectable during cooldown: %+v", status, got)
+			t.Errorf("HTTP %d route offered twice by one cursor: %+v", status, got)
 		}
 	}
 }
@@ -151,8 +160,13 @@ func TestLoopbackTorRouteRecoversAfterHealthCheck(t *testing.T) {
 	if got := firstRequest.Next(); got == nil || got.proxy != direct {
 		t.Fatalf("first route before Tor recovers = %v, want direct", got)
 	}
+	// v1.4.1: an unhealthy route is only a last resort, offered after every
+	// healthy route has been tried and never more than once per cursor.
+	if got := firstRequest.Next(); got == nil || got.proxy != tor {
+		t.Fatalf("unhealthy Tor should only be the last-resort fallback: %+v", got)
+	}
 	if got := firstRequest.Next(); got != nil {
-		t.Fatalf("unhealthy Tor should be skipped until its local probe recovers: %+v", got)
+		t.Fatalf("cursor offered a route twice: %+v", got)
 	}
 	tor.healthy.Store(true) // equivalent to a successful periodic SOCKS5 greeting
 

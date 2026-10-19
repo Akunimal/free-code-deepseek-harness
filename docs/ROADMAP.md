@@ -1,20 +1,20 @@
 # Roadmap / Hoja de ruta
 
-### Current release: v0.9.6 (Windows x64)
+### Current release: v1.0.0 (Windows x64)
 
-FreeCode DeepSeek Harness v0.9.6 contains the Windows background-window containment and harness audit fixes. Background process trees use the verified GUI-subsystem `headless-host` helper, a private noninteractive desktop and a Job attached before execution. Explicit user GUI actions use an authenticated Electron broker. Renderer IPC/navigation is restricted, concurrent catalog refreshes are coalesced, Tor status reaches the Pool overlay, and the legacy adapter preserves large requests and complete retry responses. DSH `0.2.1-alpha.9` is a separate first-launch download, not bundled in setup/portable. See the [bilingual v0.9.6 release notes](../release-notes-v0.9.6.md).
+FreeCode DeepSeek Harness v1.0.0 runs the free OpenCode models through the bundled opencode2api gateway with no Tor: direct first, and a demand-driven egress proxy lane only when OpenCode Zen blocks the connection. Busy local ports are skipped, the DeepSeek API-key prompt is gone, `deepseek-v4.1-flash-free` is the preferred default, the selector shows a spinner while the free models load (this takes from a few seconds to about two minutes), and the reasoning effort starts at each model's own default. Engram and the Gentle AI mode were removed. Background process trees still use the verified `headless-host` helper. DSH `0.2.1-alpha.11` is a separate first-launch download, not bundled in setup/portable. See the [bilingual v1.0.0 release notes](../release-notes-v1.0.0.md).
 
-**Candidate status:** v0.9.6 is not published yet. Public clean-cache proof and final setup/portable verification are pending; do not substitute a local preload.
+**Release status:** the final Windows x64 setup and portable for v1.0.0 passed the full release gate on the final source, including the public empty-cache runtime download; do not substitute a local preload.
 
-### Release actual: v0.9.6 (Windows x64)
+### Release actual: v1.0.0 (Windows x64)
 
-FreeCode DeepSeek Harness v0.9.6 incorpora la contención de ventanas Windows y las correcciones de auditoría del harness. Los árboles de procesos de fondo usan `headless-host` verificado, un escritorio privado no interactivo y un Job asignado antes de ejecutar. Las acciones GUI explícitas usan un broker Electron autenticado. Se restringen IPC/navegación, se unifican refrescos concurrentes del catálogo, llega el estado Tor al overlay y el adaptador antiguo conserva requests grandes y respuestas completas. DSH `0.2.1-alpha.9` se descarga por separado al primer inicio; no viene dentro del setup/portable. Ver las [notas bilingües v0.9.6](../release-notes-v0.9.6.md).
+FreeCode DeepSeek Harness v1.0.0 usa los modelos gratuitos de OpenCode a través del gateway opencode2api incluido, sin Tor: primero directo, y un lane de proxies de salida solo cuando OpenCode Zen bloquea la conexión. Los puertos locales ocupados se saltean, ya no aparece el pedido de API key de DeepSeek, `deepseek-v4.1-flash-free` es el predeterminado preferido, el selector muestra un spinner mientras cargan los modelos free (tarda desde unos segundos hasta unos dos minutos) y el esfuerzo de razonamiento arranca en el predeterminado de cada modelo. Se eliminaron Engram y el modo Gentle AI. Los procesos de fondo siguen usando el helper verificado `headless-host`. DSH `0.2.1-alpha.11` es una descarga separada del primer inicio, no viene en setup/portable. Ver las [notas bilingües de v1.0.0](../release-notes-v1.0.0.md).
 
-**Estado candidato:** v0.9.6 aún no está publicada. Faltan la prueba pública de caché vacía y la verificación final de setup/portable; una precarga local no las reemplaza.
+**Estado de la release:** el setup y el portable finales de v1.0.0 para Windows x64 pasaron el gate completo sobre la fuente final, incluida la descarga pública del runtime con caché vacía; una precarga local no la reemplaza.
 
-Baseline: `v0.9.6` (candidate / candidata)
-Previous published baseline / Baseline publicada anterior: `v0.9.5`.
-Runtime: `0.2.1-alpha.9`; output / salida: `apps/shell/release-0.9.6-final-20261016/`.
+Baseline: `v1.0.0`
+Previous published baseline / Baseline publicada anterior: `v0.9.6`.
+Runtime: `0.2.1-alpha.11`; output / salida: `apps/shell/release-1.0.0-final-20261019/`.
 
 ## Estrategia de ahorro de contexto / Context-efficiency strategy
 
@@ -29,7 +29,7 @@ RTK and Caveman are not enabled together by default: they may complement each ot
 
 ## En curso / In progress
 
-v0.9.6: publicar alpha9 inmutable, pasar el gate público clean-cache, verificar setup/portable y publicar. / Publish immutable alpha9, pass the public clean-cache gate, verify setup/portable and publish. Tracked in `odd/tasks/release-v0.9.6.md`.
+v1.0.0: publicada con runtime alpha.11, gate público clean-cache en verde. / Published with runtime alpha.11; public clean-cache gate passed.
 
 ## Completado / Completed
 

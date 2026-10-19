@@ -472,13 +472,19 @@ export function ModelSelect(
   }
 
   const waiting = state.current === null && state.status === 'loading'
-  const modelLabel = waiting
-    ? t('trigger.loading')
-    : currentChoice?.model.name
-      ?? (state.current === null ? t('trigger.fallback') : `${state.current.provider}/${state.current.model}`)
+  // No free model to show yet: say so instead of a generic label or empty list.
+  const loadingFree = choices.length === 0 && catalogRefreshing
+  // The trigger already carries the loading label and spinner for this state.
+  const showRefreshStatus = catalogRefreshing && !loadingFree
+  const modelLabel = loadingFree
+    ? t('status.freeModelsLoading')
+    : waiting
+      ? t('trigger.loading')
+      : currentChoice?.model.name
+        ?? (state.current === null ? t('trigger.fallback') : `${state.current.provider}/${state.current.model}`)
   const triggerLabel = effortLabel === undefined ? modelLabel : `${modelLabel} · ${effortLabel}`
-  const triggerAria = waiting
-    ? t('trigger.loading')
+  const triggerAria = waiting || loadingFree
+    ? modelLabel
     : state.current === null
       ? t('trigger.selectAria')
       : effortLabel === undefined
@@ -511,7 +517,7 @@ export function ModelSelect(
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? `${id}-menu` : undefined}
-        aria-describedby={catalogRefreshing ? `${id}-catalog-refresh-status` : undefined}
+        aria-describedby={showRefreshStatus ? `${id}-catalog-refresh-status` : undefined}
         title={triggerLabel}
         aria-busy={busy}
         data-selection-focus={selectionFocus ? '' : undefined}
@@ -525,14 +531,16 @@ export function ModelSelect(
           }
         }}
       >
-        <IconDataOutlineRegular className={css.triggerIcon} size={16} />
+        {loadingFree
+          ? <span className={css.catalogRefreshSpinner} aria-hidden="true" />
+          : <IconDataOutlineRegular className={css.triggerIcon} size={16} />}
         <span className={css.triggerLabel}>{modelLabel}</span>
         {effortLabel !== undefined && <span className={css.triggerEffort}>{effortLabel}</span>}
         {busy
           ? <StateDot state="ongoing" />
           : <IconChevronDownOutlineRegular className={clsx(css.chevron, open && css.chevronOpen)} />}
       </button>
-      {catalogRefreshing && (
+      {showRefreshStatus && (
         <span
           id={`${id}-catalog-refresh-status`}
           className={css.catalogRefreshStatus}
@@ -681,7 +689,13 @@ export function ModelSelect(
                   )
                 })}
               </div>
-              {state.status === 'ready' && filteredGroups.length === 0 && (
+              {loadingFree && (
+                <div className={css.loading} role="status" aria-live="polite">
+                  <span className={css.catalogRefreshSpinner} aria-hidden="true" />
+                  {t('status.freeModelsLoading')}
+                </div>
+              )}
+              {state.status === 'ready' && filteredGroups.length === 0 && !loadingFree && (
                 <div className={css.empty} role="status">{t(choices.length === 0 ? 'empty.models' : 'search.empty')}</div>
               )}
             </>

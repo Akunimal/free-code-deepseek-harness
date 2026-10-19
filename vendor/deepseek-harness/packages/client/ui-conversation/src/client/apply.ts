@@ -40,7 +40,6 @@ import { ConversationHeader } from './skeleton/ConversationHeader.tsx'
 import { ConversationSession, ConversationSessionHeader } from './skeleton/ConversationSession.tsx'
 import { InputBar } from './skeleton/InputBar.tsx'
 import { todoDockEntry } from './skeleton/TodoPanel.tsx'
-import { torPillEntry } from './input/TorPill.tsx'
 import { installStopShortcut } from './stop-shortcut.ts'
 import { TRAJECTORY_VIEW_ID, resolveActiveView } from './view-selection.ts'
 import { en, NS, zh, type ConversationKey, es } from './locales.ts'
@@ -551,5 +550,4 @@ export function apply(ctx: Context, config: Config = Config({})): void {
   })
   ctx.plugin(todoDockEntry)
   ctx.plugin(queueDockEntry)
-  ctx.plugin(torPillEntry)
 }

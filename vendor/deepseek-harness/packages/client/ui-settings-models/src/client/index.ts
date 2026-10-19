@@ -152,7 +152,9 @@ export function apply(ctx: ClientContext): void {
     order: -100,
     inject: welcomeInjected,
   }, WelcomeNotice))
-  ctx.slots.inject('settings.onboarding', () => ctx.slots.register({
+  // FreeCode desktop: the official DeepSeek key prompt only appears when no
+  // provider is usable. The desktop app manages its own providers, so skip it.
+  if (!('dshDesktop' in globalThis) && !/FreeCodeDesktop\//.test(globalThis.navigator?.userAgent ?? '')) ctx.slots.inject('settings.onboarding', () => ctx.slots.register({
     name: 'settings.onboarding',
     id: 'deepseek-official',
     children: { 'settings.models.sign-in': { kind: 'single', scope: 'root' } },

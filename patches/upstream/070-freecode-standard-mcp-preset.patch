@@ -1,29 +1,14 @@
 diff --git a/vendor/deepseek-harness/packages/bundle/web-app/presets/standard.patch.yml b/vendor/deepseek-harness/packages/bundle/web-app/presets/standard.patch.yml
-index a0b474b0e3..35fedb4f3f 100644
+index a0b474b..0423065 100644
 --- a/vendor/deepseek-harness/packages/bundle/web-app/presets/standard.patch.yml
 +++ b/vendor/deepseek-harness/packages/bundle/web-app/presets/standard.patch.yml
-@@ -155,6 +155,39 @@
+@@ -155,6 +155,24 @@
              config:
                fetch: true
                searchTimeoutMs: 60000
 +          # FreeCode's MCP servers are agent-plane capabilities. These rows
 +          # use the persisted desktop toggles; the host overlay is disabled
 +          # while the Electron web profile is active to avoid duplicate clients.
-+          - id: freecode-mcp-engram
-+            name: '@deepseek-ai/dsh-mcp-client'
-+            disabled: !!js process.env.FREECODE_MCP_ENGRAM_ENABLED !== 'true'
-+            config:
-+              transport: stdio
-+              serverName: engram
-+              command: !!js process.env.FREECODE_ENGRAM_COMMAND ?? 'engram'
-+              args: ['mcp']
-+              cwd: !!js process.cwd()
-+              failOnStartupError: false
-+              reconnect:
-+                enabled: true
-+                initialDelayMs: 500
-+                maxDelayMs: 30000
-+                maxAttempts: 10
 +          - id: freecode-mcp-free-search
 +            name: '@deepseek-ai/dsh-mcp-client'
 +            disabled: !!js process.env.FREECODE_MCP_FREE_SEARCH_ENABLED !== 'true'

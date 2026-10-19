@@ -281,28 +281,17 @@ describe('web e2e: agent-preset selection', () => {
 
   it('names every preset and what it is for', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-agent-preset-menu'))
-    const roster = await scaffold.ctx.agentPresets.remoteExportList()
-    expect(roster.presets.find(preset => preset.id === 'gentle-ai')).toEqual({
-      id: 'gentle-ai', order: 2, isDefault: false,
-    })
     await page.getByRole('button', { name: 'Standard mode' }).click()
     const menu = page.getByRole('menu')
     await menu.waitFor({ timeout: 10_000 })
 
     const snapshot = await captureStableAria(page, '[role="menu"]', scaffold.workspaceCwd)
 
-    expect(snapshot).toContain('Gentle AI mode')
-    expect(snapshot).toContain('A careful orchestrator')
     await compareOrRefreshGolden(MENU_EXPECTED, snapshot, MODE)
     // Every shipped preset, each with the sentence saying what it composes —
     // the id alone never said what a preset does.
     expect(snapshot).toContain('Minimal mode')
     expect(snapshot).toContain('Creator mode')
-
-    // Gentle AI is shipped as an explicit opt-in mode; changing the mode for
-    // the active session is intentionally covered by a separate blank-session
-    // test; an already-running session cannot change compositions.
-    expect(scaffold.ctx.agentPresets.defaultId).toBe('standard')
     await page.keyboard.press('Escape')
   })
 
@@ -440,28 +429,6 @@ describe('web e2e: agent-preset selection', () => {
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
   })
-})
-
-it('stages Gentle AI for a new task without replacing Standard as the default', async () => {
-  const stagedScaffold = await launchWebScaffold({ agentPresets: { default: 'standard' } })
-  let stagedBrowser: Browser | undefined
-  try {
-    stagedBrowser = await chromium.launch()
-    const stagedPage = await newEnglishPage(stagedBrowser)
-    await stagedPage.goto(stagedScaffold.authenticatedUrl, { waitUntil: 'load' })
-    await stagedPage.waitForSelector('[class*="frame"]', { timeout: 30_000 })
-    expect(await livePreset(stagedScaffold)).toBeUndefined()
-
-    await stagedPage.getByRole('button', { name: 'Standard mode', exact: true }).click()
-    await stagedPage.getByRole('menuitem', { name: /^Gentle AI mode/ }).click()
-    await stagedPage.getByRole('button', { name: 'Gentle AI mode', exact: true }).waitFor()
-
-    expect(stagedScaffold.ctx.agentPresets.defaultId).toBe('standard')
-    expect(await livePreset(stagedScaffold)).toBeUndefined()
-  } finally {
-    await stagedBrowser?.close()
-    await stagedScaffold.close()
-  }
 })
 
 it.each([false, true])('starts Creator from Plugins with Coding Tools=%s without changing drafts or defaults', async (developerTools) => {

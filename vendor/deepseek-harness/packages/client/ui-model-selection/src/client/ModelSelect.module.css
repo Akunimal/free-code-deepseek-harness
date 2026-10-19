@@ -12,7 +12,7 @@
   align-items: center;
   gap: 5px;
   min-width: 0;
-  max-width: 150px;
+  max-width: 190px;
   color: var(--dsw-alias-label-caption);
   font-size: 11px;
   line-height: 14px;
@@ -155,6 +155,16 @@
 
 .status,
 .empty {
+  padding: 8px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 8px;
   color: var(--dsw-alias-label-tertiary);
   font-size: 12px;

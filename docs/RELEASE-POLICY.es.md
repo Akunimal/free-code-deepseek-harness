@@ -1,11 +1,11 @@
 # Política de releases
 
-### Release actual: v0.9.6 (Windows x64)
+### Release actual: v1.0.0 (Windows x64)
 
 Las releases son manuales y tienen como target Windows x64. Esta política
 nunca autoriza tocar la instancia activa de FreeCode.
 
-**Estado candidato:** v0.9.6 aún no está publicada. Faltan la prueba pública de caché vacía y la verificación final de setup/portable; una precarga local no las reemplaza.
+**Estado de la release:** el setup y el portable finales de v1.0.0 para Windows x64 pasaron el gate completo sobre la fuente final, incluida la descarga pública del runtime con caché vacía; una precarga local no la reemplaza.
 
 ## Prueba obligatoria de instalación limpia
 
@@ -23,19 +23,20 @@ procesos ajenos.
 
 ## Contención Windows y runtime
 
-v0.9.6 exige `headless-host` GUI, escritorio privado y Job asignado con el
+v1.0.0 exige `headless-host` GUI, escritorio privado y Job asignado con el
 destino suspendido, sin fallback directo. Las acciones GUI explícitas usan el
 broker autenticado. Las pruebas nativas adversarias de ventanas/descendientes
 y cierre del Job corren contra el helper exacto preparado y empaquetado;
 los strings de fuente no bastan. Ver [contención y límites](HEADLESS-DESKTOP.md).
 
-El pin actual es `0.2.1-alpha.9` (ABI 149), 421.541.194 bytes, SHA-256
-`7c1d8cb1b53e2a88a7549941afacf423a1345353b9c3aa6fd53d95d3f49c4ca5`.
-Se agrega como dependencia a la release v0.9.5 antes del gate; no se reemplaza
-ningún asset anterior. v0.9.4 publicó alpha8 y v0.9.2 alpha2: quedan como historia.
+El pin actual es `0.2.1-alpha.11` (ABI 149), 423.195.661 bytes, SHA-256
+`396bc019a74ad71be0fa0e3074298fc41f1621713080d31cf990ae64b3282473`.
+Se publica en la pre-release [runtime-0.2.1-alpha.11](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/runtime-0.2.1-alpha.11) antes del gate; no
+se reemplaza ningún asset anterior. v0.9.5 publicó alpha9, v0.9.4 alpha8 y
+v0.9.2 alpha2: quedan como historia.
 OmniRoute sigue retirado. Se conservan sesiones y proveedores del usuario.
-La salida nueva es `apps/shell/release-0.9.6-final-20261016/` y los tamaños/
-hashes finales se registran en [notas bilingües](../release-notes-v0.9.6.md).
+La salida nueva es `apps/shell/release-1.0.0-final-20261019/` y los tamaños/
+hashes finales se registran en [notas bilingües](../release-notes-v1.0.0.md).
 
 Tras cambiar opencode2api o su overlay activo, recompilá con
 `bash scripts/build-opencode2api.sh`. También prepara el nuevo sidecar Windows
@@ -57,11 +58,11 @@ separado; no inicia FreeCode ni reutiliza el perfil del navegador personal.
 El smoke runtime de NSIS debe aislar APPDATA, LOCALAPPDATA, USERPROFILE, HOME y
 las rutas temporales: `--user-data-dir` de Chromium no redirige por sí solo
 `app.getPath('userData')` de Electron. Sin un perfil privado, el smoke puede
-dejar el torrc apuntando a recursos dentro de su instalación temporal eliminada.
+dejar la config del gateway apuntando a su instalación temporal eliminada.
 
-La release desktop v0.9.6 contiene setup NSIS, portable, blockmap del setup y
-`latest.yml`. El runtime DSH separado tiene versión independiente: v0.9.6
-descarga el runtime Windows x64 exacto `0.2.1-alpha.9` desde la release runtime pública v0.9.5,
+La release desktop v1.0.0 contiene setup NSIS, portable, blockmap del setup y
+`latest.yml`. El runtime DSH separado tiene versión independiente: v1.0.0
+descarga el runtime Windows x64 exacto `0.2.1-alpha.11` desde la pre-release pública runtime-0.2.1-alpha.11,
 que también incluye el checksum SHA-256. El gate verifica el archivo fijado
 local y el manifest empaquetado; nunca vuelve a generar, elimina ni reemplaza
 ese tarball inmutable. El packaging desktop habitual tampoco ejecuta
@@ -80,9 +81,9 @@ nueva y aislada, y verificá exactamente esa carpeta:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-0.9.6-final-20261016'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.0-final-20261019'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-0.9.6-final-20261016
+pnpm verify:desktop-release-assets apps/shell/release-1.0.0-final-20261019
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
@@ -129,7 +130,7 @@ setup exacto:
 ```powershell
 $env:FREECODE_ALLOW_INTERACTIVE_NSIS_SMOKE = '1'
 $env:FREECODE_NSIS_SMOKE_ENV = 'disposable-vm'
-$env:FREECODE_NSIS_SETUP_PATH = 'C:\path\to\exact\FreeCode-DeepSeek-Harness-0.9.6-win-x64-setup.exe'
+$env:FREECODE_NSIS_SETUP_PATH = 'C:\path\to\exact\FreeCode-DeepSeek-Harness-1.0.0-win-x64-setup.exe'
 pnpm --filter @freecode/shell smoke:nsis
 ```
 

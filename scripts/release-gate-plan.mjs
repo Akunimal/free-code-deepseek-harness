@@ -48,6 +48,8 @@ export function createReleaseGatePlan({ version, outputDir }) {
       'packages/client/ui-tool/tests/spill-policy-terminal.client.spec.ts',
       'packages/client/ui-schedule/tests/browser-plugin.client.spec.ts',
       'packages/client/ui-agent-preset/tests/apply.client.spec.ts',
+      'packages/client/ui-agent-preset/tests/locales.client.spec.ts',
+      'packages/client/ui-model-selection/tests/model-select.client.spec.tsx',
       'packages/client/ui-agent-preset/tests/entry.host.spec.ts',
       'packages/api/session-controller/tests/assistant-stream.client.spec.ts',
       'packages/client/ui-user-questions/tests/question-reply.client.spec.ts',

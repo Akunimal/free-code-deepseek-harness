@@ -30,7 +30,6 @@ import { stopInstalledProcesses, stopInstalledProcessesReferencing, verifyInstal
 import { cleanupInstalledShortcuts, verifyInstalledShortcuts } from './verify-nsis-shortcuts.mjs';
 import { interactiveNsisSmokeOptedIn } from './nsis-smoke-guard.mjs';
 import { resolveNsisSetup } from './nsis-smoke-setup.mjs';
-import { verifyTorRuntimeAssets } from './tor-runtime-assets.mjs';
 
 if (process.platform !== 'win32') {
   console.log('verify-nsis-install-layout: skipped (non-Windows host).');
@@ -110,9 +109,6 @@ try {
     const REQUIRED_FILES = [
       'resources/freecode/opencode2api/opencode2api-win-x64.exe',
       'resources/freecode/runtime-manifest.json',
-       'resources/freecode/tor/tor.exe',
-       'resources/freecode/tor/geoip',
-       'resources/freecode/tor/geoip6',
     ];
     const FORBIDDEN_PATHS = [
       'resources/freecode/dsh',
@@ -129,23 +125,11 @@ try {
         invalidManifest = true;
       }
     }
-     let torAssetFailure = null;
-     if (missing.length === 0) {
-       try {
-         const runtimeDeps = JSON.parse(readFileSync(join(REPO_ROOT, 'apps/shell/resources/runtime-deps.json'), 'utf8'));
-         const tor = runtimeDeps.dependencies.find((dependency) => dependency.id === 'tor' && dependency.required === true);
-         if (!tor || typeof tor.sha256 !== 'string') throw new Error('Tor asset is not pinned in runtime-deps.json');
-         verifyTorRuntimeAssets(join(installDir, 'resources/freecode'), tor.sha256);
-       } catch (error) {
-         torAssetFailure = error.message;
-       }
-     }
-     if (missing.length > 0 || unexpectedlyBundled.length > 0 || invalidManifest || torAssetFailure) {
+     if (missing.length > 0 || unexpectedlyBundled.length > 0 || invalidManifest) {
       console.error('verify-nsis-install-layout: MISSING after install:');
       for (const m of missing) console.error(`  - ${m}`);
       for (const m of unexpectedlyBundled) console.error(`  - unexpectedly bundled: ${m}`);
       if (invalidManifest) console.error('  - runtime compatibility manifest is malformed');
-       if (torAssetFailure) console.error(`  - ${torAssetFailure}`);
       exitCode = 1;
     } else {
       console.log('verify-nsis-install-layout: static resources and DSH compatibility manifest are present; the DSH payload is excluded.');

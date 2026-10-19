@@ -31,18 +31,9 @@ function resolveVendoredMcpExe(subpath: string): string {
   return subpath
 }
 
+// Rows persisted by older builds (e.g. `engram`) are dropped on the next boot:
+// the catalog is always rebuilt from these definitions.
 const BASE_SERVER_DEFINITIONS = [
-  {
-    id: 'engram',
-    serverName: 'engram',
-    transport: 'stdio',
-    command: 'engram',
-    // Engram owns storage and project selection; the harness only launches
-    // the `mcp` subcommand. Bare command resolves via PATH at spawn time;
-    // failOnStartupError:false keeps startup fail-open when absent.
-    args: ['mcp'],
-    cwd: PROCESS_CWD,
-  },
   {
     id: 'free-search',
     serverName: 'free-search',
@@ -128,7 +119,7 @@ function persistedUvxCommand(raw: { servers?: unknown }): string | undefined {
   if (!Array.isArray(raw.servers)) return undefined
   const candidate = raw.servers.find((server) => (
     typeof server === 'object' && server !== null
-    && (server as { id?: unknown }).id === 'engram'
+    && (server as { id?: unknown }).id === 'free-search'
     && typeof (server as { command?: unknown }).command === 'string'
   )) as { command?: string } | undefined
   const command = candidate?.command

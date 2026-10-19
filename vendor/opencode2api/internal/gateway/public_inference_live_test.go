@@ -26,7 +26,8 @@ func TestPublicInferenceLive(t *testing.T) {
 	for _, base := range []string{"https://opencode.ai/inference", "https://opencode.ai/inference/openai"} {
 		body := []byte(`{"model":"step-5-preview-free","messages":[{"role":"user","content":"Reply only OK"}],"max_tokens":16}`)
 		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-		req, err := newUpstreamRequest(ctx, base, wire.Chat, prepareAnonymousBody(body, wire.Chat), identity.RequestIDs{Session: identity.CanonicalSessionID("freecode-public-compatibility-check"), Project: "freecode-public-compatibility-check"}, "public")
+		shaped, _ := prepareAnonymousBody(body, wire.Chat, isLegacyZenUpstream(base))
+		req, err := newUpstreamRequest(ctx, base, wire.Chat, shaped, identity.RequestIDs{Session: identity.CanonicalSessionID("freecode-public-compatibility-check"), Project: "freecode-public-compatibility-check"}, "public")
 		if err != nil {
 			cancel()
 			t.Fatal(err)

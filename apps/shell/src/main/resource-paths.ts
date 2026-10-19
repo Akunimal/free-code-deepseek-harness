@@ -23,7 +23,7 @@ export function resolveResourcesDir(options: ResourcePathOptions): string {
 
 export interface HarnessRuntimePathOptions {
   packaged: boolean;
-  /** Static resources directory containing opencode2api, OCR, and Tor. */
+  /** Static resources directory containing opencode2api and OCR. */
   resourcesDir: string;
   /** Writable app data directory; packaged harness downloads live here. */
   userDataDir?: string;

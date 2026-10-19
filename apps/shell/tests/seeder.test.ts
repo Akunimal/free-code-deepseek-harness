@@ -31,6 +31,14 @@ describe('provider startup migration', () => {
     expect(settings['llm-pi-ai'].providers['deepseek-free']).toBeUndefined();
     expect(settings['agent-default-model']).toBeUndefined();
   });
+  it('retires the retired kilo-free group and its default at boot', () => {
+    const root = home();
+    writeHarnessSettings(root, {'llm-pi-ai': {providers: {'kilo-free': {displayName: 'Kilo Free', baseURL: 'http://127.0.0.1:1111/v1', models: [{id: 'cohere/north-mini-code:free'}]}}}, 'agent-default-model': {provider: 'kilo-free', model: 'cohere/north-mini-code:free'}});
+    seedProviders({homeDir: root, lbBaseUrl: LB});
+    const settings = readHarnessSettings(root);
+    expect(settings['llm-pi-ai'].providers['kilo-free']).toBeUndefined();
+    expect(settings['agent-default-model']).toBeUndefined();
+  });
   it('migrates user routes/preferences, removes only owned legacy lanes and keeps the original backup', () => {
     const root = home();
     const legacy = {

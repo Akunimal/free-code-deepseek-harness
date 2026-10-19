@@ -24,13 +24,27 @@ if (process.platform !== 'win32') {
 
 const root = resolve(import.meta.dirname, '..');
 const pnpmCommand = 'pnpm.cmd';
+const vendorDir = 'vendor/deepseek-harness';
 const version = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')).version;
 const temporaryRoot = resolve(tmpdir());
 const outputDir = mkdtempSync(join(temporaryRoot, `freecode-release-gate-${version}-`));
 
+// The vendored DSH workspace pins its own pnpm (root and vendor pins differ).
+// Its steps run through corepack with that exact pin, so a machine without it
+// fails closed here instead of running the vendor under the root's pnpm.
+function vendorPnpmSpec() {
+  const manager = JSON.parse(readFileSync(resolve(root, vendorDir, 'package.json'), 'utf8')).packageManager;
+  const match = /^pnpm@(\d+\.\d+\.\d+)$/.exec(manager ?? '');
+  if (match === null) throw new Error(`release-gate: ${vendorDir} packageManager must pin an exact pnpm version`);
+  return `pnpm@${match[1]}`;
+}
+
 function run(label, args, env = {}) {
   console.log(`\nrelease-gate: ${label}`);
-  const result = spawnSync(pnpmCommand, args, {
+  const vendorStep = args[0] === '--dir' && args[1] === vendorDir;
+  const command = vendorStep ? 'corepack' : pnpmCommand;
+  const commandArgs = vendorStep ? [vendorPnpmSpec(), ...args] : args;
+  const result = spawnSync(command, commandArgs, {
     cwd: root,
     stdio: 'inherit',
     windowsHide: true,

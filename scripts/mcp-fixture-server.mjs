@@ -7,11 +7,6 @@ import { createInterface } from 'node:readline'
 
 const serverId = process.argv[2]
 const toolsByServer = {
-  engram: [{
-    name: 'smoke_status',
-    description: 'Return a deterministic release-smoke status.',
-    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
-  }],
   'free-search': [{
     name: 'engines',
     description: 'Return deterministic local search-engine metadata.',

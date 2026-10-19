@@ -3,6 +3,7 @@ import { SecretStore, resolveSecrets } from './secret-store.js';
 import { join, resolve } from 'node:path';
 import { retireRemovedRuntime } from './retired-runtime.js';
 import { startOpencode2api, type Opencode2apiInstance } from './opencode2api.js';
+import { ProxyRotator } from './proxy-rotator.js';
 import { embeddedMcpEnvironment, ensureEmbeddedMcpConfig } from './mcp-home.js';
 import type { EmbeddedMcpState, McpRuntimeStatus, WorkerHandle } from '@freecode/shared-types';
 
@@ -30,12 +31,14 @@ export interface ShellRuntimeConfig {
   log?: (level: string, msg: string, meta?: Record<string, unknown>) => void;
   /** Additional stable environment for the bundled Harness web client. */
   extraEnv?: Record<string, string>;
-  /** Optional egress proxies passed to opencode2api (e.g. ['direct', 'socks5://127.0.0.1:9050']). */
-  proxies?: string[];
   /** Authenticated loopback bridge for the visible persistent browser. */
   browserBridge?: { endpoint: string; token: string };
   /** Absolute uvx executable selected by the platform bootstrap. */
   uvxCommand?: string;
+  /** Called after the egress proxy pool changes and the gateway has reloaded. */
+  onProxyPoolChanged?: () => void;
+  /** Stage changes of the egress proxy rotation, for user-visible status. */
+  onProxyRotationStatus?: (status: 'harvesting' | 'ready' | 'empty', healthy: number) => void;
 }
 
 export type McpStatusListener = (status: McpRuntimeStatus) => void;
@@ -53,6 +56,10 @@ export interface ShellRuntime {
   /** Reset enabled servers to starting before a supervisor restart. */
   resetMcpStatus(): void;
   onMcpStatus(listener: McpStatusListener): () => void;
+  /** Engage egress proxy rotation (idempotent). Called when the direct lane is
+   *  persistently blocked. A no-op when the gateway is down or rotation is
+   *  disabled. */
+  engageProxyRotation(): void;
   start(): Promise<void>;
   stop(): Promise<void>;
 }
@@ -164,7 +171,6 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
     resourcesDir: join(cfg.resourcesDir),
     userDataDir: cfg.userDataDir,
     apiKey: publicKey,
-    proxies: cfg.proxies,
     log,
   }).catch((error: unknown) => {
     cfg.log?.('warn', 'opencode2api sidecar failed to start', {
@@ -172,6 +178,28 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
     });
     return undefined;
   });
+
+  // Egress rotation, demand-driven: engaged by the shell only when the direct
+  // lane is persistently blocked (a non-retryable empty catalog, i.e. Zen's
+  // 403 FreeTierError). While the user's own IP works, no proxy list is ever
+  // fetched and the gateway is never restarted — direct is always first.
+  // Opt-out: FREECODE_DISABLE_PROXY_ROTATION=1.
+  const rotationDisabled = process.env.FREECODE_DISABLE_PROXY_ROTATION === '1';
+  let proxyRotator: ProxyRotator | undefined;
+  if (opencode2api && !rotationDisabled) {
+    proxyRotator = new ProxyRotator({
+      proxyfilePath: opencode2api.proxyfilePath,
+      onStatus: (status, healthy) => cfg.onProxyRotationStatus?.(status, healthy),
+      onPoolChanged: async () => {
+        await opencode2api.restart();
+        // The catalog was probed before the proxies existed; ask for a fresh
+        // probe now so the selector updates without waiting for the cadence.
+        cfg.onProxyPoolChanged?.();
+      },
+      log,
+    });
+  }
+
   const supervisor = new HarnessSupervisor({
     nodePath: cfg.nodePath,
     cliEntry,
@@ -213,11 +241,13 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
       mcpListeners.add(listener);
       return () => mcpListeners.delete(listener);
     },
+    engageProxyRotation: () => { proxyRotator?.engage(); },
     start: async () => {
       resetMcpStatus();
       await supervisor.start();
     },
     stop: async () => {
+      proxyRotator?.stop();
       await supervisor.stop();
       await opencode2api?.stop();
     },

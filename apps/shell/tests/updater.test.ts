@@ -49,7 +49,7 @@ describe('update service', () => {
   it('rejects a downloaded Windows runtime that claims a new version but lacks the GUI broker', () => {
     const root = mkdtempSync(join(tmpdir(), 'freecode-runtime-gui-compat-'));
     try {
-      writeValidHarnessRuntime(root, '0.2.1-alpha.9', '// fixture cli');
+      writeValidHarnessRuntime(root, '0.2.1-alpha.10', '// fixture cli');
       expect(() => validateHarnessRuntime(join(root, 'dsh'), join(root, 'runtime-manifest.json'), 'win32')).not.toThrow();
       writeFileSync(join(root, 'dsh/packages/host/open-in-app/lib/index.js'), '// stale bundle');
       expect(() => validateHarnessRuntime(join(root, 'dsh'), join(root, 'runtime-manifest.json'), 'win32')).toThrow(/private-desktop GUI broker/);

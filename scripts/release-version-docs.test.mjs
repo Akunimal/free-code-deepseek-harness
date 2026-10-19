@@ -6,13 +6,13 @@ import test from 'node:test';
 const root = resolve(import.meta.dirname, '..');
 const read = (relativePath) => readFileSync(join(root, relativePath), 'utf8');
 
-test('root and shell metadata agree on 0.9.6 and require the GUI-broker alpha9 runtime', () => {
+test('root and shell metadata agree on 1.0.0 and require the GUI-broker alpha9 runtime', () => {
   const rootVersion = JSON.parse(read('package.json')).version;
   const shellVersion = JSON.parse(read('apps/shell/package.json')).version;
 
-  assert.equal(rootVersion, '0.9.6');
+  assert.equal(rootVersion, '1.0.0');
   assert.equal(shellVersion, rootVersion);
-  assert.equal(JSON.parse(read('apps/shell/harness-runtime.json')).version, '0.2.1-alpha.9');
+  assert.equal(JSON.parse(read('apps/shell/harness-runtime.json')).version, '0.2.1-alpha.11');
 });
 
 test('v0.9.6 release notes are bilingual and disclose the private-desktop boundary and clean-cache requirement', () => {
@@ -86,13 +86,15 @@ test('bilingual 0.9.4 notes identify the published release and retain candidate 
 const activeDocs = ['README.md', 'README.es.md', 'docs/RELEASE.md', 'docs/RELEASE.es.md',
   'docs/RELEASE-POLICY.md', 'docs/RELEASE-POLICY.es.md', 'docs/ROADMAP.md'];
 
-test('active EN/ES documents align current source, alpha9, notes, containment and fresh output', () => {
+test('active EN/ES documents align current source, alpha.11, notes, containment and fresh output', () => {
   for (const file of activeDocs) {
     const source = read(file);
-    assert.match(source, /v0\.9\.6/, file);
-    assert.match(source, /0\.2\.1-alpha\.9/, file);
-    assert.match(source, /release-notes-v0\.9\.6\.md/, file);
-    assert.match(source, /release-0\.9\.6-final-20261016/, file);
+    assert.match(source, /v1\.0\.0/, file);
+    assert.match(source, /0\.2\.1-alpha\.11/, file);
+    assert.match(source, /release-notes-v1\.0\.0\.md/, file);
+    assert.match(source, /release-1\.0\.0-final-20261019/, file);
+    // ROADMAP keeps the historical v0.9.x Tor entries; current docs must not.
+    if (file !== 'docs/ROADMAP.md') assert.doesNotMatch(source, /bundled Tor|Tor incluido|tor\.exe/, file);
     assert.match(source, /headless-host/, file);
     assert.match(source, /clean-cache|caché vacía|caché.*vacíos|empty.*cache/i, file);
     assert.doesNotMatch(source, /(?:Current release|Release actual|Current status|Estado actual):[^\n]*v0\.9\.[45]/i, file);
@@ -103,14 +105,14 @@ test('active EN/ES documents align current source, alpha9, notes, containment an
 test('READMEs agree on version, support, first-run network and inherited features', () => {
   const en = read('README.md');
   const es = read('README.es.md');
-  assert.match(en, /Source version: 0\.9\.6/);
-  assert.match(es, /Versión de la fuente: 0\.9\.6/);
+  assert.match(en, /Source version: 1\.0\.0/);
+  assert.match(es, /Versión de la fuente: 1\.0\.0/);
   assert.match(en, /Windows x64 only/i);
   assert.match(es, /solo Windows x64/i);
   for (const doc of [en, es]) {
     assert.match(doc, /Internet/);
     assert.match(doc, /Hermes/);
-    assert.match(doc, /Gentle AI/);
+    assert.match(doc, /Engram and the\s+Gentle AI mode were removed|Engram y el\s+modo Gentle AI se eliminaron/);
     assert.match(doc, /V094-21/);
     assert.match(doc, /V094-35/);
     assert.match(doc, /V094-37/);
@@ -119,7 +121,9 @@ test('READMEs agree on version, support, first-run network and inherited feature
     assert.match(doc, /1\.4\.0/);
     assert.match(doc, /pnpm release:gate/);
     assert.match(doc, /pnpm verify:desktop-release-assets/);
-    assert.match(doc, /v0\.9\.6.*GitHub|GitHub.*v0\.9\.6/);
+    assert.match(doc, /v1\.0\.0.*GitHub|GitHub.*v1\.0\.0/);
+    assert.match(doc, /runtime-0\.2\.1-alpha\.11/);
+    assert.match(doc, /Free models take a while to load|Los modelos free tardan un poco en cargar/);
     assert.doesNotMatch(doc, /start hidden, preventing console flashes|arrancan ocultos: no flashean/);
   }
 });

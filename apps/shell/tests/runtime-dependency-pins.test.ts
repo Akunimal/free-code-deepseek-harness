@@ -27,7 +27,7 @@ describe('runtime dependency pins', () => {
     const manifest = {
       dependencies: [
         { id: 'opencode2api', path: 'opencode2api/opencode2api-win-x64.exe', required: true, version: '1.3.5', sha256: '0'.repeat(64) },
-        { id: 'tor', path: 'tor/tor.exe', version: '13.5.7', sha256: 'a'.repeat(64) },
+        { id: 'helper-tool', path: 'helper-tool/helper-tool.exe', version: '1.0.0', sha256: 'a'.repeat(64) },
         { id: 'dsh-cli', path: 'dsh/apps/cli/lib/bin.js', required: true, version: '0.1.3-alpha.1', sha256: '1'.repeat(64) },
       ],
     }
@@ -38,7 +38,7 @@ describe('runtime dependency pins', () => {
       version: '1.3.8',
       sha256: createHash('sha256').update(opencodeBytes).digest('hex'),
     })
-    expect(result.dependencies.find((dependency) => dependency.id === 'tor')).toEqual(manifest.dependencies[1])
+    expect(result.dependencies.find((dependency) => dependency.id === 'helper-tool')).toEqual(manifest.dependencies[1])
     expect(result.dependencies.find((dependency) => dependency.id === 'dsh-cli')).toMatchObject({
       version: '0.2.1-alpha.1',
       sha256: createHash('sha256').update(dshBytes).digest('hex'),

@@ -27,14 +27,14 @@ describe('packaged DSH compatibility manifest', () => {
     const shellPin = JSON.parse(readFileSync(new URL('../harness-runtime.json', import.meta.url), 'utf8')) as { version?: unknown };
     const stagedManifest = JSON.parse(readFileSync(new URL('../resources/freecode/runtime-manifest.json', import.meta.url), 'utf8')) as { version?: unknown };
 
-    expect(shellPin.version).toBe('0.2.1-alpha.9');
+    expect(shellPin.version).toBe('0.2.1-alpha.11');
     expect(stagedManifest.version).toBe(shellPin.version);
     expect(() => assertHarnessRuntimeVersion('0.2.1-alpha.4', String(shellPin.version))).toThrow(/below packaged minimum/);
     expect(() => assertHarnessRuntimeVersion('0.2.1-alpha.5', String(shellPin.version))).toThrow(/below packaged minimum/);
     expect(() => assertHarnessRuntimeVersion('0.2.1-alpha.6', String(shellPin.version))).toThrow(/below packaged minimum/);
     expect(() => assertHarnessRuntimeVersion('0.2.1-alpha.7', String(shellPin.version))).toThrow(/below packaged minimum/);
     expect(() => assertHarnessRuntimeVersion('0.2.1-alpha.8', String(shellPin.version))).toThrow(/below packaged minimum/);
-    expect(() => assertHarnessRuntimeVersion('0.2.1-alpha.9', String(shellPin.version))).not.toThrow();
+    expect(() => assertHarnessRuntimeVersion('0.2.1-alpha.11', String(shellPin.version))).not.toThrow();
     expect(() => assertHarnessRuntimeVersion('0.2.1-alpha.10', '0.2.1-alpha.5')).not.toThrow();
     expect(() => assertHarnessRuntimeVersion('0.2.1-alpha.5', '0.2.1-alpha.10')).toThrow(/below packaged minimum/);
     // The existing shared-cache contract is a minimum, not an exact pin: older

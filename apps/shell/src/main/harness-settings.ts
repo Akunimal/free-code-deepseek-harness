@@ -6,7 +6,8 @@ import { isMap, isSeq, parseDocument, YAMLMap, YAMLSeq } from 'yaml';
 
 type Settings = Record<string, any>;
 const MANAGED_PROVIDER = 'deepseek-free';
-const MANAGED_KEYS = new Set([MANAGED_PROVIDER, 'opencode-free', 'perplexity-free', 'gemini-web']);
+// kilo-free: retired group from earlier 0.9.8 builds; removed from saved profiles.
+const MANAGED_KEYS = new Set([MANAGED_PROVIDER, 'kilo-free', 'opencode-free', 'perplexity-free', 'gemini-web']);
 const ENTRY_NAMES: Record<string, string> = {
   'llm-pi-ai': '@deepseek-ai/dsh-llm-pi-ai',
   'agent-default-model': '@deepseek-ai/dsh-agent-default-model',

@@ -58,10 +58,6 @@ export type TorStatus = z.infer<typeof TorStatusSchema>;
 
 /** IPC channel names (single source of truth for main + preload + renderer). */
 export const IpcChannels = {
-  poolStatus: 'pool:status',
-  poolRestartWorker: 'pool:restartWorker',
-  poolResize: 'pool:resize',
-  poolOverlayClose: 'pool:closeOverlay',
   modelsCatalog: 'models:catalog',
   modelsRefresh: 'models:refresh',
   modelsRefreshState: 'models:refreshState',
@@ -72,26 +68,15 @@ export const IpcChannels = {
   mcpOpenConfig: 'mcp:openConfig',
   mcpStatus: 'mcp:status',
   harnessRestart: 'harness:restart',
-  torStatus: 'tor:status',
-  torGetStatus: 'tor:getStatus',
-  torStart: 'tor:start',
-  torStop: 'tor:stop',
   localeSet: 'locale:set',
   ocrExtract: 'ocr:extract',
   ocrStatus: 'ocr:status',
-  gentleAiStatus: 'gentle-ai:status',
-  gentleAiDoctor: 'gentle-ai:doctor',
-  gentleAiRun: 'gentle-ai:run',
 } as const;
 
 export type IpcChannels = typeof IpcChannels;
 
 /** Payloads per channel. */
 export interface IpcPayloads {
-  [IpcChannels.poolStatus]: { workers: WorkerHandle[] };
-  [IpcChannels.poolRestartWorker]: { id: string };
-  [IpcChannels.poolResize]: { size: number };
-  [IpcChannels.poolOverlayClose]: void;
   [IpcChannels.modelsCatalog]: ModelCatalog;
   [IpcChannels.modelsRefresh]: void;
   [IpcChannels.modelsRefreshState]: ModelCatalogRefreshState;
@@ -102,58 +87,10 @@ export interface IpcPayloads {
   [IpcChannels.mcpOpenConfig]: void;
   [IpcChannels.mcpStatus]: McpRuntimeStatus;
   [IpcChannels.harnessRestart]: void;
-  [IpcChannels.torStatus]: TorStatus;
-  [IpcChannels.torGetStatus]: void;
-  [IpcChannels.torStart]: void;
-  [IpcChannels.torStop]: void;
   [IpcChannels.localeSet]: { locale: 'zh' | 'en' | 'es' };
   [IpcChannels.ocrExtract]: { imageBase64: string; lang?: string };
   [IpcChannels.ocrStatus]: { available: boolean; binaryPath: string | null };
-  [IpcChannels.gentleAiStatus]: void;
-  [IpcChannels.gentleAiDoctor]: void;
-  [IpcChannels.gentleAiRun]: GentleAiRunRequest;
 }
-
-/** Gentle-AI status response (no secrets). */
-export const GentleAiStatusSchema = z.object({
-  available: z.boolean(),
-  binaryPath: z.string().nullable(),
-  doctorPass: z.boolean().nullable(),
-});
-export type GentleAiStatus = z.infer<typeof GentleAiStatusSchema>;
-
-/** Gentle-AI doctor check row. */
-export const GentleAiDoctorCheckSchema = z.object({
-  name: z.string().min(1).max(64),
-  pass: z.boolean(),
-  message: z.string().max(1_024).optional(),
-});
-export type GentleAiDoctorCheck = z.infer<typeof GentleAiDoctorCheckSchema>;
-
-/** Gentle-AI doctor result (no secrets). */
-export const GentleAiDoctorSchema = z.object({
-  pass: z.boolean(),
-  checks: z.array(GentleAiDoctorCheckSchema).max(16),
-});
-export type GentleAiDoctor = z.infer<typeof GentleAiDoctorSchema>;
-
-/** Bounded gentle-ai:run request. Input cap 64KB (prompt text). */
-export const GENTLE_AI_INPUT_CAP = 64 * 1024;
-export const GENTLE_AI_OUTPUT_CAP = 256 * 1024;
-export const GENTLE_AI_TIMEOUT_MS = 30_000;
-export const GentleAiRunRequestSchema = z.object({
-  prompt: z.string().min(1).max(GENTLE_AI_INPUT_CAP),
-  timeoutMs: z.number().int().min(100).max(GENTLE_AI_TIMEOUT_MS).optional(),
-  allowGlobal: z.boolean().optional(),
-});
-export type GentleAiRunRequest = z.infer<typeof GentleAiRunRequestSchema>;
-
-/** Bounded gentle-ai:run response. */
-export const GentleAiRunResponseSchema = z.union([
-  z.object({ output: z.string().max(GENTLE_AI_OUTPUT_CAP), truncated: z.boolean() }),
-  z.object({ error: z.enum(['size', 'timeout', 'validation', 'blocked-global']) }),
-]);
-export type GentleAiRunResponse = z.infer<typeof GentleAiRunResponseSchema>;
 
 /** OCR result returned from ocr:extract. */
 export interface OcrResult {
@@ -165,12 +102,6 @@ export interface OcrResult {
 
 /** The API surface exposed on window.freecode by the preload bridge. */
 export interface FreeCodeApi {
-  pool: {
-    onStatus(cb: (payload: IpcPayloads[typeof IpcChannels.poolStatus]) => void): () => void;
-    resize(size: number): Promise<void>;
-    restartWorker(id: string): Promise<void>;
-    closeOverlay(): Promise<void>;
-  };
   models: {
     refresh(): Promise<ModelCatalog>;
     onCatalog(cb: (catalog: ModelCatalog) => void): () => void;
@@ -189,23 +120,12 @@ export interface FreeCodeApi {
     openConfig(): Promise<void>;
     onStatus(cb: (status: McpRuntimeStatus) => void): () => void;
   };
-  tor: {
-    getStatus(): Promise<TorStatus | null>;
-    start(): Promise<boolean>;
-    stop(): Promise<boolean>;
-    onStatus(cb: (status: TorStatus) => void): () => void;
-  };
   locale: {
     set(locale: 'zh' | 'en' | 'es'): Promise<void>;
   };
   ocr: {
     status(): Promise<{ available: boolean; binaryPath: string | null }>;
     extract(imageBase64: string, lang?: string): Promise<OcrResult>;
-  };
-  gentleAi: {
-    status(): Promise<GentleAiStatus>;
-    doctor(): Promise<GentleAiDoctor>;
-    run(prompt: string, opts?: { timeoutMs?: number; allowGlobal?: boolean }): Promise<GentleAiRunResponse>;
   };
 }
 

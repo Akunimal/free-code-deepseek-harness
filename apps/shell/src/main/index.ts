@@ -9,9 +9,9 @@ import { DEFAULT_POOL_SIZE } from '@freecode/opencode-adapter';
 import { createSecretStore, ensureSecret } from './secret-store.js';
 import { seedProviders } from './provider-seeder.js';
 import { refreshModels, ModelCatalog, shouldRetryModelRefresh } from './model-refresher.js';
-import { createModelCatalogRefreshState } from './model-refresh-state.js';
+import { createModelCatalogRefreshState, createRefreshHold } from './model-refresh-state.js';
+import { shouldNotifyProxyStage } from './proxy-rotator.js';
 import { registerIpc } from './ipc.js';
-import { canClosePoolStatusOverlay } from './pool-overlay-close.js';
 import { isTrustedHarnessNavigation, isTrustedRendererInvocation as isTrustedRendererCall } from './renderer-security.js';
 import { createSingleFlight } from './single-flight.js';
 import { nodeRuntimeEnv, resolveHarnessRuntimeDir, resolveNodePath, resolveResourcesDir } from './resource-paths.js';
@@ -35,8 +35,6 @@ import {
   acquireSingletonLock,
   requestElectronSingleInstance,
 } from './lifecycle-manager.js';
-import { TorManager } from './tor-manager.js';
-import { resolveTorProxyCandidates } from './tor-routing.js';
 import {
   UPDATE_INDICATOR_HEIGHT,
   UPDATE_INDICATOR_WIDTH,
@@ -45,7 +43,7 @@ import {
 
 /**
  * Electron main — wires the runtime (pool -> LB -> harness), the native
- * window wrapping the harness webview, tray, and the pool overlay.
+ * window wrapping the harness webview and tray.
  */
 
 // Packaged Electron has no attached console. On Windows the detached
@@ -148,21 +146,6 @@ async function bootstrap(harnessDir: string): Promise<ShellRuntime> {
   if (!process.env.FREECODE_PUBLIC_KEY) {
     await ensureSecret(secrets, 'FREECODE_PUBLIC_KEY', 'public');
   }
-  const torBinaryPath = join(resources, 'tor', 'tor.exe');
-  // Always initialize the manager so a missing packaged executable becomes
-  // an actionable failed status instead of a silent `null`/"unavailable" UI.
-  const torMgr = new TorManager({
-    torBinaryPath,
-    dataDir: userDataDir,
-    geoipDir: join(resources, 'tor'),
-    log: (level, msg, meta) => {
-      const fn = level === 'error' || level === 'warn' ? level : 'info';
-      appLogger?.logger[fn]?.(meta ?? {}, `[tor-manager] ${msg}`);
-    },
-  });
-  await torMgr.start();
-  torManager = torMgr;
-
   appLogger?.logger.info({}, '[DEBUG-STARTUP] bootstrap 5/5 createShellRuntime starting');
   const runtime = await createShellRuntime({
     resourcesDir: resources,
@@ -174,7 +157,8 @@ async function bootstrap(harnessDir: string): Promise<ShellRuntime> {
     nodeEnv: nodeRuntimeEnv(app.isPackaged),
     extraEnv: buildHarnessExtraEnv(dialogBridge),
     uvxCommand,
-    proxies: resolveTorProxyCandidates(torMgr?.proxyUrl),
+    onProxyPoolChanged: () => requestCatalogRefresh?.(),
+    onProxyRotationStatus: (status, healthy) => reportProxyRotation(status, healthy),
     browserBridge: embeddedBrowser ? { endpoint: embeddedBrowser.endpoint, token: embeddedBrowser.token } : undefined,
     log: (level, msg, meta) => {
       const fn = level === 'error' || level === 'warn' ? level : 'info';
@@ -189,7 +173,6 @@ let splashWindow: BrowserWindow | null = null;
 let splashStatusText = '';
 let mainWindow: BrowserWindow | null = null;
 let harnessView: WebContentsView | null = null;
-let overlayWindow: BrowserWindow | null = null;
 /**
  * Native windows owned by the shell (splash/main/overlay). Anything else
  * that appears — renderer popups that escaped a window-open handler, stray
@@ -218,11 +201,17 @@ function installPopupBackstop(): void {
 }
 let tray: Tray | null = null;
 let runtime: ShellRuntime | null = null;
-let torManager: TorManager | null = null;
+// Set once the catalog refresher exists; the egress proxy rotator calls it when
+// the pool changes so the selector is probed again without a restart.
+let requestCatalogRefresh: (() => void) | undefined;
+// Shared with the selector: loading while the catalog refresh or the egress
+// proxy harvest that precedes it is still running.
+const catalogRefreshState = createModelCatalogRefreshState();
+// Healthy proxy count after the last finished harvest (notification filter).
+let lastProxyPool = 0;
 let appLogger: AppLogger | null = null;
 let updateService: UpdateService | null = null;
 let updateTimer: NodeJS.Timeout | null = null;
-let overlayOpen = false;
 let localUpdateRunning = false;
 let embeddedBrowser: EmbeddedBrowser | null = null;
 let dialogBridge: DialogBridge | null = null;
@@ -245,11 +234,6 @@ function mcpTraySummary(): string | null {
   const enabled = servers.filter((server) => server.enabled);
   const ready = enabled.filter((server) => server.runtime?.state === 'ready').length;
   return t('tray.mcpStatus', ready, enabled.length);
-}
-
-function torTraySummary(): string | null {
-  if (!torManager) return null;
-  return torManager.isReady ? t('tray.torReady') : t('tray.torDown');
 }
 
 function reportMcpStatus(status: McpRuntimeStatus): void {
@@ -285,6 +269,53 @@ function reportBackendState(kind: 'catalog' | 'pool', state: Exclude<BackendStat
     new Notification({ title, body }).show();
   } catch {
     // Native notifications are best effort; the state remains in the log.
+  }
+}
+
+// A zero-responder catalog is always actionable: nothing is selectable. The
+// generic transition gate hides the first observation as startup settling,
+// so this notifies directly, once per outage.
+let noFreeModelsNotified = false;
+// Egress proxy rotation stages, shown as native notifications so the user is
+// never left guessing whether the free models are coming.
+function reportProxyRotation(status: 'harvesting' | 'ready' | 'empty', healthy: number): void {
+  if (shuttingDown) return;
+  if (status === 'harvesting' && healthy === 0) proxyHarvestHold.hold();
+  else proxyHarvestHold.release();
+  const key = status === 'harvesting' ? 'status.proxy.harvesting' : status === 'ready' ? 'status.proxy.ready' : 'status.proxy.empty';
+  appLogger?.logger.info({ component: 'proxy', status, healthy }, 'proxy rotation stage');
+  const notify = shouldNotifyProxyStage(status, healthy, lastProxyPool);
+  if (status !== 'harvesting') lastProxyPool = healthy;
+  if (!notify) return;
+  try {
+    new Notification({ title: t(`${key}.title` as Parameters<typeof t>[0]), body: t(`${key}.message` as Parameters<typeof t>[0], String(healthy)) }).show();
+  } catch {
+    // Best effort; the log keeps the stage.
+  }
+}
+
+// While no proxy is healthy yet, keep the selector in its loading state so the
+// user sees the free models coming instead of an empty list.
+const proxyHarvestHold = createRefreshHold(catalogRefreshState, 180_000);
+
+function reportNoFreeModels(catalog: ModelCatalog): void {
+  const anyResponder = Object.values(catalog.providers).some((provider) => provider.models.some((model) => model.responds));
+  if (anyResponder) { noFreeModelsNotified = false; return; }
+  // A zero-responder catalog that will NOT be retried is a persistent block
+  // (Zen's 403 FreeTierError to this IP), not a transient warm-up. Engage the
+  // egress proxy rotator so the gateway gains a fallback lane; direct stays
+  // first. A still-retryable empty catalog is left alone.
+  if (!shouldRetryModelRefresh(catalog)) runtime?.engageProxyRotation();
+  if (noFreeModelsNotified || shuttingDown) return;
+  noFreeModelsNotified = true;
+  appLogger?.logger.warn({ component: 'catalog' }, 'no free model answered the catalog probe');
+  try {
+    const notification = new Notification({ title: t('status.models.none.title'), body: t('status.models.none.message') });
+    notification.on('show', () => appLogger?.logger.info({ component: 'catalog' }, 'no-model notification shown'));
+    notification.on('failed', (_event, error) => appLogger?.logger.warn({ component: 'catalog', error }, 'no-model notification failed'));
+    notification.show();
+  } catch (error) {
+    appLogger?.logger.warn({ component: 'catalog', error: error instanceof Error ? error.message : String(error) }, 'no-model notification threw');
   }
 }
 
@@ -368,6 +399,10 @@ function createMainWindow(harnessUrl: string): void {
       preload: resolve(import.meta.dirname, '../preload/index.js'),
     },
   });
+  // DSH detects the desktop host through its own global. FreeCode has no
+  // dshDesktop global, so mark the page through its user agent, set before
+  // any harness script runs. DSH gates its desktop-only first-run prompts on it.
+  harnessView.webContents.setUserAgent(`${harnessView.webContents.getUserAgent()} FreeCodeDesktop/${app.getVersion()}`);
   mainWindow.contentView.addChildView(harnessView);
   const size = mainWindow.getContentSize();
   harnessView.setBounds({ x: 0, y: 0, width: size[0] ?? 1280, height: size[1] ?? 820 });
@@ -557,148 +592,6 @@ async function updateFromIndicator(): Promise<void> {
   const result = await checkForUpdates();
   if (!result) return;
   await presentUpdateResult(result);
-}
-
-function createOverlayWindow(): void {
-  // Overlay shows pool state; loaded from built renderer assets when present,
-  // otherwise a minimal inline status page is served from the runtime.
-  overlayWindow = new BrowserWindow({
-    width: 480,
-    height: 640,
-    frame: false,
-    transparent: false,
-    webPreferences: {
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: true,
-      preload: resolve(import.meta.dirname, '../preload/index.js'),
-    },
-  });
-  overlayWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  overlayWindow.webContents.on('will-navigate', (event) => event.preventDefault());
-  overlayWindow.loadURL('data:text/html,' + encodeURIComponent(renderOverlayHtml()));
-  overlayWindow.on('closed', () => {
-    overlayWindow = null;
-    overlayOpen = false;
-  });
-  trackManagedWindow(overlayWindow);
-}
-
-function escapeOverlayHtml(value: string | number): string {
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function renderOverlayHtml(): string {
-  const torStatusLabels = {
-    stopped: t('tor.status.stopped'),
-    starting: t('tor.status.starting'),
-    ready: t('tor.status.ready'),
-    rotating: t('tor.status.rotating'),
-    failed: t('tor.status.failed'),
-  };
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeOverlayHtml(t('overlay.title'))}</title>
-<style>
-*{box-sizing:border-box}
-body{font-family:system-ui;background:#0f1117;color:#d7dae2;padding:16px;margin:0;-webkit-app-region:drag;user-select:none}
-table,button,label{-webkit-app-region:no-drag}
-table{width:100%;border-collapse:collapse}
-td,th{border:1px solid #2a2f3a;padding:6px 8px;font-size:12px;text-align:left}
-th{background:#1a1e27}
-button{background:#2a2f3a;border:0;color:#d7dae2;padding:8px 12px;border-radius:6px;cursor:pointer;font-weight:600}
-button:disabled{opacity:.55;cursor:default}
-.close-btn{position:fixed;top:8px;right:8px;background:transparent;color:#9da4b3;font-size:18px;padding:4px 10px;border-radius:4px;-webkit-app-region:no-drag}
-.close-btn:hover{background:#2a2f3a;color:#fff}
-.route-pill{display:inline-block;padding:6px 18px;border-radius:999px;font-weight:700;font-size:15px;letter-spacing:1px;border:1px solid #22c55e;box-shadow:0 0 14px rgba(34,197,94,.75),inset 0 0 8px rgba(34,197,94,.25);color:#bbf7d0;background:#052e16}
-.tor-toggle{border:1px solid #22c55e !important;box-shadow:0 0 14px rgba(34,197,94,.75) !important;background:#052e16 !important;color:#bbf7d0 !important;padding:8px 14px !important;font-size:13px !important}
-.tor-msg{font-size:12px;min-height:16px;margin:6px 0;color:#9da4b3}
-.tor-direct{font-size:12px;margin:6px 0;color:#e5a50a;display:none}
-.tor-card{border:1px solid #2a2f3a;border-radius:10px;padding:12px;margin-top:12px;background:#141821}
-</style></head>
-<body>
-<button class="close-btn" onclick="window.freecode.pool.closeOverlay()" title="Close">✕</button>
-<h3 style="margin-top:0">${escapeOverlayHtml(t('overlay.title'))}</h3>
-<div class="tor-card">
-<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-  <label style="font-weight:600;font-size:14px">${escapeOverlayHtml(t('overlay.torTitle'))}</label>
-  <span id="tor-route" class="route-pill">${escapeOverlayHtml(t('overlay.torLoading'))}</span>
-</div>
-<div style="display:flex;gap:8px;margin-bottom:8px">
-  <button id="tor-toggle-btn" class="tor-toggle" onclick="window.__torToggle()">${escapeOverlayHtml(t('overlay.torDisable'))}</button>
-</div>
-<div id="tor-direct" class="tor-direct">${escapeOverlayHtml(t('overlay.directOnly'))}</div>
-<div id="tor-msg" class="tor-msg" role="status"></div>
-<table><thead><tr><th>${escapeOverlayHtml(t('overlay.colActive'))}</th><th>${escapeOverlayHtml(t('overlay.colStatus'))}</th><th>${escapeOverlayHtml(t('overlay.colSocks'))}</th><th>${escapeOverlayHtml(t('overlay.colControl'))}</th><th>${escapeOverlayHtml(t('overlay.colPid'))}</th></tr></thead><tbody id="tor-rows"><tr><td colspan="5" style="color:#9da4b3">${escapeOverlayHtml(t('overlay.torLoading'))}</td></tr></tbody></table>
-</div>
-<p style="font-size:12px;color:#9da4b3">${escapeOverlayHtml(t('overlay.workersNote'))}</p>
-<script>
-var torLabels = ${JSON.stringify(torStatusLabels)};
-var torYes = ${JSON.stringify(t('common.yes'))};
-var torNo = ${JSON.stringify(t('common.no'))};
-var torOperationFailed = ${JSON.stringify(t('overlay.torOperationFailed'))};
-var torUnavailableLabel = ${JSON.stringify(t('overlay.torUnavailable'))};
-var torRouteDirect = ${JSON.stringify(t('overlay.routeDirect'))};
-var torRouteTor = ${JSON.stringify(t('overlay.routeTor'))};
-var torEnableLabel = ${JSON.stringify(t('overlay.torEnable'))};
-var torCancelStartingLabel = ${JSON.stringify(t('overlay.torCancelStarting'))};
-var torDisableLabel = ${JSON.stringify(t('overlay.torDisable'))};
-var torStartingLabel = ${JSON.stringify(t('overlay.torStarting'))};
-var torStoppingLabel = ${JSON.stringify(t('overlay.torStopping'))};
-function esc(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-}
-function renderTor(s) {
-  var tbody = document.getElementById('tor-rows');
-  var direct = document.getElementById('tor-direct');
-  var toggle = document.getElementById('tor-toggle-btn');
-  var pill = document.getElementById('tor-route');
-  var msg = document.getElementById('tor-msg');
-  if (!tbody) return;
-  if (!s) {
-    tbody.innerHTML = '<tr><td colspan="5" style="color:#9da4b3">' + esc(torUnavailableLabel) + '</td></tr>';
-    if (direct) direct.style.display = 'block';
-    if (pill) pill.textContent = torRouteDirect;
-    if (toggle) { toggle.disabled = false; toggle.textContent = torEnableLabel; }
-    if (msg) msg.textContent = torUnavailableLabel;
-    return;
-  }
-  var down = !s.active && (s.status === 'failed' || s.status === 'stopped' || s.status === 'starting');
-  var starting = s.status === 'starting';
-  if (direct) direct.style.display = down ? 'block' : 'none';
-  if (pill) pill.textContent = s.active ? torRouteTor : torRouteDirect;
-  if (toggle && !toggle.dataset.busy) {
-    toggle.textContent = starting ? torCancelStartingLabel : s.active ? torDisableLabel : torEnableLabel;
-    toggle.disabled = false;
-  }
-  if (msg) msg.textContent = s.status === 'failed' && s.lastError ? s.lastError : '';
-  tbody.innerHTML = '<tr><td>'+(s.active ? esc(torYes) : esc(torNo))+'</td><td>'+esc(torLabels[s.status] || s.status)+'</td><td>127.0.0.1:'+s.socksPort+'</td><td>127.0.0.1:'+s.controlPort+'</td><td>'+s.pid+'</td></tr>';
-}
-window.__torToggle = function() {
-  var toggle = document.getElementById('tor-toggle-btn');
-  var msg = document.getElementById('tor-msg');
-  if (toggle) { toggle.disabled = true; toggle.dataset.busy = '1'; }
-  window.freecode.tor.getStatus().then(function(s) {
-    var turningOff = !!(s && (s.active || s.status === 'starting'));
-    if (msg) msg.textContent = turningOff ? torStoppingLabel : torStartingLabel;
-    if (toggle) toggle.textContent = turningOff ? torStoppingLabel : torStartingLabel;
-    return (turningOff ? window.freecode.tor.stop() : window.freecode.tor.start()).then(function() {
-      return window.freecode.tor.getStatus().then(renderTor, function() {});
-    });
-  }).catch(function() {
-    if (msg) msg.textContent = torOperationFailed;
-  }).then(function() {
-    if (toggle) { toggle.disabled = false; delete toggle.dataset.busy; }
-    return window.freecode.tor.getStatus().then(renderTor, function() {});
-  });
-};
-window.freecode.tor.onStatus(renderTor);
-window.freecode.tor.getStatus().then(renderTor, function() { renderTor(null); });
-</script>
-</body></html>`;
 }
 
 function bundledUpstreamCommit(resources: string): string | undefined {
@@ -954,17 +847,11 @@ function buildMenu(): void {
   template.push(
     { role: 'fileMenu', label: t('menu.file') },
     {
-      label: t('menu.pool'),
+      label: t('menu.harness'),
       submenu: [
-        { label: t('menu.poolStatus'), click: () => openOverlay() },
         {
           label: t('menu.restartHarness'),
           click: () => void runtime?.supervisor.restart(),
-        },
-        {
-          label: t('menu.rotateTor'),
-          enabled: torManager?.isReady ?? false,
-          click: () => void torManager?.rotateIdentity(),
         },
         { type: 'separator' },
         { role: 'quit', label: t('menu.quit') },
@@ -988,15 +875,6 @@ function buildMenu(): void {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-function openOverlay(): void {
-  if (overlayWindow && !overlayWindow.isDestroyed()) {
-    overlayWindow.focus();
-    return;
-  }
-  overlayOpen = true;
-  createOverlayWindow();
-}
-
 function updateTrayMenu(): void {
   const activityLabel = updateActivity === 'downloading'
     ? t('tray.updateDownloading')
@@ -1004,28 +882,19 @@ function updateTrayMenu(): void {
       ? t('tray.updateInstalling')
       : null;
   const mcpSummary = mcpTraySummary();
-  const torSummary = torTraySummary();
-  tray?.setToolTip([activityLabel, mcpSummary, torSummary].filter((value): value is string => value !== null).join(' · ') || t('tray.tooltip'));
+  tray?.setToolTip([activityLabel, mcpSummary].filter((value): value is string => value !== null).join(' · ') || t('tray.tooltip'));
   const activityItems: Electron.MenuItemConstructorOptions[] = activityLabel
     ? [{ label: activityLabel, enabled: false }, { type: 'separator' }]
     : [];
   const mcpItem = mcpSummary === null ? [] : [{ label: mcpSummary, enabled: false } satisfies Electron.MenuItemConstructorOptions, { type: 'separator' as const }];
-  const torItem = torSummary === null ? [] : [{ label: torSummary, enabled: false } satisfies Electron.MenuItemConstructorOptions];
   tray?.setContextMenu(
     Menu.buildFromTemplate([
       ...activityItems,
       ...mcpItem,
-      ...torItem,
       { label: t('tray.show'), click: () => showMainWindowFromTray() },
-      { label: t('menu.poolStatus'), click: () => openOverlay() },
       {
         label: t('menu.restartHarness'),
         click: () => void runtime?.supervisor.restart(),
-      },
-      {
-        label: t('menu.rotateTor'),
-        enabled: torManager?.isReady ?? false,
-        click: () => void torManager?.rotateIdentity(),
       },
       { type: 'separator' },
       { label: t('menu.quit'), click: () => app.quit() },
@@ -1067,10 +936,6 @@ function createTray(): void {
     ? nativeImage.createFromPath(iconPath)
     : nativeImage.createEmpty();
   tray = new Tray(icon.isEmpty() ? nativeImage.createEmpty() : icon);
-  torManager?.onChange(() => {
-    updateTrayMenu();
-    buildMenu();
-  });
   updateTrayMenu();
   // Windows fires 'click' for single-click and 'double-click' for double;
   // both should restore. macOS uses tray-click on the menu bar icon. All
@@ -1291,7 +1156,6 @@ app.whenReady().then(async () => {
 
   // FASE 6: model refresh at boot + every 30 min.
   let catalog: ModelCatalog | null = null;
-  const catalogRefreshState = createModelCatalogRefreshState();
   let refreshRetryAttempt = 0;
   let degradedProbeRetries = 0;
   const OPENCODE_REFRESH_RETRY_MS = 30_000;
@@ -1318,6 +1182,7 @@ app.whenReady().then(async () => {
         providers: [],
         onUpdate: (c) => {
           catalog = c;
+          reportNoFreeModels(c);
           const retainedRoutes = Object.values(c.providers)
             .flatMap((provider) => provider.models)
             .filter((model) => model.lastKnownGood === true).length;
@@ -1330,7 +1195,7 @@ app.whenReady().then(async () => {
             ? `Some model probes failed at the transport layer; retaining ${retainedRoutes} previously HTTP-200-verified route(s).${retrySuffix}`
             : verifiedRoutes > 0
               ? `Some model probes failed transiently; ${verifiedRoutes} currently verified route(s) remain selectable.${retrySuffix}`
-              : `No model probe returned HTTP 200; unverified or explicitly rejected routes are hidden.${retrySuffix}`;
+              : `No free model is available right now: OpenCode Zen answers 403 to some networks and free tiers have rate limits (429). Try again later or from another network. Unverified routes stay hidden.${retrySuffix}`;
           reportBackendState('catalog', c.availability === 'degraded' ? 'degraded' : 'ready',
             c.availability === 'degraded' ? degradedMessage : undefined);
         },
@@ -1357,6 +1222,7 @@ app.whenReady().then(async () => {
       return null;
     }
   });
+  requestCatalogRefresh = () => { void doRefresh(); };
   void doRefresh();
   refreshIntervalId = setInterval(() => void doRefresh(), REFRESH_INTERVAL_MS);
   refreshIntervalId.unref();
@@ -1364,7 +1230,6 @@ app.whenReady().then(async () => {
   // FASE 10: IPC contract.
   registerIpc({
     runtime,
-    torManager,
     userDataDir,
     homeDir: join(userDataDir, 'dsh-home'),
     lbBaseUrl: opencodeUrl,
@@ -1378,7 +1243,6 @@ app.whenReady().then(async () => {
     },
     isTrustedRendererInvocation: (event, channel) => isTrustedRendererCall(event, {
       harnessWebContents: harnessView?.webContents ?? null,
-      overlayWebContents: overlayWindow?.webContents ?? null,
       harnessUrl: runtime?.supervisor.currentUrl ?? '',
     }, channel),
     setLocale: applyNativeLocale,
@@ -1389,17 +1253,6 @@ app.whenReady().then(async () => {
     getRendererTargets: () => harnessView && !harnessView.webContents.isDestroyed()
       ? [harnessView.webContents]
       : [],
-    // Tor state is consumed by both the embedded Harness page and the
-    // auxiliary Pool Status window. Other broadcasts remain harness-only.
-    getTorRendererTargets: () => [
-      ...(harnessView && !harnessView.webContents.isDestroyed() ? [harnessView.webContents] : []),
-      ...(overlayWindow && !overlayWindow.isDestroyed() ? [overlayWindow.webContents] : []),
-    ],
-    closePoolStatusOverlay: (sender) => {
-      const target = overlayWindow;
-      if (!target || !canClosePoolStatusOverlay(sender, target)) return;
-      target.close();
-    },
   });
 
   if (runtime.supervisor.statusValue === 'ready' && runtime.supervisor.currentUrl) {
@@ -1463,8 +1316,6 @@ app.on('before-quit', async (e) => {
       if (refreshIntervalId) { clearInterval(refreshIntervalId); refreshIntervalId = null; }
       await embeddedBrowser?.close();
       embeddedBrowser = null;
-      await torManager?.stop();
-      torManager = null;
       await dialogBridge?.close();
       dialogBridge = null;
       await runtime?.stop();

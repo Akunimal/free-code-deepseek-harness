@@ -231,3 +231,18 @@ test('NSIS output verifier rejects a truncated MZ stub without a PE signature', 
     rmSync(temp, { recursive: true, force: true });
   }
 });
+
+test('vendor steps run under the vendored pnpm pin through corepack and fail closed', () => {
+  const gate = readFileSync(new URL('scripts/release-gate.mjs', repositoryRoot), 'utf8');
+  const vendorPackage = JSON.parse(readFileSync(new URL('vendor/deepseek-harness/package.json', repositoryRoot), 'utf8'));
+  assert.match(vendorPackage.packageManager, /^pnpm@\d+\.\d+\.\d+$/);
+  assert.match(gate, /const vendorDir = 'vendor\/deepseek-harness'/);
+  assert.match(gate, /args\[0\] === '--dir' && args\[1\] === vendorDir/);
+  assert.match(gate, /vendorStep \? 'corepack' : pnpmCommand/);
+  assert.match(gate, /must pin an exact pnpm version/);
+  const plan = createReleaseGatePlan({ version: '0.0.0', outputDir: 'unused' });
+  const vendorSteps = plan.filter((step) => step.args?.[0] === '--dir' && step.args[1] === 'vendor/deepseek-harness');
+  assert.ok(vendorSteps.length >= 2, 'vendor typecheck and client regression steps stay in the gate');
+  const regressions = plan.find((step) => step.label === 'vendor-client-regressions');
+  assert.ok(regressions.args.includes('packages/client/ui-model-selection/tests/model-select.client.spec.tsx'));
+});

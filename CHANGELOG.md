@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.0.0 — Stable / Estable — 2026-10-19
+
+See [bilingual release notes / notas bilingües](release-notes-v1.0.0.md).
+
+- Egress proxy rotation: direct is always tried first; on a non-2xx the gateway
+  advances to a strict-TLS-verified public SOCKS5 proxy. Opt out with
+  FREECODE_DISABLE_PROXY_ROTATION=1.
+- No fixed ports: every local listener skips a port already in use.
+- DeepSeek API-key first-run prompt is skipped on the FreeCode desktop.
+- Selector spinner while free models load (seconds to ~2 minutes); effort starts
+  at the model default; zen-lane capabilities win.
+- Tor, the TOR pill, Gentle AI and Engram removed; "Pool" menu renamed "Harness".
+- DSH runtime 0.2.1-alpha.11 built from the cleaned patch stack (no reverts).
+- opencode2api Go gateway v1.4.1.
+
+## 0.9.8 — Local candidate / Candidata local — 2026-10-17
+
+See [bilingual release notes / notas bilingües](release-notes-v0.9.8.md).
+
+- The Tor pool is removed from the GUI and the packaged runtime. The
+  gateway runs direct only.
+- opencode2api (Go) is updated to v1.4.1; FreeCode patches are preserved.
+- Clear message when no free model is available (Zen 403/429 is temporary).
+
 ## 0.9.6 — Verified / Verificada — 2026-10-16
 
 See [bilingual release notes / notas bilingües](release-notes-v0.9.6.md).
@@ -68,9 +92,9 @@ metadata and the exact DSH alpha8 runtime/checksum.
 
 - Model updates now target the active DSH profile (`cordis.patch.yml`) with
   verified hot reload, rather than the legacy one-time import. Public free
-  requests use the protocol-qualified v1.4.0 inference route. / Los modelos
+  requests use the protocol-qualified v1.4.1 inference route. / Los modelos
   ahora actualizan el perfil activo y recargan sin reinicio; la ruta pública
-  v1.4.0 usa el namespace de protocolo correcto.
+  v1.4.1 usa el namespace de protocolo correcto.
 - The release pins DSH `0.2.1-alpha.8`. Strict Host and Client builds pass
   independently; Hermes indexed access and Spanish dictionary contracts are
   enforced. Its separately published runtime archive has a verified SHA-256.
@@ -78,10 +102,10 @@ metadata and the exact DSH alpha8 runtime/checksum.
   Client; los contratos de Hermes y del diccionario español están cubiertos.
   El runtime publicado por separado tiene SHA-256 verificado.
 
-- Updated vendored opencode2api to v1.4.0 with persistent manual model choice,
+- Updated vendored opencode2api to v1.4.1 with persistent manual model choice,
   transient-probe recovery, and stable request/session identity contracts. The
   FreeCode direct-first then Tor-on-non-2xx policy remains covered by tests. /
-  opencode2api vendorizado actualizado a v1.4.0, con selección manual
+  opencode2api vendorizado actualizado a v1.4.1, con selección manual
   persistente, recuperación ante sondeos transitorios e identidades estables
   de request/sesión. Los tests protegen la política Direct primero y Tor solo
   tras no-2xx.

@@ -49,3 +49,42 @@ export function createModelCatalogRefreshState(): ModelCatalogRefreshStateStore 
     },
   };
 }
+
+export interface RefreshHold {
+  /** Hold the store in `loading` until released (idempotent). */
+  hold(): void;
+  /** Release a held `loading` state (no-op when not held). */
+  release(): void;
+  readonly held: boolean;
+}
+
+/**
+ * Keeps the shared refresh state `loading` while work that precedes a catalog
+ * refresh (the egress proxy harvest) runs, so the selector shows the free
+ * models loading instead of an empty list. The timer bounds the hold if the
+ * work never reports back.
+ */
+export function createRefreshHold(store: ModelCatalogRefreshStateStore, timeoutMs: number): RefreshHold {
+  let release: (() => void) | null = null;
+  return {
+    hold() {
+      if (release !== null) return;
+      let resolveHold: () => void = () => undefined;
+      const pending = new Promise<void>((resolve) => { resolveHold = () => resolve(); });
+      void store.run(() => pending);
+      const timer = setTimeout(() => release?.(), timeoutMs);
+      timer.unref?.();
+      release = () => {
+        clearTimeout(timer);
+        release = null;
+        resolveHold();
+      };
+    },
+    release() {
+      release?.();
+    },
+    get held() {
+      return release !== null;
+    },
+  };
+}
