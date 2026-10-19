@@ -10,7 +10,7 @@ Programación primero en Windows con modelos OpenCode Free: elegí un proyecto,
 describí el trabajo y dejá que el Harness local coordine archivos, herramientas,
 servidores MCP y llamadas al modelo.
 
-[Read in English](README.md)
+[Read this in English](README.md)
 
 ## Español
 
