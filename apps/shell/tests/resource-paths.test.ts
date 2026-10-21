@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import {
   nodeRuntimeEnv,
   resolveNodePath,
-  resolveOpencodeBinary,
+  resolvePhoenixBinary,
+  resolvePhoenixDirectory,
   resolveResourcesDir,
   resolveHarnessRuntimeDir,
 } from '../src/main/resource-paths.js';
@@ -34,13 +35,14 @@ describe('resource-paths', () => {
       .toBe(resolve('/repo/resources/freecode'));
   });
 
-  it('supports both the dev nested binary and the packaged root fallback', () => {
+  it('resolves the single staged FreeLLMpool Phoenix directory and binary', () => {
     const base = mkdtempSync(join(tmpdir(), 'freecode-binary-'));
     try {
-      const nested = join(base, 'opencode2api');
+      const nested = join(base, 'phoenix');
       mkdirSync(nested);
-      writeFileSync(join(nested, 'opencode2api-linux-x64'), 'fixture');
-      expect(resolveOpencodeBinary(base, 'linux')).toBe(join(nested, 'opencode2api-linux-x64'));
+      writeFileSync(join(nested, 'freellmpool-win-x64.exe'), 'fixture');
+      expect(resolvePhoenixDirectory(base)).toBe(nested);
+      expect(resolvePhoenixBinary(base)).toBe(join(nested, 'freellmpool-win-x64.exe'));
     } finally {
       rmSync(base, { recursive: true, force: true });
     }
@@ -50,18 +52,6 @@ describe('resource-paths', () => {
     expect(resolveNodePath({ packaged: true, executablePath: 'electron.exe' })).toBe('electron.exe');
     expect(nodeRuntimeEnv(true)).toEqual({ ELECTRON_RUN_AS_NODE: '1' });
     expect(nodeRuntimeEnv(false)).toEqual({});
-  });
-
-  it('selects the native macOS worker binary', () => {
-    const base = mkdtempSync(join(tmpdir(), 'freecode-mac-binary-'));
-    try {
-      const nested = join(base, 'opencode2api');
-      mkdirSync(nested);
-      writeFileSync(join(nested, 'opencode2api-mac-x64'), 'fixture');
-      expect(resolveOpencodeBinary(base, 'darwin', 'x64')).toBe(join(nested, 'opencode2api-mac-x64'));
-    } finally {
-      rmSync(base, { recursive: true, force: true });
-    }
   });
 
 });

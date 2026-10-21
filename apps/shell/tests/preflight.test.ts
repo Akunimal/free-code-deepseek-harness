@@ -5,7 +5,8 @@
  */
 
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { verifyHarnessLayout, awaitHarnessLayout, formatPreflightFailure } from '../src/main/preflight.js';
@@ -36,9 +37,39 @@ function makeFullLayout(base: string, opts: { bundleHasBridge?: boolean; harness
   }
   mkdirSync(harnessDir, { recursive: true });
   writeFileSync(join(harnessDir, 'runtime-manifest.json'), '{"version":"0.0.0","cli":"dsh/apps/cli/lib/bin.js"}');
-  mkdirSync(join(base, 'opencode2api'), { recursive: true });
-  writeFileSync(join(base, 'opencode2api', 'opencode2api-win-x64.exe'), '');
-  writeFileSync(join(base, 'opencode2api', 'opencode2api-linux-x64'), '');
+  const phoenixDir = join(base, 'phoenix');
+  mkdirSync(phoenixDir, { recursive: true });
+  const binary = makePhoenixExecutable();
+  const models = Buffer.from('["auto","ovh/test-model"]\n');
+  const license = Buffer.from('MIT license fixture\n');
+  writeFileSync(join(phoenixDir, 'freellmpool-win-x64.exe'), binary);
+  writeFileSync(join(phoenixDir, 'phoenix-model-ids.json'), models);
+  writeFileSync(join(phoenixDir, 'LICENSE'), license);
+  writeFileSync(join(phoenixDir, 'freecode-build-receipt.json'), JSON.stringify({
+    schemaVersion: 1,
+    upstream: {
+      repository: 'https://github.com/0xzr/freellmpool',
+      commit: 'e4411650da95edf3002c6789ccd1c816aedae1d4',
+      version: '0.13.0',
+      tarballSha256: '31175b80b613386550d247e89546ab312f66bf49950ebdddf3d4ee9e937e6aa6',
+    },
+    sourceSha256: 'a'.repeat(64),
+    binarySha256: createHash('sha256').update(binary).digest('hex'),
+    modelsCatalogSha256: createHash('sha256').update(models).digest('hex'),
+    licenseSha256: createHash('sha256').update(license).digest('hex'),
+    toolchain: { pythonVersion: '3.14.2', architecture: 'AMD64', pyinstallerVersion: '6.20.0', runtime: { httpx: '0.28.1' } },
+  }));
+}
+
+function makePhoenixExecutable(machine = 0x8664): Buffer {
+  const binary = Buffer.alloc(256);
+  binary.write('MZ', 0, 'ascii');
+  binary.writeUInt32LE(64, 0x3c);
+  binary.write('PE\0\0', 64, 'binary');
+  binary.writeUInt16LE(machine, 68);
+  binary.writeUInt16LE(0x20b, 88);
+  binary.writeUInt16LE(3, 156);
+  return binary;
 }
 
 beforeEach(() => {
@@ -114,11 +145,37 @@ describe('verifyHarnessLayout', () => {
     expect(result.warnings.some(w => w.includes('valid cli'))).toBe(true);
   });
 
-  it('linux does not require the win32 opencode2api binary', () => {
+  it('rejects a missing Phoenix binary even if an obsolete gateway is present', () => {
     makeFullLayout(root);
-    rmSync(join(root, 'opencode2api', 'opencode2api-win-x64.exe'));
-    const result = verifyHarnessLayout({ resourcesDir: root, platform: 'linux' });
-    expect(result.ok).toBe(true);
+    rmSync(join(root, 'phoenix', 'freellmpool-win-x64.exe'));
+    mkdirSync(join(root, 'opencode2api'), { recursive: true });
+    writeFileSync(join(root, 'opencode2api', 'opencode2api-win-x64.exe'), 'stale');
+    const result = verifyHarnessLayout({ resourcesDir: root, platform: 'win32' });
+    expect(result.ok).toBe(false);
+    expect(result.missing.some(m => m.includes('Phoenix'))).toBe(true);
+  });
+
+  it('rejects a Phoenix binary whose build receipt hash is stale', () => {
+    makeFullLayout(root);
+    const binary = makePhoenixExecutable();
+    binary[200] = 1;
+    writeFileSync(join(root, 'phoenix', 'freellmpool-win-x64.exe'), binary);
+    const result = verifyHarnessLayout({ resourcesDir: root, platform: 'win32' });
+    expect(result.ok).toBe(false);
+    expect(result.warnings.some(w => /Phoenix.*hash|hash.*Phoenix/i.test(w))).toBe(true);
+  });
+
+  it('rejects a Phoenix binary with the wrong PE architecture', () => {
+    makeFullLayout(root);
+    const binary = makePhoenixExecutable(0x014c);
+    writeFileSync(join(root, 'phoenix', 'freellmpool-win-x64.exe'), binary);
+    const receiptPath = join(root, 'phoenix', 'freecode-build-receipt.json');
+    const receipt = JSON.parse(readFileSync(receiptPath, 'utf8'));
+    receipt.binarySha256 = createHash('sha256').update(binary).digest('hex');
+    writeFileSync(receiptPath, JSON.stringify(receipt));
+    const result = verifyHarnessLayout({ resourcesDir: root, platform: 'win32' });
+    expect(result.ok).toBe(false);
+    expect(result.warnings.some(w => /Phoenix.*x64|Phoenix.*architecture/i.test(w))).toBe(true);
   });
 
   it('awaitHarnessLayout absorbs a settling window: empty now, filled after 2 attempts', async () => {

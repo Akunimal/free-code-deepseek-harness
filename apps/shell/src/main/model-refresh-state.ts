@@ -60,7 +60,7 @@ export interface RefreshHold {
 
 /**
  * Keeps the shared refresh state `loading` while work that precedes a catalog
- * refresh (the egress proxy harvest) runs, so the selector shows the free
+ * refresh (the provider probes) runs, so the selector shows the free
  * models loading instead of an empty list. The timer bounds the hold if the
  * work never reports back.
  */

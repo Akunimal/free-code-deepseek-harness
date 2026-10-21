@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest';
 
 // The shell GUI exposes no Tor pool: no Pool Status overlay, no Tor tray
 // entries, no Rotate Tor IP menu item, no tor/pool preload bridges, and no
-// Tor status IPC. The opencode2api gateway runs direct only.
+// Tor status IPC. Phoenix exposes the pinned FreeLLMpool catalog without a
+// shell-owned proxy-rotation or Tor pool surface.
 const root = join(import.meta.dirname, '..');
 const read = (relative: string): string => readFileSync(join(root, relative), 'utf8');
 

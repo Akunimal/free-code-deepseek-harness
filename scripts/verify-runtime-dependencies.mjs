@@ -76,6 +76,16 @@ if (!payloadExists) {
   process.exit(1);
 }
 
+const legacyGatewayPresent = manifest.dependencies.some((dep) => dep.id === 'opencode2api'
+  || /opencode2api/i.test(dep.path ?? ''));
+logCheck('retired-gateway-absent', !legacyGatewayPresent, legacyGatewayPresent ? 'OpenCode2API runtime entry is forbidden' : 'Phoenix replaces the retired gateway');
+const phoenix = manifest.dependencies.find((dep) => dep.id === 'phoenix');
+const phoenixContractValid = phoenix?.required === true
+  && phoenix.path === 'phoenix/freellmpool-win-x64.exe'
+  && phoenix.arch === 'win-x64'
+  && phoenix.network === true;
+logCheck('phoenix-gateway-contract', phoenixContractValid, phoenixContractValid ? phoenix.path : 'required pinned Windows x64 Phoenix gateway missing or invalid');
+
 // 3. Check each dependency
 const requiredMissing = [];
 const networkRequired = [];
@@ -116,7 +126,9 @@ for (const dep of manifest.dependencies) {
   }
 
   // 3c. Network check for required dependencies
-  if (dep.required && dep.network) {
+  if (dep.id === 'phoenix' && dep.network) {
+    logCheck(`${dep.id}: network-allowed`, true, 'provider inference needs runtime network; the pinned gateway binary is bundled');
+  } else if (dep.required && dep.network) {
     networkRequired.push(dep.id);
     logCheck(`${dep.id}: network-allowed`, false, 'required dep must not need network');
   } else if (dep.network) {

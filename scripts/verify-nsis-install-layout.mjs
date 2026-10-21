@@ -107,11 +107,15 @@ try {
     exitCode = 2;
   } else {
     const REQUIRED_FILES = [
-      'resources/freecode/opencode2api/opencode2api-win-x64.exe',
+      'resources/freecode/phoenix/freellmpool-win-x64.exe',
+      'resources/freecode/phoenix/freecode-build-receipt.json',
+      'resources/freecode/phoenix/phoenix-model-ids.json',
+      'resources/freecode/phoenix/LICENSE',
       'resources/freecode/runtime-manifest.json',
     ];
     const FORBIDDEN_PATHS = [
       'resources/freecode/dsh',
+      'resources/freecode/opencode2api',
     ];
     const missing = REQUIRED_FILES.filter((rel) => !existsSync(join(installDir, rel)));
     const unexpectedlyBundled = FORBIDDEN_PATHS.filter((rel) => existsSync(join(installDir, rel)));
@@ -132,7 +136,7 @@ try {
       if (invalidManifest) console.error('  - runtime compatibility manifest is malformed');
       exitCode = 1;
     } else {
-      console.log('verify-nsis-install-layout: static resources and DSH compatibility manifest are present; the DSH payload is excluded.');
+      console.log('verify-nsis-install-layout: Phoenix payload and DSH compatibility manifest are present; DSH and the retired gateway are excluded.');
       try {
         await verifyInstalledRuntime({ installDir, label: 'fresh install' });
         console.log('verify-nsis-install-layout: installed runtime boot/headless smoke passed.');

@@ -1,18 +1,11 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import type { ChildProcess } from 'node:child_process';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { launchHidden } from './freecode-launcher.js';
-
-const UPSTREAM_COMMIT = 'e4411650da95edf3002c6789ccd1c816aedae1d4';
-const UPSTREAM_VERSION = '0.13.0';
-const UPSTREAM_TARBALL_SHA256 = '31175b80b613386550d247e89546ab312f66bf49950ebdddf3d4ee9e937e6aa6';
-const BINARY_NAME = 'freellmpool-win-x64.exe';
-const MODEL_FILE = 'phoenix-model-ids.json';
-const RECEIPT_FILE = 'freecode-build-receipt.json';
+import { PHOENIX_UPSTREAM, verifyPhoenixPayload } from './phoenix-payload.js';
 const OS_ENV_KEYS = ['PATH', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP', 'COMSPEC'] as const;
-const ALLOWED_PROVIDERS = new Set(['pollinations', 'llm7', 'ovh', 'kilo']);
 const DEFAULT_READY_TIMEOUT_MS = 60_000;
 const DEFAULT_RESTART_DELAY_MS = 500;
 const MAX_RESTART_DELAY_MS = 30_000;
@@ -40,86 +33,12 @@ export interface PhoenixGatewayInstance {
   stop(): Promise<void>;
 }
 
-interface PhoenixPayload {
-  binaryPath: string;
-  modelsPath: string;
-  licensePath: string;
-  modelIds: string[];
-  binarySha256: string;
-}
-
 interface RunningChild {
   proc: ChildProcess;
   intentional: boolean;
   ready: boolean;
   restartScheduled: boolean;
   stderr: string;
-}
-
-function sha256(bytes: Buffer): string {
-  return createHash('sha256').update(bytes).digest('hex');
-}
-
-function assertWindowsX64ConsoleExecutable(bytes: Buffer): void {
-  if (bytes.length < 256 || bytes.toString('ascii', 0, 2) !== 'MZ') {
-    throw new Error('Phoenix sidecar is not a valid PE executable');
-  }
-  const pe = bytes.readUInt32LE(0x3c);
-  if (pe < 64 || pe + 94 > bytes.length || bytes.toString('ascii', pe, pe + 4) !== 'PE\0\0'
-    || bytes.readUInt16LE(pe + 4) !== 0x8664 || bytes.readUInt16LE(pe + 24) !== 0x20b
-    || bytes.readUInt16LE(pe + 92) !== 3) {
-    throw new Error('Phoenix sidecar must be a Windows x64 console executable');
-  }
-}
-
-function readModelIds(path: string): string[] {
-  let value: unknown;
-  try {
-    value = JSON.parse(readFileSync(path, 'utf8'));
-  } catch (error) {
-    throw new Error(`Phoenix packaged model allowlist is missing or invalid: ${path}`, { cause: error });
-  }
-  if (!Array.isArray(value) || value[0] !== 'auto' || new Set(value).size !== value.length
-    || value.length < 2 || !value.every((id): id is string => typeof id === 'string')) {
-    throw new Error('Phoenix model allowlist must start with Auto Phoenix and contain unique model IDs');
-  }
-  for (const id of value.slice(1)) {
-    const [provider, ...model] = id.split('/');
-    if (!provider || model.length === 0 || !ALLOWED_PROVIDERS.has(provider)) {
-      throw new Error(`Phoenix model allowlist contains an unapproved provider route: ${id}`);
-    }
-  }
-  return value;
-}
-
-function verifyPhoenixPayload(resourcesDir: string, platform: NodeJS.Platform, arch: NodeJS.Architecture): PhoenixPayload {
-  if (platform !== 'win32' || arch !== 'x64') {
-    throw new Error('The Phoenix FreeLLMpool sidecar is currently packaged for Windows x64 only');
-  }
-  const phoenixDir = join(resourcesDir, 'phoenix');
-  const binaryPath = join(phoenixDir, BINARY_NAME);
-  const modelsPath = join(phoenixDir, MODEL_FILE);
-  const licensePath = join(phoenixDir, 'LICENSE');
-  let receipt: Record<string, any>;
-  try {
-    receipt = JSON.parse(readFileSync(join(phoenixDir, RECEIPT_FILE), 'utf8')) as Record<string, any>;
-  } catch (error) {
-    throw new Error('Packaged Phoenix FreeLLMpool build receipt is missing or invalid', { cause: error });
-  }
-  const upstream = receipt.upstream;
-  if (receipt.schemaVersion !== 1 || upstream?.repository !== 'https://github.com/0xzr/freellmpool'
-    || upstream?.commit !== UPSTREAM_COMMIT || upstream?.version !== UPSTREAM_VERSION
-    || upstream?.tarballSha256 !== UPSTREAM_TARBALL_SHA256) {
-    throw new Error('Packaged Phoenix receipt does not match the pinned FreeLLMpool source');
-  }
-  const binary = readFileSync(binaryPath);
-  const models = readFileSync(modelsPath);
-  const license = readFileSync(licensePath);
-  assertWindowsX64ConsoleExecutable(binary);
-  if (receipt.binarySha256 !== sha256(binary)) throw new Error('Packaged Phoenix sidecar hash does not match its build receipt');
-  if (receipt.modelsCatalogSha256 !== sha256(models)) throw new Error('Packaged Phoenix model allowlist hash does not match its build receipt');
-  if (receipt.licenseSha256 !== sha256(license)) throw new Error('Packaged Phoenix FreeLLMpool license hash does not match its build receipt');
-  return { binaryPath, modelsPath, licensePath, modelIds: readModelIds(modelsPath), binarySha256: receipt.binarySha256 };
 }
 
 function envValue(source: NodeJS.ProcessEnv, key: string): string | undefined {
@@ -277,7 +196,7 @@ export async function startPhoenixGateway(config: PhoenixGatewayConfig): Promise
   try {
     const first = await launchAndWait();
     log('info', 'Phoenix FreeLLMpool gateway ready', {
-      version: UPSTREAM_VERSION,
+      version: PHOENIX_UPSTREAM.version,
       url,
       pid: first.proc.pid,
       modelCount: payload.modelIds.length,

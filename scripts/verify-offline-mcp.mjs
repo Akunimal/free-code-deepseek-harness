@@ -80,8 +80,11 @@ const depsPath = join(REPO_ROOT, 'apps', 'shell', 'resources', 'runtime-deps.jso
 const deps = readFileSafe(depsPath);
 if (deps) {
   const manifest = JSON.parse(deps);
-  const networkRequired = manifest.dependencies.filter(d => d.required && d.network);
-  logCheck('no-required-network-deps', networkRequired.length === 0, networkRequired.length > 0 ? `REQUIRED+NETWORK: ${networkRequired.map(d => d.id).join(', ')}` : 'clean');
+  const networkRequired = manifest.dependencies.filter(d => d.required && d.network && d.id !== 'phoenix');
+  const phoenix = manifest.dependencies.find(d => d.id === 'phoenix');
+  logCheck('no-required-network-bootstrap-deps', networkRequired.length === 0, networkRequired.length > 0 ? `REQUIRED+NETWORK BOOTSTRAP: ${networkRequired.map(d => d.id).join(', ')}` : 'clean');
+  logCheck('bundled-phoenix-provider-network', phoenix?.required === true && phoenix.network === true
+    && phoenix.path === 'phoenix/freellmpool-win-x64.exe', phoenix?.network === true ? 'provider calls require network; gateway artifact is bundled' : 'Phoenix provider network contract missing');
 
   const uvxDeps = manifest.dependencies.filter(d => d.launch?.type === 'uvx');
   logCheck('no-uvx-launch-type', uvxDeps.length === 0, uvxDeps.length > 0 ? `uvx launch: ${uvxDeps.map(d => d.id).join(', ')}` : 'clean');

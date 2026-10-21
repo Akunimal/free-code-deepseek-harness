@@ -54,7 +54,8 @@ const legacyLayoutIsPopulated = () => {
   return required.every((target) => existsSync(target))
     && dirs.every((target) => existsSync(target) && readdirSync(target).length > 0);
 };
-const layoutIsPopulated = () => existsSync(join(installDir, 'resources/freecode/opencode2api/opencode2api-win-x64.exe'))
+const layoutIsPopulated = () => existsSync(join(installDir, 'resources/freecode/phoenix/freellmpool-win-x64.exe'))
+  && !existsSync(join(installDir, 'resources/freecode/opencode2api'))
   && !existsSync(dsh())
   && existsSync(join(installDir, 'resources/freecode/runtime-manifest.json'));
 
@@ -131,12 +132,13 @@ const runSetup = async (setup, label, isComplete = layoutIsPopulated) => {
 
 const dsh = () => join(installDir, 'resources/freecode/dsh');
 const assertPopulated = (label) => {
-  const opencode = join(installDir, 'resources/freecode/opencode2api/opencode2api-win-x64.exe');
+  const phoenix = join(installDir, 'resources/freecode/phoenix/freellmpool-win-x64.exe');
+  const retiredGateway = join(installDir, 'resources/freecode/opencode2api');
   const forbidden = [dsh()]
     .filter((target) => existsSync(target));
   const manifest = join(installDir, 'resources/freecode/runtime-manifest.json');
-  if (!existsSync(opencode) || !existsSync(manifest) || forbidden.length) {
-    throw new Error(`${label} layout invalid; missing=${existsSync(opencode) ? '' : opencode}${existsSync(manifest) ? '' : `,${manifest}`} unexpectedlyBundled=${forbidden.join(',')}`);
+  if (!existsSync(phoenix) || !existsSync(manifest) || forbidden.length || existsSync(retiredGateway)) {
+    throw new Error(`${label} layout invalid; missing=${existsSync(phoenix) ? '' : phoenix}${existsSync(manifest) ? '' : `,${manifest}`} unexpectedlyBundled=${[...forbidden, ...(existsSync(retiredGateway) ? [retiredGateway] : [])].join(',')}`);
   }
 };
 const assertLegacyPopulated = (label) => {

@@ -35,4 +35,4 @@ run(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', ['apply:upstream-patches
 
 console.log('update-upstream-local: rebuilding only the DeepSeek Harness runtime');
 run(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', ['package:runtime']);
-console.log('update-upstream-local: Harness runtime update complete; opencode2api and the shell were preserved');
+console.log('update-upstream-local: Harness runtime update complete; Phoenix gateway and the shell were preserved');

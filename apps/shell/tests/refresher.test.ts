@@ -423,7 +423,7 @@ describe('model-refresher', () => {
         return new Response(JSON.stringify({
           error: {
             code: null,
-            message: 'the model uses an upstream protocol that opencode2api does not expose',
+            message: 'the model uses an upstream protocol that this gateway does not expose',
             param: null,
             type: 'invalid_request_error',
           },
@@ -466,7 +466,7 @@ describe('model-refresher', () => {
             return new Response(JSON.stringify({
               error: {
                 code: null,
-                message: 'the model uses an upstream protocol that opencode2api does not expose',
+                message: 'the model uses an upstream protocol that this gateway does not expose',
                 param: null,
                 type: 'invalid_request_error',
               },

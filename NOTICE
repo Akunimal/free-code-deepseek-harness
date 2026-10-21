@@ -7,15 +7,11 @@ All upstream code lives under vendor/ (git subtrees, read-only unless synced).
    https://github.com/deepseek-ai/deepseek-harness
    Core agent runtime + official web GUI consumed as a subtree at vendor/deepseek-harness.
 
-2. jasonxu114514/opencode2api — license unspecified by upstream
-   (no license declared on GitHub, no LICENSE file in v1.3.5;
-   v1.3.2 carried an "all rights reserved" placeholder, retained at
-   vendor/opencode2api/LICENSE for provenance)
-   https://github.com/jasonxu114514/opencode2api
-   OpenAI/Anthropic-compatible proxy over OpenCode, consumed as a sidecar.
-   The application bundles per-platform standalone binaries built from this
-   source, including one local tweak (anonymous lane starts on direct;
-   see the FreeCode note in vendor/opencode2api/internal/gateway/pool.go).
+2. 0xzr/freellmpool — MIT
+   https://github.com/0xzr/freellmpool
+   Pinned at commit e4411650da95edf3002c6789ccd1c816aedae1d4. FreeCode's
+   Phoenix gateway bundles a self-contained Windows x64 service built from
+   this source and a reviewed allowlist of keyless/free provider routes.
 
 3. Sophomoresty/gemini-web2api — MIT
    https://github.com/Sophomoresty/gemini-web2api
@@ -29,4 +25,4 @@ All upstream code lives under vendor/ (git subtrees, read-only unless synced).
    reference; no code was copied verbatim.
 
 This project is an independent shell and is NOT affiliated with or endorsed by
-DeepSeek, OpenCode, or any of the upstream projects above.
+DeepSeek or any of the upstream projects above.

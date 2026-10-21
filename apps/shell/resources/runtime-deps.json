@@ -9,20 +9,27 @@
   "payloadDir": "resources/freecode",
   "dependencies": [
     {
-      "id": "opencode2api",
-      "name": "opencode2api",
-      "version": "1.4.1",
+      "id": "phoenix",
+      "name": "Phoenix FreeLLMpool Gateway",
+      "version": "0.13.0",
       "arch": "win-x64",
-      "source": "jasonxu114514/opencode2api",
-      "license": "GPL-3.0-or-later",
-      "sha256": "e64607e0769ae198912101897a90fd42bd1afef363ebe30951a279237928703f",
-      "path": "opencode2api/opencode2api-win-x64.exe",
+      "source": "0xzr/freellmpool@e4411650da95edf3002c6789ccd1c816aedae1d4",
+      "license": "MIT",
+      "sha256": "68f051e03334d5e073f9e5608dce581a26834fbb92ecddac3b9f4eb299d3fe24",
+      "path": "phoenix/freellmpool-win-x64.exe",
       "launch": {
         "type": "exec",
-        "args": [],
-        "cwd": "$DSH_HOME"
+        "args": [
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "$PHOENIX_PORT",
+          "--state-dir",
+          "$PHOENIX_STATE_DIR"
+        ],
+        "cwd": "$PHOENIX_STATE_DIR"
       },
-      "network": false,
+      "network": true,
       "required": true
     },
     {

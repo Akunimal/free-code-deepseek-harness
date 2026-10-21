@@ -64,9 +64,11 @@ function makePayload(): { resourcesDir: string; executable: string; models: stri
       version: '0.13.0',
       tarballSha256: '31175b80b613386550d247e89546ab312f66bf49950ebdddf3d4ee9e937e6aa6',
     },
+    sourceSha256: 'b'.repeat(64),
     binarySha256: sha256(binary),
     modelsCatalogSha256: sha256(modelsBytes),
     licenseSha256: sha256(licenseBytes),
+    toolchain: { pythonVersion: '3.14.2', architecture: 'AMD64', pyinstallerVersion: '6.20.0', runtime: { httpx: '0.28.1' } },
   }));
   return { resourcesDir, executable, models };
 }

@@ -74,10 +74,23 @@ describe('desktop package payload policy', () => {
     const installSmoke = readFileSync(installedSmokeScript, 'utf8');
     const runtimeSmoke = readFileSync(installedRuntimeScript, 'utf8');
 
-    expect(installSmoke).toContain('resources/freecode/opencode2api/opencode2api-win-x64.exe');
+    expect(installSmoke).toContain('resources/freecode/phoenix/freellmpool-win-x64.exe');
+    expect(installSmoke).toContain("'resources/freecode/opencode2api'");
     expect(installSmoke).not.toContain('resources/freecode/tor/');
     expect(installSmoke).not.toContain('resources/freecode/dsh/apps/cli/lib/bin.js');
     expect(runtimeSmoke).toContain('harness-runtime');
     expect(runtimeSmoke).not.toContain("'resources', 'freecode', 'dsh'");
+  });
+
+  it('ships the verified Phoenix sidecar and excludes every retired OpenCode2API payload', () => {
+    const config = readFileSync(builderConfig, 'utf8');
+    const packageScripts = JSON.parse(readFileSync(shellPackage, 'utf8')).scripts;
+    const resourcesBlock = config.split('extraResources:')[1]?.split('\nicon:')[0] ?? '';
+
+    expect(resourcesBlock).toContain("'**/*'");
+    expect(resourcesBlock).toContain("'!opencode2api'");
+    expect(resourcesBlock).toContain("'!opencode2api/**'");
+    expect(packageScripts['prepackage:verify']).toContain('freellmpool-staging.mjs --verify');
+    expect(packageScripts['prepackage:verify']).not.toContain('opencode2api-staging.mjs');
   });
 });

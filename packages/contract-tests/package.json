@@ -7,7 +7,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@freecode/opencode-adapter": "workspace:*",
     "@freecode/shared-types": "workspace:*",
     "zod": "^3.24.0"
   },

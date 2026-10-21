@@ -31,9 +31,7 @@ const MIMO_REASONING_EFFORTS: Exclude<ModelReasoningEfforts, false> = {
 
 /** Generic graduated thinking for models whose gateway metadata advertises
  *  reasoning but whose wire dialect is not DeepSeek/MiMo-specific.
- *  Verified live against the opencode2api lane: reasoning_effort passes
- *  through and is honored (200 + reasoning_content observed). Effort only
- *  reaches the wire when the user selects a non-off level. */
+ *  Effort only reaches the wire when the user selects a non-off level. */
 const GENERIC_REASONING_EFFORTS: Exclude<ModelReasoningEfforts, false> = {
   off: null,
   low: 'low',

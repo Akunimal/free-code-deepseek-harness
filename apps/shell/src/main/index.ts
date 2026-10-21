@@ -5,7 +5,6 @@ import { launchHidden, launchHiddenSync } from './freecode-launcher.js'
 import { headlessHostPolicy } from './headless-host-policy.js';
 import type { McpRuntimeStatus } from '@freecode/shared-types';
 import { createShellRuntime, ShellRuntime } from './runtime.js';
-import { DEFAULT_POOL_SIZE } from '@freecode/opencode-adapter';
 import { createSecretStore } from './secret-store.js';
 import { seedProviders } from './provider-seeder.js';
 import { refreshModels, ModelCatalog, shouldRetryModelRefresh } from './model-refresher.js';
@@ -192,12 +191,10 @@ function installPopupBackstop(): void {
 }
 let tray: Tray | null = null;
 let runtime: ShellRuntime | null = null;
-// Set once the catalog refresher exists; the egress proxy rotator calls it when
-// the pool changes so the selector is probed again without a restart.
-// Shared with the selector: loading while the catalog refresh or the egress
-// proxy harvest that precedes it is still running.
+// Set once the catalog refresher exists; it refreshes the selector after
+// Phoenix model discovery without restarting the local gateway.
+// Shared with the selector so the loading state spans the complete refresh.
 const catalogRefreshState = createModelCatalogRefreshState();
-// Healthy proxy count after the last finished harvest (notification filter).
 let appLogger: AppLogger | null = null;
 let updateService: UpdateService | null = null;
 let updateTimer: NodeJS.Timeout | null = null;

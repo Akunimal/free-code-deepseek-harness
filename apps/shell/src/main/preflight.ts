@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { assertHeadlessDesktopRuntime } from './headless-runtime-capability.js';
+import { verifyPhoenixPayload } from './phoenix-payload.js';
 
 /**
  * Startup preflight — verifies the harness runtime layout is intact before
@@ -10,17 +11,19 @@ import { assertHeadlessDesktopRuntime } from './headless-runtime-capability.js';
  * missing path, instead of the confusing "supervisor gave up after 5 restarts"
  * that surfaces 30+ seconds later.
  *
- * Only pure fs checks — no imports of runtime code — so this module is safe
- * to unit-test without spinning up Electron.
+ * Only pure filesystem/provenance checks — no process launch — so this module
+ * is safe to unit-test without spinning up Electron.
  */
 
 export interface PreflightOptions {
-  /** Static resources root containing opencode2api/. */
+  /** Static resources root containing the packaged Phoenix gateway. */
   resourcesDir: string;
   /** Runtime root containing dsh/ and runtime-manifest.json; defaults to resourcesDir. */
   harnessDir?: string;
-  /** Platform for opencode2api binary presence check. */
+  /** Platform for Phoenix payload validation. */
   platform?: NodeJS.Platform;
+  /** Architecture for Phoenix payload validation. */
+  arch?: NodeJS.Architecture;
 }
 
 export interface PreflightResult {
@@ -47,9 +50,12 @@ function criticalPaths(resourcesDir: string, harnessDir: string, platform: NodeJ
       label: 'directory-picker-native bundle' },
   ];
   if (platform === 'win32') {
-    paths.push({ path: join(resourcesDir, 'opencode2api', 'opencode2api-win-x64.exe'), label: 'opencode2api worker binary' });
-  } else if (platform === 'linux') {
-    paths.push({ path: join(resourcesDir, 'opencode2api', 'opencode2api-linux-x64'), label: 'opencode2api worker binary' });
+    paths.push(
+      { path: join(resourcesDir, 'phoenix', 'freellmpool-win-x64.exe'), label: 'Phoenix FreeLLMpool win-x64 executable' },
+      { path: join(resourcesDir, 'phoenix', 'freecode-build-receipt.json'), label: 'Phoenix build receipt' },
+      { path: join(resourcesDir, 'phoenix', 'phoenix-model-ids.json'), label: 'Phoenix model allowlist' },
+      { path: join(resourcesDir, 'phoenix', 'LICENSE'), label: 'Phoenix FreeLLMpool license' },
+    );
   }
   return paths;
 }
@@ -162,6 +168,7 @@ export async function awaitHarnessLayout(options: PreflightRetryOptions): Promis
  */
 export function verifyHarnessLayout(options: PreflightOptions): PreflightResult {
   const platform = options.platform ?? process.platform;
+  const arch = options.arch ?? process.arch;
   const harnessDir = options.harnessDir ?? options.resourcesDir;
   const missing: string[] = [];
   const warnings: string[] = [];
@@ -181,6 +188,12 @@ export function verifyHarnessLayout(options: PreflightOptions): PreflightResult 
     } catch {
       // Already reported.
     }
+  }
+
+  try {
+    verifyPhoenixPayload(options.resourcesDir, platform, arch);
+  } catch (error) {
+    warnings.push(error instanceof Error ? error.message : String(error));
   }
 
   const bridgeWarning = verifyBridgeInvariant(harnessDir, platform);

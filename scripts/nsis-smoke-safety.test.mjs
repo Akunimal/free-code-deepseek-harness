@@ -100,6 +100,18 @@ test('installed app smoke redirects all user-scoped writes into the disposable i
   assert.equal(environment.env.PATH, 'C:\\Windows\\System32');
 });
 
+test('NSIS clean install and upgrade smoke require Phoenix and reject the retired gateway', () => {
+  const installSmoke = readFileSync(new URL('verify-nsis-install-layout.mjs', import.meta.url), 'utf8');
+  const upgradeSmoke = readFileSync(new URL('verify-nsis-upgrade.mjs', import.meta.url), 'utf8');
+
+  assert.match(installSmoke, /resources\/freecode\/phoenix\/freellmpool-win-x64\.exe/);
+  assert.match(installSmoke, /resources\/freecode\/phoenix\/freecode-build-receipt\.json/);
+  assert.match(installSmoke, /'resources\/freecode\/opencode2api'/);
+  assert.match(upgradeSmoke, /legacyLayoutIsPopulated[\s\S]*resources\/freecode\/opencode2api\/opencode2api-win-x64\.exe/);
+  assert.match(upgradeSmoke, /layoutIsPopulated[\s\S]*resources\/freecode\/phoenix\/freellmpool-win-x64\.exe/);
+  assert.match(upgradeSmoke, /layoutIsPopulated[\s\S]*!existsSync\(join\(installDir, 'resources\/freecode\/opencode2api'\)\)/);
+});
+
 test('installed runtime smoke launches with its isolated environment, not the maintainer profile', () => {
   const runtimeVerifier = readFileSync(new URL('verify-installed-runtime.mjs', import.meta.url), 'utf8');
   assert.match(runtimeVerifier, /createInstalledSmokeEnvironment/);

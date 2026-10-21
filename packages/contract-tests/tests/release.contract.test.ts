@@ -100,9 +100,10 @@ describe('release and runtime packaging contracts', () => {
     expect(runtime).toContain('materialize-runtime.mjs');
     expect(runtime).toContain('rebuild-runtime-native.mjs');
     expect(runtime).toContain('0.6.0 is Windows-only');
-    expect(runtime).toContain('opencode2api-win-x64.exe');
-    expect(runtime).not.toContain('opencode2api-linux-x64');
-    expect(runtime).not.toContain('opencode2api-mac-x64');
+    expect(runtime).toContain('freellmpool-staging.mjs');
+    expect(runtime).toContain('Phoenix is a desktop runtime dependency');
+    expect(runtime).not.toContain('apps/shell/resources/opencode2api');
+    expect(runtime).not.toContain('opencode2api-staging.mjs');
     expect(runtime).toContain('ELECTRON_RUN_AS_NODE=1');
     expect(runtime).not.toContain('--exclude=native');
     expect(materializer).toContain("'native'");
