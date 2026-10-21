@@ -15,7 +15,7 @@
       "arch": "win-x64",
       "source": "0xzr/freellmpool@e4411650da95edf3002c6789ccd1c816aedae1d4",
       "license": "MIT",
-      "sha256": "68f051e03334d5e073f9e5608dce581a26834fbb92ecddac3b9f4eb299d3fe24",
+      "sha256": "84998754cbf2f0680954be54d8ae2a6e3bbcbfcb1dc6570387b09de52c88f7fa",
       "path": "phoenix/freellmpool-win-x64.exe",
       "launch": {
         "type": "exec",
