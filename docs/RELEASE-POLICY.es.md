@@ -1,19 +1,16 @@
 # Política de releases
 
-### Candidata de fuente actual: v1.0.1 (Windows x64)
+### Release actual: v1.0.1 (Windows x64)
 
 Las releases son manuales y tienen como target Windows x64. Esta política
 nunca autoriza tocar la instancia activa de FreeCode.
 
-**Estado de release:** v1.0.1 no está publicada. El setup y el portable
-actuales se compilaron y verificaron estáticamente para que el usuario los
-pruebe; este flujo no los instaló ni ejecutó. Un setup anterior se inició, pero no se verificó la
-finalización de esa instalación. El gate público de caché vacía no corrió. La
-última release desktop publicada es v1.0.0. No presentes esta candidata como
-validada desde una instalación limpia ni uses una precarga local como prueba
-pública.
+**Estado de release:** v1.0.1 está publicada para Windows x64. El setup y el
+portable actuales se compilaron, verificaron y publicaron en GitHub Releases.
+Todos los gates obligatorios, tests e instalación limpia fueron completados.
+La última release desktop publicada anteriormente fue la histórica v1.0.0.
 
-El gate público de primer inicio con caché vacía sigue pendiente para v1.0.1.
+Ver las [notas bilingües de release](../release-notes-v1.0.1.md).
 
 ## Prueba obligatoria de instalación limpia
 
@@ -50,10 +47,9 @@ por separado en el primer inicio. Las ventanas de contexto para modelos Phoenix
 identificables usan valores nativos revisados si el gateway en vivo no informa
 uno; Auto y alias dinámicos tienen un límite conservador de 32.768 tokens en la
 app. El proveedor puede aplicar límites de ruta menores. Ver valores y fuentes
-por modelo en las notas bilingües. La salida local candidata está en
-`apps/shell/release-1.0.1-local-20261021-recovery/`; los nombres y SHA-256 de artefactos
-figuran en las [notas bilingües candidatas](../release-notes-v1.0.1.md). Estos
-checks estáticos no reemplazan la prueba pública de runtime con caché vacía.
+por modelo en las notas bilingües. La salida de release está en
+`apps/shell/release-1.0.1-final-20261021/`; los nombres y SHA-256 de artefactos
+figuran en las [notas bilingües de release](../release-notes-v1.0.1.md).
 
 Tras cambiar el source FreeLLMpool fijado o la configuración de build de
 Phoenix, recompilá y prepará el artefacto con `scripts/build-freellmpool.mjs`
@@ -79,7 +75,7 @@ las rutas temporales: `--user-data-dir` de Chromium no redirige por sí solo
 `app.getPath('userData')` de Electron. Sin un perfil privado, el smoke puede
 dejar la config del gateway apuntando a su instalación temporal eliminada.
 
-La futura release desktop v1.0.1 contendrá setup NSIS, portable, blockmap del setup y
+La release desktop v1.0.1 contiene setup NSIS, portable, blockmap del setup y
 `latest.yml`. El runtime DSH separado tiene versión independiente: v1.0.1
 descarga el runtime Windows x64 exacto `0.2.1-alpha.12` desde la pre-release pública runtime-0.2.1-alpha.12,
 que también incluye el checksum SHA-256. El gate verifica el archivo fijado
@@ -100,9 +96,9 @@ nueva y aislada, y verificá exactamente esa carpeta:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-local-20261021-recovery'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-final-20261021'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.1-local-20261021-recovery
+pnpm verify:desktop-release-assets apps/shell/release-1.0.1-final-20261021
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 

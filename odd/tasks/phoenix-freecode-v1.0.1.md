@@ -627,6 +627,23 @@ no app-instance access, install, provider requests, push, tag or publication.
   Neither artifact was launched or installed; both are handed to the user for testing.
 - Graphify update: `graphify update .` completed (121,656 nodes, 258,904 edges,
   4,654 communities); graph outputs remain unstaged per policy.
+- Post-install issue resolved: White screen on launch caused by HTTP 431 (Request Header Fields Too Large)
+  due to accumulation of ephemeral `dsh-auth-*` cookies on `127.0.0.1`. Fixed via:
+  1. `apps/shell/src/main/loopback-cookies.ts`: `cleanupStaleLoopbackCookies` purges stale loopback auth cookies on startup.
+  2. `apps/shell/src/main/harness-supervisor.ts`: `NODE_OPTIONS` passes `--max-http-header-size=65536` to DSH web process.
+  3. `apps/shell/tests/loopback-cookies.test.ts`: test suite added and passing.
+  4. Repacked installer and portable into `apps/shell/release-1.0.1-final-20261021/`:
+     - Setup: `FreeCode-DeepSeek-Harness-1.0.1-win-x64-setup.exe` (211,665,775 bytes, SHA-256 `04baa4c87391ab258bb00690d354c52fb8f6d8770ed64fedcb8a666bc6bd2fe8`).
+     - Portable: `FreeCode-DeepSeek-Harness-1.0.1-win-x64-portable.exe` (211,290,637 bytes, SHA-256 `ce7e6db14c8cd1a502068a51345311be4bf6a6dc7c369a1207637d0118a9157b`).
+     - Blockmap: `FreeCode-DeepSeek-Harness-1.0.1-win-x64-setup.exe.blockmap` (223,287 bytes, SHA-256 `c38f8ee8b3915aff8048817cbb9f6dc0d6bc2bf3d28c1da62008adad8e56f255`).
+  5. User tested installer in vivo and confirmed: "todo ok ahora si hay que generar el tag con su release en el repo que es la 1.0.1...".
+
+- [x] PHX101-13: Full documentation alignment and zero drift:
+  - Updated `release-notes-v1.0.1.md` (EN/ES) detailing the OpenCode2API retirement due to upstream instability and proxy breakdowns, the loopback cookie HTTP 431 fix, and final artifact hashes.
+  - Updated `README.md` and `README.es.md` highlighting Phoenix transition, OpenCode2API retirement reasoning, HTTP 431 fix, and verified release status.
+  - Reconciled `docs/ARCHITECTURE.md`, `docs/RELEASE.md`, `docs/RELEASE.es.md`, `docs/RELEASE-POLICY.md`, `docs/RELEASE-POLICY.es.md`, `docs/ROADMAP.md`, `CHANGELOG.md`, and `docs/KNOWN-ISSUES.md`.
+  - Verified `scripts/release-version-docs.test.mjs`: 13/13 tests passed.
+  - Verified `@freecode/shell` test suite: 59/59 test files passed (394/394 tests).
 
 ## Relevant files
 

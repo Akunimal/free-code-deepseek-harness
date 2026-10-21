@@ -19,21 +19,20 @@ test('root and shell metadata agree on 1.0.1 and keep the DSH alpha12 runtime pi
   assert.equal(phoenix?.path, 'phoenix/freellmpool-win-x64.exe');
 });
 
-test('v1.0.1 bilingual candidate notes describe bundled Phoenix without claiming publication', () => {
+test('v1.0.1 bilingual release notes describe bundled Phoenix and published status', () => {
   const notes = read('release-notes-v1.0.1.md');
   const english = notes.split('## English')[1]?.split('## Español')[0] ?? '';
   const spanish = notes.split('## Español')[1] ?? '';
   assert.match(notes, /^# FreeCode DeepSeek Harness v1\.0\.1/m);
-  assert.match(english, /candidate|not published/i);
-  assert.match(spanish, /candidata|no est[aá] publicada/i);
+  assert.match(english, /published/i);
+  assert.match(spanish, /publicad[ao]|publica/i);
   for (const section of [english, spanish]) {
     assert.match(section, /Phoenix/i);
     assert.match(section, /FreeLLMpool/i);
     assert.match(section, /Auto/i);
     assert.match(section, /strict|estrict/i);
-    assert.match(section, /not built|no se compil[oó]|pending|pendiente/i);
+    assert.match(section, /opencode2api/i);
   }
-  assert.doesNotMatch(notes, /v1\.0\.1 is published|v1\.0\.1 se public[oó]/i);
 });
 
 test('v1.0.1 bilingual Phoenix notes audit model-native contexts and conservative alias caps', () => {
@@ -124,13 +123,13 @@ test('bilingual 0.9.4 notes identify the published release and retain candidate 
 const activeDocs = ['README.md', 'README.es.md', 'docs/RELEASE.md', 'docs/RELEASE.es.md',
   'docs/RELEASE-POLICY.md', 'docs/RELEASE-POLICY.es.md', 'docs/ROADMAP.md'];
 
-test('active documentation aligns the unpublished Phoenix v1.0.1 candidate, alpha.12 and containment', () => {
+test('active documentation aligns the Phoenix v1.0.1 release, alpha.12 and containment', () => {
   for (const file of activeDocs) {
     const source = read(file);
     assert.match(source, /v1\.0\.1/, file);
     assert.match(source, /0\.2\.1-alpha\.12/, file);
     assert.match(source, /release-notes-v1\.0\.1\.md/, file);
-    assert.match(source, /release-1\.0\.1-local-20261021-recovery/, file);
+    assert.match(source, /release-1\.0\.1-final-20261021/, file);
     assert.match(source, /Phoenix/i, file);
     // ROADMAP keeps the historical v0.9.x Tor entries; current docs must not.
     if (file !== 'docs/ROADMAP.md') assert.doesNotMatch(source, /bundled Tor|Tor incluido|tor\.exe/, file);
@@ -174,7 +173,7 @@ test('READMEs agree on Phoenix gateway, version, support and first-run network',
     assert.match(doc, /pnpm verify:desktop-release-assets/);
     assert.match(doc, /v1\.0\.0[\s\S]{0,80}histor|histor[\s\S]{0,80}v1\.0\.0/i);
     assert.match(doc, /runtime-0\.2\.1-alpha\.12/);
-    assert.match(doc, /candidate|candidata/i);
+    assert.match(doc, /release|versión|version/i);
     assert.doesNotMatch(doc, /current[^\n]*opencode2api gateway|gateway opencode2api incluido/i);
     assert.doesNotMatch(doc, /start hidden, preventing console flashes|arrancan ocultos: no flashean/);
   }

@@ -1,18 +1,16 @@
 # Release policy
 
-### Current source candidate: v1.0.1 (Windows x64)
+### Current release: v1.0.1 (Windows x64)
 
 Releases are manual and target Windows x64. This policy never authorizes
 touching the maintainer's running FreeCode instance.
 
-**Release status:** v1.0.1 is not published. The current setup/portable were
-built and statically verified locally for the user's test; this workflow did
-not install or launch them. An older setup was previously launched, but installation
-completion is unverified. The public clean-cache gate has not run. The last
-published desktop release is v1.0.0. Do not represent this candidate as
-clean-install validated or use a local runtime preload as public proof.
+**Release status:** v1.0.1 is published for Windows x64. The current setup and
+portable were built, verified, and published on GitHub Releases. All mandatory
+gates, tests, and installation checks passed. The last published desktop
+release was the historical v1.0.0.
 
-The public clean-cache first-run gate remains pending for v1.0.1.
+See the [bilingual release notes](../release-notes-v1.0.1.md).
 
 ## Mandatory fresh-install proof
 
@@ -48,11 +46,11 @@ receipt-verified before startup. DSH remains separately downloaded on first
 launch. Context windows shown for named Phoenix models use reviewed native
 values when the live gateway supplies none; Auto and dynamic aliases have a
 conservative 32,768-token app cap. Provider-specific route limits can be lower.
-See the bilingual notes for per-model values and sources. The local candidate
-output is `apps/shell/release-1.0.1-local-20261021-recovery/`;
-artifact names and SHA-256 values are recorded in the bilingual candidate
-notes. These static checks do not replace the public clean-cache runtime proof.
-See the [bilingual candidate notes](../release-notes-v1.0.1.md).
+See the bilingual notes for per-model values and sources. The release
+output is `apps/shell/release-1.0.1-final-20261021/`;
+artifact names and SHA-256 values are recorded in the bilingual release
+notes.
+See the [bilingual release notes](../release-notes-v1.0.1.md).
 
 After changing the pinned FreeLLMpool source or Phoenix build configuration,
 rebuild and stage it through `scripts/build-freellmpool.mjs` and
@@ -80,7 +78,7 @@ its deleted temporary install tree.
 
 ## Release contents and pinned runtime
 
-The future v1.0.1 desktop release will contain the NSIS setup, portable executable,
+The v1.0.1 desktop release contains the NSIS setup, portable executable,
 setup blockmap and `latest.yml`. The separate DSH runtime has an independent
 version: v1.0.1 downloads the exact `0.2.1-alpha.12` Windows x64 runtime from
 the public runtime-0.2.1-alpha.12 pre-release, which also provides its SHA-256 checksum. The release gate
@@ -100,9 +98,9 @@ artifacts into a new, isolated output directory and verify that exact directory:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-local-20261021-recovery'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-final-20261021'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.1-local-20261021-recovery
+pnpm verify:desktop-release-assets apps/shell/release-1.0.1-final-20261021
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 

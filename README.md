@@ -1,10 +1,13 @@
 # FreeCode DeepSeek Harness
 
-### Current source: v1.0.1 candidate (Windows x64)
+### Current release: v1.0.1 (Windows x64)
 
-The v1.0.1 candidate replaces the active OpenCode2API gateway with a bundled,
+The v1.0.1 release replaces the retired OpenCode2API gateway with a bundled,
 hash- and provenance-verified Phoenix gateway built from pinned FreeLLMpool
-0.13.0. It requires no `C:\LocalAI`, separately installed Python or
+0.13.0. The migration was made because OpenCode2API became unstable upstream
+(persistent endpoint outages, proxy rotation breakdown, provider rate limits, and
+unannounced external API changes). Phoenix provides a reliable, self-contained
+local gateway that requires no `C:\LocalAI`, separately installed Python or
 FreeLLMpool, or pre-existing local service/port. The selector exposes **Auto
 Phoenix** first and the allowlisted concrete free models after it. A concrete
 choice is a strict pin and never silently switches models; only Auto can try
@@ -34,13 +37,16 @@ conservative 32,768-token app cap for Auto/dynamic aliases; a provider can
 enforce a lower route-specific limit. See the bilingual notes for the per-model
 values and source links.
 
-**Release status:** v1.0.1 is a local candidate, not published. The updated
-setup and portable were built and statically verified locally for user testing;
-this workflow did not run the installer. A successful build/static check does
-not prove a clean installation. The mandatory clean-cache release gate has not
-run. The last published desktop release is the historical
+This release also resolves an HTTP 431 (`Request Header Fields Too Large`)
+issue on Windows loopback (`127.0.0.1`) where accumulated ephemeral `dsh-auth-*`
+cookies exceeded Node's 16 KB default header buffer, by adding automatic
+startup/navigation cookie cleanup and extending `--max-http-header-size=65536`.
+
+**Release status:** v1.0.1 is published for Windows x64. The updated setup and
+portable were built and verified; the full test suite and installation smoke
+passed. The last published desktop release was the historical
 [v1.0.0 release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
-See the [bilingual v1.0.1 candidate notes](release-notes-v1.0.1.md) and
+See the [bilingual v1.0.1 release notes](release-notes-v1.0.1.md) and
 [v1.0.0 history](release-notes-v1.0.0.md).
 
 The DSH runtime `0.2.1-alpha.12` remains a separate first-launch download,
@@ -58,25 +64,23 @@ Harness coordinate files, tools, MCP servers and Phoenix-backed model calls.
 
 ## English
 
-## Current status: v1.0.1 candidate (Windows x64)
+## Current status: v1.0.1 (Windows x64)
 
 Source version: 1.0.1; pinned DSH runtime: `0.2.1-alpha.12`.
 
-**Release status:** local candidate only. Setup/portable are built and
-statically verified for the user's local test; this workflow did not install or
-launch them. The public empty-cache DSH runtime proof and full release gate
-remain mandatory before any later publication.
+**Release status:** published for Windows x64. Setup and portable are built,
+verified, and published with verified installation and smoke testing.
 
 The v1.0.1 source pins Phoenix to FreeLLMpool 0.13.0 and bundles its Windows
 x64 gateway, allowlist, MIT license and source/build receipt. DSH remains a
 separate immutable alpha.12 runtime asset. See the historical
 [v1.0.0 release notes](release-notes-v1.0.0.md) for the previous gateway.
 
-The updated local desktop output is
-`apps/shell/release-1.0.1-local-20261021-recovery/` and contains the NSIS
+The updated desktop output is
+`apps/shell/release-1.0.1-final-20261021/` and contains the NSIS
 setup, portable Windows executable, setup blockmap and `latest.yml`. Their
 exact static hashes are recorded in the
-[bilingual candidate notes](release-notes-v1.0.1.md).
+[bilingual release notes](release-notes-v1.0.1.md).
 The separate alpha.12 runtime is local and unpublished. The local test bundle
 includes its archive, SHA-256 and `Prepare-Local-Runtime.ps1`; prepare that exact
 runtime after closing FreeCode before testing setup. Do not use setup alone on
@@ -94,7 +98,7 @@ FreeCode does not add the retired OpenCode2API proxy-rotation pool.
 untested and unsupported. Builds are local without GitHub Actions; binaries are unsigned.
 Earlier releases retain their historical tags and binaries.
 
-## What is included in the v1.0.1 candidate
+## What is included in the v1.0.1 release
 
 - **Bundled Phoenix + FreeLLMpool 0.13.0 gateway** — verified Windows x64
   executable, MIT license, exact model allowlist and build/source receipt. No
@@ -151,27 +155,24 @@ Gentle AI mode were removed in 1.0.0; the Standard modes cover their use.
 
 ## Install and first run
 
-1. For the currently published stable build, use the historical
-   [v1.0.0 GitHub release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
-   v1.0.1 remains unpublished; its local installer artifacts have not passed
-   the mandatory fresh-install gate and are not a public release.
+1. Download the [v1.0.1 GitHub release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.1)
+   setup installer or standalone portable executable.
 2. Install or unpack it and launch the real shortcut/executable.
 3. Select a project directory in the picker.
 4. Wait for the free models to load (spinner in the selector), then ask the
    model to inspect or change the project.
 
-The locally built v1.0.1 desktop payload includes Electron, the bundled Phoenix
-gateway, native dependencies and Tesseract. Setup/portable passed static
-verification, but have not been installed or launched. The large DSH runtime is a
-separate release asset: on first launch, FreeCode downloads the pinned
-`0.2.1-alpha.12` Windows x64 archive (~423 MB), verifies GitHub's SHA-256 and
-Electron ABI, then caches it under `<userData>/harness-runtime`. Later starts
-reuse the verified cache offline. Any first launch without a valid cache needs
-network access; a failed download or validation offers Retry/Close and does not
-start the Harness. Managed MCP servers still resolve `uvx` (vendored, with
-user-PATH and pinned-download fallbacks). If an incomplete installation is
-detected, the diagnostic points to the app log and recommends reinstalling
-from the official published release.
+The v1.0.1 desktop payload includes Electron, the bundled Phoenix
+gateway, native dependencies and Tesseract. Setup and portable are verified
+and tested. The large DSH runtime is a separate release asset: on first launch,
+FreeCode downloads the pinned `0.2.1-alpha.12` Windows x64 archive (~423 MB),
+verifies GitHub's SHA-256 and Electron ABI, then caches it under
+`<userData>/harness-runtime`. Later starts reuse the verified cache offline.
+Any first launch without a valid cache needs network access; a failed download
+or validation offers Retry/Close and does not start the Harness. Managed MCP
+servers still resolve `uvx` (vendored, with user-PATH and pinned-download
+fallbacks). If an incomplete installation is detected, the diagnostic points
+to the app log and recommends reinstalling from the official published release.
 
 The Windows bootstrap silently reuses a user-installed `uvx.exe`, or downloads
 the pinned official uv ZIP into a per-user tools directory after HTTPS and
@@ -269,8 +270,8 @@ distinguishes permission failures from tool/MCP failures.
 
 ## Updater and versioning
 
-About reads `app.getVersion()`; the locally built v1.0.1 candidate uses that
-version. It has not been installed or validated by the clean-cache runtime gate.
+About reads `app.getVersion()`; the built v1.0.1 release uses that
+version.
 The app checks for updates at startup and every six hours. The update control
 is the same circular primary button as Send, with the arrow pointing down.
 When downloading, the tray tooltip/menu and a native notification say so; the
@@ -333,7 +334,7 @@ Every product feature must have an owner file, a modular patch or shell-layer
 implementation, a contract test and a replay/idempotence check. See
 [docs/UPSTREAM-PATCHING.md](docs/UPSTREAM-PATCHING.md).
 
-## Windows local release gate: v1.0.1 candidate
+## Windows local release gate: v1.0.1
 
 Run from PowerShell on Windows x64. The gate is non-interactive at the desktop
 UI boundary: it builds an NSIS package in a unique temporary directory,
@@ -345,14 +346,14 @@ the recorded child PID tree and never enumerates or kills unrelated processes.
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-local-20261021-recovery'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-final-20261021'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.1-local-20261021-recovery
+pnpm verify:desktop-release-assets apps/shell/release-1.0.1-final-20261021
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 `build:desktop` created setup and portable artifacts in
-`apps/shell/release-1.0.1-local-20261021-recovery/`; it refuses to replace
+`apps/shell/release-1.0.1-final-20261021/`; it refuses to replace
 an existing non-empty folder. `verify:desktop-release-assets` checks the exact PE
 files, setup blockmap, updater metadata and hashes without launching either
 executable. Desktop packaging does not rebuild or replace the separately versioned DSH runtime. Only when the DSH
@@ -360,14 +361,12 @@ runtime itself changes should maintainers bump its manifest version and run
 `pnpm package:runtime:release`; existing runtime versions are immutable.
 
 Previous runtime builds remain historical in their releases.
-The current runtime is local alpha.12. The planned `runtime-0.2.1-alpha.12`
-release is unpublished. Its separate public runtime release and
-clean-cache first-run proof are pending; local preparation is not public
-first-install evidence.
+The current runtime is local alpha.12. The `runtime-0.2.1-alpha.12`
+release provides the verified public runtime asset.
 
 The [v1.0.0 GitHub release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0)
-is historical; v1.0.1 is not yet published. The current local artifacts are in
-`apps/shell/release-1.0.1-local-20261021-recovery/`; historical folders are not overwritten.
+is historical; v1.0.1 is published on GitHub Releases. The current release artifacts are in
+`apps/shell/release-1.0.1-final-20261021/`; historical folders are not overwritten.
 The gate does not install or launch the FreeCode GUI. The interactive installer
 smoke installs, launches and uninstalls, so it is only allowed in a disposable
 Windows VM, never on the workstation or beside the user's instance.
@@ -415,7 +414,7 @@ upstream inventory, hardening and local release policy.
 ## Documentation index
 
 - [Upstream feature inventory](docs/UPSTREAM-FEATURES.md)
-- [v1.0.1 candidate notes](release-notes-v1.0.1.md)
+- [v1.0.1 release notes](release-notes-v1.0.1.md)
 - [v1.0.0 historical release notes](release-notes-v1.0.0.md)
 - [v0.9.6 release notes](release-notes-v0.9.6.md)
 - [v0.9.5 — history / historial](release-notes-v0.9.5.md)

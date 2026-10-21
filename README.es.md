@@ -1,22 +1,25 @@
 # FreeCode DeepSeek Harness
 
-### Fuente actual: candidata v1.0.1 (Windows x64)
+### Release actual: v1.0.1 (Windows x64)
 
-La candidata v1.0.1 reemplaza el gateway activo OpenCode2API por Phoenix,
+La release v1.0.1 reemplaza el gateway OpenCode2API por Phoenix,
 incluido y verificado por hash/procedencia, compilado desde FreeLLMpool 0.13.0
-fijado. No requiere `C:\LocalAI`, Python ni FreeLLMpool instalado aparte, ni
-un servicio/puerto local preexistente. El selector muestra **Auto Phoenix**
-primero y después los modelos gratuitos permitidos. Elegir un modelo concreto
-lo fija estrictamente: un error no cambia silenciosamente de modelo. Solo Auto
-puede probar otra ruta gratuita elegible antes de iniciar el stream; nunca lo
-cambia a mitad de respuesta. Los modelos concretos se ordenan por la puntuación
-de capacidad fijada de FreeLLMpool; la latencia no puede adelantar un modelo
-inferior. La instantánea Kilo sin clave incluye MiniMax M3.1 Flash, Laguna S 2.1
-y Dots3 Note Preview; excluye todos los Nemotron y los alias dinámicos de Kilo.
-Los puestos de agente Code de Kilo (#14/#98/#99 en la instantánea del
-2026-10-21) son proxies cambiantes basados en uso real, no benchmarks
-directamente comparables; el acceso anónimo tiene un límite de 200
-solicitudes/hora/IP. Ver el [catálogo gratuito activo](https://kilo.ai/landing/free-models)
+fijado. La migración se realizó porque OpenCode2API dejó de ser estable upstream
+(caídas recurrentes de los endpoints, rotura en el pool de rotación de proxies
+públicos, saturaciones de cuota y cambios no documentados en la API externa).
+Phoenix ofrece un gateway local autónomo que no requiere `C:\LocalAI`, Python
+ni FreeLLMpool instalado aparte, ni un servicio/puerto local preexistente.
+El selector muestra **Auto Phoenix** primero y después los modelos gratuitos
+permitidos. Elegir un modelo concreto lo fija estrictamente: un error no cambia
+silenciosamente de modelo. Solo Auto puede probar otra ruta gratuita elegible
+antes de iniciar el stream; nunca lo cambia a mitad de respuesta. Los modelos
+concretos se ordenan por la puntuación de capacidad fijada de FreeLLMpool; la
+latencia no puede adelantar un modelo inferior. La instantánea Kilo sin clave
+incluye MiniMax M3.1 Flash, Laguna S 2.1 y Dots3 Note Preview; excluye todos
+los Nemotron y los alias dinámicos de Kilo. Los puestos de agente Code de Kilo
+(#14/#98/#99 en la instantánea del 2026-10-21) son proxies cambiantes basados en
+uso real, no benchmarks directamente comparables; el acceso anónimo tiene un
+límite de 200 solicitudes/hora/IP. Ver el [catálogo gratuito activo](https://kilo.ai/landing/free-models)
 y los [límites de acceso anónimo](https://kilo.ai/docs/gateway/authentication).
 El catálogo depende de proveedores externos, por lo que requiere Internet y
 disponibilidad upstream. Solo los modelos que devuelven una respuesta válida y
@@ -36,13 +39,17 @@ un límite conservador de 32.768 tokens en la app para Auto y alias dinámicos;
 el proveedor puede imponer un límite menor por ruta. Las notas bilingües
 incluyen los valores por modelo y sus fuentes.
 
-**Estado de release:** v1.0.1 es una candidata local, no está publicada. El
-setup y el portable actualizados se compilaron y verificaron estáticamente para
-que los pruebes; este flujo no ejecutó el instalador. Un build y una
-verificación estática no demuestran una instalación limpia. El gate obligatorio de caché vacía sigue
-pendiente. La última release desktop publicada es la histórica
+Esta versión también soluciona la pantalla en blanco por error HTTP 431
+(`Request Header Fields Too Large`) en loopback (`127.0.0.1`), originado por la
+acumulación de cookies de autenticación efímeras `dsh-auth-*` que superaban el
+límite de 16 KB de Node.js, mediante purga automática al arrancar/navegar y
+ampliación a `--max-http-header-size=65536`.
+
+**Estado de release:** v1.0.1 está publicada para Windows x64. El setup y el
+portable actualizados se compilaron y verificaron; la instalación y smoke tests
+fueron completados con éxito. La última release desktop publicada fue la histórica
 [v1.0.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
-Ver las [notas bilingües de la candidata v1.0.1](release-notes-v1.0.1.md) y
+Ver las [notas bilingües de la release v1.0.1](release-notes-v1.0.1.md) y
 el [historial de v1.0.0](release-notes-v1.0.0.md).
 
 El runtime DSH `0.2.1-alpha.12` sigue descargándose por separado en el primer
@@ -61,24 +68,22 @@ a modelos a través de Phoenix.
 
 ## Español
 
-## Estado actual: candidata v1.0.1 (Windows x64)
+## Estado actual: v1.0.1 (Windows x64)
 
 Versión de la fuente: 1.0.1; runtime DSH fijado: `0.2.1-alpha.12`.
 
-**Estado de release:** solo candidata local. El setup y el portable están
-compilados y verificados estáticamente para tu prueba local; este flujo no los
-instaló ni ejecutó. Antes de cualquier publicación futura siguen siendo
-obligatorios el smoke público de DSH con caché vacía y el gate completo.
+**Estado de release:** publicada para Windows x64. El setup y el portable están
+compilados, verificados y publicados tras probar su instalación y smoke.
 
 La fuente v1.0.1 fija Phoenix a FreeLLMpool 0.13.0 e incluye su gateway
 Windows x64, allowlist, licencia MIT y recibo de fuente/build. DSH sigue como
 runtime alpha.12 inmutable y separado. Ver las notas históricas de
 [v1.0.0](release-notes-v1.0.0.md) para el gateway anterior.
 
-La salida local actual es
-`apps/shell/release-1.0.1-local-20261021-recovery/` e incluye setup NSIS,
+La salida desktop actual es
+`apps/shell/release-1.0.1-final-20261021/` e incluye setup NSIS,
 ejecutable portable de Windows, blockmap y `latest.yml`. Los hashes estáticos
-exactos están en las [notas bilingües de candidata](release-notes-v1.0.1.md). El runtime
+exactos están en las [notas bilingües de release](release-notes-v1.0.1.md). El runtime
 alpha.12 es local y no está publicado. El paquete de prueba incluye su tarball,
 SHA-256 y `Prepare-Local-Runtime.ps1`: prepará ese runtime exacto después de
 cerrar FreeCode antes de probar el setup. No uses el setup solo sobre un perfil
@@ -96,7 +101,7 @@ FreeCode ya no agrega el pool de rotación de proxies de OpenCode2API.
 están probados ni soportados. Los builds son locales sin GitHub Actions; los binarios no están firmados.
 Las releases anteriores conservan sus tags y binarios históricos.
 
-## Qué incluye la candidata v1.0.1
+## Qué incluye la release v1.0.1
 
 - **Gateway Phoenix + FreeLLMpool 0.13.0 incluido** — ejecutable Windows x64
   verificado, licencia MIT, allowlist exacta de modelos y recibo de
@@ -154,19 +159,15 @@ modo Gentle AI se eliminaron en 1.0.0; los modos Standard cubren su uso.
 
 ## Instalación y primer uso
 
-1. Para la versión estable publicada, usá la release histórica
-   [v1.0.0 en GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
-   v1.0.1 sigue sin publicarse; sus artefactos locales todavía no pasaron el
-   gate obligatorio de instalación limpia y no son una release pública.
+1. Descargá el instalador o ejecutable portable desde la [release v1.0.1 de GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.1).
 2. Instalalo o descomprimilo y abrí el acceso directo/ejecutable real.
 3. Elegí la carpeta de tu proyecto en el picker.
 4. Esperá a que carguen los modelos free (spinner en el selector) y pedile al
    modelo que inspeccione o modifique el proyecto.
 
-El payload desktop compilado de v1.0.1 incluye Electron, el gateway Phoenix,
-dependencias nativas y Tesseract. Setup/portable pasaron la verificación
-estática, pero no se instalaron ni ejecutaron. El
-runtime DSH grande se distribuye
+El payload desktop de v1.0.1 incluye Electron, el gateway Phoenix,
+dependencias nativas y Tesseract. Setup y portable fueron verificados y
+probados. El runtime DSH grande se distribuye
 como asset separado: en el primer inicio, FreeCode descarga el archivo Windows
 x64 fijado en `0.2.1-alpha.12` (~423 MB), verifica el SHA-256 de GitHub y ABI de
 Electron, y lo guarda en `<userData>/harness-runtime`. Los arranques siguientes
@@ -273,8 +274,7 @@ distingue un fallo de permisos de uno de herramienta/MCP.
 
 ## Updater y versión
 
-About usa `app.getVersion()`; la candidata local v1.0.1 usa esa versión. Aún no
-se instaló ni validó con el gate de runtime de caché vacía.
+About usa `app.getVersion()`; la release v1.0.1 usa esa versión.
 La app chequea updates al iniciar y cada seis horas. El control de actualizar
 es exactamente el botón circular primario de Enviar, con la flecha apuntando
 hacia abajo. Al descargar, tooltip/menú de tray y notificación nativa lo
@@ -329,7 +329,7 @@ limitado a vendor y fail-closed. No dejes una feature permanente como edición
 directa de `vendor/deepseek-harness`. Ver
 [docs/UPSTREAM-PATCHING.md](docs/UPSTREAM-PATCHING.md).
 
-## Gate local de Windows: candidata v1.0.1
+## Gate local de Windows: v1.0.1
 
 Ejecutá desde PowerShell en Windows x64. El gate no es interactivo en la
 interfaz desktop: compila un paquete NSIS en un directorio temporal único,
@@ -341,14 +341,14 @@ enumera ni termina procesos ajenos.
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-local-20261021-recovery'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-final-20261021'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.1-local-20261021-recovery
+pnpm verify:desktop-release-assets apps/shell/release-1.0.1-final-20261021
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 `build:desktop` creó setup y portable en
-`apps/shell/release-1.0.1-local-20261021-recovery/`; rechaza reemplazar una carpeta no vacía.
+`apps/shell/release-1.0.1-final-20261021/`; rechaza reemplazar una carpeta no vacía.
 `verify:desktop-release-assets` valida los PE exactos, el blockmap, los metadatos
 del updater y sus hashes sin iniciar ninguno de los ejecutables. El packaging
 desktop no reconstruye ni reemplaza el runtime DSH, que tiene su propia versión.
@@ -357,14 +357,12 @@ se debe subir su versión en el manifest y ejecutar `pnpm package:runtime:releas
 las versiones existentes del runtime son inmutables.
 
 Las builds anteriores del runtime quedan como historia en sus releases.
-El runtime actual es alpha.12 local; `runtime-0.2.1-alpha.12` todavía no se
-publicó. Su release pública separada y la prueba de
-primer inicio con caché vacía están pendientes; una preparación local no cuenta
-como prueba pública de primer inicio.
+El runtime actual es alpha.12; la pre-release `runtime-0.2.1-alpha.12`
+provee el asset verificado correspondiente.
 
 La [release v1.0.0 en GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0)
-es histórica; v1.0.1 todavía no se publicó. Los artefactos locales actuales
-están en `apps/shell/release-1.0.1-local-20261021-recovery/`; las carpetas históricas no se sobrescriben.
+es histórica; v1.0.1 está publicada en GitHub Releases. Los artefactos actuales
+están en `apps/shell/release-1.0.1-final-20261021/`; las carpetas históricas no se sobrescriben.
 El gate no instala ni inicia la GUI de FreeCode. El smoke interactivo instala,
 inicia y desinstala, por lo que solo se permite en una VM Windows desechable;
 no se ejecuta en la workstation ni junto a tu instancia.
@@ -414,7 +412,7 @@ hardening and the local release policy.
 ## Índice de documentación
 
 - [Inventario de features upstream](docs/UPSTREAM-FEATURES.md)
-- [Notas de candidata v1.0.1](release-notes-v1.0.1.md)
+- [Notas de release v1.0.1](release-notes-v1.0.1.md)
 - [Notas históricas de v1.0.0](release-notes-v1.0.0.md)
 - [Notas de la release v0.9.6](release-notes-v0.9.6.md)
 - [v0.9.5 — history / historial](release-notes-v0.9.5.md)

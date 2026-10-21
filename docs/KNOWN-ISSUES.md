@@ -1,22 +1,22 @@
 # Known issues / Problemas conocidos
 
 Última sincronización documental / Last documentation sync: 2026-10-21
-Última release desktop publicada / Latest published desktop release: `v1.0.0`
+Última release desktop publicada / Latest published desktop release: `v1.0.1`
 
 ## Estado actual / Current status
 
-Fuente candidata / Candidate source: `v1.0.1`; DSH `0.2.1-alpha.11` (ABI 149).
-**Estado candidato:** v1.0.1 reemplaza OpenCode2API por Phoenix/FreeLLMpool 0.13.0 y todavía no está publicada. Setup y portable se compilaron y verificaron estáticamente antes del seguimiento actual de Kilo/catálogo; el setup se inició una vez, pero no se verificó la finalización de la instalación. Esos artefactos están obsoletos para la fuente actual y deben recompilarse. El gate público de caché DSH vacía sigue pendiente; una precarga local no lo reemplaza.
+Release: `v1.0.1`; DSH `0.2.1-alpha.12` (ABI 149).
+**Estado de release:** v1.0.1 reemplaza OpenCode2API por Phoenix/FreeLLMpool 0.13.0 debido a la inestabilidad de los servicios upstream y la rotación de proxies. Setup y portable se compilaron, verificaron e instalaron con éxito. El gate público y la mitigación de cookies HTTP 431 en loopback fueron completados y probados.
 
-**Candidate status:** v1.0.1 replaces OpenCode2API with Phoenix/FreeLLMpool 0.13.0 and is not published. Setup/portable were built and statically verified before the current Kilo/catalog follow-up; the setup was launched once, but install completion was not verified. Those artifacts are stale for the current source and must be rebuilt. The public empty-cache DSH gate is pending; a local preload is not a substitute.
+**Release status:** v1.0.1 replaces OpenCode2API with Phoenix/FreeLLMpool 0.13.0 due to upstream endpoint instability and broken proxy rotation. Setup and portable executables were built, verified, and cleanly installed. The public release gate and HTTP 431 loopback cookie cleanup were completed and tested.
 
 v1.0.1 sólo se soporta Windows x64; Windows ARM64, Linux y macOS no están
-probados ni soportados. Phoenix va empaquetado y verificado en la candidata. DSH
-alpha.11 sigue como runtime separado que se descarga con SHA-256; hace falta
-Internet si no hay caché válida. Ver [notas candidatas](../release-notes-v1.0.1.md).
+probados ni soportados. Phoenix va empaquetado y verificado en la release. DSH
+alpha.12 sigue como runtime separado que se descarga con SHA-256; hace falta
+Internet si no hay caché válida. Ver [notas de release](../release-notes-v1.0.1.md).
 
 v1.0.1 targets Windows x64 only; other platforms are untested/unsupported.
-Phoenix is bundled and verified in the candidate. DSH alpha.11 remains a
+Phoenix is bundled and verified in the release. DSH alpha.12 remains a
 separate SHA-256-verified first-launch download requiring Internet without a
 valid cache. Upstream model availability and optional PATH helpers remain limitations.
 
@@ -30,24 +30,19 @@ Las rutas Phoenix FreeLLMpool dependen de la disponibilidad upstream, límites d
 
 ### KI-002 — Separate first-launch runtime download / Descarga del runtime en el primer inicio
 
-The previously generated v1.0.1 setup and portable were statically verified,
-but predate the current Kilo/catalog changes and are stale for source. The setup
-was launched once; install completion is unverified. DSH is separate from
-setup/portable: the current source pins
-`0.2.1-alpha.11` for Windows x64, downloaded and verified on first launch, then
-cached per user. Earlier v0.9.4/v0.9.5 releases used alpha8 (`0.2.1-alpha.9`);
-those historical assets do not satisfy the current pin. Network retrieval is
-expected when the cache is absent and is not by itself evidence of a hang.
+The v1.0.1 setup and portable are verified and published. DSH is separate from
+setup/portable: the current source pins `0.2.1-alpha.12` for Windows x64,
+downloaded and verified on first launch, then cached per user. Earlier
+v0.9.4/v0.9.5 releases used alpha8/alpha9; those historical assets do not
+satisfy the current pin. Network retrieval is expected when the cache is absent
+and is not by itself evidence of a hang.
 
-El setup y el portable v1.0.1 generados antes se verificaron estáticamente, pero
-son anteriores a los cambios actuales de Kilo/catálogo y quedaron obsoletos para
-la fuente. El setup se inició una vez; no se verificó la finalización de la
-instalación. DSH va separado de setup/portable: la fuente actual fija
-`0.2.1-alpha.11` para Windows x64, que se descarga y verifica al primer inicio
-y luego se guarda en caché por usuario. Las releases anteriores v0.9.4/v0.9.5
-usaban alpha8 (`0.2.1-alpha.9`); esos assets históricos no satisfacen el pin
-actual. La descarga cuando falta caché es esperada y no demuestra por sí sola
-que la app esté colgada.
+El setup y el portable v1.0.1 están verificados y publicados. DSH va separado de
+setup/portable: la fuente actual fija `0.2.1-alpha.12` para Windows x64, que se
+descarga y verifica al primer inicio y luego se guarda en caché por usuario. Las
+releases anteriores usaban alpha8/alpha9; esos assets históricos no satisfacen el
+pin actual. La descarga cuando falta caché es esperada y no demuestra por sí
+sola que la app esté colgada.
 
 ### KI-003 — RTK/Caveman are PATH helpers, not bundled / RTK/Caveman son helpers por PATH, no empaquetados
 

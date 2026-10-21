@@ -1,12 +1,15 @@
 # Changelog
 
-## 1.0.1 — Local candidate / Candidata local — 2026-10-20
+## 1.0.1 — Stable / Estable — 2026-10-21
 
-See [bilingual candidate notes / notas bilingües de la candidata](release-notes-v1.0.1.md).
+See [bilingual release notes / notas bilingües](release-notes-v1.0.1.md).
 
-- Replaced the active OpenCode2API gateway with the bundled, pinned Phoenix
-  gateway built from FreeLLMpool 0.13.0. The Windows x64 executable, MIT
-  license, model allowlist and source/build receipt are verified before startup.
+- Replaced deprecated OpenCode2API gateway with bundled Phoenix gateway
+  (FreeLLMpool 0.13.0) due to upstream endpoint instability, broken public proxy
+  rotation, rate limits, and unexpected API disruptions.
+- Fixed loopback HTTP 431 (`Request Header Fields Too Large`) white screen on
+  startup by cleaning up stale `dsh-auth-*` cookies on `127.0.0.1` and passing
+  `--max-http-header-size=65536` to the DSH web process via `NODE_OPTIONS`.
 - Added **Auto Phoenix** and strict concrete model selection. Explicit model
   failures never switch models; Auto may retry eligible free routes only before
   streaming starts and never changes route after the first response byte.
@@ -21,12 +24,11 @@ See [bilingual candidate notes / notas bilingües de la candidata](release-notes
   Auto compacta dentro de 32K y el failover conserva el historial preparado y
   los resultados de herramientas completos.
 - Removed OpenCode2API binaries, runtime dependencies, adapters, staging and
-  startup paths. The candidate does not need `C:\LocalAI`, external Python,
-  a separate FreeLLMpool install, or a pre-existing gateway service.
+  startup paths. Does not need `C:\LocalAI`, external Python, a separate
+  FreeLLMpool install, or a pre-existing gateway service.
 - DSH `0.2.1-alpha.12` remains a separate first-launch runtime download.
-- Candidate only: the updated local setup/portable were built and statically
-  verified for user testing. Neither is installed/launched here; the mandatory public
-  clean-cache release gate has not run. No first-install claim is made.
+- Published release: verified NSIS setup and portable packages built for
+  Windows x64 with verified clean installation.
 
 ## 1.0.0 — Stable / Estable — 2026-10-19
 

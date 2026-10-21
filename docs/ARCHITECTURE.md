@@ -7,8 +7,8 @@ packaging and tray/UI affordances. Phoenix is pinned FreeLLMpool 0.13.0, shipped
 as a Windows x64 executable with its MIT license, exact model allowlist and
 source/build receipt. It requires no machine-installed Python, `C:\LocalAI`,
 separate FreeLLMpool service or fixed gateway port. The upstream subtree owns
-the agent runtime and conversation web product. v1.0.1 is an unpublished source
-candidate; see the [bilingual candidate notes](../release-notes-v1.0.1.md).
+the agent runtime and conversation web product. v1.0.1 is published for
+Windows x64; see the [bilingual release notes](../release-notes-v1.0.1.md).
 
 ```mermaid
 flowchart LR
@@ -79,6 +79,8 @@ or compatibility failures remain visible and retryable.
   health/readiness, key isolation and contained restart/shutdown.
 - `apps/shell/src/main/phoenix-payload.ts`: installed payload hash, provenance,
   architecture, license and model-allowlist validation.
+- `apps/shell/src/main/loopback-cookies.ts`: automatic purging of stale ephemeral
+  `dsh-auth-*` loopback cookies to prevent HTTP 431 header overflow.
 - `apps/shell/src/main/port-allocator.ts`: loopback allocation; occupied ports
   are skipped, never taken over.
 - `apps/shell/src/main/harness-supervisor.ts`: DSH readiness, generations,
@@ -191,7 +193,7 @@ edits are temporary working changes until represented by a patch. See
 
 ## Windows release scope
 
-v1.0.1 targets Windows x64 NSIS and portable artifacts only. This source
-candidate is not yet packaged or published. Linux/macOS are contributor-only
+v1.0.1 targets Windows x64 NSIS and portable artifacts only, verified and
+published with the bundled Phoenix gateway. Linux/macOS are contributor-only
 manual builds and have no release gate, no binary upload and no claim of
 parity. The local release gate is documented in [`docs/RELEASE.md`](RELEASE.md).

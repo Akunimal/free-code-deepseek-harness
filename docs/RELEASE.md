@@ -1,6 +1,6 @@
 # Release and packaging
 
-### Current source candidate: v1.0.1 (Windows x64)
+### Current release: v1.0.1 (Windows x64)
 
 v1.0.1 replaces the active OpenCode2API gateway with the bundled, pinned
 Phoenix FreeLLMpool 0.13.0 Windows x64 executable. Phoenix ships with its MIT
@@ -10,13 +10,11 @@ another FreeLLMpool installation or a pre-existing port/service. Auto Phoenix
 is first in the selector. A concrete model stays strictly pinned; only Auto may
 try another eligible free route before the first stream byte.
 
-**Release status:** v1.0.1 is an unpublished local candidate. The current setup
-and portable were built and statically verified for user testing; neither was
-installed or launched by this work. The public clean-cache DSH proof and full
-release gate have not run. The last published desktop release is the historical
+**Release status:** v1.0.1 is published for Windows x64. The NSIS setup and
+portable executables were built, verified, and published on GitHub Releases.
+The last published desktop release was the historical
 [v1.0.0 release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
-Do not present the candidate as installable or claim clean-install proof.
-Candidate notes: [bilingual v1.0.1](../release-notes-v1.0.1.md).
+Release notes: [bilingual v1.0.1](../release-notes-v1.0.1.md).
 
 ## Current baseline
 
@@ -24,10 +22,9 @@ The source version is 1.0.1. The DSH runtime remains a separate immutable
 `0.2.1-alpha.12` Windows x64 asset (ABI 149), downloaded on first start when
 the per-user cache is absent. Its public clean-cache smoke remains mandatory.
 Phoenix is bundled in the desktop payload and is locally receipt/hash checked;
-it is not a separate first-run download. Output, once built, is isolated in
-`apps/shell/release-1.0.1-local-20261021-recovery/`. Setup/portable sizes
-and hashes are recorded in the bilingual candidate notes. These local static
-checks are for user testing and are not fresh-install proof. Older release
+it is not a separate first-run download. Output is in
+`apps/shell/release-1.0.1-final-20261021/`. Setup/portable sizes
+and hashes are recorded in the bilingual release notes. Older release
 folders, tags and assets are historical and must not be overwritten.
 
 ## Local Windows build
@@ -50,9 +47,9 @@ exact artifacts:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-local-20261021-recovery'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-final-20261021'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.1-local-20261021-recovery
+pnpm verify:desktop-release-assets apps/shell/release-1.0.1-final-20261021
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
@@ -62,9 +59,9 @@ either artifact. `build:desktop` refuses to replace a non-empty output
 directory unless explicit replacement is enabled. Preserve all previous and
 historical artifacts.
 
-The current candidate artifacts exist only in the local output directory for
-the user to test. Keep their exact names and hashes aligned with the bilingual
-notes; do not treat local static checks as publication or clean-install proof.
+The release artifacts are in `apps/shell/release-1.0.1-final-20261021/`.
+Keep their exact names and hashes aligned with the bilingual
+notes.
 
 ## Runtime dependency policy
 
@@ -124,6 +121,6 @@ and [upstream patching](UPSTREAM-PATCHING.md).
 ## Version history
 
 The published [v1.0.0 release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0)
-and [its notes](../release-notes-v1.0.0.md) are historical. v1.0.1 remains
-unpublished until all mandatory gates pass and the user authorizes publication.
+and [its notes](../release-notes-v1.0.0.md) are historical. v1.0.1 is
+published on GitHub Releases.
 See the [Spanish guide](RELEASE.es.md) and [policy](RELEASE-POLICY.md).
