@@ -302,7 +302,7 @@
   "vendor/deepseek-harness/packages/util/http-proxy": "52a838fbb61e23b4168077f551d3fe91748f246c46f6006972c836ed14b6c4ca",
   "vendor/deepseek-harness/packages/util/launch-environment": "adb8d6fe802563f0f094962daff890077d620b95874f6eb55b687e9d540e86e7",
   "vendor/deepseek-harness/packages/util/lazy-require": "eb2a41e2486a22112f57f28f173de64fe4842416b70609e6e6c83cee46736143",
-  "vendor/deepseek-harness/packages/util/native-command": "0323e2ca6d906417443bbaa051118ba8c1442c01aafcd91ad745e9aa0b32fcaa",
+  "vendor/deepseek-harness/packages/util/native-command": "adf2d4714cbc3f95043b13aaf543ff4c9a6475959067558ef5fdb5e8dc17a93b",
   "vendor/deepseek-harness/packages/util/output-retention": "046d0a5737d7999063445175f289d9d67960005d4c258add5f364abdadd422f0",
   "vendor/deepseek-harness/packages/util/package-manifest": "8aa41867baed056739ccd3c0582d1e99259c6e80c898f8f57547933745480cf4",
   "vendor/deepseek-harness/packages/util/time": "dd68240357042253495b71221bcb37e701b5b2f7dd5c23cd00b0eac4a27252a0",
