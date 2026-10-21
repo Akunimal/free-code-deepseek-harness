@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0.0",
+  "name": "launch-copy-critic",
+  "version": "1.0.0",
+  "description": "Critique launch copy for clarity, proof, audience fit, and overclaiming.",
+  "role": "critic",
+  "prompt_template": "Critique this launch copy. Identify unclear claims, missing proof, weak audience fit, and any risky overclaims. Suggest a tighter rewrite.\\n\\n${input}",
+  "variables": ["input"],
+  "input_mode": "text",
+  "output_mode": "text",
+  "example": "freellmpool recipe run launch-copy-critic --input launch-post.md"
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0.0",
+  "name": "second-opinion",
+  "version": "1.0.0",
+  "description": "Ask a small diverse panel for independent answers and optional synthesis.",
+  "role": "second-opinion",
+  "prompt_template": "Give an independent second opinion on this request. Be concise, concrete, and note uncertainty.\\n\\n${input}",
+  "variables": ["input"],
+  "input_mode": "text",
+  "output_mode": "panel",
+  "example": "freellmpool recipe run second-opinion \"is this launch plan clear?\" --synthesize"
+}

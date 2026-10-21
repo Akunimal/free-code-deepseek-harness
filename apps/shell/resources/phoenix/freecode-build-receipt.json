@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "upstream": {
+    "repository": "https://github.com/0xzr/freellmpool",
+    "commit": "e4411650da95edf3002c6789ccd1c816aedae1d4",
+    "version": "0.13.0",
+    "tarballSha256": "31175b80b613386550d247e89546ab312f66bf49950ebdddf3d4ee9e937e6aa6"
+  },
+  "sourceSha256": "0d280c7c77784830cbaad4a7e33dab1cd8c7c8105d8533580c1abe62941a23f1",
+  "binarySha256": "68f051e03334d5e073f9e5608dce581a26834fbb92ecddac3b9f4eb299d3fe24",
+  "modelsCatalogSha256": "8d81b445db04e3ab68857c2409281468a881eecfdfb956434fd34f8abdffcb91",
+  "licenseSha256": "745c07e2e440241596f848509f951dbeb873fe51fa11e4d11c8613bc3305898e",
+  "toolchain": {
+    "pythonVersion": "3.14.2",
+    "architecture": "AMD64",
+    "pyinstallerVersion": "6.20.0",
+    "runtime": {
+      "httpx": "0.28.1",
+      "httpcore": "1.0.9",
+      "anyio": "4.14.2",
+      "certifi": "2026.7.22",
+      "idna": "3.18",
+      "sniffio": "1.3.1",
+      "h11": "0.16.0"
+    }
+  }
+}

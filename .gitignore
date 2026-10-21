@@ -9,6 +9,8 @@ apps/shell/resources/freecode/omniroute-runtime.json
 dist/
 out/
 *.tsbuildinfo
+__pycache__/
+*.py[cod]
 
 # Electron / electron-builder
 apps/shell/resources/opencode2api/

@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0.0",
+  "name": "repo-summary",
+  "version": "1.0.0",
+  "description": "Summarize selected repository files into an implementation-oriented brief.",
+  "role": "summarizer",
+  "prompt_template": "Summarize the selected repository content from ${path}. Focus on purpose, public commands, important modules, and likely next work.\\n\\n${input}",
+  "variables": ["path", "input"],
+  "input_mode": "path",
+  "output_mode": "text",
+  "example": "freellmpool recipe run repo-summary --path 'src/freellmpool/*.py'"
+}

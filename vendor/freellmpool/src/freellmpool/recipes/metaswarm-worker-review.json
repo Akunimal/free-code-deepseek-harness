@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0.0",
+  "name": "metaswarm-worker-review",
+  "version": "1.0.0",
+  "description": "Review a Metaswarm worker summary or patch plus validation output.",
+  "role": "critic",
+  "prompt_template": "Review this Metaswarm worker output. Return blocking findings, verification gaps, and an approve/revise verdict.\\n\\nWorker summary or patch:\\n${input}\\n\\nValidation output:\\n${validation_output}",
+  "variables": ["input", "validation_output"],
+  "input_mode": "text",
+  "output_mode": "text",
+  "example": "freellmpool recipe run metaswarm-worker-review --input worker.md --validation-output-file validation.txt"
+}

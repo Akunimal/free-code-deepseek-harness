@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0.0",
+  "name": "pr-review",
+  "version": "1.0.0",
+  "description": "Review a patch or PR summary for blocking bugs and verification gaps.",
+  "role": "critic",
+  "prompt_template": "Review this pull request or patch. Lead with blocking findings, include file/line evidence when present, list missing tests, and end with approve/revise.\\n\\n${input}",
+  "variables": ["input"],
+  "input_mode": "text",
+  "output_mode": "text",
+  "example": "freellmpool recipe run pr-review --input patch.diff"
+}
