@@ -38,7 +38,9 @@ instance is authorized by this task.
 - Delivery slices (local only; no PRs/push authorized): PHX101-1 is the first
   slice (`4852974c8cf74fe69905d90d51f2f1e87fdd3359`); PHX101-2 is the second
   (`9489c65c06c2f15018c4dfc6354d635fab0e2a52`); PHX101-3 is the third
-  (`71c3a3a`). PHX101-4 and PHX101-5 remain later slices on this feature branch.
+  (`71c3a3a`); PHX101-4 is the fourth slice (`c86cb1a832de7b0949087e4dc5cfdd7c913bbb7e`);
+  PHX101-5 is the fifth slice (`78d7b7a`). PHX101-6 remains pending on this
+  feature branch.
 - Preserve pre-existing dirty Graphify outputs and untracked vendor artifacts;
   stage only files belonging to this feature.
 
@@ -102,9 +104,14 @@ instance is authorized by this task.
   preflight, packaging, NSIS/AppImage and process-launch contracts; remove
   obsolete active gateway assets/scripts while preserving historical release
   evidence. Commit: `c86cb1a832de7b0949087e4dc5cfdd7c913bbb7e`.
-- [ ] PHX101-5: Set root/shell to v1.0.1, align active ES/EN documentation and
-  changelog/release contracts, run applicable local checks, update Graphify,
-  and close with a Conventional Commit.
+- [x] PHX101-5: Set root/shell to v1.0.1, align active ES/EN documentation and
+  changelog/release contracts, add bilingual candidate notes, and run applicable
+  local checks. Commit: `78d7b7a`.
+- [ ] PHX101-6: Refresh the Graphify graph after removing the old gateway,
+  verify its node/community freshness without overwriting unrelated pre-existing
+  Graphify/vendor work, and close with a Conventional Commit. The normal and
+  `--force` update attempts stalled before graph outputs changed; investigate
+  the local CLI's post-extraction stage before retrying.
 
 ## Progress and recovery
 
@@ -157,6 +164,14 @@ pins, Auto pre-stream fallback only, post-start stream commitment, cancellation
 cleanup and non-health client errors. The shell's catalog-loading IPC/state
 contract was also reverified.
 
+PHX101-5 aligns root/shell package metadata to 1.0.1; updates the English and
+Spanish READMEs, architecture, release procedures/policy, roadmap, issue ledger,
+translation baseline and changelog; adds truthful bilingual candidate notes;
+and updates release/documentation contracts from old OpenCode Free wording to
+Phoenix strict-pin/Auto semantics. Documentation explicitly says that no
+v1.0.1 setup/portable or public empty-cache proof has run. The work is committed
+locally as `78d7b7a`; no push, tag, release or installer action was performed.
+
 ### Verification log
 
 - PHX101-4 TDD red: Phoenix payload/preflight tests initially failed because
@@ -206,12 +221,27 @@ contract was also reverified.
   FreeLLMpool behavioral routing contracts passed 4/4 against deterministic
   fake transports; release-plan contract included the new test. Shell
   typecheck and `git diff --check` passed.
+- PHX101-5 RED/GREEN: release version/doc tests were expanded first and failed
+  against stale source versions, missing v1.0.1 notes and outdated OpenCode
+  model-label assertions. After documentation/version alignment,
+  `node --test scripts/release-version-docs.test.mjs` passed 12/12 and the
+  focused contract suites passed 12/12 (`docs.contract.test.ts` 3/3,
+  `release.contract.test.ts` 9/9); `git diff --check` passed.
+- PHX101-6 Graphify: `graphify update <repo>` re-extracted 6,184 files but did
+  not update `graph.json`; the tool reported 4,581 saved labels versus 4,565
+  communities and requested label refresh. `graphify update <repo> --force`
+  likewise stalled after re-extracting 6,165 files. MCP graph stats remained
+  122,918 nodes / 263,625 edges / 4,581 communities. Both task-owned CLI runs
+  were interrupted; the user's app/processes were not touched. Graph refresh is
+  pending and must be reported as a freshness failure until verified.
 
 ### Next step
 
-PHX101-4 behavior is verified locally and committed. Next, begin PHX101-5:
-align the active product version and bilingual documentation/contracts to the
-1.0.1 candidate while keeping historical release evidence truthful.
+PHX101-1 through PHX101-5 are committed locally and their applicable tests
+passed. Next, diagnose and complete PHX101-6 Graphify refresh. Do not push, tag,
+publish, build or run an installer without separate authorization; the public
+clean-cache DSH gate remains required before v1.0.1 can be represented as
+installable.
 
 ## Relevant files
 
@@ -223,7 +253,8 @@ align the active product version and bilingual documentation/contracts to the
 - `apps/shell/src/main/freecode-launcher.ts`, `headless-host-policy.ts` — mandatory
   hidden Windows process containment seam.
 - `scripts/phoenix-router-contracts.py`, `scripts/phoenix-router-contracts.test.mjs` — deterministic FreeLLMpool pin, Auto failover, stream and cancellation contracts.
-- `scripts/opencode2api-staging.mjs`, `scripts/runtime-dependency-pins.mjs`,
-  `scripts/package-runtime.sh` — current sidecar provenance/package contracts.
+- `scripts/build-freellmpool.mjs`, `scripts/freellmpool-staging.mjs`,
+  `scripts/runtime-dependency-pins.mjs`, `scripts/package-runtime.sh` — current
+  Phoenix provenance and package contracts; old OpenCode2API staging was removed.
 - `docs/ARCHITECTURE.md`, `docs/RELEASE-POLICY.md` and active EN/ES release docs —
   architecture and product/distribution claims to reconcile.
