@@ -160,10 +160,11 @@ running app while implementing this.
   from current source; run the package's headless/resource checks and exact
   static release-asset verification, and record hashes. Neither artifact was
   executed and no FreeCode instance was launched/inspected/stopped. The user
-  will test locally; no tag or release until that test succeeds. Push was
-  requested, but is pending explicit destination, branch and credential/session
-  confirmation under the repository's remote-operation policy. Integrity-pin
-  work-unit commit: `31e4b08`.
+  will test locally; no tag or release until that test succeeds. The user
+  authorized pushing to `Akunimal/free-code-deepseek-harness` `main` with the
+  current `gh` session. After a ref-lock race, the authenticated GitHub API
+  confirmed `main` at `122bea761e69371a39e6ce1a004021296b0655c3`; no force push
+  or tag/release was used. Integrity-pin work-unit commit: `31e4b08`.
 
 ## Acceptance criteria and checks
 
@@ -434,7 +435,10 @@ performed.
   The required `graphify update` scanned 6,171 files but did not refresh its
   manifest/graph output (21 syntax-error files were reported; graph stats stayed
   at 122,918 nodes / 263,625 edges). The graph mtime predates the updated source;
-  PHX101-6 remains pending, and no Graphify or vendor artifact was staged.
+  PHX101-6 remains pending, and no Graphify or vendor artifact was staged. A
+  later required update re-extracted 1,500/6,169 uncached files before it was
+  interrupted to avoid leaving a long-running graph process; freshness remains
+  unverified.
 - PHX101-10 first build attempt correctly stopped at `verify-runtime-dependencies`
   because the runtime dependency pin still named the prior Phoenix binary hash.
   `freellmpool-staging.mjs --verify` confirmed the current binary against its
@@ -469,8 +473,10 @@ committed as `3b7d975` and `774580e`. PHX101-6 Graphify freshness is still
 pending because previous update attempts did not replace the graph/manifest.
 The public clean-cache DSH first-run proof and `release:gate` have not been run;
 do not tag or publish before those gates and the user's successful local test.
-Remote push was requested but is pending destination/branch/session confirmation
-per policy.
+The authenticated GitHub API verified `Akunimal/free-code-deepseek-harness`
+`main` at `122bea761e69371a39e6ce1a004021296b0655c3`, which contains the current
+feature commits. The `git push` response reported the remote ref had already
+advanced to that exact SHA; no retry or force update was attempted.
 
 ## Relevant files
 
