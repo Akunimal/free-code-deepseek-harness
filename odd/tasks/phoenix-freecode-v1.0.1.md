@@ -115,6 +115,45 @@ unchanged.
   task evidence (PHX101-8b), keeping both commits adjacent on this feature
   branch. No push, PR, merge, tag, or release is authorized.
 
+## Authorized follow-up: remove non-responders from the selector
+
+On 2026-10-21, the user authorized up to three direct, minimal, unauthenticated
+Kilo completions. MiniMax M3.1 Flash and Laguna S 2.1 returned HTTP 200 with
+non-empty text; Dots3 Note Preview returned HTTP 200 without
+`choices[0].message.content`. No more provider calls are authorized by that
+grant. The user clarified that models which do not answer must leave the
+selector automatically. Existing `probeModels` trusts HTTP 200 alone, so a
+blank/malformed success can currently remain selectable. Change the strict
+responder contract to require a parseable OpenAI chat completion with at least
+one actual answer (non-empty text/refusal, or a structured tool call). Every
+failed current probe—including a timeout/transport failure, HTTP rejection, or
+invalid/empty 200—must remove the model from the selector immediately. Prior
+success may remain diagnostic metadata only, never selectable; a later valid
+probe restores the model automatically. Do not probe providers or touch a
+running app while implementing this.
+
+- TDD: **red-green-refactor**, Vitest through the same bundled pnpm fallback;
+  write regressions first for empty/malformed HTTP-200 bodies, valid responses,
+  immediate removal after empty and transport failures, later re-addition on
+  recovery, and production wiring with live per-model probes enabled.
+- Scope: production refresh wiring in `index.ts`, `model-refresher.ts`, tests,
+  and bilingual/contract documentation describing selector eligibility. At
+  exploration, the production call set `probeModels: false`, so body validation
+  alone would not have changed the installed selector; PHX101-9 turns on live
+  per-model probing. No more network requests, package/installer build or
+  launch, push, tag, or release.
+- Delivery: one local conventional-commit work unit on
+  `codex/phoenix-freecode-v1.0.1`; all earlier commits remain local.
+
+### PHX101-9 checklist
+
+- [x] PHX101-9: Require a valid non-empty chat completion before a model is
+  marked responding or kept in the selector; immediately remove every model
+  whose current probe fails, retain prior success only for diagnostics, restore
+  recovered models, cover production wiring and the contract in TDD, and align
+  active documentation.
+  Commit identity: `c10d74e`.
+
 ## Acceptance criteria and checks
 
 1. A clean packaged profile starts only the shipped FreeLLMpool Phoenix service
@@ -357,17 +396,40 @@ performed.
   all 24 model IDs from `/v1/models`, and shut down its test-owned process.
   It made no external inference requests and did not touch the user's app.
   No installer, public clean-cache DSH test, or release gate was run.
+- PHX101-9 TDD RED: the changed transport-failure contract failed because a
+  previously verified route was still serialized into selector settings after
+  its current probe failed. The catalog-outage test also failed on `/models`
+  HTTP 503 before it could probe the shipped exact allowlist. The bilingual
+  docs contract failed because neither README/release note specified body
+  validation or eviction/recovery.
+- PHX101-9 GREEN: production refresh now probes each Phoenix model; only a
+  parseable non-empty HTTP 200 chat completion (text, refusal, or structured
+  tool call) remains selectable. Empty/malformed 200s, transport errors and
+  HTTP rejections are evicted immediately; prior success is diagnostic only.
+  A later valid refresh restores the route. If `/models` itself is unavailable,
+  the packaged exact allowlist is probed instead of leaving stale settings.
+  Catalog status now reports degraded when any primary candidate fails.
+- PHX101-9 tests: focused refresher/runtime/profile integration passed 44/44;
+  full shell suite passed 55 files / 385 tests; shell typecheck passed; full
+  contract suite passed 82 with 12 skips; release-version docs passed 12/12;
+  targeted bilingual docs contract passed 1/1 and `git diff --check` passed.
+  Test response fixtures now return actual usable completions rather than empty
+  `{}` bodies. Work-unit commit: `c10d74e`.
+- PHX101-9 made no provider/network calls and did not launch/install FreeCode.
+  The required `graphify update` scanned 6,171 files but did not refresh its
+  manifest/graph output (21 syntax-error files were reported; graph stats stayed
+  at 122,918 nodes / 263,625 edges). The graph mtime predates the updated source;
+  PHX101-6 remains pending, and no Graphify or vendor artifact was staged.
 
 ### Next step
 
-PHX101-7 artifacts are locally built and statically verified. The setup launch
-was attempted once but its completion is unverified. PHX101-8 source, tests,
-generated catalog, bilingual docs and local sidecar smoke are verified; source
-and documentation slices are committed locally as `3b7d975` and `774580e`.
-PHX101-6 Graphify freshness remains pending because the direct update stalled
-after source extraction. Public clean-cache DSH proof, full `release:gate`,
-installer completion, and all remote publication actions remain unverified or
-pending.
+PHX101-9 is locally implemented and committed as `c10d74e`; failed current
+probes no longer stay in the selector. PHX101-8 source, tests, generated
+catalog, bilingual docs and local sidecar smoke remain committed locally as
+`3b7d975` and `774580e`. PHX101-6 Graphify freshness remains pending because
+the update did not replace the stale graph/manifest. The prior v1.0.1 artifacts
+predate this work and are stale; no new installer, public clean-cache DSH proof,
+full `release:gate`, push, tag, or release was performed.
 
 ## Relevant files
 
