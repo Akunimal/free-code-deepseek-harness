@@ -331,7 +331,18 @@ async function listModelIds(target: ProviderRefreshTarget, timeoutMs: number): P
   if (models.length === 0 && !target.strictResponders) {
     throw new ModelRefreshError('CATALOG_UNAVAILABLE', 'models catalog returned no models');
   }
-  return target.exactModelIds ? models.filter(model => target.exactModelIds!.includes(model.id)) : models;
+  if (!target.exactModelIds) return models;
+
+  const allowed = models.filter(model => target.exactModelIds!.includes(model.id));
+  // `auto` is a Phoenix router mode, not an upstream model. FreeLLMpool's
+  // OpenAI `/models` endpoint correctly lists only concrete provider/model
+  // routes, so synthesize this one selector entry from our packaged
+  // allowlist and keep it first after every refresh.
+  if (target.exactModelIds[0] === 'auto') {
+    const auto = allowed.find(model => model.id === 'auto') ?? { id: 'auto' };
+    return [auto, ...allowed.filter(model => model.id !== 'auto')];
+  }
+  return allowed;
 }
 
 async function probeModels(

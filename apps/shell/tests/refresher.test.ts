@@ -103,6 +103,34 @@ describe('model-refresher', () => {
     }
   });
 
+  it('keeps the synthetic Auto Phoenix model first when FreeLLMpool lists concrete routes only', async () => {
+    const { home, data } = tmpDirs();
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
+      if (String(url).endsWith('/v1/models')) return new Response(JSON.stringify({ data: [
+        { id: 'pollinations/openai-fast' },
+        { id: 'kilo/step-3.5-flash-free' },
+      ] }), { status: 200 });
+      return new Response('unexpected per-model request', { status: 500 });
+    }));
+
+    try {
+      const catalog = await refreshModels({
+        lbBaseUrl: LB,
+        homeDir: home,
+        userDataDir: data,
+        provider: 'freecode-phoenix',
+        exactModelIds: ['auto', 'pollinations/openai-fast', 'kilo/step-3.5-flash-free'],
+        probeModels: false,
+      });
+      const ids = ['auto', 'pollinations/openai-fast', 'kilo/step-3.5-flash-free'];
+      expect(catalog.providers['freecode-phoenix']?.models.map((model) => model.id)).toEqual(ids);
+      expect(readHarnessSettings(home)['llm-pi-ai'].providers['freecode-phoenix'].models.map((model: { id: string }) => model.id))
+        .toEqual(ids);
+    } finally {
+      rmSync(dirname(home), { recursive: true, force: true });
+    }
+  });
+
   it('uses the minimum accepted output budget for upstream health probes', async () => {
     const { home, data } = tmpDirs();
     const probeBodies: Array<{ model: string; max_tokens: number }> = [];
