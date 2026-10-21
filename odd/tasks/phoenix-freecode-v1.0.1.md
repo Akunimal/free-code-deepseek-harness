@@ -93,7 +93,8 @@ instance is authorized by this task.
 - [x] PHX101-2: Replace the opencode2api runtime sidecar with the contained
   Phoenix/FreeLLMpool lifecycle, health/readiness reporting and shutdown;
   update the Harness endpoint without disturbing active DSH settings or
-  unrelated user providers. Commit pending final identity recording.
+  unrelated user providers. Commit:
+  `9489c65c06c2f15018c4dfc6354d635fab0e2a52`.
 - [ ] PHX101-3: Add Phoenix model inventory/selector behavior and strict-pin vs
   Auto-only failover contracts, including no mid-stream route change, request
   cancellation and model-load status.
@@ -177,10 +178,10 @@ restart.
 
 ### Next step
 
-PHX101-2 is complete; its local work-unit commit is next and its hash will be
-written here. Then proceed to PHX101-3: add explicit selector/catalog and
-Auto-only failover contracts, preserving concrete model pins and never
-switching a route after stream bytes start.
+PHX101-2 is complete and committed as
+`9489c65c06c2f15018c4dfc6354d635fab0e2a52`. Next, begin PHX101-3: add explicit
+selector/catalog and Auto-only failover contracts, preserving concrete model
+pins and never switching a route after stream bytes start.
 
 ## Relevant files
 
