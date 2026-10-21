@@ -34,7 +34,7 @@ describe('documentation feature inventory', () => {
     expect(readme).toContain('README.es.md');
     expect(spanishReadme).toContain('README.md');
     for (const url of [
-      'https://github.com/jasonxu114514/opencode2api',
+      'https://github.com/0xzr/freellmpool',
       'https://github.com/deepseek-ai/deepseek-harness',
       'https://github.com/rtk-ai/rtk',
       'https://github.com/JuliusBrussee/caveman',

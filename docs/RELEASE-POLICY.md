@@ -1,11 +1,16 @@
 # Release policy
 
-### Current release: v1.0.0 (Windows x64)
+### Current source candidate: v1.0.1 (Windows x64)
 
 Releases are manual and target Windows x64. This policy never authorizes
 touching the maintainer's running FreeCode instance.
 
-**Release status:** the final Windows x64 setup and portable for v1.0.0 passed the full release gate on the final source, including the public empty-cache runtime download; do not substitute a local preload.
+**Release status:** v1.0.1 is not published. Its setup/portable have not been
+built, and its release gate has not run. The last published desktop release is
+v1.0.0. Do not represent this candidate as install-ready or use a local runtime
+preload as public clean-install proof.
+
+The public clean-cache first-run gate remains pending for v1.0.1.
 
 ## Mandatory fresh-install proof
 
@@ -23,28 +28,31 @@ inspect, stop, or restart unrelated processes.
 
 ## Windows containment and runtime
 
-v1.0.0 requires the GUI-subsystem `headless-host`, a private desktop and Job
+v1.0.1 requires the GUI-subsystem `headless-host`, a private desktop and Job
 assignment while the child is suspended, with no direct-spawn fallback.
 Explicit GUI actions use the authenticated broker. Native adversarial window,
 descendant and Job-lifetime tests run against the exact staged and packaged
 helper; source strings are not sufficient. See [scope/limits](HEADLESS-DESKTOP.md).
 
-The current pin is `0.2.1-alpha.11` (ABI 149), 423,195,661 bytes, SHA-256
+The separate DSH runtime pin is `0.2.1-alpha.11` (ABI 149), 423,195,661 bytes, SHA-256
 `396bc019a74ad71be0fa0e3074298fc41f1621713080d31cf990ae64b3282473`.
 It is published in the [runtime-0.2.1-alpha.11](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/runtime-0.2.1-alpha.11) pre-release before the
 gate; no prior asset is replaced. v0.9.5 published alpha9, v0.9.4 alpha8 and
 v0.9.2 alpha2; they remain history.
-OmniRoute remains removed. Preserve user sessions and providers. Fresh output:
-`apps/shell/release-1.0.0-final-20261019/`; final sizes/hashes are recorded in
-the [bilingual notes](../release-notes-v1.0.0.md).
+OmniRoute remains removed. Preserve user sessions and providers. Phoenix is a
+required, bundled FreeLLMpool 0.13.0 Windows x64 runtime, hash- and
+receipt-verified before startup. DSH remains separately downloaded on first
+launch. The candidate output directory, once built, is
+`apps/shell/release-1.0.1-candidate/`; no v1.0.1 artifact hashes exist yet.
+See the [bilingual candidate notes](../release-notes-v1.0.1.md).
 
-After changing opencode2api source or its active fork overlay, rebuild with
-`bash scripts/build-opencode2api.sh`. It also stages the new Windows sidecar
-without regenerating DSH. Prepackage verification rejects missing receipts,
-changed source fingerprints or stale binary bytes; it never silently stages
-an unverified old build. Runtime packaging refreshes version/hash pins only for
-locally built opencode2api and DSH outputs; optional PATH-fallback tools may be
-absent, while required runtime assets must exist and match their pinned hashes.
+After changing the pinned FreeLLMpool source or Phoenix build configuration,
+rebuild and stage it through `scripts/build-freellmpool.mjs` and
+`scripts/freellmpool-staging.mjs`. Prepackage verification rejects missing
+receipts, changed source fingerprints, wrong architecture or stale binary
+bytes; it never silently stages an unverified old build. Runtime packaging
+refreshes local Phoenix/DSH version and hash pins; optional PATH-fallback tools
+may be absent, while required runtime assets must exist and match their pins.
 
 The desktop package gate checks the actual DSH conversation CSS after runtime
 materialization, after copying into `resources/freecode/dsh`, and before
@@ -54,9 +62,9 @@ frames; each must move at least 8 CSS pixels in 1.65 seconds. Reduced motion
 must stop both animations without dimming either wash. Set FREECODE_CHROME_PATH
 if Chromium is not installed at a standard Windows location. This test uses a
 disposable browser profile and does not launch FreeCode or reuse a user browser
-profile. Egress proxies are verified with strict TLS before use and re-harvested
-every 15 minutes only while the direct lane is blocked; user-visible proxy
-status stays bounded and never shows credentials. NSIS runtime smoke must isolate APPDATA,
+profile. The package gate also verifies the pinned Phoenix source receipt,
+staged binary, architecture, allowlist and digest. Phoenix has no
+OpenCode-specific proxy-rotation lane. NSIS runtime smoke must isolate APPDATA,
 LOCALAPPDATA, USERPROFILE, HOME and temporary roots: Chromium's
 `--user-data-dir` alone does not redirect Electron `app.getPath('userData')`.
 Without the private profile, the smoke can leave gateway config pointing into
@@ -64,9 +72,9 @@ its deleted temporary install tree.
 
 ## Release contents and pinned runtime
 
-The v1.0.0 desktop release contains the NSIS setup, portable executable,
+The future v1.0.1 desktop release will contain the NSIS setup, portable executable,
 setup blockmap and `latest.yml`. The separate DSH runtime has an independent
-version: v1.0.0 downloads the exact `0.2.1-alpha.11` Windows x64 runtime from
+version: v1.0.1 downloads the exact `0.2.1-alpha.11` Windows x64 runtime from
 the public runtime-0.2.1-alpha.11 pre-release, which also provides its SHA-256 checksum. The release gate
 verifies the pinned local archive and packaged runtime manifest; it never
 rebuilds, removes or replaces that immutable archive. Ordinary `build:desktop`
@@ -84,9 +92,9 @@ artifacts into a new, isolated output directory and verify that exact directory:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.0-final-20261019'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-candidate'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.0-final-20261019
+pnpm verify:desktop-release-assets apps/shell/release-1.0.1-candidate
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
@@ -133,7 +141,7 @@ setup selected explicitly:
 ```powershell
 $env:FREECODE_ALLOW_INTERACTIVE_NSIS_SMOKE = '1'
 $env:FREECODE_NSIS_SMOKE_ENV = 'disposable-vm'
-$env:FREECODE_NSIS_SETUP_PATH = 'C:\path\to\exact\FreeCode-DeepSeek-Harness-1.0.0-win-x64-setup.exe'
+$env:FREECODE_NSIS_SETUP_PATH = 'C:\path\to\exact\FreeCode-DeepSeek-Harness-1.0.1-win-x64-setup.exe'
 pnpm --filter @freecode/shell smoke:nsis
 ```
 

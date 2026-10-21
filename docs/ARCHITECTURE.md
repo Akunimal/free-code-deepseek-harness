@@ -1,75 +1,75 @@
 # Architecture
 
-FreeCode DeepSeek Harness is a Windows Electron shell around the upstream
-DeepSeek Harness web application. The shell owns native lifecycle, the local
-OpenCode-compatible gateway, secrets, model discovery, MCP configuration,
-packaging and tray/UI affordances. The upstream subtree owns the agent runtime
-and conversation web product.
+FreeCode DeepSeek Harness v1.0.1 is a Windows x64 Electron shell around the
+upstream DeepSeek Harness web application. The shell owns native lifecycle, the
+local Phoenix model gateway, secrets, model discovery, MCP configuration,
+packaging and tray/UI affordances. Phoenix is pinned FreeLLMpool 0.13.0, shipped
+as a Windows x64 executable with its MIT license, exact model allowlist and
+source/build receipt. It requires no machine-installed Python, `C:\LocalAI`,
+separate FreeLLMpool service or fixed gateway port. The upstream subtree owns
+the agent runtime and conversation web product. v1.0.1 is an unpublished source
+candidate; see the [bilingual candidate notes](../release-notes-v1.0.1.md).
 
 ```mermaid
 flowchart LR
   UI[DSH web conversation UI] -->|HTTP / API RPC| DSH[dsh web child]
-  DSH -->|OPENCODE2API_URL| GW[opencode2api gateway]
-  GW --> O[OpenCode Free providers]
-  GW -->|direct first, then rotated SOCKS5| PX[verified public proxies]
+  DSH -->|OpenAI-compatible loopback + ephemeral key| GW[Phoenix / FreeLLMpool]
+  GW --> O[allowlisted free providers]
   DSH -->|stdio MCP| SEARCH[free-search]
   SHELL[Electron main + preload] --> DSH
-  SHELL --> GW
-  SHELL -->|proxy rotator| PX
+  SHELL -->|freecode-launcher + headless-host| GW
   SHELL --> VAULT[secret store]
   SHELL --> DATA[userData / dsh-home / logs]
 ```
 
 ## Runtime sequence
 
-Before the process sequence below, a packaged app validates the DSH runtime in
-`<userData>/harness-runtime`. A launch without a valid cache downloads
-the exact pinned Windows x64 DSH `0.2.1-alpha.2` asset from the v0.9.2 release,
-verifies its SHA-256 digest, Electron ABI and Node engine range, then activates
-it before preflight or supervisor startup. Existing valid runtimes need no
-network access on later launches; download/compatibility failures are visible
-and retryable rather than consuming the supervisor restart budget.
+Before startup, the packaged app validates the separate DSH runtime in
+`<userData>/harness-runtime`. A launch without a valid cache downloads the
+exact pinned Windows x64 DSH `0.2.1-alpha.11` public asset, verifies SHA-256,
+Electron ABI and Node engine range, then activates it before preflight or
+supervisor startup. Phoenix itself ships in the desktop package and is
+validated locally; it is not downloaded or built on the user's machine.
+Existing valid DSH runtimes need no network access on later launches; download
+or compatibility failures remain visible and retryable.
 
 1. Electron resolves development resources or packaged `resources/freecode`.
-2. The shell picks a free loopback port for the gateway; a busy port is
-   skipped, never taken over. No Tor process is shipped or started.
-3. The shell starts the opencode2api gateway (sole model gateway — freellmpool
-   was removed in 0.8.0) with `proxies: [direct]` plus a `proxyfile` that the
-   proxy rotator fills only when the direct lane is blocked (step 8).
-4. The supervisor starts `dsh web --host 127.0.0.1 --port 0 --no-open` with a
+2. The shell verifies Phoenix's x64 PE architecture, source/build receipt,
+   model allowlist, license and SHA-256 before creating a private state folder.
+3. `freecode-launcher` starts the bundled Phoenix executable hidden through
+   the verified `headless-host` helper on an OS-assigned loopback port. The
+   shell supplies an ephemeral API key, polls `/healthz` with a bound, and owns
+   its restart/stop lifecycle. It never takes over a port or external process.
+4. The shell seeds DSH's single managed provider to the local Phoenix URL and
+   private key. Refresh synthesizes Auto Phoenix at the top of the verified
+   model allowlist before concrete provider/model entries.
+5. The supervisor starts `dsh web --host 127.0.0.1 --port 0 --no-open` with a
    whitelisted environment and waits for its authenticated readiness URL.
-5. The shell opens one hardened `BrowserWindow` with context isolation, no Node
+6. The shell opens one hardened `BrowserWindow` with context isolation, no Node
    integration, renderer sandboxing and the preload bridge.
-6. Provider seeding maintains the single OpenCode Free route (`deepseek-free`
-   via opencode2api), consolidates the legacy `opencode-free` duplicate and
-   removes only the managed legacy `gemini-web` route. Gemini2API is not
-   started, packaged or exposed.
-7. The managed MCP catalog is materialized under `dsh-home/mcp/servers.json`.
+7. A concrete model choice stays pinned to that exact route; failure does not
+   select another model. Auto alone may try another enabled free route before
+   the first downstream stream byte. Once streaming begins, no model/provider
+   change or retry occurs. Client errors do not poison route health.
+8. The managed MCP catalog is materialized under `dsh-home/mcp/servers.json`.
    Standard mounts free-search (disabled until its binary is vendored) only
-   when its persisted flag is enabled. The bridge
-   reports a server ready only after
+   when its persisted flag is enabled. Readiness requires
    `initialize → tools/list → schema validation → registration`.
-8. When Zen persistently blocks the direct lane (non-retryable empty catalog),
-   the proxy rotator harvests public SOCKS5 proxies, keeps only those that pass
-   strict TLS to cloudflare.com and opencode.ai, writes the gateway proxyfile
-   and restarts the gateway on the same port. Direct always stays first.
 
 ## Process ownership and headless policy
 
 - `apps/shell/src/main/index.ts`: Electron lifecycle, one native window, tray,
   menus, notifications, updater and logging.
-- `apps/shell/src/main/runtime.ts`: composition of opencode2api gateway,
-  supervisor and live MCP status projection.
-- `apps/shell/src/main/proxy-rotator.ts`: demand-driven egress proxy pool
-  (strict-TLS verification, fastest first, 15 min re-harvest).
-- `apps/shell/src/main/port-allocator.ts`: loopback ports; busy ports are
-  skipped, never taken over.
-- `apps/shell/src/main/opencode2api.ts`: gateway config generator
-  (`-config`/`-listen`) including `proxies` (`direct`) and the `proxyfile`.
-- `apps/shell/src/main/harness-supervisor.ts`: readiness, generations, restart
-  budget, tree termination and no-window child spawning.
-- `packages/opencode-adapter`: worker spawn, health, respawn, round-robin and
-  process-tree termination.
+- `apps/shell/src/main/runtime.ts`: Phoenix, DSH supervisor and MCP status
+  composition.
+- `apps/shell/src/main/phoenix-gateway.ts`: verified Phoenix startup,
+  health/readiness, key isolation and contained restart/shutdown.
+- `apps/shell/src/main/phoenix-payload.ts`: installed payload hash, provenance,
+  architecture, license and model-allowlist validation.
+- `apps/shell/src/main/port-allocator.ts`: loopback allocation; occupied ports
+  are skipped, never taken over.
+- `apps/shell/src/main/harness-supervisor.ts`: DSH readiness, generations,
+  restart budget, tree termination and no-window child spawning.
 - `packages/shared-types`: zod-backed IPC and runtime status contracts.
 - `vendor/deepseek-harness`: upstream runtime and web client, kept as a subtree.
 - `vendor/deepseek-harness/packages/mcp/mcp-client`: MCP initialization,
@@ -77,14 +77,14 @@ and retryable rather than consuming the supervisor restart budget.
 - `vendor/deepseek-harness/packages/llm/llm/src/ocr.ts`: bounded direct OCR
   helper used by text-only image paths.
 
-Node-launched background children use `windowsHide:true` and `shell:false`;
-DSH's native Win32 command launcher sets `STARTF_USESHOWWINDOW` with `SW_HIDE`
-for both ordinary and restricted-token process creation while preserving
-redirected stdio. This prevents child consoles from flashing or taking focus.
-The shell does not use `cmd.exe`, `start`, a terminal window or a browser to
-implement background work. The supervisor and worker pool track process
-generations, coalesce pending spawns and wait for the old tree to exit before
-replacement.
+All shell-owned background Windows process trees use `freecode-launcher` and
+the verified GUI-subsystem `headless-host`; private-desktop creation and
+suspended-process Job attachment are mandatory. Do not add a direct-spawn
+fallback, environment opt-out or process-name window hider. Explicit user GUI
+actions use the authenticated Electron broker. Packaging runs adversarial
+native window/descendant and Job-lifetime tests against the exact helper. The
+shell does not use `cmd.exe`, `start`, a terminal window or a browser to do
+background work.
 
 ## MCP configuration and observability
 
@@ -96,18 +96,18 @@ The managed files are:
 ```
 
 Settings → Plugins → MCP exposes toggles, live state, tool count, errors and
-the config path. The tray shows the count of enabled MCP servers that are
-ready. A failed connection produces a native notification once per failure
-state and remains visible in the tab and app log. The generated block is
-atomic and unrelated user patch rows are preserved.
+the config path. The tray shows enabled MCP servers that are ready. A failed
+connection produces a native notification once per failure state and remains
+visible in the tab and app log. The generated block is atomic and unrelated
+user patch rows are preserved.
 
 ## Model-facing output compression
 
 The Bash and Windows PowerShell providers expose independent RTK and Caveman
 settings. Both schema toggles default to enabled; each wrapper is a no-op when
 its executable is not installed. RTK remains optional and is never advertised
-as used merely because its setting is enabled. Only eligible plain commands are
-wrapped; pipes, redirects, substitutions and other shell syntax remain
+as used merely because its setting is enabled. Only eligible plain commands
+are wrapped; pipes, redirects, substitutions and other shell syntax remain
 unchanged. FreeCode does not silently install either external optimizer.
 
 ## OCR boundary
@@ -124,7 +124,10 @@ the helper is unavailable or returns empty/invalid output.
 
 ```text
 resources/freecode/
-  opencode2api/<windows-binary>
+  phoenix/freellmpool-win-x64.exe
+  phoenix/freecode-build-receipt.json
+  phoenix/phoenix-model-ids.json
+  phoenix/LICENSE
   tesseract/tesseract.exe
   tesseract/*.dll
   tesseract/tessdata/eng.traineddata
@@ -142,9 +145,11 @@ per-user Windows application data path.
 
 - The renderer receives only `window.freecode` from the isolated preload.
 - Secrets are read from the host vault and injected into child environments;
-  they are not copied into global `process.env`.
-- Local services bind to `127.0.0.1` on free ports; occupied ports are skipped.
-  Public proxies only tunnel verified TLS; they see host, timing and volume.
+  they are not copied into global `process.env`. Phoenix receives a random
+  per-run API key only in its contained child environment.
+- Phoenix and DSH bind to `127.0.0.1` on OS-assigned ports; only the Phoenix
+  process launched by the shell is supervised. Phoenix forwards requests to
+  its allowlisted external providers, which receive request contents.
 - MCP server arguments are arrays, not shell strings, and their stderr is
   bounded. Tool-call logs omit arguments and image data.
 - OCR validates paths, size and output and does not log sensitive content.
@@ -173,7 +178,7 @@ edits are temporary working changes until represented by a patch. See
 
 ## Windows release scope
 
-v0.9.2 publishes only Windows x64 NSIS and portable artifacts. Linux/macOS are
-contributor-only manual builds and have no release gate, no binary upload and
-no claim of parity. The final local gate is documented in
-[`docs/RELEASE.md`](RELEASE.md).
+v1.0.1 targets Windows x64 NSIS and portable artifacts only. This source
+candidate is not yet packaged or published. Linux/macOS are contributor-only
+manual builds and have no release gate, no binary upload and no claim of
+parity. The local release gate is documented in [`docs/RELEASE.md`](RELEASE.md).

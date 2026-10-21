@@ -1,49 +1,49 @@
 # Known issues / Problemas conocidos
 
-Última sincronización documental / Last documentation sync: 2026-10-16
-Última release publicada / Latest published release: `v0.9.5`
+Última sincronización documental / Last documentation sync: 2026-10-20
+Última release desktop publicada / Latest published desktop release: `v1.0.0`
 
 ## Estado actual / Current status
 
-Fuente candidata / Candidate source: `v0.9.6`; DSH `0.2.1-alpha.9` (ABI 149).
-**Estado candidato:** v0.9.6 aún no está publicada. Faltan la prueba pública de caché vacía y la verificación final de setup/portable; una precarga local no las reemplaza.
+Fuente candidata / Candidate source: `v1.0.1`; DSH `0.2.1-alpha.11` (ABI 149).
+**Estado candidato:** v1.0.1 reemplaza OpenCode2API por Phoenix/FreeLLMpool 0.13.0 y todavía no está publicada. No se compilaron setup/portable ni se ejecutó el gate público de caché DSH vacía; una precarga local no los reemplaza.
 
-**Candidate status:** v0.9.6 is not published yet. Public clean-cache proof and final setup/portable verification are pending; do not substitute a local preload.
+**Candidate status:** v1.0.1 replaces OpenCode2API with Phoenix/FreeLLMpool 0.13.0 and is not published. Setup/portable and the public empty-cache DSH gate have not run; a local preload is not a substitute.
 
-En v0.9.6 sólo se soporta Windows x64; Windows ARM64, Linux y macOS no están
-probados ni soportados. Se conservan Tor, OpenCode Free, Gentle AI, contexto/
-effort por modelo y 13 fondos Hermes. El runtime se descarga por separado
-con SHA-256; hace falta Internet sin caché válida. Ver [notas](../release-notes-v0.9.6.md).
+v1.0.1 sólo se soporta Windows x64; Windows ARM64, Linux y macOS no están
+probados ni soportados. Phoenix va empaquetado y verificado en la candidata. DSH
+alpha.11 sigue como runtime separado que se descarga con SHA-256; hace falta
+Internet si no hay caché válida. Ver [notas candidatas](../release-notes-v1.0.1.md).
 
-v0.9.6 supports Windows x64 only; other platforms are untested/unsupported.
-The runtime remains a separate first-launch download requiring Internet without
-a valid cache. Upstream model quota and optional PATH helpers remain limitations.
+v1.0.1 targets Windows x64 only; other platforms are untested/unsupported.
+Phoenix is bundled and verified in the candidate. DSH alpha.11 remains a
+separate SHA-256-verified first-launch download requiring Internet without a
+valid cache. Upstream model availability and optional PATH helpers remain limitations.
 
 ## Limitaciones operativas / Operational limitations
 
 ### KI-001 — Free Pool availability is external / La disponibilidad del Free Pool es externa
 
-The OpenCode Free route depends on the local bridge, available workers, provider/session limits, and network conditions. A pool can temporarily report zero workers, retry, or lose a stream even when the API key is valid. FreeCode retries bounded failures and reports the pool state, but it cannot remove upstream, IP, quota, or network limits.
+Phoenix FreeLLMpool routes depend on upstream provider availability, model limits and network conditions. A route may report no eligible model or lose a request even when the local gateway is healthy. A concrete model selection is a strict pin and returns its failure without changing models. Auto Phoenix is the only selection that can try another eligible free route, and only before stream bytes are committed; an in-progress stream is never switched. This cannot remove provider, quota, IP or network limits.
 
-La ruta OpenCode Free depende del puente local, los workers disponibles, los límites de proveedor/sesión y la red. El pool puede informar temporalmente cero workers, reintentar o perder un stream aunque la API key sea válida. FreeCode reintenta fallos acotados e informa el estado del pool, pero no puede eliminar límites upstream, de IP, cuota o red.
+Las rutas Phoenix FreeLLMpool dependen de la disponibilidad upstream, límites de modelos y red. Una ruta puede no tener modelos elegibles o perder una solicitud aunque el gateway local esté sano. Elegir un modelo concreto lo fija estrictamente y devuelve su error sin cambiar de modelo. Solo Auto Phoenix puede probar otra ruta gratuita elegible y únicamente antes de confirmar bytes del stream; nunca se cambia una ruta durante un stream. Esto no elimina límites de proveedor, cuota, IP o red.
 
 ### KI-002 — Separate first-launch runtime download / Descarga del runtime en el primer inicio
 
-The current setup/portable are about 180 MB; see the bilingual release notes for
-exact hashes and sizes. The DSH runtime is not inside either desktop installer.
-A first launch without a valid cache downloads the separate pinned
-`0.2.1-alpha.9` Windows x64 runtime archive (~421.5 MB),
-then caches the validated runtime per user for offline later starts. This
-network/download step is part of the current packaging, not by itself evidence
-that the application is hung.
+The v1.0.1 desktop package has not been built, so its size and hashes are not
+known. DSH is separate from setup/portable: the current source pins
+`0.2.1-alpha.11` for Windows x64, downloaded and verified on first launch, then
+cached per user. Earlier v0.9.4/v0.9.5 releases used alpha8 (`0.2.1-alpha.9`);
+those historical assets do not satisfy the current pin. Network retrieval is
+expected when the cache is absent and is not by itself evidence of a hang.
 
-El setup/portable actual pesan cerca de 180 MB; consulta las notas bilingües
-para tamaños y hashes exactos. Ninguno incluye el runtime DSH. En un primer
-inicio sin caché válida se descarga por separado el runtime Windows x64 fijado
-en `0.2.1-alpha.9` (~421,5 MB), y después de
-validarlo se guarda por usuario para los arranques sin conexión. Este paso de
-red/descarga forma parte del empaquetado actual y, por sí solo, no indica que
-la aplicación esté colgada.
+El paquete desktop v1.0.1 todavía no se compiló, así que no se conocen su tamaño
+ni hashes. DSH va separado de setup/portable: la fuente actual fija
+`0.2.1-alpha.11` para Windows x64, que se descarga y verifica al primer inicio
+y luego se guarda en caché por usuario. Las releases anteriores v0.9.4/v0.9.5
+usaban alpha8 (`0.2.1-alpha.9`); esos assets históricos no satisfacen el pin
+actual. La descarga cuando falta caché es esperada y no demuestra por sí sola
+que la app esté colgada.
 
 ### KI-003 — RTK/Caveman are PATH helpers, not bundled / RTK/Caveman son helpers por PATH, no empaquetados
 
@@ -81,49 +81,37 @@ Cambiar de proveedor puede recuperar la solicitud sólo si el modelo seleccionad
 
 ### KI-006 — Anonymous lane quota is external / La cuota del lane anónimo es externa
 
-The single `deepseek-free` lane (opencode2api) depends on shared opencode.ai
-quota: under congestion it offers few models or hides until recovery (bounded
-retries, then the 30-minute cadence). This is an upstream limit, not an app
-defect.
+**Historical, superseded in v1.0.1:** the old `deepseek-free` OpenCode2API lane
+depended on shared opencode.ai quota. Phoenix obtains its allowlisted catalog
+from pinned FreeLLMpool; provider availability and quota remain external
+operational limits, as described in KI-001.
 
-El lane único `deepseek-free` (opencode2api) depende de la cuota compartida de
-opencode.ai: con congestión ofrece pocos modelos o se oculta hasta recuperarse
-(reintentos acotados, luego cadencia de 30 minutos). Es un límite del upstream,
-no un defecto de la app.
+**Histórico, reemplazado en v1.0.1:** el antiguo lane `deepseek-free` de
+OpenCode2API dependía de la cuota compartida de opencode.ai. Phoenix obtiene
+ahora su catálogo permitido desde FreeLLMpool fijado; la disponibilidad y cuota
+del proveedor siguen siendo límites operativos externos, como describe KI-001.
 
 ### KI-007 — Non-Windows platforms untested / Plataformas no-Windows sin probar
 
 Windows ARM64, Linux and macOS were not tested by the maintainer and have
-no published artifacts. The bundled Tor payload (`tor.exe`, `geoip`,
-`geoip6`) is Windows-only. Contributor builds for those platforms must not be
-treated as usable releases.
+no published artifacts. v1.0.1 supports Windows x64 only; its Phoenix service
+is a Windows x64 executable and does not bundle Tor. Contributor builds for
+other platforms must not be treated as usable releases.
 
 Windows ARM64, Linux y macOS no fueron probados por el mantenedor y no
-tienen artefactos publicados. El payload de Tor incluido (`tor.exe`, `geoip`,
-`geoip6`) es solo para Windows. Los builds de contribuidores para esas
-plataformas no deben tratarse como releases utilizables.
+tienen artefactos publicados. v1.0.1 solo soporta Windows x64; el servicio
+Phoenix es un ejecutable Windows x64 y no incluye Tor. Los builds de
+contribuidores para otras plataformas no deben tratarse como releases utilizables.
 
 ### KI-008 — Tor is failover, not the default path / Tor es failover, no la ruta por defecto
 
-opencode2api is launched with `[direct, socks5://127.0.0.1:9050]`: the direct
-route is preferred, so normal latency is unchanged and Tor only carries
-traffic when direct egress fails. A `NEWNYM` rotation from the overlay is
-asynchronous — the new circuit takes effect within Tor's `MAXCLIENTSOCKSDELAY`
-window, not instantly. Ports 9050/9051 are preferred; if occupied, the manager
-allocates an ascending free pair and preserves that endpoint across retries.
-Direct remains available during Tor startup, and the overlay displays its actual
-failure reason. Candidate v0.9.4 also verifies packaged Tor assets and isolates
-the user profile during its NSIS smoke.
+**Historical, superseded in v1.0.1:** the previous OpenCode2API/Tor egress
+rotation lane is no longer part of the active runtime or package. Phoenix uses
+its configured FreeLLMpool routes and does not bundle or control Tor.
 
-opencode2api se lanza con `[direct, socks5://127.0.0.1:9050]`: se prefiere la
-ruta directa, así que la latencia normal no cambia y Tor solo transporta
-tráfico cuando falla el egress directo. Una rotación `NEWNYM` desde el overlay
-es asíncrona — el circuito nuevo surte efecto dentro de la ventana de
-`MAXCLIENTSOCKSDELAY` de Tor, no al instante. 9050/9051 son puertos preferidos;
-si están ocupados, el manager asigna un par libre ascendente y conserva ese
-endpoint en los reintentos. La ruta directa sigue disponible mientras Tor
-inicia y el overlay muestra el motivo real si falla. La candidata v0.9.4 también
-verifica los assets Tor empaquetados y aísla el perfil en su smoke NSIS.
+**Histórico, reemplazado en v1.0.1:** el lane anterior de rotación de salida
+OpenCode2API/Tor ya no forma parte del runtime ni del paquete activo. Phoenix
+usa sus rutas FreeLLMpool configuradas y no incluye ni controla Tor.
 
 ### KI-009 — A semantic session tail can hide valid history / Un sufijo semántico puede ocultar historial válido
 

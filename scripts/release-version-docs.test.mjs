@@ -6,13 +6,34 @@ import test from 'node:test';
 const root = resolve(import.meta.dirname, '..');
 const read = (relativePath) => readFileSync(join(root, relativePath), 'utf8');
 
-test('root and shell metadata agree on 1.0.0 and require the GUI-broker alpha9 runtime', () => {
+test('root and shell metadata agree on 1.0.1 and keep the DSH alpha11 runtime pin', () => {
   const rootVersion = JSON.parse(read('package.json')).version;
   const shellVersion = JSON.parse(read('apps/shell/package.json')).version;
 
-  assert.equal(rootVersion, '1.0.0');
+  assert.equal(rootVersion, '1.0.1');
   assert.equal(shellVersion, rootVersion);
   assert.equal(JSON.parse(read('apps/shell/harness-runtime.json')).version, '0.2.1-alpha.11');
+  const phoenix = JSON.parse(read('apps/shell/resources/runtime-deps.json')).dependencies
+    .find((dependency) => dependency.id === 'phoenix');
+  assert.equal(phoenix?.required, true);
+  assert.equal(phoenix?.path, 'phoenix/freellmpool-win-x64.exe');
+});
+
+test('v1.0.1 bilingual candidate notes describe bundled Phoenix without claiming publication', () => {
+  const notes = read('release-notes-v1.0.1.md');
+  const english = notes.split('## English')[1]?.split('## Español')[0] ?? '';
+  const spanish = notes.split('## Español')[1] ?? '';
+  assert.match(notes, /^# FreeCode DeepSeek Harness v1\.0\.1/m);
+  assert.match(english, /candidate|not published/i);
+  assert.match(spanish, /candidata|no est[aá] publicada/i);
+  for (const section of [english, spanish]) {
+    assert.match(section, /Phoenix/i);
+    assert.match(section, /FreeLLMpool/i);
+    assert.match(section, /Auto/i);
+    assert.match(section, /strict|estrict/i);
+    assert.match(section, /not built|no se compil[oó]|pending|pendiente/i);
+  }
+  assert.doesNotMatch(notes, /v1\.0\.1 is published|v1\.0\.1 se public[oó]/i);
 });
 
 test('v0.9.6 release notes are bilingual and disclose the private-desktop boundary and clean-cache requirement', () => {
@@ -86,13 +107,14 @@ test('bilingual 0.9.4 notes identify the published release and retain candidate 
 const activeDocs = ['README.md', 'README.es.md', 'docs/RELEASE.md', 'docs/RELEASE.es.md',
   'docs/RELEASE-POLICY.md', 'docs/RELEASE-POLICY.es.md', 'docs/ROADMAP.md'];
 
-test('active EN/ES documents align current source, alpha.11, notes, containment and fresh output', () => {
+test('active documentation aligns the unpublished Phoenix v1.0.1 candidate, alpha.11 and containment', () => {
   for (const file of activeDocs) {
     const source = read(file);
-    assert.match(source, /v1\.0\.0/, file);
+    assert.match(source, /v1\.0\.1/, file);
     assert.match(source, /0\.2\.1-alpha\.11/, file);
-    assert.match(source, /release-notes-v1\.0\.0\.md/, file);
-    assert.match(source, /release-1\.0\.0-final-20261019/, file);
+    assert.match(source, /release-notes-v1\.0\.1\.md/, file);
+    assert.match(source, /release-1\.0\.1-candidate/, file);
+    assert.match(source, /Phoenix/i, file);
     // ROADMAP keeps the historical v0.9.x Tor entries; current docs must not.
     if (file !== 'docs/ROADMAP.md') assert.doesNotMatch(source, /bundled Tor|Tor incluido|tor\.exe/, file);
     assert.match(source, /headless-host/, file);
@@ -102,28 +124,41 @@ test('active EN/ES documents align current source, alpha.11, notes, containment 
   }
 });
 
-test('READMEs agree on version, support, first-run network and inherited features', () => {
+test('architecture, contracts and issue ledger describe Phoenix rather than an active OpenCode2API gateway', () => {
+  for (const file of ['docs/ARCHITECTURE.md', 'docs/CONTRACT-TESTS.md', 'docs/KNOWN-ISSUES.md']) {
+    const source = read(file);
+    assert.match(source, /Phoenix/i, file);
+    assert.match(source, /FreeLLMpool/i, file);
+    assert.doesNotMatch(source, /(?:active|current|single|bundled|included)[^\n]{0,80}opencode2api|opencode2api[^\n]{0,80}(?:active|current|single|bundled|included)/i, file);
+  }
+  const architecture = read('docs/ARCHITECTURE.md');
+  assert.match(architecture, /Auto[\s\S]{0,160}(?:strict|pin)|(?:strict|pin)[\s\S]{0,160}Auto/i);
+  assert.match(architecture, /freecode-launcher/);
+  const contracts = read('docs/CONTRACT-TESTS.md');
+  assert.match(contracts, /concrete[\s\S]{0,80}pin|pin[\s\S]{0,80}concrete/i);
+  assert.match(contracts, /Auto[\s\S]{0,160}(?:pre-stream|before streaming)/i);
+  assert.match(contracts, /v1\.0\.1/);
+});
+
+test('READMEs agree on Phoenix gateway, version, support and first-run network', () => {
   const en = read('README.md');
   const es = read('README.es.md');
-  assert.match(en, /Source version: 1\.0\.0/);
-  assert.match(es, /Versión de la fuente: 1\.0\.0/);
+  assert.match(en, /Source version: 1\.0\.1/);
+  assert.match(es, /Versión de la fuente: 1\.0\.1/);
   assert.match(en, /Windows x64 only/i);
   assert.match(es, /solo Windows x64/i);
   for (const doc of [en, es]) {
     assert.match(doc, /Internet/);
     assert.match(doc, /Hermes/);
-    assert.match(doc, /Engram and the\s+Gentle AI mode were removed|Engram y el\s+modo Gentle AI se eliminaron/);
-    assert.match(doc, /V094-21/);
-    assert.match(doc, /V094-35/);
-    assert.match(doc, /V094-37/);
-    assert.match(doc, /V094-38/);
-    assert.match(doc, /V094-39/);
-    assert.match(doc, /1\.4\.0/);
+    assert.match(doc, /FreeLLMpool/);
+    assert.match(doc, /Auto Phoenix/);
+    assert.match(doc, /strict|estrict/i);
     assert.match(doc, /pnpm release:gate/);
     assert.match(doc, /pnpm verify:desktop-release-assets/);
-    assert.match(doc, /v1\.0\.0.*GitHub|GitHub.*v1\.0\.0/);
+    assert.match(doc, /v1\.0\.0[\s\S]{0,80}histor|histor[\s\S]{0,80}v1\.0\.0/i);
     assert.match(doc, /runtime-0\.2\.1-alpha\.11/);
-    assert.match(doc, /Free models take a while to load|Los modelos free tardan un poco en cargar/);
+    assert.match(doc, /candidate|candidata/i);
+    assert.doesNotMatch(doc, /current[^\n]*opencode2api gateway|gateway opencode2api incluido/i);
     assert.doesNotMatch(doc, /start hidden, preventing console flashes|arrancan ocultos: no flashean/);
   }
 });
@@ -184,7 +219,7 @@ test('changelog and issue ledger distinguish 0.9.6 fixes from earlier releases a
   assert.match(issues, /0\.2\.1-alpha\.9/);
   assert.match(issues, /Windows x64 only/);
   assert.match(issues, /sólo se soporta Windows x64/);
-  assert.match(read('TODO-spanish-translations.md'), /baseline.*v0\.9\.6/);
+  assert.match(read('TODO-spanish-translations.md'), /baseline.*v1\.0\.1/);
 });
 
 test('release guides keep isolated hidden children, static desktop checks and no workstation installer smoke', () => {

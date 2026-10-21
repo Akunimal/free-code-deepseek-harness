@@ -1,11 +1,16 @@
 # Política de releases
 
-### Release actual: v1.0.0 (Windows x64)
+### Candidata de fuente actual: v1.0.1 (Windows x64)
 
 Las releases son manuales y tienen como target Windows x64. Esta política
 nunca autoriza tocar la instancia activa de FreeCode.
 
-**Estado de la release:** el setup y el portable finales de v1.0.0 para Windows x64 pasaron el gate completo sobre la fuente final, incluida la descarga pública del runtime con caché vacía; una precarga local no la reemplaza.
+**Estado de release:** v1.0.1 no está publicada. No se compilaron setup ni
+portable, y su gate de release todavía no corrió. La última release desktop
+publicada es v1.0.0. No presentes esta candidata como lista para instalar ni
+uses una precarga local como prueba pública de instalación limpia.
+
+El gate público de primer inicio con caché vacía sigue pendiente para v1.0.1.
 
 ## Prueba obligatoria de instalación limpia
 
@@ -23,28 +28,31 @@ procesos ajenos.
 
 ## Contención Windows y runtime
 
-v1.0.0 exige `headless-host` GUI, escritorio privado y Job asignado con el
+v1.0.1 exige `headless-host` GUI, escritorio privado y Job asignado con el
 destino suspendido, sin fallback directo. Las acciones GUI explícitas usan el
 broker autenticado. Las pruebas nativas adversarias de ventanas/descendientes
 y cierre del Job corren contra el helper exacto preparado y empaquetado;
 los strings de fuente no bastan. Ver [contención y límites](HEADLESS-DESKTOP.md).
 
-El pin actual es `0.2.1-alpha.11` (ABI 149), 423.195.661 bytes, SHA-256
+El pin separado de DSH es `0.2.1-alpha.11` (ABI 149), 423.195.661 bytes, SHA-256
 `396bc019a74ad71be0fa0e3074298fc41f1621713080d31cf990ae64b3282473`.
 Se publica en la pre-release [runtime-0.2.1-alpha.11](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/runtime-0.2.1-alpha.11) antes del gate; no
 se reemplaza ningún asset anterior. v0.9.5 publicó alpha9, v0.9.4 alpha8 y
 v0.9.2 alpha2: quedan como historia.
 OmniRoute sigue retirado. Se conservan sesiones y proveedores del usuario.
-La salida nueva es `apps/shell/release-1.0.0-final-20261019/` y los tamaños/
-hashes finales se registran en [notas bilingües](../release-notes-v1.0.0.md).
+Phoenix es un runtime FreeLLMpool 0.13.0 obligatorio, empaquetado para Windows
+x64 y verificado por hash y recibo antes del inicio. DSH sigue descargándose
+por separado en el primer inicio. Cuando se compile, la salida candidata será
+`apps/shell/release-1.0.1-candidate/`; todavía no hay hashes de artefactos
+v1.0.1. Ver las [notas bilingües candidatas](../release-notes-v1.0.1.md).
 
-Tras cambiar opencode2api o su overlay activo, recompilá con
-`bash scripts/build-opencode2api.sh`. También prepara el nuevo sidecar Windows
-sin regenerar DSH. El preflight rechaza receipts ausentes, fuentes cambiadas
-o bytes de un binario viejo; nunca prepara silenciosamente una build antigua
-sin verificar. El empaquetado actualiza los pins de versión/hash solo para
-opencode2api y DSH compilados localmente; acepta herramientas opcionales por
-PATH ausentes, pero exige assets requeridos presentes y con hashes válidos.
+Tras cambiar el source FreeLLMpool fijado o la configuración de build de
+Phoenix, recompilá y prepará el artefacto con `scripts/build-freellmpool.mjs`
+y `scripts/freellmpool-staging.mjs`. El preflight rechaza receipts ausentes,
+huellas de fuente cambiadas, arquitectura incorrecta o bytes de un binario
+viejo; nunca prepara silenciosamente una build antigua sin verificar. El
+empaquetado actualiza los pins locales de Phoenix/DSH; acepta herramientas
+opcionales por PATH ausentes, pero exige assets requeridos y hashes válidos.
 
 Antes de electron-builder, el gate revisa el CSS DSH real después de materializar
 el runtime y copiarlo a resources/freecode/dsh. También renderiza esas reglas
@@ -54,14 +62,16 @@ en 1,65 segundos. Con movimiento reducido, las animaciones se detienen sin
 oscurecer ninguno de los dos lavados. Si Chrome/Edge no está en una ruta habitual
 de Windows, configurá FREECODE_CHROME_PATH. La prueba usa un perfil temporal
 separado; no inicia FreeCode ni reutiliza el perfil del navegador personal.
+El gate también verifica el receipt de Phoenix fijado, el binario stageado,
+arquitectura, allowlist y digest.
 
 El smoke runtime de NSIS debe aislar APPDATA, LOCALAPPDATA, USERPROFILE, HOME y
 las rutas temporales: `--user-data-dir` de Chromium no redirige por sí solo
 `app.getPath('userData')` de Electron. Sin un perfil privado, el smoke puede
 dejar la config del gateway apuntando a su instalación temporal eliminada.
 
-La release desktop v1.0.0 contiene setup NSIS, portable, blockmap del setup y
-`latest.yml`. El runtime DSH separado tiene versión independiente: v1.0.0
+La futura release desktop v1.0.1 contendrá setup NSIS, portable, blockmap del setup y
+`latest.yml`. El runtime DSH separado tiene versión independiente: v1.0.1
 descarga el runtime Windows x64 exacto `0.2.1-alpha.11` desde la pre-release pública runtime-0.2.1-alpha.11,
 que también incluye el checksum SHA-256. El gate verifica el archivo fijado
 local y el manifest empaquetado; nunca vuelve a generar, elimina ni reemplaza
@@ -81,9 +91,9 @@ nueva y aislada, y verificá exactamente esa carpeta:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.0-final-20261019'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-candidate'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.0-final-20261019
+pnpm verify:desktop-release-assets apps/shell/release-1.0.1-candidate
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
@@ -130,7 +140,7 @@ setup exacto:
 ```powershell
 $env:FREECODE_ALLOW_INTERACTIVE_NSIS_SMOKE = '1'
 $env:FREECODE_NSIS_SMOKE_ENV = 'disposable-vm'
-$env:FREECODE_NSIS_SETUP_PATH = 'C:\path\to\exact\FreeCode-DeepSeek-Harness-1.0.0-win-x64-setup.exe'
+$env:FREECODE_NSIS_SETUP_PATH = 'C:\path\to\exact\FreeCode-DeepSeek-Harness-1.0.1-win-x64-setup.exe'
 pnpm --filter @freecode/shell smoke:nsis
 ```
 

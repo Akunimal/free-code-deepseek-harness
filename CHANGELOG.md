@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.0.1 — Local candidate / Candidata local — 2026-10-20
+
+See [bilingual candidate notes / notas bilingües de la candidata](release-notes-v1.0.1.md).
+
+- Replaced the active OpenCode2API gateway with the bundled, pinned Phoenix
+  gateway built from FreeLLMpool 0.13.0. The Windows x64 executable, MIT
+  license, model allowlist and source/build receipt are verified before startup.
+- Added **Auto Phoenix** and strict concrete model selection. Explicit model
+  failures never switch models; Auto may retry eligible free routes only before
+  streaming starts and never changes route after the first response byte.
+- Removed OpenCode2API binaries, runtime dependencies, adapters, staging and
+  startup paths. The candidate does not need `C:\LocalAI`, external Python,
+  a separate FreeLLMpool install, or a pre-existing gateway service.
+- DSH `0.2.1-alpha.11` remains a separate first-launch runtime download.
+- Candidate only: setup/portable and the mandatory public clean-cache release
+  gate have not run. No release artifacts or first-install claim are available.
+
 ## 1.0.0 — Stable / Estable — 2026-10-19
 
 See [bilingual release notes / notas bilingües](release-notes-v1.0.0.md).

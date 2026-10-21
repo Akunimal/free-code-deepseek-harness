@@ -1,20 +1,46 @@
 # Roadmap / Hoja de ruta
 
-### Current release: v1.0.0 (Windows x64)
+### Current source candidate: v1.0.1 (Windows x64)
 
-FreeCode DeepSeek Harness v1.0.0 runs the free OpenCode models through the bundled opencode2api gateway with no Tor: direct first, and a demand-driven egress proxy lane only when OpenCode Zen blocks the connection. Busy local ports are skipped, the DeepSeek API-key prompt is gone, `deepseek-v4.1-flash-free` is the preferred default, the selector shows a spinner while the free models load (this takes from a few seconds to about two minutes), and the reasoning effort starts at each model's own default. Engram and the Gentle AI mode were removed. Background process trees still use the verified `headless-host` helper. DSH `0.2.1-alpha.11` is a separate first-launch download, not bundled in setup/portable. See the [bilingual v1.0.0 release notes](../release-notes-v1.0.0.md).
+The v1.0.1 candidate replaces the active OpenCode2API integration with a
+self-contained Phoenix gateway built from pinned FreeLLMpool 0.13.0. It bundles
+the verified Windows x64 executable, model allowlist, MIT license and build
+receipt; it needs no `C:\LocalAI`, external Python, separate FreeLLMpool
+installation, or existing service/port. **Auto Phoenix** is first in the
+selector; concrete choices remain strict pins, while Auto retries eligible
+free routes only before streaming commits. DSH `0.2.1-alpha.11` remains a
+separate first-launch download. See the [bilingual v1.0.1 candidate notes](../release-notes-v1.0.1.md).
 
-**Release status:** the final Windows x64 setup and portable for v1.0.0 passed the full release gate on the final source, including the public empty-cache runtime download; do not substitute a local preload.
+All shell-owned background Windows process trees continue to launch through
+`freecode-launcher` and the verified GUI-subsystem `headless-host` helper.
 
-### Release actual: v1.0.0 (Windows x64)
+**Candidate status:** source only. Setup/portable and the mandatory public
+empty-cache DSH release gate have not run; v1.0.1 is not install-ready or
+published. The last published desktop release is historical [v1.0.0](../release-notes-v1.0.0.md).
 
-FreeCode DeepSeek Harness v1.0.0 usa los modelos gratuitos de OpenCode a través del gateway opencode2api incluido, sin Tor: primero directo, y un lane de proxies de salida solo cuando OpenCode Zen bloquea la conexión. Los puertos locales ocupados se saltean, ya no aparece el pedido de API key de DeepSeek, `deepseek-v4.1-flash-free` es el predeterminado preferido, el selector muestra un spinner mientras cargan los modelos free (tarda desde unos segundos hasta unos dos minutos) y el esfuerzo de razonamiento arranca en el predeterminado de cada modelo. Se eliminaron Engram y el modo Gentle AI. Los procesos de fondo siguen usando el helper verificado `headless-host`. DSH `0.2.1-alpha.11` es una descarga separada del primer inicio, no viene en setup/portable. Ver las [notas bilingües de v1.0.0](../release-notes-v1.0.0.md).
+### Previous published release / Release publicada anterior: v1.0.0
 
-**Estado de la release:** el setup y el portable finales de v1.0.0 para Windows x64 pasaron el gate completo sobre la fuente final, incluida la descarga pública del runtime con caché vacía; una precarga local no la reemplaza.
+The historical v1.0.0 setup and portable passed their full release gate,
+including the public empty-cache runtime download. This is evidence for that
+release only, not for the v1.0.1 candidate.
 
-Baseline: `v1.0.0`
-Previous published baseline / Baseline publicada anterior: `v0.9.6`.
-Runtime: `0.2.1-alpha.11`; output / salida: `apps/shell/release-1.0.0-final-20261019/`.
+La candidata v1.0.1 reemplaza la integración activa de OpenCode2API por Phoenix,
+un gateway autocontenido compilado desde FreeLLMpool 0.13.0 fijado. Incluye el
+ejecutable Windows x64 verificado, allowlist, licencia MIT y receipt de build;
+no requiere `C:\LocalAI`, Python externo, FreeLLMpool instalado aparte ni un
+servicio/puerto preexistente. **Auto Phoenix** aparece primero: los modelos
+concretos quedan fijados estrictamente y solo Auto reintenta rutas gratuitas
+antes de iniciar el stream. DSH `0.2.1-alpha.11` sigue descargándose por
+separado en el primer inicio. Ver las [notas candidatas bilingües v1.0.1](../release-notes-v1.0.1.md).
+
+**Estado candidato:** solo fuente. No se compilaron setup/portable ni se corrió
+el gate público obligatorio de DSH con caché vacía; v1.0.1 no está lista para
+instalar ni publicada. La última release desktop publicada sigue siendo la
+histórica [v1.0.0](../release-notes-v1.0.0.md).
+
+Baseline actual publicada: `v1.0.0`; fuente candidata: `v1.0.1`.
+Runtime DSH: `0.2.1-alpha.11`; salida prevista, todavía inexistente:
+`apps/shell/release-1.0.1-candidate/`.
 
 ## Estrategia de ahorro de contexto / Context-efficiency strategy
 
@@ -29,9 +55,26 @@ RTK and Caveman are not enabled together by default: they may complement each ot
 
 ## En curso / In progress
 
-v1.0.0: publicada con runtime alpha.11, gate público clean-cache en verde. / Published with runtime alpha.11; public clean-cache gate passed.
+v1.0.1: source candidate only; setup/portable and public clean-cache DSH gate pending. / Candidata de fuente; setup/portable y gate público de caché vacía DSH pendientes.
 
 ## Completado / Completed
+
+### `v1.0.1` — Phoenix FreeLLMpool gateway / Gateway Phoenix FreeLLMpool
+
+**Status / Estado:** local source candidate only; no desktop assets, clean-cache
+proof or publication / solo candidata local de fuente; sin artefactos desktop,
+prueba de caché vacía ni publicación.
+
+1. **Gateway:** replace the active OpenCode2API runtime, adapter and packaging
+   with the pinned, bundled Phoenix FreeLLMpool 0.13.0 Windows x64 service.
+2. **Models:** expose Auto Phoenix first and allowlisted concrete models after
+   it. A concrete model is strict; Auto alone has bounded pre-stream fallback;
+   no route changes after streaming begins.
+3. **Self-contained install:** no `C:\LocalAI`, external Python, separate
+   FreeLLMpool install or existing local port is required. Verify the bundled
+   binary hash, architecture and source/build receipt before startup.
+4. **Release pending:** setup/portable, package gate and public clean-cache DSH
+   smoke remain unverified; the existing v1.0.0 tag/release stays untouched.
 
 ### `v0.9.5` — Clean runtime bootstrap and Pool Status lifecycle / Bootstrap limpio de runtime y ciclo de Estado del pool
 

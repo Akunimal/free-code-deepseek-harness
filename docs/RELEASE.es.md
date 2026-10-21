@@ -1,149 +1,128 @@
 # Release y packaging
 
-### Release actual: v1.0.0 (Windows x64)
+### Candidata de fuente actual: v1.0.1 (Windows x64)
 
-FreeCode DeepSeek Harness v1.0.0 usa los modelos gratuitos de OpenCode a través del gateway opencode2api incluido, sin Tor: primero directo, y un lane de proxies de salida solo cuando OpenCode Zen bloquea la conexión. Los puertos locales ocupados se saltean, ya no aparece el pedido de API key de DeepSeek, `deepseek-v4.1-flash-free` es el predeterminado preferido, el selector muestra un spinner mientras cargan los modelos free (tarda desde unos segundos hasta unos dos minutos) y el esfuerzo de razonamiento arranca en el predeterminado de cada modelo. Se eliminaron Engram y el modo Gentle AI. Los procesos de fondo siguen usando el helper verificado `headless-host`. DSH `0.2.1-alpha.11` es una descarga separada del primer inicio, no viene en setup/portable. Ver las [notas bilingües de v1.0.0](../release-notes-v1.0.0.md).
+v1.0.1 reemplaza el gateway activo OpenCode2API por Phoenix FreeLLMpool 0.13.0,
+fijado y empaquetado como ejecutable Windows x64. Phoenix incluye licencia MIT,
+allowlist de modelos y receipt de fuente/build; antes del inicio se verifican
+hash, procedencia y arquitectura. No requiere `C:\LocalAI`, Python local, otra
+instalación de FreeLLMpool ni un servicio/puerto preexistente. Auto Phoenix
+aparece primero. Un modelo concreto queda fijado estrictamente; solo Auto puede
+probar otra ruta gratuita elegible antes del primer byte del stream.
 
-**Estado de la release:** el setup y el portable finales de v1.0.0 para Windows x64 pasaron el gate completo sobre la fuente final, incluida la descarga pública del runtime con caché vacía; una precarga local no la reemplaza.
-
-Se conservan opencode2api v1.4.0 (gateway v1.4.1 con parches FreeCode), correcciones de catálogo V094-21, composer V094-35, indicador de carga V094-37, 13 fondos CSS/ASCII Hermes V094-38, contexto/esfuerzo V094-39 y el catálogo activo `profiles/web/cordis.patch.yml`.
+**Estado de release:** v1.0.1 es una candidata local de fuente, todavía no
+publicada. Setup y portable no se compilaron ni instalaron, y falta correr el
+gate completo. La última release desktop publicada es la histórica
+[v1.0.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
+No presentes la candidata como instalable ni como instalación limpia probada.
+Notas candidatas: [v1.0.1 bilingües](../release-notes-v1.0.1.md).
 
 ## Baseline actual
 
-La fuente y los artefactos corresponden a v1.0.0. El runtime separado alpha.11
-se publica en la pre-release [runtime-0.2.1-alpha.11](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/runtime-0.2.1-alpha.11) antes del gate
-público limpio; no se reemplazan los binarios desktop ni tags anteriores. La
-versión desktop anterior (v0.9.6) usaba alpha9 desde v0.9.5. Solo Windows x64 está soportado.
-Los hashes nuevos se registran en las notas después de verificar los artefactos.
-La salida final nueva es `apps/shell/release-1.0.0-final-20261019/`.
+La fuente está en versión 1.0.1. El runtime DSH continúa como asset inmutable
+separado `0.2.1-alpha.11` para Windows x64 (ABI 149), que se descarga en el
+primer inicio cuando no hay caché por usuario válida. Su smoke público con
+caché vacía sigue siendo obligatorio. Phoenix sí viene en el payload desktop
+y se verifica localmente por hash/receipt; no se descarga aparte en el primer
+inicio. Cuando se compile, la salida aislada será
+`apps/shell/release-1.0.1-candidate/`. Todavía no existen tamaños ni hashes de
+setup/portable v1.0.1. Los artefactos, tags y carpetas anteriores son historia
+inmutable y no deben sobrescribirse.
 
 ## Build local de Windows
 
-Ejecutá desde PowerShell en Windows x64. El gate no instala ni inicia la GUI de
-FreeCode ni ejecuta el setup final; sí inicia hijos ocultos propios de prueba, Electron-as-Node/CLI DSH, Chromium
-aislado para el renderer CSS y fixtures MCP dentro de scratch. Además de validar
-el runtime fijado local, prueba la descarga real desde la release pública con
-perfil/caché nuevos y vacíos mediante el bootstrap/updater de producción.
+Ejecutá solo en Windows x64. El gate obligatorio `pnpm release:gate` **no instala ni inicia la GUI de FreeCode**.
+Sí crea hijos headless/ocultos propios del test
+(CLI DSH, Electron-as-Node, fixtures), Chromium aislado y el helper exacto
+`freecode-launcher` + `headless-host` preparado/empaquetado, todos en scratch.
+Comprueba el payload Phoenix fijado,
+compila y verifica el paquete desktop, y prueba una descarga real de DSH desde
+un perfil/caché vacíos mediante el bootstrap/updater de producción. Ese smoke
+valida el SHA-256 público de GitHub, extracción, manifest, ABI de Electron
+empaquetada e inicio oculto del CLI. No reconstruye el archivo DSH inmutable.
+Si falla red/asset público, checksum, layout, ABI o arranque, se bloquea la
+publicación.
+
+Cuando pase el gate, compilá en una carpeta nueva y verificá esos artefactos
+exactos:
 
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.0-final-20261019'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-candidate'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.0-final-20261019
+pnpm verify:desktop-release-assets apps/shell/release-1.0.1-candidate
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
-El gate ejecuta tests, contratos, typechecks, build/preflight y un smoke MCP
-offline con fixtures stdio del repositorio y un proveedor mock de loopback;
-descarga el runtime público exacto `0.2.1-alpha.11` a un perfil/caché scratch
-vacíos mediante el bootstrap/updater de producción, valida SHA-256, extracción,
-manifest, ABI Electron e inicio oculto del CLI, y compila un setup NSIS temporal
-para validación estática. Los procesos usan rutas scratch; el smoke MCP no
-hereda credenciales ni ejecuta servidores de terceros. La limpieza apunta sólo
-al árbol PID DSH propio y al scratch; nunca enumera ni termina procesos ajenos.
-El gate no ejecuta el setup ni la GUI de FreeCode y no modifica accesos
-directos/registro del usuario. El build final crea ambos targets Windows en una carpeta
-versionada nueva. `verify:desktop-release-assets` valida los PE exactos de setup
-y portable, el blockmap, versión/ruta/tamaño/SHA-512 de `latest.yml`, y reporta
-los hashes SHA-256 de los artefactos. Este check no inicia ninguno de los
-ejecutables.
+`verify:desktop-release-assets` comprueba los PE de setup/portable, blockmap,
+versión/ruta/tamaño/SHA-512 de `latest.yml` y hashes SHA-256. No ejecuta
+ninguno. `build:desktop` no reemplaza una carpeta de salida no vacía salvo que
+se habilite explícitamente. Conservá todos los artefactos anteriores e
+históricos.
 
-Los comandos son locales y no usan GitHub Actions. Si faltan recursos
-obligatorios, el gate falla en vez de saltearlos silenciosamente.
-
-Los artefactos desktop v1.0.0 quedan en el directorio final aislado:
-
-~~~
-apps/shell/release-1.0.0-final-20261019/FreeCode-DeepSeek-Harness-1.0.0-win-x64-setup.exe
-apps/shell/release-1.0.0-final-20261019/FreeCode-DeepSeek-Harness-1.0.0-win-x64-setup.exe.blockmap
-apps/shell/release-1.0.0-final-20261019/FreeCode-DeepSeek-Harness-1.0.0-win-x64-portable.exe
-apps/shell/release-1.0.0-final-20261019/latest.yml
-apps/shell/release-1.0.0-final-20261019/win-unpacked/FreeCode DeepSeek Harness.exe
-~~~
-
-Los artefactos v0.9.4 permanecen como historial en su carpeta original:
-
-~~~
-apps/shell/release-0.9.4-final-20261016/FreeCode-DeepSeek-Harness-0.9.4-win-x64-setup.exe
-apps/shell/release-0.9.4-final-20261016/FreeCode-DeepSeek-Harness-0.9.4-win-x64-setup.exe.blockmap
-apps/shell/release-0.9.4-final-20261016/FreeCode-DeepSeek-Harness-0.9.4-win-x64-portable.exe
-apps/shell/release-0.9.4-final-20261016/latest.yml
-apps/shell/release-0.9.4-final-20261016/win-unpacked/FreeCode DeepSeek Harness.exe
-~~~
-
-Los nombres se generan desde la versión del paquete y se verifican después de
-empaquetar; no copies un nombre viejo en una release nueva. `build:desktop`
-rechaza reemplazar un destino no vacío salvo opt-in explícito. Nunca borres ni
-sobrescribas salidas históricas a la fuerza. El smoke interactivo `smoke:nsis`
-se excluye del gate regular porque modifica estado por usuario y lanza
-procesos; sólo se permite dentro de una VM/cuenta Windows desechable con los
-opt-ins explícitos de la [política de release](RELEASE-POLICY.es.md).
+La carpeta candidata todavía no existe. No inventes nombres ni hashes:
+registralos en las notas bilingües solo tras compilar y verificar los artefactos
+exactos.
 
 ## Política de dependencias runtime
 
-Los instaladores desktop v1.0.0 contienen Electron, el gateway opencode2api
-(único gateway de modelos — freellmpool eliminado en 0.8.0; sin Tor), archivos
-nativos del picker y Tesseract. El runtime DSH se excluye intencionalmente de setup/portable y se
-distribuye como asset separado. RTK, Caveman y free-search no están empaquetados:
-siguen como helpers opcionales por PATH, y las entradas MCP irresolubles
-arrancan deshabilitadas. El cierre instalado enumera versión, arquitectura,
-origen, licencia, hash y ruta relativa en `runtime-deps.json`, verificado por
-`verify-runtime-dependencies.mjs`.
+El payload desktop v1.0.1 incluye Phoenix, Electron, archivos nativos del picker
+y Tesseract. `apps/shell/resources/runtime-deps.json` registra versiones,
+arquitectura, origen, licencia, SHA-256, argumentos de inicio y rutas relativas.
+`freellmpool-staging.mjs` verifica el pin inmutable de fuente/toolchain, receipt
+de build y bytes stageados exactos antes de empaquetar. No queda activo ni se
+empaqueta binario, adaptador, source o pipeline de OpenCode2API.
 
-En el primer inicio de v1.0.0, si no hay una caché válida por usuario, se descarga el runtime DSH alpha.11
-(`0.2.1-alpha.11`) Windows x64 exacto desde la pre-release pública runtime-0.2.1-alpha.11,
-verifica el SHA-256 publicado y la ABI de Electron, y lo guarda en
-`<userData>/harness-runtime`. Los inicios siguientes pueden usar esa caché
-validada sin conexión. Esa descarga requiere Internet; si falla la descarga o compatibilidad, el supervisor no
-debe iniciarse y se ofrecen Reintentar/Cerrar.
+El runtime DSH se excluye de setup/portable y solo se obtiene por separado al
+primer inicio. Usa el asset público `runtime-0.2.1-alpha.11` y su SHA-256; los
+inicios posteriores reutilizan la caché por usuario validada. Si falta el
+runtime, no es válido o falla la descarga inicial, DSH debe permanecer detenido
+y ofrecer Reintentar/Cerrar. El packaging desktop habitual no reconstruye el
+runtime. Ejecutá `pnpm package:runtime:release` solo si cambia intencionalmente
+su versión; las versiones publicadas son inmutables.
 
-El runtime se publica como asset separado del instalador. Antes de guardarlo,
-se verifica el digest SHA-256 de GitHub y la ABI/manifest; si falla la descarga
-o compatibilidad, DSH no se inicia y se ofrecen Reintentar/Cerrar.
-Sólo un cambio intencional del runtime permite ejecutar `pnpm
-package:runtime:release`; las versiones de runtime ya publicadas son inmutables.
+RTK, Caveman y free-search siguen como herramientas opcionales por PATH, no
+forman parte del runtime de proveedores Phoenix. Si falta una herramienta MCP
+opcional, arranca deshabilitada y no bloquea FreeCode.
 
-## Publicación sólo Windows
+## Publicación solo Windows
 
-Ningún artefacto Linux, macOS o Windows-ARM64 es asset oficial, y ninguna
-de esas plataformas fue probada por el mantenedor. Los contribuidores pueden
-compilar en un host nativo, pero un binario generado fuera de su plataforma
-no es evidencia de usabilidad y no debe anunciarse sin testing real en ella.
-No mezcles node_modules de Windows y WSL; reinstalá dependencias para el
-sistema operativo activo.
+Windows x64 es el único target de release soportado. Linux, macOS y Windows
+ARM64 no son artefactos oficiales ni deben declararse utilizables sin pruebas
+nativas. No mezcles `node_modules` de Windows y WSL.
 
-El repositorio no tiene workflow de release. Los pushes no compilan ni
-publican instaladores. La publicación es manual, después del gate local no
-interactivo, la verificación estática de hashes exactos, la revisión de notas
-bilingües y el lock del ledger. Una prueba de instalación no es un gate
-obligatorio en la workstation; si hace falta, usá sólo una VM desechable.
+No hay workflow de release en GitHub. Los pushes no compilan ni publican
+instaladores. Publicar es una acción manual separada que requiere pasar el gate,
+verificar los artefactos exactos, revisar las notas bilingües y tener
+autorización explícita. El smoke interactivo de instalación no forma parte del
+gate normal: instalar/iniciar/desinstalar solo se valida en una VM/cuenta
+Windows expresamente desechable.
 
-## Updater y actualizaciones del runtime
+## Updater y cambios de upstream
 
-El updater de la aplicación no reemplaza al gate de release. Debe conservar el
-control con forma de Enviar y flecha hacia abajo, chequear al iniciar y en su
-intervalo programado, mostrar progreso en tray/notificación durante descarga e
-instalación y respetar los datos del usuario. Nunca ofrece runtimes
-DSH más viejos aparezcan como actualizaciones disponibles.
+El updater no reemplaza el gate. Conserva el botón circular de Enviar con flecha
+hacia abajo, revisa al inicio y en su intervalo, muestra progreso en tray y
+notificación, y preserva los datos del usuario. Nunca ofrece un runtime DSH más
+viejo como actualización.
 
-El camino de actualización de upstream, sólo para el checkout fuente, es:
+El flujo de upstream, solo para el checkout fuente, es:
 
-~~~
+```text
 congelar evidencia
   -> actualizar/fetchear vendor/deepseek-harness
   -> pnpm apply:upstream-patches
   -> verificar manifest y replay
   -> test/typecheck/build/package
-~~~
+```
 
-Ver [docs/UPSTREAM-PATCHING.md](UPSTREAM-PATCHING.md) y
-[docs/RELEASE-POLICY.md](RELEASE-POLICY.md).
+Ver [política de release](RELEASE-POLICY.es.md),
+[contención headless](HEADLESS-DESKTOP.md) y
+[parches de upstream](UPSTREAM-PATCHING.md).
 
-## Historial y enlaces de release
+## Historial de versiones
 
-La release actual y sus notas: [v1.0.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0),
-[notas bilingües](../release-notes-v1.0.0.md). El runtime alpha.11 separado se
-sirve desde la pre-release [runtime-0.2.1-alpha.11](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/runtime-0.2.1-alpha.11).
-Los tags, notas y binarios desktop v0.9.6 y anteriores son historia inmutable.
-Ver la [guía en inglés](RELEASE.md) y [política](RELEASE-POLICY.es.md).
+La [release publicada v1.0.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0)
+y sus [notas](../release-notes-v1.0.0.md) son historia. v1.0.1 sigue sin
+publicarse hasta que pasen todos los gates obligatorios y el usuario autorice
+la publicación. Ver la [guía en inglés](RELEASE.md) y la [política](RELEASE-POLICY.es.md).

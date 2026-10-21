@@ -1,8 +1,17 @@
 # Contract tests
 
-Contract tests protect the seams between this shell, `opencode2api`, and the vendored DeepSeek Harness. They run before upstream subtree merges and manual releases. The local preflight builds the native `opencode2api` resources first and builds the adapter package before importing it, so the suite is valid from a clean checkout rather than depending on ignored local `dist/` or `resources/` output.
+Contract tests protect the seams between this shell, the bundled Phoenix /
+FreeLLMpool gateway and the vendored DeepSeek Harness. They run before
+upstream subtree merges and manual releases. The v1.0.1 candidate verifies the
+Phoenix source pin, build receipt, model allowlist, architecture, installed
+payload hash and lifecycle without requiring a machine-local service. The
+retired OpenCode2API implementation and adapter are no longer built or
+packaged; v1.0.0 and earlier release notes remain historical.
 
-The release contract also checks the portable Windows target, unique setup/portable artifact names, the actual fork owner/repository, and the manual-release policy. Pool unit coverage verifies the 1..16 account/worker slider clamp; the desktop overlay routes live changes through zod-validated preload IPC.
+The release contract also checks the portable Windows target, unique
+setup/portable artifact names, the actual fork owner/repository, and the
+manual-release policy. The Windows candidate targets v1.0.1; no artifact is
+considered release-ready before the real clean-cache runtime gate passes.
 
 Run them with:
 
@@ -16,12 +25,22 @@ pnpm test:contract
 2. `dsh web` still emits a loopback readiness URL.
 3. The `llm-pi-ai` README still documents `apiKeyEnv`, `baseURL`, and `openai-completions` provider fields.
 4. `POST /api` still accepts the `llm/listConfigurableProviders` client-request RPC envelope and reports the seeded provider with its current declared configuration shape.
-5. The load balancer serves `GET /v1/models` as `{ data: [{ id }] }`.
-6. The load balancer preserves SSE `data:` frames from `POST /v1/chat/completions`.
-7. The OpenCode worker binary still accepts `-port`, `-password`, and `-config`.
-8. The web root still serves parseable `window.__DSH_BOOT__` JSON; lazy entries may omit `immediately` and therefore mean `false`.
-9. The load balancer returns a JSON `503` when no worker is healthy.
-10. Every upstream client/web package is represented in `docs/UPSTREAM-FEATURES.md`; a new package fails this documentation contract until it is explained.
+5. The Phoenix adapter exposes the verified `auto` alias and concrete model
+   IDs; the selector keeps Auto first.
+6. A concrete model pin is routed only to its exact provider/model and does
+   not silently fall back after an error.
+7. Auto alone may retry eligible free routes pre-stream; it never changes
+   provider/model after streaming is committed.
+8. Cancellation releases pending route work and client errors do not poison
+   provider health.
+9. The installed Phoenix binary, receipt, model allowlist and license are
+   required and hash/architecture-verified; an old gateway cannot satisfy the
+   preflight.
+10. The web root still serves parseable `window.__DSH_BOOT__` JSON; lazy entries
+    may omit `immediately` and therefore mean `false`.
+11. Every upstream client/web package is represented in
+    `docs/UPSTREAM-FEATURES.md`; a new package fails this documentation contract
+    until it is explained.
 
 Tests that require a built upstream CLI are skipped in a bare checkout and become active after `pnpm build:vendor`. The manual release checklist builds the vendor first.
 

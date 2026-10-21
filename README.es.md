@@ -1,58 +1,84 @@
 # FreeCode DeepSeek Harness
 
-### Release actual: v1.0.0 (Windows x64)
+### Fuente actual: candidata v1.0.1 (Windows x64)
 
-FreeCode DeepSeek Harness v1.0.0 usa los modelos gratuitos de OpenCode a través del gateway opencode2api incluido, sin Tor: primero directo, y un lane de proxies de salida solo cuando OpenCode Zen bloquea tu conexión. Los puertos locales ocupados se saltean, ya no aparece el pedido de API key de DeepSeek, `deepseek-v4.1-flash-free` es el predeterminado preferido, el selector muestra un spinner mientras cargan los modelos free y el esfuerzo de razonamiento arranca en el predeterminado de cada modelo. Se eliminaron Engram y el modo Gentle AI. DSH `0.2.1-alpha.11` es una descarga separada del primer inicio, no viene en setup/portable. Ver las [notas bilingües de v1.0.0](release-notes-v1.0.0.md).
+La candidata v1.0.1 reemplaza el gateway activo OpenCode2API por Phoenix,
+incluido y verificado por hash/procedencia, compilado desde FreeLLMpool 0.13.0
+fijado. No requiere `C:\LocalAI`, Python ni FreeLLMpool instalado aparte, ni
+un servicio/puerto local preexistente. El selector muestra **Auto Phoenix**
+primero y después los modelos gratuitos permitidos. Elegir un modelo concreto
+lo fija estrictamente: un error no cambia silenciosamente de modelo. Solo Auto
+puede probar otra ruta gratuita elegible antes de iniciar el stream; nunca lo
+cambia a mitad de respuesta. El catálogo depende de proveedores externos, por
+lo que requiere Internet y disponibilidad upstream.
 
-**Los modelos free tardan un poco en cargar.** En el primer inicio y en cada reinicio la app prueba cada modelo gratuito antes de mostrarlo en el selector; suele tardar desde unos segundos hasta unos dos minutos, más si tu conexión necesita el lane de proxies. Mientras tanto el selector muestra "Cargando modelos free…" con un spinner. Las respuestas de los modelos free también pueden ser más lentas que las de APIs pagas.
+**Estado de release:** v1.0.1 es una candidata local, no está publicada. Aún
+no se compilaron ni instalaron setup/portable, y falta ejecutar el gate
+obligatorio de caché vacía. La última release desktop publicada es la histórica
+[v1.0.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
+Ver las [notas bilingües de la candidata v1.0.1](release-notes-v1.0.1.md) y
+el [historial de v1.0.0](release-notes-v1.0.0.md).
 
-Programación primero en Windows con modelos OpenCode Free: elegí un proyecto,
-describí el trabajo y dejá que el Harness local coordine archivos, herramientas,
-servidores MCP y llamadas al modelo.
+El runtime DSH `0.2.1-alpha.11` sigue descargándose por separado en el primer
+inicio; no viene en setup/portable. Una instalación limpia necesita Internet
+para descargar y verificar ese runtime público exacto. Phoenix sí va incluido
+en el payload desktop y se valida antes de arrancar.
+
+La UI de conversación conserva los fondos CSS/ASCII dinámicos inspirados en
+Hermes; son decorativos y no alteran el enrutamiento de modelos ni solicitudes.
+
+Programación primero en Windows: elegí un proyecto, describí el trabajo y dejá
+que el Harness local coordine archivos, herramientas, servidores MCP y llamadas
+a modelos a través de Phoenix.
 
 [Read this in English](README.md)
 
 ## Español
 
-## Estado actual: v1.0.0 (Windows x64)
+## Estado actual: candidata v1.0.1 (Windows x64)
 
-Versión de la fuente: 1.0.0; runtime fijado: `0.2.1-alpha.11`.
+Versión de la fuente: 1.0.1; runtime DSH fijado: `0.2.1-alpha.11`.
 
-**Estado de la release:** el setup y el portable finales de v1.0.0 para Windows x64 pasaron el gate completo de release sobre la fuente final, incluida la descarga pública del runtime con caché vacía.
+**Estado de release:** solo candidata. Setup/portable no compilados; no existe
+tag ni release v1.0.1. Antes de publicar siguen siendo obligatorios el smoke
+público de DSH con caché vacía y el gate completo.
 
-Se conservan opencode2api v1.4.0 (gateway v1.4.1 con parches FreeCode), correcciones de catálogo V094-21, composer V094-35, indicador de carga V094-37, 13 fondos CSS/ASCII Hermes V094-38, contexto/esfuerzo V094-39 y el catálogo activo `profiles/web/cordis.patch.yml`.
+La fuente v1.0.1 fija Phoenix a FreeLLMpool 0.13.0 e incluye su gateway
+Windows x64, allowlist, licencia MIT y recibo de fuente/build. DSH sigue como
+runtime alpha.11 inmutable y separado. Ver las notas históricas de
+[v1.0.0](release-notes-v1.0.0.md) para el gateway anterior.
 
-La release incluye setup NSIS, ejecutable portable de Windows, blockmap y
+La salida planeada es `apps/shell/release-1.0.1-candidate/` (todavía no
+compilada). Una release futura incluirá setup NSIS, ejecutable portable de Windows, blockmap y
 `latest.yml`. El runtime alpha.11 (~423 MB) y su SHA-256 se publican en la
 [pre-release runtime-0.2.1-alpha.11](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/runtime-0.2.1-alpha.11). Se necesita Internet
 sin caché válida. El gate obligatorio usa el bootstrap/updater de producción,
 perfil/caché vacíos, SHA-256, manifiesto, ABI de Electron y arranque de CLI
 oculto. No se publica si falla. Los runtimes anteriores no satisfacen alpha.11.
 
-**Privacidad del lane de proxies:** cuando Zen bloquea tu IP, FreeCode tunela
-el gateway por proxies SOCKS5 públicos que pasaron verificación TLS estricta
-contra cloudflare.com y opencode.ai. No pueden leer ni alterar tus pedidos,
-pero ven el host de destino, el horario y el volumen. Los modelos free y
-OpenCode tienen su propia telemetría; nada de esto es privado.
+Phoenix reenvía los pedidos a los proveedores upstream permitidos. Esos
+proveedores reciben el contenido y pueden aplicar sus propias políticas de
+disponibilidad, retención y telemetría; revisá sus condiciones antes de usarlo.
+FreeCode ya no agrega el pool de rotación de proxies de OpenCode2API.
 
 **Plataforma soportada: solo Windows x64**; Windows ARM64, Linux y macOS no
 están probados ni soportados. Los builds son locales sin GitHub Actions; los binarios no están firmados.
 Las releases anteriores conservan sus tags y binarios históricos.
 
-## Qué incluye
+## Qué incluye la candidata v1.0.1
 
-- **Lane único de modelos** (`deepseek-free`, etiquetado *OpenCode Free*)
-  servido por el gateway opencode2api incluido — modelos gratuitos anónimos,
-  sin keys. Este es el único gateway de modelos: freellmpool se eliminó en
-  0.8.0 y el lane duplicado `opencode-free` se consolidó en 0.9.0, de modo
-  que cada modelo aparece una sola vez en el selector. Solo los modelos que
-  responden un 200 real llegan al selector; los muertos se ocultan y el lane
-  se recupera solo cuando vuelve la cuota.
-- **Lane de proxies de salida, sin Tor** — opencode2api siempre intenta
-  `direct` primero. Solo cuando el catálogo muestra que Zen bloquea tu conexión
-  de forma persistente, la shell junta proxies SOCKS5 públicos, conserva los que
-  pasan TLS estricto y reinicia el gateway en el mismo puerto. Las
-  notificaciones aparecen solo cuando las rutas llegan a cero o vuelven.
+- **Gateway Phoenix + FreeLLMpool 0.13.0 incluido** — ejecutable Windows x64
+  verificado, licencia MIT, allowlist exacta de modelos y recibo de
+  fuente/build. No requiere Python local, `C:\LocalAI`, FreeLLMpool instalado
+  aparte ni dependencia del puerto 8095.
+- **Selector Phoenix** — Auto Phoenix primero, seguido por los IDs gratuitos
+  permitidos. Los modelos concretos permanecen fijados: ante un error se
+  devuelve el error, no se elige otro modelo a escondidas. Solo Auto puede
+  probar otra ruta elegible antes del primer byte del stream; nunca cambia a
+  mitad de la respuesta.
+- **Estado del catálogo** — muestra carga y fallos mientras se actualiza el
+  catálogo del proveedor; un upstream vacío o caído no se presenta como lista
+  exitosa.
 - La UI upstream de DeepSeek Harness, sesiones, workspaces, permisos y
   herramientas de archivos.
 - Una sola shell Electron y una sola generación del proceso `dsh` como objetivo
@@ -86,15 +112,17 @@ modo Gentle AI se eliminaron en 1.0.0; los modos Standard cubren su uso.
 
 ## Instalación y primer uso
 
-1. Descargá el setup o portable de Windows de la
-   [release v1.0.0 en GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
+1. Para la versión estable publicada, usá la release histórica
+   [v1.0.0 en GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
+   v1.0.1 sigue siendo candidata de fuente; todavía no hay instalador.
 2. Instalalo o descomprimilo y abrí el acceso directo/ejecutable real.
 3. Elegí la carpeta de tu proyecto en el picker.
 4. Esperá a que carguen los modelos free (spinner en el selector) y pedile al
    modelo que inspeccione o modifique el proyecto.
 
-El instalador v1.0.0 incluye Electron, el gateway opencode2api, las
-dependencias nativas y Tesseract (~178 MB). El runtime DSH grande se distribuye
+El payload desktop planeado de v1.0.1 incluye Electron, el gateway Phoenix,
+dependencias nativas y Tesseract. Setup/portable aún no se compilaron. El
+runtime DSH grande se distribuye
 como asset separado: en el primer inicio, FreeCode descarga el archivo Windows
 x64 fijado en `0.2.1-alpha.11` (~423 MB), verifica el SHA-256 de GitHub y ABI de
 Electron, y lo guarda en `<userData>/harness-runtime`. Los arranques siguientes
@@ -103,7 +131,7 @@ válida requiere Internet; si falla la descarga o validación, ofrece
 Reintentar/Cerrar y no inicia el Harness. Los MCP administrados todavía
 resuelven `uvx` (incluido, con fallbacks al PATH del usuario y descarga
 fijada). Si detecta una instalación incompleta, muestra el log y recomienda
-reinstalar desde la release oficial v1.0.0.
+reinstalar desde una release oficial publicada.
 
 El bootstrap de Windows reutiliza silenciosamente un `uvx.exe` ya instalado o
 descarga el ZIP oficial fijado de uv en una carpeta de herramientas por usuario,
@@ -201,7 +229,8 @@ distingue un fallo de permisos de uno de herramienta/MCP.
 
 ## Updater y versión
 
-About usa `app.getVersion()`, por lo que el binario empaquetado v1.0.0 dice 1.0.0.
+About usa `app.getVersion()`, por lo que un futuro binario empaquetado v1.0.1
+mostrará 1.0.1. La candidata actual todavía no está empaquetada.
 La app chequea updates al iniciar y cada seis horas. El control de actualizar
 es exactamente el botón circular primario de Enviar, con la flecha apuntando
 hacia abajo. Al descargar, tooltip/menú de tray y notificación nativa lo
@@ -256,7 +285,7 @@ limitado a vendor y fail-closed. No dejes una feature permanente como edición
 directa de `vendor/deepseek-harness`. Ver
 [docs/UPSTREAM-PATCHING.md](docs/UPSTREAM-PATCHING.md).
 
-## Gate local de Windows: v1.0.0
+## Gate local de Windows: candidata v1.0.1
 
 Ejecutá desde PowerShell en Windows x64. El gate no es interactivo en la
 interfaz desktop: compila un paquete NSIS en un directorio temporal único,
@@ -268,14 +297,14 @@ enumera ni termina procesos ajenos.
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.0-final-20261019'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-candidate'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.0-final-20261019
+pnpm verify:desktop-release-assets apps/shell/release-1.0.1-candidate
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 `build:desktop` crea setup y portable en la nueva carpeta
-`apps/shell/release-1.0.0-final-20261019/`; rechaza reemplazar una carpeta no vacía.
+`apps/shell/release-1.0.1-candidate/`; rechaza reemplazar una carpeta no vacía.
 `verify:desktop-release-assets` valida los PE exactos, el blockmap, los metadatos
 del updater y sus hashes sin iniciar ninguno de los ejecutables. El packaging
 desktop no reconstruye ni reemplaza el runtime DSH, que tiene su propia versión.
@@ -289,8 +318,8 @@ El runtime actual es alpha.11: se obtiene desde la
 no se admite una precarga local como prueba pública de primer inicio.
 
 La [release v1.0.0 en GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0)
-contiene los artefactos finales indicados en las notas bilingües. La salida nueva es
-`apps/shell/release-1.0.0-final-20261019/`; las carpetas históricas no se sobrescriben.
+es histórica; v1.0.1 todavía no se publicó. Si se compila, la salida nueva será
+`apps/shell/release-1.0.1-candidate/`; las carpetas históricas no se sobrescriben.
 El gate no instala ni inicia la GUI de FreeCode. El smoke interactivo instala,
 inicia y desinstala, por lo que solo se permite en una VM Windows desechable;
 no se ejecuta en la workstation ni junto a tu instancia.
@@ -298,7 +327,7 @@ Ver la [política de release](docs/RELEASE-POLICY.es.md).
 
 ## Builds manuales de otros sistemas
 
-Linux y macOS no son targets de release de v1.0.0, y Windows ARM64 tampoco
+Linux y macOS no son targets de release de v1.0.1, y Windows ARM64 tampoco
 está probado. Un contribuidor puede trabajar en un host nativo con Node,
 pnpm, Git, herramientas de build de Electron y dependencias nativas del
 sistema:
@@ -325,7 +354,7 @@ de [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harnes
 
 MIT — ver [LICENSE](LICENSE) y [NOTICE](NOTICE).
 
-Proyectos relacionados: [OpenCode2API](https://github.com/jasonxu114514/opencode2api),
+Proyectos relacionados: [FreeLLMpool](https://github.com/0xzr/freellmpool),
 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness),
 [RTK](https://github.com/rtk-ai/rtk),
 [Caveman](https://github.com/JuliusBrussee/caveman) y
@@ -333,14 +362,15 @@ Proyectos relacionados: [OpenCode2API](https://github.com/jasonxu114514/opencode
 
 ## English
 
-The complete English guide is [README.md](README.md). FreeCode mantiene el
-mismo inventario upstream, registro de hardening y procedimiento de release
-local en ambos idiomas.
+The complete English guide is [README.md](README.md). FreeCode uses its
+Phoenix/FreeLLMpool free-model catalog; both guides share upstream inventory,
+hardening and the local release policy.
 
 ## Índice de documentación
 
 - [Inventario de features upstream](docs/UPSTREAM-FEATURES.md)
-- [Notas de la release v1.0.0](release-notes-v1.0.0.md)
+- [Notas de candidata v1.0.1](release-notes-v1.0.1.md)
+- [Notas históricas de v1.0.0](release-notes-v1.0.0.md)
 - [Notas de la release v0.9.6](release-notes-v0.9.6.md)
 - [v0.9.5 — history / historial](release-notes-v0.9.5.md)
 - [Notas de la release v0.9.4](release-notes-v0.9.4.md)

@@ -1,6 +1,6 @@
 {
   "name": "@freecode/shell",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Electron main + preload for the free-code-deepseek-harness desktop shell",
   "type": "module",

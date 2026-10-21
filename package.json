@@ -1,6 +1,6 @@
 {
   "name": "free-code-deepseek-harness",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Windows x64 desktop shell for DeepSeek Harness powered by the bundled Phoenix FreeLLMpool gateway",
   "packageManager": "pnpm@11.22.0",
