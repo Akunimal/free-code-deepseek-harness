@@ -260,10 +260,12 @@ export class HarnessSupervisor {
       const val = process.env[key];
       if (val !== undefined) safeEnv[key] = val;
     }
+    const nodeOptions = [safeEnv.NODE_OPTIONS, '--max-http-header-size=65536'].filter(Boolean).join(' ');
     const env: Record<string, string> = {
       ...safeEnv,
       ...this.cfg.nodeEnv,
       DSH_HOME: this.cfg.homeDir,
+      NODE_OPTIONS: nodeOptions,
       ...(this.cfg.browserBridge ? {
         FREECODE_EMBEDDED_BROWSER_ENDPOINT: this.cfg.browserBridge.endpoint,
         FREECODE_EMBEDDED_BROWSER_TOKEN: this.cfg.browserBridge.token,

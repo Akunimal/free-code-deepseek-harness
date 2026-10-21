@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, Tray, WebContentsView, nativeImage, Notification, dialog, screen } from 'electron';
+import { app, BrowserWindow, Menu, Tray, WebContentsView, nativeImage, Notification, dialog, screen, session } from 'electron';
 import { join, resolve } from 'node:path';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { launchHidden, launchHiddenSync } from './freecode-launcher.js'
@@ -28,6 +28,7 @@ import { awaitHarnessLayout, formatPreflightFailure } from './preflight.js';
 import { ensureUvxCommand } from './uvx-bootstrap.js';
 import { initLocale, setLocale as setNativeLocale, t } from './i18n.js';
 import { shouldNotifyBackendState, type BackendState } from './backend-state.js';
+import { cleanupStaleLoopbackCookies } from './loopback-cookies.js';
 import {
   LifecycleManager,
   acquireSingletonLock,
@@ -350,12 +351,14 @@ function createMainWindow(harnessUrl: string): void {
   // panel would then draw ON TOP of the harness, covering conversation
   // text (F1 postmortem: v0.2.2 "reflow" fix silently no-op'd because
   // BrowserWindow.webContents does not appear in contentView.children).
+  const preloadScriptPath = resolve(import.meta.dirname, '../preload/index.js');
+  appLogger?.logger.info({ preloadScriptPath, exists: existsSync(preloadScriptPath) }, 'harness preload script check');
   harnessView = new WebContentsView({
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      preload: resolve(import.meta.dirname, '../preload/index.js'),
+      preload: preloadScriptPath,
     },
   });
   // DSH detects the desktop host through its own global. FreeCode has no
@@ -377,9 +380,16 @@ function createMainWindow(harnessUrl: string): void {
   const blockUntrustedNavigation = (event: Electron.Event, url: string): void => {
     if (!isTrustedHarnessNavigation(url, trustedHarnessUrl())) event.preventDefault();
   };
-  harnessView.webContents.on('will-navigate', blockUntrustedNavigation);
-  harnessView.webContents.on('will-redirect', blockUntrustedNavigation);
-  void harnessView.webContents.loadURL(harnessUrl);
+  harnessView.webContents.on('will-navigate', (e, u) => blockUntrustedNavigation(e, u));
+  harnessView.webContents.on('will-redirect', (e, u) => blockUntrustedNavigation(e, u));
+  if (isDev || process.env.FREECODE_DEVTOOLS === '1') {
+    harnessView.webContents.openDevTools({ mode: 'detach' });
+  }
+  void cleanupStaleLoopbackCookies(appLogger?.logger).finally(() => {
+    if (harnessView && !harnessView.webContents.isDestroyed()) {
+      void harnessView.webContents.loadURL(harnessUrl);
+    }
+  });
   embeddedBrowser?.attachWindow(mainWindow, harnessView);
   ensureUpdateIndicator();
   mainWindow.on('resize', updateUpdateIndicatorBounds);
@@ -958,6 +968,7 @@ app.whenReady().then(async () => {
   appLogger = createAppLogger(join(userDataDir, 'logs'));
   if (process.platform === 'win32') headlessHostPolicy.configure(join(resourcesDir(), 'headless-host.exe'));
   appLogger.logger.info({ packaged: app.isPackaged, platform: process.platform }, 'shell starting');
+  await cleanupStaleLoopbackCookies(appLogger?.logger);
   const resources = resourcesDir();
   const harnessRuntimeDir = resolveHarnessRuntimeDir({
     packaged: app.isPackaged,
