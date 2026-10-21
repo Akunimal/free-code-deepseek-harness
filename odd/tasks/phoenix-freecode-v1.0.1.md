@@ -98,10 +98,10 @@ instance is authorized by this task.
 - [x] PHX101-3: Add Phoenix model inventory/selector behavior and strict-pin vs
   Auto-only failover contracts, including no mid-stream route change, request
   cancellation and model-load status. Commit: `71c3a3a`.
-- [ ] PHX101-4: Replace all active opencode2api staging, dependency pin,
+- [x] PHX101-4: Replace all active opencode2api staging, dependency pin,
   preflight, packaging, NSIS/AppImage and process-launch contracts; remove
   obsolete active gateway assets/scripts while preserving historical release
-  evidence.
+  evidence. Commit: `c86cb1a832de7b0949087e4dc5cfdd7c913bbb7e`.
 - [ ] PHX101-5: Set root/shell to v1.0.1, align active ES/EN documentation and
   changelog/release contracts, run applicable local checks, update Graphify,
   and close with a Conventional Commit.
@@ -159,7 +159,22 @@ contract was also reverified.
 
 ### Verification log
 
-- Pending: PHX101-4 onward.
+- PHX101-4 TDD red: Phoenix payload/preflight tests initially failed because
+  the previous preflight still required OpenCode2API and accepted a stale
+  gateway in its place; the runtime pin helper and package contract also still
+  required the retired dependency. The replacement contract was added before
+  implementation and failed until the active source/vendor/build paths were
+  removed and Phoenix became the required hash-bound runtime.
+- PHX101-4 green: targeted Phoenix/preflight/resource/dependency tests passed
+  40/40; release/NSIS/staging/router Node contracts passed 28/28; release
+  contract tests passed 9/9; full shell suite passed 55 files / 377 tests;
+  shell typecheck passed; staging verification passed; runtime dependency
+  verifier passed 28/28 and offline MCP verifier passed 13/13. The first
+  typecheck exposed implicit `any` in the rewritten dependency contract test;
+  the test manifest was typed and typecheck then passed. `git diff --check`
+  passed. Work-unit commit: `c86cb1a832de7b0949087e4dc5cfdd7c913bbb7e`.
+- No setup/installer was built or executed, no app instance was inspected or
+  changed, and no external provider endpoint was probed.
 
 - PHX101-1 TDD red: builder test first failed because there was no exported
   minimized PyInstaller argument contract; catalog/allowlist tests first
@@ -194,10 +209,9 @@ contract was also reverified.
 
 ### Next step
 
-PHX101-3 behavior is verified locally; its work-unit commit identity is
-recorded in the task checklist. Next, begin PHX101-4: retire every active
-OpenCode2API staging, dependency, preflight, packaging and process-launch path
-while keeping historical release evidence truthful.
+PHX101-4 behavior is verified locally and committed. Next, begin PHX101-5:
+align the active product version and bilingual documentation/contracts to the
+1.0.1 candidate while keeping historical release evidence truthful.
 
 ## Relevant files
 
