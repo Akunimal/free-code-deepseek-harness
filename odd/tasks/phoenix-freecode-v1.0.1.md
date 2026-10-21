@@ -229,11 +229,12 @@ locally as `78d7b7a`; no push, tag, release or installer action was performed.
   `release.contract.test.ts` 9/9); `git diff --check` passed.
 - PHX101-6 Graphify: `graphify update <repo>` re-extracted 6,184 files but did
   not update `graph.json`; the tool reported 4,581 saved labels versus 4,565
-  communities and requested label refresh. `graphify update <repo> --force`
-  likewise stalled after re-extracting 6,165 files. MCP graph stats remained
-  122,918 nodes / 263,625 edges / 4,581 communities. Both task-owned CLI runs
-  were interrupted; the user's app/processes were not touched. Graph refresh is
-  pending and must be reported as a freshness failure until verified.
+  communities and requested label refresh. Two subsequent
+  `graphify update <repo> --force` runs stalled after re-extracting 6,165 and
+  6,166 files. MCP graph stats remained 122,918 nodes / 263,625 edges / 4,581
+  communities. All three task-owned CLI runs were interrupted; no unrelated
+  process or user's app was touched. Graph refresh is pending and must be
+  reported as a freshness failure until verified.
 
 ### Next step
 
