@@ -1,14 +1,14 @@
 # Known issues / Problemas conocidos
 
-Última sincronización documental / Last documentation sync: 2026-10-20
+Última sincronización documental / Last documentation sync: 2026-10-21
 Última release desktop publicada / Latest published desktop release: `v1.0.0`
 
 ## Estado actual / Current status
 
 Fuente candidata / Candidate source: `v1.0.1`; DSH `0.2.1-alpha.11` (ABI 149).
-**Estado candidato:** v1.0.1 reemplaza OpenCode2API por Phoenix/FreeLLMpool 0.13.0 y todavía no está publicada. No se compilaron setup/portable ni se ejecutó el gate público de caché DSH vacía; una precarga local no los reemplaza.
+**Estado candidato:** v1.0.1 reemplaza OpenCode2API por Phoenix/FreeLLMpool 0.13.0 y todavía no está publicada. Setup y portable se compilaron y verificaron estáticamente antes del seguimiento actual de Kilo/catálogo; el setup se inició una vez, pero no se verificó la finalización de la instalación. Esos artefactos están obsoletos para la fuente actual y deben recompilarse. El gate público de caché DSH vacía sigue pendiente; una precarga local no lo reemplaza.
 
-**Candidate status:** v1.0.1 replaces OpenCode2API with Phoenix/FreeLLMpool 0.13.0 and is not published. Setup/portable and the public empty-cache DSH gate have not run; a local preload is not a substitute.
+**Candidate status:** v1.0.1 replaces OpenCode2API with Phoenix/FreeLLMpool 0.13.0 and is not published. Setup/portable were built and statically verified before the current Kilo/catalog follow-up; the setup was launched once, but install completion was not verified. Those artifacts are stale for the current source and must be rebuilt. The public empty-cache DSH gate is pending; a local preload is not a substitute.
 
 v1.0.1 sólo se soporta Windows x64; Windows ARM64, Linux y macOS no están
 probados ni soportados. Phoenix va empaquetado y verificado en la candidata. DSH
@@ -24,21 +24,25 @@ valid cache. Upstream model availability and optional PATH helpers remain limita
 
 ### KI-001 — Free Pool availability is external / La disponibilidad del Free Pool es externa
 
-Phoenix FreeLLMpool routes depend on upstream provider availability, model limits and network conditions. A route may report no eligible model or lose a request even when the local gateway is healthy. A concrete model selection is a strict pin and returns its failure without changing models. Auto Phoenix is the only selection that can try another eligible free route, and only before stream bytes are committed; an in-progress stream is never switched. This cannot remove provider, quota, IP or network limits.
+Phoenix FreeLLMpool routes depend on upstream provider availability, model limits and network conditions. A route may report no eligible model or lose a request even when the local gateway is healthy. A concrete model selection is a strict pin and returns its failure without changing models. Auto Phoenix is the only selection that can try another eligible free route, and only before stream bytes are committed; an in-progress stream is never switched. Kilo's documented anonymous quota is 200 requests/hour/IP and its live free catalog can change. The app pins only the three reviewed non-Nemotron Kilo routes and excludes dynamic aliases. This cannot remove provider, quota, IP or network limits.
 
-Las rutas Phoenix FreeLLMpool dependen de la disponibilidad upstream, límites de modelos y red. Una ruta puede no tener modelos elegibles o perder una solicitud aunque el gateway local esté sano. Elegir un modelo concreto lo fija estrictamente y devuelve su error sin cambiar de modelo. Solo Auto Phoenix puede probar otra ruta gratuita elegible y únicamente antes de confirmar bytes del stream; nunca se cambia una ruta durante un stream. Esto no elimina límites de proveedor, cuota, IP o red.
+Las rutas Phoenix FreeLLMpool dependen de la disponibilidad upstream, límites de modelos y red. Una ruta puede no tener modelos elegibles o perder una solicitud aunque el gateway local esté sano. Elegir un modelo concreto lo fija estrictamente y devuelve su error sin cambiar de modelo. Solo Auto Phoenix puede probar otra ruta gratuita elegible y únicamente antes de confirmar bytes del stream; nunca se cambia una ruta durante un stream. La cuota anónima documentada de Kilo es 200 solicitudes/hora/IP y su catálogo gratuito cambia. La app fija solo las tres rutas Kilo revisadas que no son Nemotron y excluye los alias dinámicos. Esto no elimina límites de proveedor, cuota, IP o red.
 
 ### KI-002 — Separate first-launch runtime download / Descarga del runtime en el primer inicio
 
-The v1.0.1 desktop package has not been built, so its size and hashes are not
-known. DSH is separate from setup/portable: the current source pins
+The previously generated v1.0.1 setup and portable were statically verified,
+but predate the current Kilo/catalog changes and are stale for source. The setup
+was launched once; install completion is unverified. DSH is separate from
+setup/portable: the current source pins
 `0.2.1-alpha.11` for Windows x64, downloaded and verified on first launch, then
 cached per user. Earlier v0.9.4/v0.9.5 releases used alpha8 (`0.2.1-alpha.9`);
 those historical assets do not satisfy the current pin. Network retrieval is
 expected when the cache is absent and is not by itself evidence of a hang.
 
-El paquete desktop v1.0.1 todavía no se compiló, así que no se conocen su tamaño
-ni hashes. DSH va separado de setup/portable: la fuente actual fija
+El setup y el portable v1.0.1 generados antes se verificaron estáticamente, pero
+son anteriores a los cambios actuales de Kilo/catálogo y quedaron obsoletos para
+la fuente. El setup se inició una vez; no se verificó la finalización de la
+instalación. DSH va separado de setup/portable: la fuente actual fija
 `0.2.1-alpha.11` para Windows x64, que se descarga y verifica al primer inicio
 y luego se guarda en caché por usuario. Las releases anteriores v0.9.4/v0.9.5
 usaban alpha8 (`0.2.1-alpha.9`); esos assets históricos no satisfacen el pin

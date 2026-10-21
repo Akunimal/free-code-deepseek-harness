@@ -8,15 +8,21 @@ the verified Windows x64 executable, model allowlist, MIT license and build
 receipt; it needs no `C:\LocalAI`, external Python, separate FreeLLMpool
 installation, or existing service/port. **Auto Phoenix** is first in the
 selector; concrete choices remain strict pins, while Auto retries eligible
-free routes only before streaming commits. DSH `0.2.1-alpha.11` remains a
-separate first-launch download. See the [bilingual v1.0.1 candidate notes](../release-notes-v1.0.1.md).
+free routes only before streaming commits. Concrete models keep the pinned
+capability-score order regardless of probe latency. The Kilo no-auth snapshot
+contains MiniMax M3.1 Flash, Laguna S 2.1 and Dots3 Note Preview; Nemotron and
+dynamic Kilo aliases are excluded. DSH `0.2.1-alpha.11` remains a separate
+first-launch download. See the [bilingual v1.0.1 candidate notes](../release-notes-v1.0.1.md).
 
 All shell-owned background Windows process trees continue to launch through
 `freecode-launcher` and the verified GUI-subsystem `headless-host` helper.
 
-**Candidate status:** source only. Setup/portable and the mandatory public
-empty-cache DSH release gate have not run; v1.0.1 is not install-ready or
-published. The last published desktop release is historical [v1.0.0](../release-notes-v1.0.0.md).
+**Candidate status:** local setup/portable were built and statically verified
+before the current Kilo/catalog follow-up; the setup was later launched once,
+but installation completion is unverified. Those artifacts are stale for the
+current source and must be rebuilt. The mandatory public empty-cache DSH release
+gate has not run; v1.0.1 is not install-ready or published. The last published
+desktop release is historical [v1.0.0](../release-notes-v1.0.0.md).
 
 ### Previous published release / Release publicada anterior: v1.0.0
 
@@ -30,13 +36,20 @@ ejecutable Windows x64 verificado, allowlist, licencia MIT y receipt de build;
 no requiere `C:\LocalAI`, Python externo, FreeLLMpool instalado aparte ni un
 servicio/puerto preexistente. **Auto Phoenix** aparece primero: los modelos
 concretos quedan fijados estrictamente y solo Auto reintenta rutas gratuitas
-antes de iniciar el stream. DSH `0.2.1-alpha.11` sigue descargándose por
-separado en el primer inicio. Ver las [notas candidatas bilingües v1.0.1](../release-notes-v1.0.1.md).
+antes de iniciar el stream. Los modelos concretos conservan el orden fijado por
+puntuación de capacidad, sin que la latencia los adelante. La instantánea Kilo
+sin clave incluye MiniMax M3.1 Flash, Laguna S 2.1 y Dots3 Note Preview; se
+excluyen Nemotron y alias dinámicos de Kilo. DSH `0.2.1-alpha.11` sigue
+descargándose por separado en el primer inicio. Ver las [notas candidatas
+bilingües v1.0.1](../release-notes-v1.0.1.md).
 
-**Estado candidato:** solo fuente. No se compilaron setup/portable ni se corrió
-el gate público obligatorio de DSH con caché vacía; v1.0.1 no está lista para
-instalar ni publicada. La última release desktop publicada sigue siendo la
-histórica [v1.0.0](../release-notes-v1.0.0.md).
+**Estado candidato:** setup/portable se compilaron y verificaron estáticamente
+antes del seguimiento actual de Kilo/catálogo; luego se inició el setup una vez,
+pero la finalización de la instalación no está verificada. Esos artefactos están
+obsoletos para la fuente actual y deben recompilarse. No se corrió el gate
+público obligatorio de DSH con caché vacía; v1.0.1 no está lista para instalar
+ni publicada. La última release desktop publicada sigue siendo la histórica
+[v1.0.0](../release-notes-v1.0.0.md).
 
 Baseline actual publicada: `v1.0.0`; fuente candidata: `v1.0.1`.
 Runtime DSH: `0.2.1-alpha.11`; salida prevista, todavía inexistente:

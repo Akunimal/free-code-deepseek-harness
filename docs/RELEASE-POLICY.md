@@ -5,11 +5,13 @@
 Releases are manual and target Windows x64. This policy never authorizes
 touching the maintainer's running FreeCode instance.
 
-**Release status:** v1.0.1 is not published. Its setup/portable were built
-locally and statically verified, but neither was installed or launched; its
-release gate has not run. The last published desktop release is
-v1.0.0. Do not represent this candidate as install-ready or use a local runtime
-preload as public clean-install proof.
+**Release status:** v1.0.1 is not published. Setup/portable were built and
+statically verified before the current Kilo/catalog source follow-up; the setup
+was later launched once, but installation completion is unverified. Those
+artifacts are stale for the current source and must be rebuilt. Its public
+clean-cache gate has not run. The last published desktop release is v1.0.0. Do
+not represent this candidate as install-ready or use a local runtime preload as
+public clean-install proof.
 
 The public clean-cache first-run gate remains pending for v1.0.1.
 

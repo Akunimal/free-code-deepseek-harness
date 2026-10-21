@@ -9,12 +9,23 @@ un servicio/puerto local preexistente. El selector muestra **Auto Phoenix**
 primero y después los modelos gratuitos permitidos. Elegir un modelo concreto
 lo fija estrictamente: un error no cambia silenciosamente de modelo. Solo Auto
 puede probar otra ruta gratuita elegible antes de iniciar el stream; nunca lo
-cambia a mitad de respuesta. El catálogo depende de proveedores externos, por
-lo que requiere Internet y disponibilidad upstream.
+cambia a mitad de respuesta. Los modelos concretos se ordenan por la puntuación
+de capacidad fijada de FreeLLMpool; la latencia no puede adelantar un modelo
+inferior. La instantánea Kilo sin clave incluye MiniMax M3.1 Flash, Laguna S 2.1
+y Dots3 Note Preview; excluye todos los Nemotron y los alias dinámicos de Kilo.
+Los puestos de agente Code de Kilo (#14/#98/#99 en la instantánea del
+2026-10-21) son proxies cambiantes basados en uso real, no benchmarks
+directamente comparables; el acceso anónimo tiene un límite de 200
+solicitudes/hora/IP. Ver el [catálogo gratuito activo](https://kilo.ai/landing/free-models)
+y los [límites de acceso anónimo](https://kilo.ai/docs/gateway/authentication).
+El catálogo depende de proveedores externos, por lo que requiere Internet y
+disponibilidad upstream.
 
 **Estado de release:** v1.0.1 es una candidata local, no está publicada. El
-setup y el portable se compilaron y verificaron estáticamente, pero ninguno se
-instaló ni ejecutó; falta el gate obligatorio de caché vacía. La última release desktop publicada es la histórica
+setup y el portable se compilaron y verificaron estáticamente antes de este
+seguimiento de Kilo/catálogo; luego se inició el setup una vez, pero no se pudo
+verificar que la instalación terminara. Esos artefactos ya no corresponden a la
+fuente actual y falta el gate obligatorio de caché vacía. La última release desktop publicada es la histórica
 [v1.0.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
 Ver las [notas bilingües de la candidata v1.0.1](release-notes-v1.0.1.md) y
 el [historial de v1.0.0](release-notes-v1.0.0.md).
@@ -73,8 +84,13 @@ Las releases anteriores conservan sus tags y binarios históricos.
   verificado, licencia MIT, allowlist exacta de modelos y recibo de
   fuente/build. No requiere Python local, `C:\LocalAI`, FreeLLMpool instalado
   aparte ni dependencia del puerto 8095.
-- **Selector Phoenix** — Auto Phoenix primero, seguido por los IDs gratuitos
-  permitidos. Los modelos concretos permanecen fijados: ante un error se
+- **Selector Phoenix** — Auto Phoenix primero, seguido por rutas gratuitas
+  concretas ordenadas por puntuación de capacidad fijada (Kilo usa su ranking
+  documentado de uso del agente Code como proxy más débil y cambiante, no
+  directamente comparable con benchmarks). La latencia no adelanta modelos de
+  menor rango. La instantánea Kilo sin clave contiene MiniMax M3.1 Flash,
+  Laguna S 2.1 y Dots3 Note Preview; se excluyen todos los Nemotron y alias
+  dinámicos de Kilo. Los modelos concretos permanecen fijados: ante un error se
   devuelve el error, no se elige otro modelo a escondidas. Solo Auto puede
   probar otra ruta elegible antes del primer byte del stream; nunca cambia a
   mitad de la respuesta.

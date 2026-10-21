@@ -36,9 +36,13 @@ pnpm test:contract
 9. The installed Phoenix binary, receipt, model allowlist and license are
    required and hash/architecture-verified; an old gateway cannot satisfy the
    preflight.
-10. The web root still serves parseable `window.__DSH_BOOT__` JSON; lazy entries
+10. The Phoenix allowlist excludes every Nemotron route and dynamic Kilo free
+    alias, and lists only the explicitly reviewed Kilo no-auth models.
+11. Auto stays first; concrete Phoenix models follow the reviewed quality rank,
+    and probe latency cannot promote a lower-ranked model.
+12. The web root still serves parseable `window.__DSH_BOOT__` JSON; lazy entries
     may omit `immediately` and therefore mean `false`.
-11. Every upstream client/web package is represented in
+13. Every upstream client/web package is represented in
     `docs/UPSTREAM-FEATURES.md`; a new package fails this documentation contract
     until it is explained.
 

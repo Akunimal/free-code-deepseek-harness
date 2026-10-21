@@ -11,8 +11,10 @@ is first in the selector. A concrete model stays strictly pinned; only Auto may
 try another eligible free route before the first stream byte.
 
 **Release status:** v1.0.1 is an unpublished local source candidate. Setup and
-portable have not been built or installed, and the full release gate has not
-run. The last published desktop release is the historical
+portable were built and statically checked before the current Kilo/catalog
+follow-up; the setup was later launched once but install completion is
+unverified. Those artifacts are stale for current source. The full release gate
+has not run. The last published desktop release is the historical
 [v1.0.0 release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
 Do not present the candidate as installable or claim clean-install proof.
 Candidate notes: [bilingual v1.0.1](../release-notes-v1.0.1.md).

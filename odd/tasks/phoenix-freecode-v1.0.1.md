@@ -42,7 +42,10 @@ or release readiness; the public clean-cache runtime gate remains required.
   (`9489c65c06c2f15018c4dfc6354d635fab0e2a52`); PHX101-3 is the third
   (`71c3a3a`); PHX101-4 is the fourth slice (`c86cb1a832de7b0949087e4dc5cfdd7c913bbb7e`);
   PHX101-5 is the fifth slice (`78d7b7a`). PHX101-6 remains pending on this
-  feature branch.
+  feature branch. The Kilo follow-up is split into PHX101-8a (catalog/source,
+  tests, generated models and sidecar receipt; commit `3b7d975`) then PHX101-8b
+  (bilingual docs and task evidence). Both stay local on this feature branch;
+  no PR or remote action is authorized.
 - Preserve pre-existing dirty Graphify outputs and untracked vendor artifacts;
   stage only files belonging to this feature.
 
@@ -68,6 +71,49 @@ or release readiness; the public clean-cache runtime gate remains required.
   FreeCode instance, run the installer, or perform remote operations. The
   separately authorized local package build may use the existing dependency
   and binary caches; stop rather than initiate unapproved downloads.
+
+## Authorized follow-up: Kilo anonymous catalog and quality order
+
+The user asked to include Kilo no-auth free models, rank selectable models by
+quality before latency, and remove every Nemotron model. Snapshot checked
+2026-10-21 from the [official free catalog](https://kilo.ai/landing/free-models),
+the [Kilo leaderboard](https://kilo.ai/leaderboard), and [anonymous-access
+documentation](https://kilo.ai/docs/gateway/authentication); do not probe Kilo
+or any model endpoint. Preserve the immutable vendored FreeLLMpool source and
+apply a FreeCode-owned catalog policy so no enabled route or hidden dynamic Kilo
+alias can route to Nemotron. Keep Auto Phoenix first. Use the existing bundled
+FreeLLMpool capability mapping (benchmarks where known, its name heuristic
+otherwise) for the remaining catalog and the official Kilo Code-agent usage
+rank as a weaker cross-catalog proxy for direct Kilo routes; measured probe
+latency is only a tie-breaker. Kilo's usage rank is dynamic and not directly
+comparable to the FreeLLMpool capability scale; keep its provenance and
+limitations explicit in code/docs.
+
+The official Kilo snapshot has three direct free models that are not Nemotron:
+MiniMax M3.1 Flash (Code rank #14; [model card](https://kilo.ai/models/minimax-minimax-m3-1-flash-free)),
+Poolside Laguna S 2.1 (#98; [model card](https://kilo.ai/models/poolside-laguna-s-2-1-free)),
+and Dots3 Note Preview (#99; [model card](https://kilo.ai/models/dots-studio-dots-3-note-preview-free)).
+Kilo documents anonymous access for free routes with a 200 requests/hour/IP
+limit. Keep only those explicit Kilo routes; disable dynamic `openrouter/free`
+and `kilo-auto` aliases because their provider selection can change
+independently of this allowlist. The pinned vendor source remains byte-for-byte
+unchanged.
+
+- TDD mode: **red-green-refactor**, explicitly selected earlier by the user;
+  `pnpm`/Vitest for shell behavior and `node --test` for catalog/release-script
+  contracts. The globally resolved pnpm shim is broken on this machine; use
+  `C:\Users\inti_\.cache\codex-runtimes\codex-primary-runtime\dependencies\bin\fallback\pnpm.cmd`
+  (pnpm 11.25.0) for the same configured Vitest runner.
+- Scope: local source, tests, active ES/EN docs, generated Phoenix catalog,
+  deterministic Phoenix payload rebuild/restage and Graphify freshness only.
+  No installer execution, app launch, provider request, push, tag or release.
+- Branch: reuse `codex/phoenix-freecode-v1.0.1`; keep unrelated dirty Graphify
+  and vendor artifacts unstaged.
+- Delivery: use the already-selected **stacked-to-main** strategy. The first
+  forecast was ~350 authored changed lines; the observed total is ~700, so split
+  the coherent source/test/catalog work (PHX101-8a) from its bilingual docs and
+  task evidence (PHX101-8b), keeping both commits adjacent on this feature
+  branch. No push, PR, merge, tag, or release is authorized.
 
 ## Acceptance criteria and checks
 
@@ -112,16 +158,27 @@ or release readiness; the public clean-cache runtime gate remains required.
 - [x] PHX101-5: Set root/shell to v1.0.1, align active ES/EN documentation and
   changelog/release contracts, add bilingual candidate notes, and run applicable
   local checks. Commit: `78d7b7a`.
-- [ ] PHX101-6: Refresh the Graphify graph after removing the old gateway,
-  verify its node/community freshness without overwriting unrelated pre-existing
-  Graphify/vendor work, and close with a Conventional Commit. The normal and
-  `--force` update attempts stalled before graph outputs changed; investigate
-  the local CLI's post-extraction stage before retrying.
+- [ ] PHX101-6: Refresh the Graphify graph after removing the old gateway and
+  the Kilo/catalog follow-up; verify freshness without overwriting unrelated
+  pre-existing Graphify/vendor work. Normal and `--force` attempts previously
+  stalled after extraction. The latest direct update also extracted the source
+  but did not complete the graph write; the graphify command reported changed
+  communities and requested an LLM label refresh. Graphify freshness is still
+  pending; do not stage the pre-existing graph output changes.
 - [x] PHX101-7: Build v1.0.1 setup and portable into the documented isolated
   candidate directory, statically verify both artifacts, blockmap and metadata,
-  and record their hashes without executing/installing them or touching a live
-  FreeCode instance. Do not publish or call the build clean-install proof.
+  and record their hashes without touching a live FreeCode instance. The setup
+  was later launched once at the user's request, but successful installation
+  remains unverified. Do not publish or call the build clean-install proof.
   Commit: `78ef608` (bundle-freshness pin); package evidence follows below.
+- [x] PHX101-8: Curate Kilo anonymous free routes without Nemotron-capable
+  dynamic aliases, add quality-first ordering in both the persisted catalog and
+  selector (latency only as a tie-breaker), protect the exact policy in TDD
+  contracts, rebuild/restage the Phoenix sidecar from the existing local
+  toolchain, align active ES/EN docs, and commit the work unit. Graphify
+  freshness is tracked separately by PHX101-6. Do not build or run the app
+  installer unless separately requested. Source/test/resource slice committed
+  as `3b7d975`; bilingual docs and final task evidence are the next local slice.
 
 ## Progress and recovery
 
@@ -245,6 +302,13 @@ performed.
   122,918 nodes / 263,625 edges / 4,581 communities. Only task-owned CLI runs
   were interrupted; no unrelated process or user's app was touched. Graph
   refresh is pending and must be reported as a freshness failure until verified.
+  On 2026-10-21, another direct `graphify update` extracted 6,177 files and
+  reported 21 syntax-error files plus 913 unsupported/unclassified files. It
+  then reported 4,581 saved labels vs. 4,520 communities and requested
+  `graphify label`; it stalled without writing any graph output. SHA-256 checks
+  confirmed the pre-existing dirty Graphify files were unchanged, and no
+  Graphify/vendor files were staged. This direct update was stopped; no LLM
+  labeling or remote model call was authorized or made.
 - PHX101-7 package: the first prepackage attempt correctly rejected a stale
   `native-command` source-hash pin. Rebuilt only that upstream host package and
   refreshed its tracked hash; the freshness gate then passed for all 323
@@ -264,13 +328,46 @@ performed.
   `git diff --check` passed. Neither artifact was run/installed; the public
   clean-cache DSH first-run gate and full `release:gate` remain pending. No app
   instance or user process was inspected or touched.
+- After the user explicitly confirmed FreeCode was closed and asked to execute
+  the setup, the v1.0.1 setup was launched once. The PowerShell wrapper failed
+  while reading `ExitCode` before it could confirm completion; it was not
+  relaunched, and successful installation is unverified. Do not claim the
+  setup completed or inspect/stop/restart any FreeCode process.
+- PHX101-8 TDD RED: new catalog tests failed because the pinned source still
+  exposed dynamic Kilo aliases and four Nemotron models, and the selector still
+  sorted by latency. New gateway/bootstrap contracts also accepted a
+  Nemotron ID and both Kilo dynamic aliases. The initial configured `pnpm`
+  shim was missing its global `pnpm.mjs`; reran Vitest through the bundled
+  fallback pnpm 11.25.0. Targeted shell tests observed 4 expected failures / 41
+  passes, and Node contracts observed 3 expected failures / 4 passes. A later
+  regression test also went red because the saved catalog retained upstream
+  order even while settings used quality order; sorting the exact allowlist
+  before probing corrected both outputs.
+- PHX101-8 GREEN: catalog/runtime Node contracts passed 7/7; targeted shell
+  refresher/gateway tests passed 45/45; the complete shell suite passed 55
+  files / 381 tests; shell typecheck and production shell build passed. Full
+  contract tests passed 81 with 12 skipped, release-version docs passed 12/12,
+  and `git diff --check` passed. The root `pnpm typecheck` command failed
+  because its script resolves the broken global pnpm shim; the affected shell
+  package typecheck passed directly via the bundled pnpm 11.25.0 fallback.
+- PHX101-8 build proof: Phoenix FreeLLMpool 0.13.0 rebuilt and staged from the
+  existing local toolchain; `freellmpool-staging.mjs --verify` and
+  `phoenix-catalog.mjs --verify` passed. The isolated loopback Phoenix smoke
+  started the staged binary through `freecode-launcher`/`headless-host`, read
+  all 24 model IDs from `/v1/models`, and shut down its test-owned process.
+  It made no external inference requests and did not touch the user's app.
+  No installer, public clean-cache DSH test, or release gate was run.
 
 ### Next step
 
-PHX101-7 is complete locally. The exact setup and portable are in
-`apps/shell/release-1.0.1-candidate/` and were not executed. PHX101-6 Graphify
-refresh remains pending, as do the public clean-cache DSH proof, full
-`release:gate`, and all remote publication actions.
+PHX101-7 artifacts are locally built and statically verified. The setup launch
+was attempted once but its completion is unverified. PHX101-8 source, tests,
+generated catalog, bilingual docs and local sidecar smoke are verified; the
+source slice is committed as `3b7d975`, and its documentation/evidence slice is
+being committed locally. PHX101-6 Graphify freshness remains pending because
+the direct update stalled after source extraction. Public clean-cache DSH proof,
+full `release:gate`, installer completion, and all remote publication actions
+remain unverified or pending.
 
 ## Relevant files
 

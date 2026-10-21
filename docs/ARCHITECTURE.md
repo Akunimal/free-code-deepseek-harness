@@ -41,8 +41,10 @@ or compatibility failures remain visible and retryable.
    shell supplies an ephemeral API key, polls `/healthz` with a bound, and owns
    its restart/stop lifecycle. It never takes over a port or external process.
 4. The shell seeds DSH's single managed provider to the local Phoenix URL and
-   private key. Refresh synthesizes Auto Phoenix at the top of the verified
-   model allowlist before concrete provider/model entries.
+   private key. Refresh synthesizes Auto Phoenix first, then keeps the
+   source-controlled quality order of the verified concrete allowlist; probe
+   latency cannot invert that order. The generated Kilo slice contains only
+   direct no-auth non-Nemotron routes and excludes dynamic Kilo aliases.
 5. The supervisor starts `dsh web --host 127.0.0.1 --port 0 --no-open` with a
    whitelisted environment and waits for its authenticated readiness URL.
 6. The shell opens one hardened `BrowserWindow` with context isolation, no Node

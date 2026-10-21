@@ -8,13 +8,22 @@ hash- and provenance-verified Phoenix gateway built from pinned FreeLLMpool
 FreeLLMpool, or pre-existing local service/port. The selector exposes **Auto
 Phoenix** first and the allowlisted concrete free models after it. A concrete
 choice is a strict pin and never silently switches models; only Auto can try
-another eligible route, and only before streaming begins. The model provider
-catalog is external, so Internet and upstream availability are still needed.
+another eligible route, and only before streaming begins. Concrete models are
+ordered by the pinned FreeLLMpool capability score, with latency kept from
+overriding that quality order. The keyless Kilo snapshot includes MiniMax M3.1
+Flash, Laguna S 2.1 and Dots3 Note Preview; Nemotron models and dynamic Kilo
+aliases are excluded. Kilo's Code-agent ranks (#14/#98/#99 in the 2026-10-21
+snapshot) are changing real-usage proxies, not directly comparable benchmarks;
+anonymous access is limited to 200 requests/hour/IP. See the [live free
+catalog](https://kilo.ai/landing/free-models) and [Kilo anonymous-access
+limits](https://kilo.ai/docs/gateway/authentication). The provider catalog is
+external, so Internet and upstream availability are still needed.
 
 **Release status:** v1.0.1 is a local candidate, not published. Its setup and
-portable were built locally and statically verified, but neither was installed
-or launched; the mandatory clean-cache release gate has not run. The last
-published desktop release is the historical
+portable were built and statically verified before the Kilo/catalog follow-up;
+the setup was later launched once, but installation completion is unverified.
+Those artifacts are stale for the current source, and the mandatory clean-cache
+release gate has not run. The last published desktop release is the historical
 [v1.0.0 release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
 See the [bilingual v1.0.1 candidate notes](release-notes-v1.0.1.md) and
 [v1.0.0 history](release-notes-v1.0.0.md).
@@ -72,9 +81,14 @@ Earlier releases retain their historical tags and binaries.
   executable, MIT license, exact model allowlist and build/source receipt. No
   local Python, `C:\LocalAI`, separate FreeLLMpool installation or port 8095
   dependency.
-- **Phoenix model selector** — Auto Phoenix appears first, then the pinned
-  free model IDs. Concrete choices stay pinned: an error is returned rather
-  than silently selecting a different model. Auto alone may try another
+- **Phoenix model selector** — Auto Phoenix appears first, then concrete free
+  routes ranked by pinned capability scores (Kilo uses its documented Code
+  agent usage rank as a clearly weaker, live-changing proxy; this does not make
+  it directly comparable to benchmark scores). Probe latency cannot promote a
+  lower-ranked route. The Kilo no-auth snapshot contains only MiniMax M3.1
+  Flash, Laguna S 2.1 and Dots3 Note Preview; every Nemotron model and dynamic
+  Kilo alias is excluded. Concrete choices stay pinned: an error is returned
+  rather than silently selecting a different model. Auto alone may try another
   eligible free route before any response bytes stream; never switch midstream.
 - **Catalog status** — loading and failure state are exposed while the
   provider catalog is refreshed; an empty/unavailable upstream is not reported

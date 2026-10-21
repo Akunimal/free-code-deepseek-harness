@@ -11,8 +11,11 @@ aparece primero. Un modelo concreto queda fijado estrictamente; solo Auto puede
 probar otra ruta gratuita elegible antes del primer byte del stream.
 
 **Estado de release:** v1.0.1 es una candidata local de fuente, todavía no
-publicada. Setup y portable no se compilaron ni instalaron, y falta correr el
-gate completo. La última release desktop publicada es la histórica
+publicada. Setup y portable se compilaron y verificaron estáticamente antes del
+seguimiento actual de Kilo/catálogo; luego se inició el setup una vez, pero la
+finalización de la instalación no está verificada. Esos artefactos están
+obsoletos para la fuente actual. El gate completo todavía no corrió. La última
+release desktop publicada es la histórica
 [v1.0.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
 No presentes la candidata como instalable ni como instalación limpia probada.
 Notas candidatas: [v1.0.1 bilingües](../release-notes-v1.0.1.md).

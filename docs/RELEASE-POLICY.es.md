@@ -6,10 +6,13 @@ Las releases son manuales y tienen como target Windows x64. Esta política
 nunca autoriza tocar la instancia activa de FreeCode.
 
 **Estado de release:** v1.0.1 no está publicada. El setup y el portable se
-compilaron localmente y se verificaron estáticamente, pero ninguno se instaló
-ni ejecutó; el gate de release todavía no corrió. La última release desktop
-publicada es v1.0.0. No presentes esta candidata como lista para instalar ni
-uses una precarga local como prueba pública de instalación limpia.
+compilaron y verificaron estáticamente antes del seguimiento actual de Kilo y
+catálogo; luego se inició el setup una vez, pero la finalización de la
+instalación no está verificada. Esos artefactos están obsoletos para la fuente
+actual y deben recompilarse. El gate público de caché vacía no corrió. La última
+release desktop publicada es v1.0.0. No presentes esta candidata como lista
+para instalar ni uses una precarga local como prueba pública de instalación
+limpia.
 
 El gate público de primer inicio con caché vacía sigue pendiente para v1.0.1.
 
