@@ -36,9 +36,9 @@ instance is authorized by this task.
   source, packaging, tests, and bilingual documentation (generated/vendored
   upstream source and compiled binaries excluded).
 - Delivery slices (local only; no PRs/push authorized): PHX101-1 is the first
-  slice (`4852974c8cf74fe69905d90d51f2f1e87fdd3359`). PHX101-2 is the second
-  coherent slice and its commit is being recorded after this change. PHX101-3
-  through PHX101-5 remain later slices; each stays on this feature branch.
+  slice (`4852974c8cf74fe69905d90d51f2f1e87fdd3359`); PHX101-2 is the second
+  (`9489c65c06c2f15018c4dfc6354d635fab0e2a52`); PHX101-3 is the third
+  (`71c3a3a`). PHX101-4 and PHX101-5 remain later slices on this feature branch.
 - Preserve pre-existing dirty Graphify outputs and untracked vendor artifacts;
   stage only files belonging to this feature.
 
@@ -95,9 +95,9 @@ instance is authorized by this task.
   update the Harness endpoint without disturbing active DSH settings or
   unrelated user providers. Commit:
   `9489c65c06c2f15018c4dfc6354d635fab0e2a52`.
-- [ ] PHX101-3: Add Phoenix model inventory/selector behavior and strict-pin vs
+- [x] PHX101-3: Add Phoenix model inventory/selector behavior and strict-pin vs
   Auto-only failover contracts, including no mid-stream route change, request
-  cancellation and model-load status.
+  cancellation and model-load status. Commit: `71c3a3a`.
 - [ ] PHX101-4: Replace all active opencode2api staging, dependency pin,
   preflight, packaging, NSIS/AppImage and process-launch contracts; remove
   obsolete active gateway assets/scripts while preserving historical release
@@ -148,9 +148,18 @@ longer consumes stale opencode2api capability caches. The Phoenix supervisor's
 failed readiness restart now retries instead of giving up after the first bad
 restart.
 
+PHX101-3 found and fixed the catalog regression: FreeLLMpool's `/v1/models`
+lists only concrete provider routes, so the packaged `auto` router mode vanished
+on the first refresh. Phoenix refresh now synthesizes `auto` from the verified
+allowlist and keeps it first. A deterministic Python behavioral contract runs
+the pinned FreeLLMpool router against fake transports to protect exact concrete
+pins, Auto pre-stream fallback only, post-start stream commitment, cancellation
+cleanup and non-health client errors. The shell's catalog-loading IPC/state
+contract was also reverified.
+
 ### Verification log
 
-- Pending: PHX101-1 onward.
+- Pending: PHX101-4 onward.
 
 - PHX101-1 TDD red: builder test first failed because there was no exported
   minimized PyInstaller argument contract; catalog/allowlist tests first
@@ -175,13 +184,20 @@ restart.
   live isolated DSH profile-HMR and headless-helper tests.
 - PHX101-2 diff check passed. Pre-existing Graphify outputs and vendor
   artifacts remain unstaged and untouched.
+- PHX101-3 TDD red: Phoenix refresh test failed because Auto was absent from
+  the FreeLLMpool-style concrete-only `/v1/models` fixture.
+- PHX101-3 green: synthetic Auto now leads both persisted catalog and DSH
+  provider settings; targeted refresher/state/IPC/startup tests passed 44/44.
+  FreeLLMpool behavioral routing contracts passed 4/4 against deterministic
+  fake transports; release-plan contract included the new test. Shell
+  typecheck and `git diff --check` passed.
 
 ### Next step
 
-PHX101-2 is complete and committed as
-`9489c65c06c2f15018c4dfc6354d635fab0e2a52`. Next, begin PHX101-3: add explicit
-selector/catalog and Auto-only failover contracts, preserving concrete model
-pins and never switching a route after stream bytes start.
+PHX101-3 behavior is verified locally; its work-unit commit identity is
+recorded in the task checklist. Next, begin PHX101-4: retire every active
+OpenCode2API staging, dependency, preflight, packaging and process-launch path
+while keeping historical release evidence truthful.
 
 ## Relevant files
 
@@ -192,6 +208,7 @@ pins and never switching a route after stream bytes start.
 - `apps/shell/src/main/preflight.ts`, `resource-paths.ts` — installed resource contract.
 - `apps/shell/src/main/freecode-launcher.ts`, `headless-host-policy.ts` — mandatory
   hidden Windows process containment seam.
+- `scripts/phoenix-router-contracts.py`, `scripts/phoenix-router-contracts.test.mjs` — deterministic FreeLLMpool pin, Auto failover, stream and cancellation contracts.
 - `scripts/opencode2api-staging.mjs`, `scripts/runtime-dependency-pins.mjs`,
   `scripts/package-runtime.sh` — current sidecar provenance/package contracts.
 - `docs/ARCHITECTURE.md`, `docs/RELEASE-POLICY.md` and active EN/ES release docs —
