@@ -44,8 +44,8 @@ or release readiness; the public clean-cache runtime gate remains required.
   PHX101-5 is the fifth slice (`78d7b7a`). PHX101-6 remains pending on this
   feature branch. The Kilo follow-up is split into PHX101-8a (catalog/source,
   tests, generated models and sidecar receipt; commit `3b7d975`) then PHX101-8b
-  (bilingual docs and task evidence). Both stay local on this feature branch;
-  no PR or remote action is authorized.
+  (bilingual docs and task evidence; commit `774580e`). Both stay local on this
+  feature branch; no PR or remote action is authorized.
 - Preserve pre-existing dirty Graphify outputs and untracked vendor artifacts;
   stage only files belonging to this feature.
 
@@ -178,7 +178,7 @@ unchanged.
   toolchain, align active ES/EN docs, and commit the work unit. Graphify
   freshness is tracked separately by PHX101-6. Do not build or run the app
   installer unless separately requested. Source/test/resource slice committed
-  as `3b7d975`; bilingual docs and final task evidence are the next local slice.
+  as `3b7d975`; bilingual docs/task evidence slice committed as `774580e`.
 
 ## Progress and recovery
 
@@ -362,12 +362,12 @@ performed.
 
 PHX101-7 artifacts are locally built and statically verified. The setup launch
 was attempted once but its completion is unverified. PHX101-8 source, tests,
-generated catalog, bilingual docs and local sidecar smoke are verified; the
-source slice is committed as `3b7d975`, and its documentation/evidence slice is
-being committed locally. PHX101-6 Graphify freshness remains pending because
-the direct update stalled after source extraction. Public clean-cache DSH proof,
-full `release:gate`, installer completion, and all remote publication actions
-remain unverified or pending.
+generated catalog, bilingual docs and local sidecar smoke are verified; source
+and documentation slices are committed locally as `3b7d975` and `774580e`.
+PHX101-6 Graphify freshness remains pending because the direct update stalled
+after source extraction. Public clean-cache DSH proof, full `release:gate`,
+installer completion, and all remote publication actions remain unverified or
+pending.
 
 ## Relevant files
 
