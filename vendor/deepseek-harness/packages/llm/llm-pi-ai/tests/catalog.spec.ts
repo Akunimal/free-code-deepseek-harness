@@ -70,6 +70,47 @@ async function harness(config: LlmPiAi.Options): Promise<Context> {
 }
 
 describe('hand-declared providers', () => {
+  it('hides a catalog override without withdrawing the installed model descriptor', async () => {
+    const model = getBuiltinModels('deepseek')[0]!
+    const ctx = await harness({ providers: { deepseek: {
+      modelOverrides: { [model.id]: { selectable: false } },
+    } } })
+    try {
+      expect((await ctx.llm.listModels('deepseek')).map(entry => entry.id)).not.toContain(model.id)
+      expect(await ctx.llm.resolveModelInfo('deepseek', model.id)).toMatchObject({ id: model.id })
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('hides an unavailable model from selection while pinned calls and recovery retain its descriptor', async () => {
+    const server = await mockServer([{ events: textEvents }, { events: textEvents }])
+    const config = gateway(`${server.url}/v1`)
+    const ctx = await bootWithSettings(config)
+    try {
+      const call = { provider: 'acme-gateway', model: 'acme-large', messages: [createUserMessage({
+        content: [{ type: 'text' as const, text: 'continue after the tool result' }], source: { kind: 'test' as const },
+      })] }
+      const before = await ctx.llm.resolveModelInfo(call.provider, call.model)
+      await assemble(ctx, call)
+      await configurations.get(ctx)!.update(gateway(`${server.url}/v1`, {
+        models: [{ id: 'acme-large', name: 'Acme Large', contextWindow: 65_536, maxTokens: 4096, selectable: false }],
+      }))
+      expect(await ctx.llm.listModels(call.provider)).toEqual([])
+      expect(await ctx.llm.resolveModelInfo(call.provider, call.model)).toEqual(before)
+      const continued = await assemble(ctx, call)
+      expect(continued.finish).toEqual({ kind: 'stop' })
+      expect(server.requests).toEqual([
+        expect.objectContaining({ model: 'acme-large' }), expect.objectContaining({ model: 'acme-large' }),
+      ])
+      await configurations.get(ctx)!.update(config)
+      expect((await ctx.llm.listModels(call.provider)).map(model => model.id)).toEqual(['acme-large'])
+      expect(await ctx.llm.resolveModelInfo(call.provider, call.model)).toEqual(before)
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('serves a route pi-ai has never heard of from its own declaration', async () => {
     const server = await mockServer([{ events: textEvents }])
     const ctx = await harness(gateway(`${server.url}/v1`))

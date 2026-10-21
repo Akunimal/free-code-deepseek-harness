@@ -79,6 +79,7 @@ kind: "package-reference"
 | `api` | 目录协议 | 协议格式；仅目录不提供的路由需要 |
 | `baseURL` | 目录端点 | 路由上所有模型的端点 |
 | `models` | 已安装目录 | 整体替换路由目录；每个条目从已安装模型取默认值 |
+| `models[].selectable` | `true` | `false` 在选择器中隐藏模型，但保留描述信息和固定模型调用；恢复可选状态时仍使用原有上下文与推理元数据 |
 | `modelOverrides` | 无 | 重塑个别已安装目录模型，而不替换其余模型 |
 | `compat` | 目录检测 | 无法识别端点的协议兼容开关 |
 | `defaultContextWindow` | `262,144` | 未描述模型的容量回退 |

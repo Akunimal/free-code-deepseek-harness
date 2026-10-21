@@ -455,6 +455,18 @@
         "packages/contract-tests/tests/patch-stack-replay.contract.test.ts"
       ],
       "vendorOnly": true
+    },
+    {
+      "file": "183-freecode-recoverable-model-catalog.patch",
+      "order": 183,
+      "owner": "freecode",
+      "description": "Keep exact model descriptors resolvable while health refresh hides unavailable selector choices",
+      "seam": "packages/llm/llm-pi-ai",
+      "contractTests": [
+        "packages/llm/llm-pi-ai/tests/catalog.spec.ts",
+        "apps/shell/tests/phoenix-recovery.test.ts"
+      ],
+      "vendorOnly": true
     }
   ]
 }

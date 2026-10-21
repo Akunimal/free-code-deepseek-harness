@@ -1,0 +1,136 @@
+diff --git a/vendor/deepseek-harness/packages/llm/llm-pi-ai/README.md b/vendor/deepseek-harness/packages/llm/llm-pi-ai/README.md
+index b8a38e8524..940ec71445 100644
+--- a/vendor/deepseek-harness/packages/llm/llm-pi-ai/README.md
++++ b/vendor/deepseek-harness/packages/llm/llm-pi-ai/README.md
+@@ -79,6 +79,7 @@ Each profile may set a `retryPolicy`; omission uses normal mode with five retrie
+ | `api` | catalog protocol | Wire protocol; only needed for routes the catalog does not supply |
+ | `baseURL` | catalog endpoint | Endpoint of every model on the route |
+ | `models` | installed catalog | Replaces the route's catalog wholesale; each entry defaults from the installed model |
++| `models[].selectable` | `true` | `false` hides a model from selectors without removing its descriptor or exact pinned-call support; restoring it reuses its context and reasoning metadata |
+ | `modelOverrides` | none | Reshapes individual installed-catalog models without replacing the rest |
+ | `compat` | catalog detection | Wire-compatibility switches for unrecognized endpoints |
+ | `defaultContextWindow` | `262,144` | Capacity fallback for undescribed models |
+diff --git a/vendor/deepseek-harness/packages/llm/llm-pi-ai/README.zh.md b/vendor/deepseek-harness/packages/llm/llm-pi-ai/README.zh.md
+index 7d57c80cd0..60f86b32dd 100644
+--- a/vendor/deepseek-harness/packages/llm/llm-pi-ai/README.zh.md
++++ b/vendor/deepseek-harness/packages/llm/llm-pi-ai/README.zh.md
+@@ -79,6 +79,7 @@ kind: "package-reference"
+ | `api` | 目录协议 | 协议格式；仅目录不提供的路由需要 |
+ | `baseURL` | 目录端点 | 路由上所有模型的端点 |
+ | `models` | 已安装目录 | 整体替换路由目录；每个条目从已安装模型取默认值 |
++| `models[].selectable` | `true` | `false` 在选择器中隐藏模型，但保留描述信息和固定模型调用；恢复可选状态时仍使用原有上下文与推理元数据 |
+ | `modelOverrides` | 无 | 重塑个别已安装目录模型，而不替换其余模型 |
+ | `compat` | 目录检测 | 无法识别端点的协议兼容开关 |
+ | `defaultContextWindow` | `262,144` | 未描述模型的容量回退 |
+diff --git a/vendor/deepseek-harness/packages/llm/llm-pi-ai/src/adapter.ts b/vendor/deepseek-harness/packages/llm/llm-pi-ai/src/adapter.ts
+index 55bc08012a..c53483cbad 100644
+--- a/vendor/deepseek-harness/packages/llm/llm-pi-ai/src/adapter.ts
++++ b/vendor/deepseek-harness/packages/llm/llm-pi-ai/src/adapter.ts
+@@ -283,8 +283,8 @@ export class PiAiAdapter extends LlmAdapter {
+   override listModels(provider: string): Promise<readonly LlmModelInfo[]> {
+     return Promise.resolve().then(() => {
+       const snapshot = this.current()
+-      this.profileOf(snapshot, provider)
+-      return snapshot.models.getModels(provider).map(model => ({
++      const profile = this.profileOf(snapshot, provider)
++      return snapshot.models.getModels(provider).filter(model => !profile.hiddenModelIds.has(model.id)).map(model => ({
+         provider,
+         id: model.id,
+         name: model.name,
+diff --git a/vendor/deepseek-harness/packages/llm/llm-pi-ai/src/catalog.ts b/vendor/deepseek-harness/packages/llm/llm-pi-ai/src/catalog.ts
+index 87b8e01d0e..78ccbf9e69 100644
+--- a/vendor/deepseek-harness/packages/llm/llm-pi-ai/src/catalog.ts
++++ b/vendor/deepseek-harness/packages/llm/llm-pi-ai/src/catalog.ts
+@@ -589,6 +589,8 @@ export interface PiAiModelProfile {
+   id: string
+   /** Display name for selectors; defaults to the catalog name, then the id. */
+   name?: string
++  /** False hides this model from selectors while retaining exact pinned-call resolution. */
++  selectable?: boolean
+   /** Maximum combined request and response context in tokens. */
+   contextWindow?: number
+   /** Provider-advertised output capacity; unlike `maxTokens`, this is not a request default. */
+diff --git a/vendor/deepseek-harness/packages/llm/llm-pi-ai/src/config.ts b/vendor/deepseek-harness/packages/llm/llm-pi-ai/src/config.ts
+index 4ae659dfb4..85d7871f6e 100644
+--- a/vendor/deepseek-harness/packages/llm/llm-pi-ai/src/config.ts
++++ b/vendor/deepseek-harness/packages/llm/llm-pi-ai/src/config.ts
+@@ -220,6 +220,8 @@ export interface ResolvedPiAiProviderProfile
+   modelOutputMaxTokens: ReadonlyMap<string, number>
+   /** Per-model reasoning defaults; route-level `reasoning` remains the fallback. */
+   modelDefaultReasoningEfforts: ReadonlyMap<string, ModelThinkingLevel>
++  /** Configured models hidden from discovery; pinned calls still resolve their descriptors. */
++  hiddenModelIds: ReadonlySet<string>
+ }
+
+ /** Plugin configuration: the provider routes this instance owns. */
+@@ -306,6 +308,7 @@ const reasoningEfforts = z.dict(
+ /** The fields a `models` entry and a `modelOverrides` value share; only the id's home differs. */
+ const modelFields = {
+   name: z.string(),
++  selectable: z.union([z.const(false), z.const(true)]),
+   contextWindow: z.number().step(1).min(1),
+   maxTokens: z.number().step(1).min(1),
+   outputMaxTokens: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER),
+@@ -509,6 +512,10 @@ export function resolveProfiles(
+       configuredMaxTokens: catalog?.configuredMaxTokens ?? new Map(),
+       modelOutputMaxTokens: catalog?.modelOutputMaxTokens ?? new Map(),
+       modelDefaultReasoningEfforts: catalog?.modelDefaultReasoningEfforts ?? new Map(),
++      hiddenModelIds: new Set([
++        ...(source.models ?? []).filter(model => model.selectable === false).map(model => model.id),
++        ...Object.entries(source.modelOverrides ?? {}).filter(([, model]) => model.selectable === false).map(([id]) => id),
++      ]),
+       modelErrors: catalog?.modelErrors ?? new Map(),
+       ...piProvider === undefined ? {} : { piProvider },
+       ...catalogError === undefined ? {} : { catalogError },
+diff --git a/vendor/deepseek-harness/packages/llm/llm-pi-ai/tests/catalog.spec.ts b/vendor/deepseek-harness/packages/llm/llm-pi-ai/tests/catalog.spec.ts
+index 36c66a99d1..f40d4ff9fe 100644
+--- a/vendor/deepseek-harness/packages/llm/llm-pi-ai/tests/catalog.spec.ts
++++ b/vendor/deepseek-harness/packages/llm/llm-pi-ai/tests/catalog.spec.ts
+@@ -70,6 +70,47 @@ async function harness(config: LlmPiAi.Options): Promise<Context> {
+ }
+
+ describe('hand-declared providers', () => {
++  it('hides a catalog override without withdrawing the installed model descriptor', async () => {
++    const model = getBuiltinModels('deepseek')[0]!
++    const ctx = await harness({ providers: { deepseek: {
++      modelOverrides: { [model.id]: { selectable: false } },
++    } } })
++    try {
++      expect((await ctx.llm.listModels('deepseek')).map(entry => entry.id)).not.toContain(model.id)
++      expect(await ctx.llm.resolveModelInfo('deepseek', model.id)).toMatchObject({ id: model.id })
++    } finally {
++      await ctx.fiber.dispose()
++    }
++  })
++
++  it('hides an unavailable model from selection while pinned calls and recovery retain its descriptor', async () => {
++    const server = await mockServer([{ events: textEvents }, { events: textEvents }])
++    const config = gateway(`${server.url}/v1`)
++    const ctx = await bootWithSettings(config)
++    try {
++      const call = { provider: 'acme-gateway', model: 'acme-large', messages: [createUserMessage({
++        content: [{ type: 'text' as const, text: 'continue after the tool result' }], source: { kind: 'test' as const },
++      })] }
++      const before = await ctx.llm.resolveModelInfo(call.provider, call.model)
++      await assemble(ctx, call)
++      await configurations.get(ctx)!.update(gateway(`${server.url}/v1`, {
++        models: [{ id: 'acme-large', name: 'Acme Large', contextWindow: 65_536, maxTokens: 4096, selectable: false }],
++      }))
++      expect(await ctx.llm.listModels(call.provider)).toEqual([])
++      expect(await ctx.llm.resolveModelInfo(call.provider, call.model)).toEqual(before)
++      const continued = await assemble(ctx, call)
++      expect(continued.finish).toEqual({ kind: 'stop' })
++      expect(server.requests).toEqual([
++        expect.objectContaining({ model: 'acme-large' }), expect.objectContaining({ model: 'acme-large' }),
++      ])
++      await configurations.get(ctx)!.update(config)
++      expect((await ctx.llm.listModels(call.provider)).map(model => model.id)).toEqual(['acme-large'])
++      expect(await ctx.llm.resolveModelInfo(call.provider, call.model)).toEqual(before)
++    } finally {
++      await ctx.fiber.dispose()
++    }
++  })
++
+   it('serves a route pi-ai has never heard of from its own declaration', async () => {
+     const server = await mockServer([{ events: textEvents }])
+     const ctx = await harness(gateway(`${server.url}/v1`))

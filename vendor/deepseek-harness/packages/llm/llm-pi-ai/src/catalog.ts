@@ -589,6 +589,8 @@ export interface PiAiModelProfile {
   id: string
   /** Display name for selectors; defaults to the catalog name, then the id. */
   name?: string
+  /** False hides this model from selectors while retaining exact pinned-call resolution. */
+  selectable?: boolean
   /** Maximum combined request and response context in tokens. */
   contextWindow?: number
   /** Provider-advertised output capacity; unlike `maxTokens`, this is not a request default. */

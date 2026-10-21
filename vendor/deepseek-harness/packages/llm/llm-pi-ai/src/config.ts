@@ -220,6 +220,8 @@ export interface ResolvedPiAiProviderProfile
   modelOutputMaxTokens: ReadonlyMap<string, number>
   /** Per-model reasoning defaults; route-level `reasoning` remains the fallback. */
   modelDefaultReasoningEfforts: ReadonlyMap<string, ModelThinkingLevel>
+  /** Configured models hidden from discovery; pinned calls still resolve their descriptors. */
+  hiddenModelIds: ReadonlySet<string>
 }
 
 /** Plugin configuration: the provider routes this instance owns. */
@@ -306,6 +308,7 @@ const reasoningEfforts = z.dict(
 /** The fields a `models` entry and a `modelOverrides` value share; only the id's home differs. */
 const modelFields = {
   name: z.string(),
+  selectable: z.union([z.const(false), z.const(true)]),
   contextWindow: z.number().step(1).min(1),
   maxTokens: z.number().step(1).min(1),
   outputMaxTokens: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER),
@@ -509,6 +512,10 @@ export function resolveProfiles(
       configuredMaxTokens: catalog?.configuredMaxTokens ?? new Map(),
       modelOutputMaxTokens: catalog?.modelOutputMaxTokens ?? new Map(),
       modelDefaultReasoningEfforts: catalog?.modelDefaultReasoningEfforts ?? new Map(),
+      hiddenModelIds: new Set([
+        ...(source.models ?? []).filter(model => model.selectable === false).map(model => model.id),
+        ...Object.entries(source.modelOverrides ?? {}).filter(([, model]) => model.selectable === false).map(([id]) => id),
+      ]),
       modelErrors: catalog?.modelErrors ?? new Map(),
       ...piProvider === undefined ? {} : { piProvider },
       ...catalogError === undefined ? {} : { catalogError },

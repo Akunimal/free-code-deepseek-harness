@@ -548,6 +548,45 @@ unrun because the user wants to test locally before publication. Do not push,
 tag, release, or run either artifact until the user returns with test results
 and separately authorizes those next steps.
 
+## Authorized follow-up: recover a verified pinned model across catalog refresh
+
+The user reports that MiniMax had just refreshed and displayed its context,
+then a turn failed after a tool step with `UNKNOWN_MODEL`. They explicitly
+request investigation and repair. The immediate defect is that strict health
+refresh removes descriptors from the same provider registry used by subsequent
+steps of an existing turn. Health availability and configured route identity
+must be independent: failed probes hide a route from new selector choices,
+while exact allowlisted routes remain resolvable for pinned turns and recovery.
+Never switch a concrete pin to another model. A later valid probe restores
+selector visibility with its context and reasoning metadata intact.
+
+TDD remains red-green-refactor (Vitest in shell and vendor); direct inline,
+existing feature branch and stacked-to-main local commit strategy apply.
+Forecast: ~500 authored changed lines split into two coherent work units plus
+local packaging evidence. Local source/tests/docs/runtime/build are authorized;
+no app-instance access, install, provider requests, push, tag or publication.
+
+- [x] PHX101-12a: Add model selector visibility independently of exact-model
+  resolution in the pi-ai provider; regress hidden model resolution, actual
+  requests and visibility recovery under live configuration; document and
+  capture the vendor patch.
+  RED observed: hidden model still appeared in `listModels`; GREEN: 98/98
+  catalog/config/dynamic-config tests, plus the pi-ai package TypeScript build.
+  The live-config regression sends an actual local request before and after
+  hiding the same route, then restores selector visibility and metadata.
+- [ ] PHX101-12b: Keep Phoenix's exact allowlist configured through failed
+  probes, change only selector visibility, preserve concrete defaults and
+  metadata, start with unavailable choices hidden, and prove failure/recovery
+  against an isolated real Host using a test-owned local upstream.
+- [ ] PHX101-12c: Run applicable checks, rebuild the affected runtime and local
+  candidate artifacts, update Graphify and record exact evidence. Do not
+  execute the installer or publish; the user tests locally.
+- [ ] PHX101-12d: User additionally requests Auto-only recovery to another
+  model with context compaction first when feasible, otherwise complete history
+  forwarding. Inspect the actual compaction/Auto paths, implement any necessary
+  repair and deterministically test history/tool continuity, without changing
+  a concrete pin or switching after downstream stream bytes were committed.
+
 ## Relevant files
 
 - `apps/shell/src/main/runtime.ts` — desktop runtime composition and DSH gateway URL.
