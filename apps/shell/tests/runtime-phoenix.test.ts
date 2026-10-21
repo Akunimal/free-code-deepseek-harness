@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -41,6 +41,11 @@ describe('Phoenix runtime composition', () => {
   });
 
   afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+  it('enables strict per-model response probes in the production catalog refresh', () => {
+    const indexSource = readFileSync(new URL('../src/main/index.ts', import.meta.url), 'utf8');
+    expect(indexSource).toMatch(/provider: 'freecode-phoenix',[\s\S]*?exactModelIds: phoenixModelIds,[\s\S]*?probeModels: true/);
+  });
 
   it('starts Phoenix before DSH, passes its per-run key to the Harness, and stops only the owned service', async () => {
     const resourcesDir = join(root, 'resources');

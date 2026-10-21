@@ -40,9 +40,13 @@ pnpm test:contract
     alias, and lists only the explicitly reviewed Kilo no-auth models.
 11. Auto stays first; concrete Phoenix models follow the reviewed quality rank,
     and probe latency cannot promote a lower-ranked model.
-12. The web root still serves parseable `window.__DSH_BOOT__` JSON; lazy entries
+12. The production Phoenix refresher probes models individually and only
+    retains models with a valid, non-empty HTTP 200 chat completion. Every
+    failed current probe is removed from the selector; prior success is
+    diagnostic only, and recovery requires a later valid probe.
+13. The web root still serves parseable `window.__DSH_BOOT__` JSON; lazy entries
     may omit `immediately` and therefore mean `false`.
-13. Every upstream client/web package is represented in
+14. Every upstream client/web package is represented in
     `docs/UPSTREAM-FEATURES.md`; a new package fails this documentation contract
     until it is explained.
 

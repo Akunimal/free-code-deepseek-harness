@@ -51,6 +51,23 @@ describe('documentation feature inventory', () => {
     expect(spanishReadme).toContain('docs/KNOWN-ISSUES.md');
   });
 
+  it('documents strict live-completion selector eligibility in English and Spanish', () => {
+    const releaseNotes = readFileSync(join(ROOT, 'release-notes-v1.0.1.md'), 'utf8');
+    const english = `${readFileSync(join(ROOT, 'README.md'), 'utf8')} ${releaseNotes.slice(0, releaseNotes.indexOf('## Español'))}`
+      .replace(/\s+/gu, ' ');
+    const spanish = `${readFileSync(join(ROOT, 'README.es.md'), 'utf8')} ${releaseNotes.slice(releaseNotes.indexOf('## Español'))}`
+      .replace(/\s+/gu, ' ');
+
+    expect(english).toMatch(/valid, non-empty HTTP 200 chat completion/iu);
+    expect(english).toMatch(/failed current probes?.{0,120}(?:hidden|removed|disappear)/iu);
+    expect(english).toMatch(/selector/iu);
+    expect(english).toMatch(/reappear.{0,80}(?:valid|successful) completion/iu);
+    expect(spanish).toMatch(/respuesta v\u00e1lida y no vac\u00eda con HTTP 200/iu);
+    expect(spanish).toMatch(/(?:fallan|falla).{0,120}(?:se quitan|desaparecen|se ocultan)/iu);
+    expect(spanish).toMatch(/selector/iu);
+    expect(spanish).toMatch(/(?:reaparece|reaparecen|vuelve|vuelven).{0,80}(?:respuesta|completion) v\u00e1lida/iu);
+  });
+
   it('keeps Caveman optional and the known-issues baseline honest', () => {
     const roadmap = readFileSync(join(ROOT, 'docs/ROADMAP.md'), 'utf8');
     const knownIssues = readFileSync(join(ROOT, 'docs/KNOWN-ISSUES.md'), 'utf8');

@@ -25,9 +25,9 @@ export interface CatalogModel {
   responds: boolean;
   latencyMs: number | null;
   lastSeen: number;
-  failureKind?: 'http' | 'transport';
+  failureKind?: 'http' | 'transport' | 'invalid-response';
   statusCode?: number;
-  /** The route had a prior HTTP-200 probe; its current probe had no response. */
+  /** The route previously returned a usable completion; its current probe failed before HTTP. */
   lastKnownGood?: boolean;
 }
 
@@ -35,7 +35,8 @@ export interface ModelCatalog {
   refreshedAt: number;
   availability?: 'ready' | 'degraded';
   providers: Record<string, { models: CatalogModel[] }>;
-  /** Last routes proven with HTTP 200, retained only across transport failures. */
+  /** Previously valid routes retained for diagnostics/recovery bookkeeping only;
+   *  strict selector eligibility always comes from the current probe. */
   lastKnownGoodByProvider?: Record<string, string[]>;
 }
 
@@ -76,10 +77,10 @@ export interface ProviderRefreshTarget {
   alwaysExposedModels?: ReadonlySet<string>;
   /** Schema-valid seed models used when the route has not answered yet. */
   fallbackModels?: readonly string[];
-  /** When true, settings expose ONLY probed responders: with zero responders
-   *  the synced list is erased except for previously HTTP-200-verified models
-   *  whose current probe failed before an HTTP response. Explicit HTTP
-   *  rejections and newly advertised IDs are never retained. */
+  /** When true, settings expose ONLY models with a valid, non-empty HTTP 200
+   *  chat completion from this refresh. Every failed current probe is removed,
+   *  including transport errors, HTTP rejections and malformed/empty 200s;
+   *  prior success is diagnostic only. */
   strictResponders?: boolean;
 }
 
@@ -167,8 +168,9 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
       probeModels: cfg.probeModels,
       apiKeyEnv: cfg.apiKeyEnv ?? 'FREECODE_PHOENIX_API_KEY',
       defaultInput: ['text'],
-      // Phoenix's pinned manifest is the selector contract. Per-model probes
-      // would be slow, rate-limited and incorrectly imply live guarantees.
+      // Phoenix's production selector requires a live, valid completion from
+      // each route. An advertised model name or bare HTTP 200 is not proof that
+      // the model can answer a chat request.
       strictResponders: cfg.probeModels !== false,
       fallbackModels: cfg.probeModels === false ? cfg.exactModelIds : undefined,
       refreshBaseUrl: true,
@@ -181,7 +183,7 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
   // Host both consume settings.yaml; publishing candidates here would let an
   // unverified or protocol-rejected route slip through while a slow probe is
   // still running. A slow model may take up to two minutes, so keep the UI in
-  // its explicit "checking"/blocked state until the 200-only result is ready.
+  // its explicit "checking"/blocked state until a valid completion is ready.
   const listings = await Promise.all(targets.map(async (target, index) => {
     if (index === 0 && cfg.primaryUnavailable) return { target, ids: [] as ListedModel[] };
     try {
@@ -191,6 +193,13 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
         ids: listed,
       };
     } catch (error) {
+      // Phoenix ships an exact reviewed allowlist. If only its `/models`
+      // endpoint is unavailable, probe those known IDs individually rather
+      // than leaving a stale selector untouched or treating discovery failure
+      // as proof that old entries still answer.
+      if (index === 0 && target.strictResponders && target.exactModelIds?.length) {
+        return { target, ids: target.exactModelIds.map((id) => ({ id })) };
+      }
       // The required primary catalog keeps its historical failure contract.
       // An optional provider can be offline without failing the primary list.
       if (index === 0) throw error;
@@ -212,10 +221,8 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
     }
   }));
 
-  // A transport failure is not proof that a formerly-working model changed
-  // protocol or disappeared. Keep only routes with prior HTTP-200 evidence
-  // that remain advertised and failed without an HTTP response. Any explicit
-  // HTTP status (especially the unsupported-protocol 400) retires that ID.
+  // Preserve prior successful IDs as diagnostic metadata only when a current
+  // probe fails before HTTP. This metadata never makes a model selector-visible.
   const lastKnownGoodByProvider: Record<string, string[]> = {};
   for (const { target, entries } of results) {
     const previouslyVerified = new Set(previousLastKnownGood[target.provider] ?? []);
@@ -231,12 +238,13 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
     lastKnownGoodByProvider[target.provider] = retained;
   }
 
+  const primaryEntries = results.find(({ target }) => target.provider === primaryProvider)?.entries ?? [];
+  const availability = primaryEntries.length > 0 && primaryEntries.every((model) => model.responds)
+    ? 'ready'
+    : 'degraded';
   const catalog: ModelCatalog = {
     refreshedAt: Math.floor(Date.now() / 1000),
-    availability: results.some(({ entries }) => entries.some((model) => model.responds))
-      && !results.some(({ entries }) => entries.some((model) => model.lastKnownGood || isRetryableModelProbeFailure(model)))
-      ? 'ready'
-      : 'degraded',
+    availability,
     providers: Object.fromEntries(results.map(({ target, entries }) => [target.provider, { models: entries }])),
     lastKnownGoodByProvider,
   };
@@ -349,6 +357,26 @@ async function listModelIds(target: ProviderRefreshTarget, timeoutMs: number): P
   return allowed;
 }
 
+function hasUsableChatCompletion(value: unknown): boolean {
+  const choices = asRecord(value)?.choices;
+  if (!Array.isArray(choices)) return false;
+  return choices.some((choice) => {
+    const message = asRecord(asRecord(choice)?.message);
+    if (!message) return false;
+    const content = message.content;
+    if (typeof content === 'string' && content.trim().length > 0) return true;
+    if (Array.isArray(content) && content.some((part) => {
+      const block = asRecord(part);
+      return typeof block?.text === 'string' && block.text.trim().length > 0;
+    })) return true;
+    if (typeof message.refusal === 'string' && message.refusal.trim().length > 0) return true;
+    return Array.isArray(message.tool_calls) && message.tool_calls.some((call) => {
+      const functionCall = asRecord(asRecord(call)?.function);
+      return typeof functionCall?.name === 'string' && functionCall.name.trim().length > 0;
+    });
+  });
+}
+
 async function probeModels(
   target: ProviderRefreshTarget,
   ids: readonly ListedModel[],
@@ -387,16 +415,26 @@ async function probeModels(
         }),
         signal: AbortSignal.timeout(timeoutMs),
       });
-      latencyMs = Date.now() - started;
       statusCode = res.status;
-      responds = res.status === 200;
-      if (!responds) failureKind = 'http';
-      try {
-        await res.body?.cancel();
-      } catch {
-        // The received HTTP status is authoritative even if body cleanup races
-        // a connection close; do not relabel an HTTP 400/500 as transport loss.
+      if (res.status !== 200) {
+        failureKind = 'http';
+        try {
+          await res.body?.cancel();
+        } catch {
+          // The received HTTP status is authoritative even if body cleanup races
+          // a connection close; do not relabel an HTTP rejection as transport loss.
+        }
+      } else {
+        try {
+          responds = hasUsableChatCompletion(await res.json());
+        } catch {
+          // Once a 200 arrived, an empty, truncated or non-JSON body is a bad
+          // model response, not a pre-response transport outage to preserve.
+          responds = false;
+        }
+        if (!responds) failureKind = 'invalid-response';
       }
+      latencyMs = Date.now() - started;
     } catch {
       responds = false;
       latencyMs = null;
@@ -547,7 +585,9 @@ function syncProviderModels(
   const responders = entries
     .filter((model) => model.responds)
     .sort(compareModels);
-  const lastKnownGood = entries.filter((model) => model.lastKnownGood === true);
+  const lastKnownGood = target.strictResponders
+    ? []
+    : entries.filter((model) => model.lastKnownGood === true);
   const advertisedFallbacks = target.strictResponders ? [] : entries.filter((model) => target.alwaysExposedModels?.has(model.id));
   if (responders.length > 0) {
     const responderIds = new Set(responders.map((model) => model.id));
@@ -561,11 +601,10 @@ function syncProviderModels(
     return;
   }
 
-  // A strict lane never exposes a newly advertised/unverified model. Preserve
-  // only prior HTTP-200 routes when this refresh ended in a transport failure;
-  // explicit HTTP rejections (including unsupported-protocol 400) are dropped.
+  // A strict lane is a live list, not a last-known-good list: every model that
+  // failed this refresh is removed until a later valid completion probe.
   if (target.strictResponders) {
-    provider.models = lastKnownGood.map(model => modelSettingsForModel(model));
+    provider.models = [];
     return;
   }
 

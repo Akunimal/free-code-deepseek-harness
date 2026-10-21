@@ -46,6 +46,10 @@ v1.0.0.
   `kilo-auto/free` are excluded; the latter can change its upstream routing.
 - Choosing a concrete model is a strict pin: if that model/provider fails,
   FreeCode returns the failure and does not silently pick a different model.
+- Only models with a parseable, valid non-empty HTTP 200 chat completion stay
+  selectable. A failed current probe is hidden immediately, including transport
+  failures, HTTP errors and empty/malformed HTTP-200 bodies. Prior success is
+  diagnostic only; a later valid completion makes the model reappear.
 - Only Auto may retry another eligible free route, with bounded retries before
   response streaming starts. Once stream output is committed, the selected
   route is never changed mid-stream.
@@ -118,6 +122,11 @@ publicada sigue siendo v1.0.0.
   `openrouter/free` y `kilo-auto/free`, cuya ruta upstream puede cambiar.
 - Elegir un modelo concreto lo fija estrictamente: si falla ese modelo/proveedor,
   FreeCode devuelve el error y no elige otro modelo a escondidas.
+- Solo los modelos con una respuesta de chat HTTP 200 válida, parseable y no vacía
+  siguen en el selector. Una sonda actual fallida quita el modelo inmediatamente,
+  incluidos errores de transporte/HTTP y cuerpos HTTP 200 vacíos o inválidos.
+  El éxito anterior queda solo como diagnóstico; una respuesta válida posterior
+  vuelve a mostrar el modelo.
 - Solo Auto puede reintentar otra ruta gratuita elegible, con reintentos
   acotados y antes de comenzar el stream. Después de confirmar la salida del
   stream, la ruta no cambia a mitad de respuesta.

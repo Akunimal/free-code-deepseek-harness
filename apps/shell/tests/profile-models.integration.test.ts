@@ -46,7 +46,7 @@ it('updates the real running Host selector and endpoint through profile HMR with
       if (!String(url).startsWith('http://127.0.0.1:51593') && !String(url).startsWith('http://127.0.0.1:60001')) return nativeFetch(url, init);
       return String(url).endsWith('/models')
         ? new Response(JSON.stringify({data: ids.map(id => ({id}))}), {status: 200})
-        : new Response('{}', {status: succeeds ? 200 : 403});
+        : new Response(JSON.stringify({choices: [{message: {role: 'assistant', content: 'pong'}}]}), {status: succeeds ? 200 : 403});
     }) as typeof fetch);
     const refresh = (port = 51593) => refreshModels({homeDir: home, userDataDir: join(home, 'catalog'), lbBaseUrl: `http://127.0.0.1:${port}`});
     await refresh();

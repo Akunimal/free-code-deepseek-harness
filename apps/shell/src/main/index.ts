@@ -1140,13 +1140,13 @@ app.whenReady().then(async () => {
         authHeader: `Bearer ${phoenixApiKey}`,
         provider: 'freecode-phoenix',
         exactModelIds: phoenixModelIds,
-        probeModels: false,
+        probeModels: true,
         apiKeyEnv: 'FREECODE_PHOENIX_API_KEY',
         providers: [],
         onUpdate: (c) => {
           catalog = c;
           reportNoFreeModels(c);
-          const retainedRoutes = Object.values(c.providers)
+          const temporarilyHiddenRoutes = Object.values(c.providers)
             .flatMap((provider) => provider.models)
             .filter((model) => model.lastKnownGood === true).length;
           const verifiedRoutes = Object.values(c.providers)
@@ -1154,10 +1154,10 @@ app.whenReady().then(async () => {
             .filter((model) => model.responds).length;
           const retrying = shouldRetryModelRefresh(c);
           const retrySuffix = retrying ? ' Bounded refresh retries are scheduled.' : ' The next check follows the regular refresh cadence.';
-          const degradedMessage = retainedRoutes > 0
-            ? `Some model probes failed at the transport layer; retaining ${retainedRoutes} previously HTTP-200-verified route(s).${retrySuffix}`
+          const degradedMessage = temporarilyHiddenRoutes > 0
+            ? `Some model probes failed before a response; ${temporarilyHiddenRoutes} previously verified route(s) are hidden until a valid completion succeeds.${retrySuffix}`
             : verifiedRoutes > 0
-              ? `Some model probes failed transiently; ${verifiedRoutes} currently verified route(s) remain selectable.${retrySuffix}`
+              ? `Some model probes failed; ${verifiedRoutes} currently verified route(s) remain selectable.${retrySuffix}`
               : `No Phoenix model is available right now. The local allowlisted catalog will retry automatically.${retrySuffix}`;
           reportBackendState('catalog', c.availability === 'degraded' ? 'degraded' : 'ready',
             c.availability === 'degraded' ? degradedMessage : undefined);
@@ -1165,8 +1165,8 @@ app.whenReady().then(async () => {
       }));
       refreshRetryAttempt = 0;
       // Retry transient per-model failures even when another route responds,
-      // so the selector can recover without discarding the last-known-good
-      // choices or waiting for the 30-minute cadence. Permanent HTTP 4xx
+      // so temporarily hidden routes can reappear after a valid completion
+      // without waiting for the regular cadence. Permanent HTTP 4xx
       // protocol/auth failures only use that regular cadence. Bounded: 8
       // short retries per degraded period, then cadence.
       if (phoenixUrl) {

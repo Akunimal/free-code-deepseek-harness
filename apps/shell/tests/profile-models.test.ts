@@ -20,7 +20,9 @@ function providers(path: string) { return profile(path).find(x => x.id === 'llm-
 function upstream(ids: string[], success = true) {
   vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => String(url).endsWith('/models')
     ? new Response(JSON.stringify({data: ids.map(id => ({id}))}), {status: 200})
-    : new Response(success ? '{}' : 'forbidden', {status: success ? 200 : 403})));
+    : new Response(success
+      ? JSON.stringify({choices: [{message: {role: 'assistant', content: 'pong'}}]})
+      : 'forbidden', {status: success ? 200 : 403})));
 }
 
 describe('active DSH profile model boundary', () => {

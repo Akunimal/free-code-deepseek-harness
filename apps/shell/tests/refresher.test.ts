@@ -12,6 +12,12 @@ import {
 const LB = 'http://127.0.0.1:41234';
 const REASONING_EFFORTS = { off: null, low: 'low', high: 'high', max: 'max' };
 
+function successfulCompletionResponse(): Response {
+  return new Response(JSON.stringify({
+    choices: [{ index: 0, message: { role: 'assistant', content: 'pong' }, finish_reason: 'stop' }],
+  }), { status: 200, headers: { 'content-type': 'application/json' } });
+}
+
 function deepseekModel(id: string): { id: string; reasoningEfforts: typeof REASONING_EFFORTS } {
   return { id, reasoningEfforts: REASONING_EFFORTS };
 }
@@ -39,7 +45,7 @@ function mockFetch(okIds: string[], latencies: Record<string, number> = {}): voi
         const latency = latencies[body.model] ?? 20;
         await new Promise((r) => setTimeout(r, latency));
         return okIds.includes(body.model)
-          ? new Response(JSON.stringify({ choices: [] }), { status: 200 })
+          ? successfulCompletionResponse()
           : new Response('err', { status: 500 });
       }
       return new Response('not found', { status: 404 });
@@ -58,7 +64,7 @@ function mockFetchWithModels(modelIds: string[], okIds: string[]): void {
       if (u.endsWith('/v1/chat/completions')) {
         const body = JSON.parse(String(init?.body)) as { model: string };
         return okIds.includes(body.model)
-          ? new Response(JSON.stringify({ choices: [] }), { status: 200 })
+          ? successfulCompletionResponse()
           : new Response('err', { status: 500 });
       }
       return new Response('not found', { status: 404 });
@@ -141,7 +147,7 @@ describe('model-refresher', () => {
       }
       if (endpoint.endsWith('/v1/chat/completions')) {
         probeBodies.push(JSON.parse(String(init?.body)) as { model: string; max_tokens: number });
-        return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+        return successfulCompletionResponse();
       }
       return new Response('not found', { status: 404 });
     }));
@@ -163,7 +169,7 @@ describe('model-refresher', () => {
         return new Response(JSON.stringify({ data: [null, 'invalid', { id: 'valid-model' }] }), { status: 200 });
       }
       if (endpoint.endsWith('/v1/chat/completions')) {
-        return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+        return successfulCompletionResponse();
       }
       return new Response('not found', { status: 404 });
     }));
@@ -206,7 +212,7 @@ describe('model-refresher', () => {
       if (endpoint.endsWith('/v1/chat/completions')) {
         const { model } = JSON.parse(String(init?.body)) as { model: string };
         if (model === 'temporarily-offline') throw new TypeError('socket hang up');
-        return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+        return successfulCompletionResponse();
       }
       return new Response('not found', { status: 404 });
     }));
@@ -305,7 +311,7 @@ describe('model-refresher', () => {
       if (endpoint.endsWith('/v1/chat/completions')) {
         const { model } = JSON.parse(String(init?.body)) as { model: string };
         await new Promise((resolve) => setTimeout(resolve, latencyByModel[model]));
-        return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+        return successfulCompletionResponse();
       }
       return new Response('not found', { status: 404 });
     }));
@@ -428,7 +434,7 @@ describe('model-refresher', () => {
       if (String(url).endsWith('/v1/chat/completions')) {
         probeStarted = true;
         await gate;
-        return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+        return successfulCompletionResponse();
       }
       return new Response('not found', { status: 404 });
     }));
@@ -489,7 +495,7 @@ describe('model-refresher', () => {
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
-  it('retains only previously verified models across transport failures and evicts explicit HTTP rejections', async () => {
+  it('hides failed models after transport errors and restores them after a valid recovery probe', async () => {
     const { home, data } = tmpDirs();
     let phase: 'initial' | 'transport-down' | 'recovered' = 'initial';
     const fetchMock = vi.fn(async (url: string | URL, init?: RequestInit) => {
@@ -503,7 +509,7 @@ describe('model-refresher', () => {
       if (endpoint.endsWith('/v1/chat/completions')) {
         const { model } = JSON.parse(String(init?.body)) as { model: string };
         if (phase === 'initial') {
-          return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+          return successfulCompletionResponse();
         }
         if (phase === 'transport-down') {
           if (model === 'will-be-rejected') {
@@ -521,7 +527,7 @@ describe('model-refresher', () => {
         if (model === 'will-be-rejected') {
           return new Response('unsupported', { status: 400 });
         }
-        return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+        return successfulCompletionResponse();
       }
       return new Response('not found', { status: 404 });
     });
@@ -559,19 +565,17 @@ describe('model-refresher', () => {
       ]);
       expect(degraded.lastKnownGoodByProvider?.['freecode-phoenix']).toEqual(['known-good']);
       let settings = readHarnessSettings(home);
-      expect(settings['llm-pi-ai'].providers['freecode-phoenix'].models.map((model: { id: string }) => model.id))
-        .toEqual(['known-good']);
-      expect(settings['agent-default-model']).toEqual({ provider: 'freecode-phoenix', model: 'known-good' });
+      expect(settings['llm-pi-ai'].providers['freecode-phoenix']?.models ?? []).toEqual([]);
+      expect(settings['agent-default-model']).toBeUndefined();
 
       const repeatedFailure = await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
       expect(repeatedFailure.lastKnownGoodByProvider?.['freecode-phoenix']).toEqual(['known-good']);
       settings = readHarnessSettings(home);
-      expect(settings['llm-pi-ai'].providers['freecode-phoenix'].models.map((model: { id: string }) => model.id))
-        .toEqual(['known-good']);
+      expect(settings['llm-pi-ai'].providers['freecode-phoenix']?.models ?? []).toEqual([]);
 
       phase = 'recovered';
       const recovered = await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
-      expect(recovered.availability).toBe('ready');
+      expect(recovered.availability).toBe('degraded');
       expect(recovered.providers['freecode-phoenix']!.models).toEqual([
         expect.objectContaining({ id: 'known-good', responds: true }),
         expect.objectContaining({ id: 'new-candidate', responds: true }),
@@ -581,6 +585,41 @@ describe('model-refresher', () => {
       settings = readHarnessSettings(home);
       expect(settings['llm-pi-ai'].providers['freecode-phoenix'].models.map((model: { id: string }) => model.id))
         .toEqual(['known-good', 'new-candidate']);
+    } finally {
+      rmSync(dirname(home), { recursive: true, force: true });
+    }
+  });
+
+  it('probes the shipped allowlist and evicts non-responders when the model catalog endpoint is unavailable', async () => {
+    const { home, data } = tmpDirs();
+    const probed: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const endpoint = String(url);
+      if (endpoint.endsWith('/v1/models')) return new Response('unavailable', { status: 503 });
+      if (endpoint.endsWith('/v1/chat/completions')) {
+        const { model } = JSON.parse(String(init?.body)) as { model: string };
+        probed.push(model);
+        if (model === 'auto' || model === 'healthy-route') return successfulCompletionResponse();
+        throw new TypeError('socket hang up');
+      }
+      return new Response('not found', { status: 404 });
+    }));
+
+    try {
+      const catalog = await refreshModels({
+        lbBaseUrl: LB,
+        homeDir: home,
+        userDataDir: data,
+        exactModelIds: ['auto', 'healthy-route', 'offline-route'],
+      });
+      expect(probed).toEqual(['auto', 'healthy-route', 'offline-route']);
+      expect(catalog.providers['freecode-phoenix']!.models).toEqual([
+        expect.objectContaining({ id: 'auto', responds: true }),
+        expect.objectContaining({ id: 'healthy-route', responds: true }),
+        expect.objectContaining({ id: 'offline-route', responds: false, failureKind: 'transport' }),
+      ]);
+      expect(readHarnessSettings(home)['llm-pi-ai'].providers['freecode-phoenix'].models.map((model: { id: string }) => model.id))
+        .toEqual(['auto', 'healthy-route']);
     } finally {
       rmSync(dirname(home), { recursive: true, force: true });
     }
@@ -621,7 +660,7 @@ describe('model-refresher', () => {
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
-  it('strict lane exposes only 200 responders, never the advertised catalog', async () => {
+  it('strict lane exposes only valid completion responders, never the advertised catalog', async () => {
     mockFetchWithModels(['a-free', 'b-free'], ['b-free']);
     const { home, data } = tmpDirs();
     await refreshModels({
@@ -645,6 +684,88 @@ describe('model-refresher', () => {
       { id: 'b-free', reasoningEfforts: false },
     ]);
     rmSync(dirname(home), { recursive: true, force: true });
+  });
+
+  it('strict lane requires a usable completion body, not just HTTP 200', async () => {
+    const { home, data } = tmpDirs();
+    const modelIds = ['text-answer', 'tool-answer', 'empty-choices', 'blank-answer', 'malformed-json'];
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const endpoint = String(url);
+      if (endpoint.endsWith('/v1/models')) {
+        return new Response(JSON.stringify({ data: modelIds.map((id) => ({ id })) }), { status: 200 });
+      }
+      if (endpoint.endsWith('/v1/chat/completions')) {
+        const { model } = JSON.parse(String(init?.body)) as { model: string };
+        if (model === 'text-answer') {
+          return new Response(JSON.stringify({ choices: [{ message: { role: 'assistant', content: 'pong' } }] }), { status: 200 });
+        }
+        if (model === 'tool-answer') {
+          return new Response(JSON.stringify({ choices: [{ message: {
+            role: 'assistant', content: null,
+            tool_calls: [{ id: 'call_probe', type: 'function', function: { name: 'probe', arguments: '{}' } }],
+          } }] }), { status: 200 });
+        }
+        if (model === 'empty-choices') return new Response(JSON.stringify({ choices: [ ] }), { status: 200 });
+        if (model === 'blank-answer') {
+          return new Response(JSON.stringify({ choices: [{ message: { role: 'assistant', content: '  \n' } }] }), { status: 200 });
+        }
+        return new Response('not-json', { status: 200 });
+      }
+      return new Response('not found', { status: 404 });
+    }));
+
+    try {
+      const catalog = await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
+      expect(catalog.availability).toBe('degraded');
+      const entries = catalog.providers['freecode-phoenix']!.models;
+      expect(entries.map(({ id, responds }) => [id, responds])).toEqual([
+        ['text-answer', true], ['tool-answer', true], ['empty-choices', false],
+        ['blank-answer', false], ['malformed-json', false],
+      ]);
+      expect(entries.filter((entry) => !entry.responds)).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: 'empty-choices', failureKind: 'invalid-response', statusCode: 200 }),
+        expect.objectContaining({ id: 'blank-answer', failureKind: 'invalid-response', statusCode: 200 }),
+        expect.objectContaining({ id: 'malformed-json', failureKind: 'invalid-response', statusCode: 200 }),
+      ]));
+      expect(readHarnessSettings(home)['llm-pi-ai'].providers['freecode-phoenix'].models.map((model: { id: string }) => model.id))
+        .toEqual(['text-answer', 'tool-answer']);
+      expect(catalog.lastKnownGoodByProvider?.['freecode-phoenix']).toEqual(['text-answer', 'tool-answer']);
+    } finally {
+      rmSync(dirname(home), { recursive: true, force: true });
+    }
+  });
+
+  it('immediately evicts a previously verified model after an empty HTTP-200 completion', async () => {
+    const { home, data } = tmpDirs();
+    let emptyCompletion = false;
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
+      const endpoint = String(url);
+      if (endpoint.endsWith('/v1/models')) {
+        return new Response(JSON.stringify({ data: [{ id: 'dots-like-model' }] }), { status: 200 });
+      }
+      if (endpoint.endsWith('/v1/chat/completions')) {
+        return emptyCompletion
+          ? new Response(JSON.stringify({ choices: [ ] }), { status: 200 })
+          : new Response(JSON.stringify({ choices: [{ message: { role: 'assistant', content: 'pong' } }] }), { status: 200 });
+      }
+      return new Response('not found', { status: 404 });
+    }));
+
+    try {
+      await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
+      expect(readHarnessSettings(home)['llm-pi-ai'].providers['freecode-phoenix'].models.map((model: { id: string }) => model.id))
+        .toEqual(['dots-like-model']);
+
+      emptyCompletion = true;
+      const catalog = await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
+      expect(catalog.providers['freecode-phoenix']!.models[0]).toMatchObject({
+        id: 'dots-like-model', responds: false, failureKind: 'invalid-response', statusCode: 200,
+      });
+      expect(catalog.lastKnownGoodByProvider?.['freecode-phoenix']).toEqual([]);
+      expect(readHarnessSettings(home)['llm-pi-ai'].providers['freecode-phoenix']?.models ?? []).toEqual([]);
+    } finally {
+      rmSync(dirname(home), { recursive: true, force: true });
+    }
   });
 
   it('strict lane erases stale models when nothing responds', async () => {
@@ -760,7 +881,7 @@ describe('model-refresher', () => {
           default_reasoning_effort: 'minimal',
         },
       ] }), { status: 200 });
-      if (endpoint.endsWith('/v1/chat/completions')) return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+      if (endpoint.endsWith('/v1/chat/completions')) return successfulCompletionResponse();
       return new Response('not found', { status: 404 });
     }));
 
@@ -794,7 +915,7 @@ describe('model-refresher', () => {
         { id: 'deepseek-v4-pro' },
         { id: 'other-v4-provider-model' },
       ] }), { status: 200 });
-      if (endpoint.endsWith('/v1/chat/completions')) return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+      if (endpoint.endsWith('/v1/chat/completions')) return successfulCompletionResponse();
       return new Response('not found', { status: 404 });
     }));
 
@@ -828,7 +949,7 @@ describe('model-refresher', () => {
         },
         { id: 'custom-model', context_window: '1048576', max_output: -4, reasoning_efforts: ['admin'] },
       ] }), { status: 200 });
-      if (endpoint.endsWith('/v1/chat/completions')) return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+      if (endpoint.endsWith('/v1/chat/completions')) return successfulCompletionResponse();
       return new Response('not found', { status: 404 });
     }));
 

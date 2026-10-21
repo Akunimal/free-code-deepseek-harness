@@ -19,7 +19,10 @@ directamente comparables; el acceso anónimo tiene un límite de 200
 solicitudes/hora/IP. Ver el [catálogo gratuito activo](https://kilo.ai/landing/free-models)
 y los [límites de acceso anónimo](https://kilo.ai/docs/gateway/authentication).
 El catálogo depende de proveedores externos, por lo que requiere Internet y
-disponibilidad upstream.
+disponibilidad upstream. Solo los modelos que devuelven una respuesta válida y
+no vacía con HTTP 200 siguen en el selector. Los modelos que fallan se quitan
+inmediatamente; el éxito anterior queda solo como diagnóstico y el modelo
+reaparece después de una sonda válida.
 
 **Estado de release:** v1.0.1 es una candidata local, no está publicada. El
 setup y el portable se compilaron y verificaron estáticamente antes de este
@@ -93,7 +96,9 @@ Las releases anteriores conservan sus tags y binarios históricos.
   dinámicos de Kilo. Los modelos concretos permanecen fijados: ante un error se
   devuelve el error, no se elige otro modelo a escondidas. Solo Auto puede
   probar otra ruta elegible antes del primer byte del stream; nunca cambia a
-  mitad de la respuesta.
+  mitad de la respuesta. Solo una respuesta válida y no vacía con HTTP 200
+  mantiene una ruta en el selector: los fallos de la sonda actual la quitan y
+  una respuesta válida posterior la vuelve a mostrar.
 - **Estado del catálogo** — muestra carga y fallos mientras se actualiza el
   catálogo del proveedor; un upstream vacío o caído no se presenta como lista
   exitosa.

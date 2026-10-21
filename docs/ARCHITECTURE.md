@@ -45,6 +45,11 @@ or compatibility failures remain visible and retryable.
    source-controlled quality order of the verified concrete allowlist; probe
    latency cannot invert that order. The generated Kilo slice contains only
    direct no-auth non-Nemotron routes and excludes dynamic Kilo aliases.
+   Production probes every candidate with a chat completion; only a parseable,
+   non-empty HTTP 200 completion from the current refresh remains selectable.
+   Timeouts/transport errors, HTTP errors and empty/malformed 200 responses
+   remove the model immediately. Prior success is diagnostic only; a later
+   successful probe restores the model.
 5. The supervisor starts `dsh web --host 127.0.0.1 --port 0 --no-open` with a
    whitelisted environment and waits for its authenticated readiness URL.
 6. The shell opens one hardened `BrowserWindow` with context isolation, no Node

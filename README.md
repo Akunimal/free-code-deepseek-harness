@@ -17,7 +17,10 @@ snapshot) are changing real-usage proxies, not directly comparable benchmarks;
 anonymous access is limited to 200 requests/hour/IP. See the [live free
 catalog](https://kilo.ai/landing/free-models) and [Kilo anonymous-access
 limits](https://kilo.ai/docs/gateway/authentication). The provider catalog is
-external, so Internet and upstream availability are still needed.
+external, so Internet and upstream availability are still needed. Only models
+that return a valid, non-empty HTTP 200 chat completion remain selectable. A
+failed current probe is hidden immediately; prior success is diagnostic only,
+and the model reappears after a later valid completion.
 
 **Release status:** v1.0.1 is a local candidate, not published. Its setup and
 portable were built and statically verified before the Kilo/catalog follow-up;
@@ -90,6 +93,9 @@ Earlier releases retain their historical tags and binaries.
   Kilo alias is excluded. Concrete choices stay pinned: an error is returned
   rather than silently selecting a different model. Auto alone may try another
   eligible free route before any response bytes stream; never switch midstream.
+  A route stays selectable only after a valid, non-empty HTTP 200 chat
+  completion. Failed current probes are hidden immediately, and a later valid
+  completion makes the route selectable again.
 - **Catalog status** — loading and failure state are exposed while the
   provider catalog is refreshed; an empty/unavailable upstream is not reported
   as a successful model list.
