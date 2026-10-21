@@ -593,6 +593,7 @@ no app-instance access, install, provider requests, push, tag or publication.
   budget; GREEN policy test, 110 compaction/Loader tests, and 5 deterministic
   router behaviors pass (including full/compacted history and tool results
   preserved across Auto failover). Pinned selection is never switched.
+  Work-unit commit: `74cf6f2`.
 
 ### PHX101-12 verification complete
 
