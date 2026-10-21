@@ -213,7 +213,9 @@ known values and unknown fallback behavior. Do not probe model endpoints.
   architecture, strict concrete pin versus Auto-only fallback behavior, model
   pool health/ranking/context behavior, actual local v1.0.1 artifacts and
   truthful unpublished status. Release-version docs contract passed 13/13.
-- [ ] PHX101-11c: Run local checks, rebuild setup/portable from the edited source,
+  Work-unit commit: `9ae6061af2`.
+- [ ] PHX101-11c (package/checks complete; Graphify freshness pending): Run local
+  checks, rebuild setup/portable from the edited source,
   statically verify the exact local artifacts, update Graphify, and record
   evidence. Do not run or install either artifact; hand them to the user for
   testing. The clean-cache DSH proof remains a later publication gate.
