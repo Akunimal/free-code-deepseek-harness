@@ -6,9 +6,9 @@
     "version": "0.13.0",
     "tarballSha256": "31175b80b613386550d247e89546ab312f66bf49950ebdddf3d4ee9e937e6aa6"
   },
-  "sourceSha256": "0d280c7c77784830cbaad4a7e33dab1cd8c7c8105d8533580c1abe62941a23f1",
-  "binarySha256": "68f051e03334d5e073f9e5608dce581a26834fbb92ecddac3b9f4eb299d3fe24",
-  "modelsCatalogSha256": "8d81b445db04e3ab68857c2409281468a881eecfdfb956434fd34f8abdffcb91",
+  "sourceSha256": "e7ea4bec417434840b23b7faefe7298620336402fe1cfbe728cc2f5f1fb2b986",
+  "binarySha256": "84998754cbf2f0680954be54d8ae2a6e3bbcbfcb1dc6570387b09de52c88f7fa",
+  "modelsCatalogSha256": "5ba0808b54eafa8cbf467304efe1ba4114ebb16d3afa912c20b1091c864a181e",
   "licenseSha256": "745c07e2e440241596f848509f951dbeb873fe51fa11e4d11c8613bc3305898e",
   "toolchain": {
     "pythonVersion": "3.14.2",

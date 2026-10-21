@@ -2,6 +2,7 @@ import { isAbsolute } from 'node:path';
 
 const PROVIDER_IDS = new Set(['pollinations', 'llm7', 'ovh', 'kilo']);
 const ROUTING_ALIASES = new Set(['auto', 'agent', 'spread', 'fast', 'quality', 'fair']);
+const FORBIDDEN_DYNAMIC_KILO_IDS = new Set(['kilo/openrouter/free', 'kilo/kilo-auto/free']);
 const OS_ENV_KEYS = ['PATH', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP', 'COMSPEC'];
 
 export function createPhoenixArgs(port, stateDir) {
@@ -40,6 +41,10 @@ export function validatePhoenixModels(payload, allowedModelIds) {
   if (new Set(ids).size !== ids.length) throw new TypeError('Phoenix model inventory contains duplicate IDs');
   const allowed = new Set(allowedModelIds);
   for (const id of ids) {
+    if (/nemotron/i.test(id)) throw new TypeError(`Phoenix smoke model inventory must exclude Nemotron: ${id}`);
+    if (FORBIDDEN_DYNAMIC_KILO_IDS.has(id)) {
+      throw new TypeError(`Phoenix smoke model inventory contains a dynamic Kilo route: ${id}`);
+    }
     if (ROUTING_ALIASES.has(id)) continue;
     const provider = id.split('/', 1)[0];
     if (!id.includes('/') || !PROVIDER_IDS.has(provider)) {

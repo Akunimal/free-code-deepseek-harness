@@ -281,6 +281,50 @@ describe('model-refresher', () => {
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
+  it('uses the packaged Phoenix quality order before probe latency', async () => {
+    const { home, data } = tmpDirs();
+    const qualityOrder = [
+      'auto',
+      'kilo/minimax/minimax-m3.1-flash:free',
+      'ovh/Qwen3.5-397B-A17B',
+      'kilo/poolside/laguna-s-2.1:free',
+      'kilo/dots-studio/dots-3-note-preview:free',
+    ];
+    const latencyByModel: Record<string, number> = {
+      'auto': 1,
+      'kilo/minimax/minimax-m3.1-flash:free': 24,
+      'ovh/Qwen3.5-397B-A17B': 18,
+      'kilo/poolside/laguna-s-2.1:free': 8,
+      'kilo/dots-studio/dots-3-note-preview:free': 2,
+    };
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const endpoint = String(url);
+      if (endpoint.endsWith('/v1/models')) {
+        return new Response(JSON.stringify({ data: [...qualityOrder].reverse().map((id) => ({ id })) }), { status: 200 });
+      }
+      if (endpoint.endsWith('/v1/chat/completions')) {
+        const { model } = JSON.parse(String(init?.body)) as { model: string };
+        await new Promise((resolve) => setTimeout(resolve, latencyByModel[model]));
+        return new Response(JSON.stringify({ choices: [] }), { status: 200 });
+      }
+      return new Response('not found', { status: 404 });
+    }));
+
+    try {
+      const catalog = await refreshModels({
+        lbBaseUrl: LB,
+        homeDir: home,
+        userDataDir: data,
+        exactModelIds: qualityOrder,
+      });
+      expect(catalog.providers['freecode-phoenix']?.models.map((model) => model.id)).toEqual(qualityOrder);
+      const models = readHarnessSettings(home)['llm-pi-ai'].providers['freecode-phoenix'].models;
+      expect(models.map((model: { id: string }) => model.id)).toEqual(qualityOrder);
+    } finally {
+      rmSync(dirname(home), { recursive: true, force: true });
+    }
+  });
+
   it('merges into the active profile without touching other user sections', async () => {
     mockFetch(['deepseek-chat', 'deepseek-v3.2-free'], { 'deepseek-v3.2-free': 50, 'deepseek-chat': 300 });
     const { home, data } = tmpDirs();

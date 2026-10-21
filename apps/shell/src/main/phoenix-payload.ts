@@ -14,6 +14,7 @@ const BINARY_NAME = 'freellmpool-win-x64.exe';
 const MODEL_FILE = 'phoenix-model-ids.json';
 const RECEIPT_FILE = 'freecode-build-receipt.json';
 const ALLOWED_PROVIDERS = new Set(['pollinations', 'llm7', 'ovh', 'kilo']);
+const FORBIDDEN_DYNAMIC_KILO_IDS = new Set(['kilo/openrouter/free', 'kilo/kilo-auto/free']);
 
 export interface VerifiedPhoenixPayload {
   binaryPath: string;
@@ -61,6 +62,10 @@ function readModelIds(path: string): string[] {
     throw new Error('Phoenix model allowlist must start with Auto Phoenix and contain unique model IDs');
   }
   for (const id of value.slice(1)) {
+    if (/nemotron/i.test(id)) throw new Error(`Phoenix model allowlist may not include Nemotron: ${id}`);
+    if (FORBIDDEN_DYNAMIC_KILO_IDS.has(id)) {
+      throw new Error(`Phoenix model allowlist may not include a dynamic Kilo route: ${id}`);
+    }
     const [provider, ...model] = id.split('/');
     if (!provider || model.length === 0 || !ALLOWED_PROVIDERS.has(provider)) {
       throw new Error(`Phoenix model allowlist contains an unapproved provider route: ${id}`);

@@ -28,14 +28,21 @@ test('runtime smoke hides routing aliases and accepts only allowlisted provider 
   const models = validatePhoenixModels({ data: [
     { id: 'auto' }, { id: 'agent' }, { id: 'spread' }, { id: 'fast' },
     { id: 'pollinations/openai-fast' },
-    { id: 'kilo/nvidia/nemotron-3-super-120b-a12b:free' },
-  ] }, ['auto', 'pollinations/openai-fast', 'kilo/nvidia/nemotron-3-super-120b-a12b:free']);
+    { id: 'ovh/Mistral-Nemo-Instruct-2407' },
+  ] }, ['auto', 'pollinations/openai-fast', 'ovh/Mistral-Nemo-Instruct-2407']);
   assert.deepEqual(models, [
     'auto',
     'pollinations/openai-fast',
-    'kilo/nvidia/nemotron-3-super-120b-a12b:free',
+    'ovh/Mistral-Nemo-Instruct-2407',
   ]);
   assert.throws(() => validatePhoenixModels({ data: [{ id: 'auto' }, { id: 'openai/gpt-4.1' }] }, ['auto']), /unexpected provider/i);
   assert.throws(() => validatePhoenixModels({ data: [{ id: 'auto' }] }, ['auto']), /at least one concrete/i);
   assert.throws(() => validatePhoenixModels({ data: [{ id: 'auto' }, { id: 'pollinations/foo' }] }, ['auto']), /missing from.*allowlist/i);
+  for (const forbidden of [
+    'kilo/nvidia/nemotron-3-super-120b-a12b:free',
+    'kilo/openrouter/free',
+    'kilo/kilo-auto/free',
+  ]) {
+    assert.throws(() => validatePhoenixModels({ data: [{ id: 'auto' }, { id: forbidden }] }, ['auto', forbidden]), /Nemotron|dynamic|forbidden/i);
+  }
 });

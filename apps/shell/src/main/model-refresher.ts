@@ -333,11 +333,15 @@ async function listModelIds(target: ProviderRefreshTarget, timeoutMs: number): P
   }
   if (!target.exactModelIds) return models;
 
-  const allowed = models.filter(model => target.exactModelIds!.includes(model.id));
+  const qualityOrder = new Map(target.exactModelIds.map((id, index) => [id, index]));
+  const allowed = models
+    .filter(model => qualityOrder.has(model.id))
+    .sort((a, b) => (qualityOrder.get(a.id) ?? Number.MAX_SAFE_INTEGER)
+      - (qualityOrder.get(b.id) ?? Number.MAX_SAFE_INTEGER));
   // `auto` is a Phoenix router mode, not an upstream model. FreeLLMpool's
   // OpenAI `/models` endpoint correctly lists only concrete provider/model
-  // routes, so synthesize this one selector entry from our packaged
-  // allowlist and keep it first after every refresh.
+  // routes, so synthesize this one selector entry from our packaged quality
+  // order and keep it first after every refresh.
   if (target.exactModelIds[0] === 'auto') {
     const auto = allowed.find(model => model.id === 'auto') ?? { id: 'auto' };
     return [auto, ...allowed.filter(model => model.id !== 'auto')];
@@ -519,29 +523,41 @@ function syncProviderModels(
     provider.apiKeyEnv = target.apiKeyEnv;
   }
   if (target.refreshBaseUrl) provider.baseURL = providerBaseUrl(target.baseUrl);
+  // For Phoenix, exactModelIds is the source-controlled capability-quality
+  // order generated from the pinned benchmark table (and Kilo's documented
+  // usage-rank fallback). Never let a fast but lower-ranked probe leapfrog a
+  // better model in the selector. Other custom providers retain latency order.
+  const qualityOrder = target.exactModelIds === undefined
+    ? undefined
+    : new Map(target.exactModelIds.map((id, index) => [id, index]));
+  const compareModels = (a: CatalogModel, b: CatalogModel): number => {
+    if (qualityOrder !== undefined) {
+      const aRank = qualityOrder.get(a.id) ?? Number.MAX_SAFE_INTEGER;
+      const bRank = qualityOrder.get(b.id) ?? Number.MAX_SAFE_INTEGER;
+      if (aRank !== bRank) return aRank < bRank ? -1 : 1;
+    }
+    const aLatency = a.latencyMs ?? Infinity;
+    const bLatency = b.latencyMs ?? Infinity;
+    // Date.now() has millisecond resolution; treating a one-millisecond
+    // difference as meaningful would make latency-only lanes depend on
+    // event-loop scheduling for equally fast responses.
+    if (Math.abs(aLatency - bLatency) <= 1) return 0;
+    return aLatency - bLatency;
+  };
   const responders = entries
     .filter((model) => model.responds)
-    .sort((a, b) => {
-      const aLatency = a.latencyMs ?? Infinity;
-      const bLatency = b.latencyMs ?? Infinity;
-      // Date.now() has millisecond resolution; treating a one-millisecond
-      // difference as meaningful would make the selector order depend on
-      // event-loop scheduling for equally fast responses. Preserve the
-      // upstream order within that measurement jitter, while still putting
-      // genuinely faster models first.
-      if (Math.abs(aLatency - bLatency) <= 1) return 0;
-      return aLatency - bLatency;
-    });
+    .sort(compareModels);
   const lastKnownGood = entries.filter((model) => model.lastKnownGood === true);
   const advertisedFallbacks = target.strictResponders ? [] : entries.filter((model) => target.alwaysExposedModels?.has(model.id));
   if (responders.length > 0) {
     const responderIds = new Set(responders.map((model) => model.id));
-    provider.models = [
+    const visible = [
       ...responders,
       ...lastKnownGood.filter((model) => !responderIds.has(model.id)),
       ...advertisedFallbacks.filter((model) => !responderIds.has(model.id)),
-    ]
-      .map(model => modelSettingsForModel(model));
+    ];
+    if (qualityOrder !== undefined) visible.sort(compareModels);
+    provider.models = visible.map(model => modelSettingsForModel(model));
     return;
   }
 

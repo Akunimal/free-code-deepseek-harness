@@ -44,13 +44,12 @@ function makePeX64Console(): Buffer {
   return bytes;
 }
 
-function makePayload(): { resourcesDir: string; executable: string; models: string[] } {
+function makePayload(models = ['auto', 'pollinations/openai-fast']): { resourcesDir: string; executable: string; models: string[] } {
   const resourcesDir = join(root, 'resources', 'freecode');
   const phoenixDir = join(resourcesDir, 'phoenix');
   mkdirSync(phoenixDir, { recursive: true });
   const executable = join(phoenixDir, 'freellmpool-win-x64.exe');
   const binary = makePeX64Console();
-  const models = ['auto', 'pollinations/openai-fast'];
   const modelsBytes = `${JSON.stringify(models, null, 2)}\n`;
   const licenseBytes = 'MIT license test fixture\n';
   writeFileSync(executable, binary);
@@ -124,6 +123,21 @@ describe('Phoenix desktop gateway', () => {
       platform: 'win32',
       arch: 'x64',
     })).rejects.toThrow(/hash|receipt|executable/i);
+    expect(launchHidden).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'kilo/nvidia/nemotron-3.5-lightning:free',
+    'kilo/openrouter/free',
+    'kilo/kilo-auto/free',
+  ])('fails closed before launch for a forbidden Kilo route: %s', async (model) => {
+    const fixture = makePayload(['auto', model]);
+    await expect(startPhoenixGateway({
+      resourcesDir: fixture.resourcesDir,
+      userDataDir: join(root, 'profile'),
+      platform: 'win32',
+      arch: 'x64',
+    })).rejects.toThrow(/model allowlist|Nemotron|dynamic/i);
     expect(launchHidden).not.toHaveBeenCalled();
   });
 

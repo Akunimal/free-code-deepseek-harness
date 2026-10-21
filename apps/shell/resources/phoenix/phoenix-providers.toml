@@ -68,13 +68,6 @@ models = [
     { name = "Qwen3.8-27B", rpd = 0, auto = false },
 ]
 
-# Kilo Gateway: keyless OpenAI-compatible aggregator of FREE models (200 req/hr per IP,
-# no key). Models carry a provider/ prefix (handled by _parse_model's first-slash split,
-# same as openrouter). Note: free routes may log prompts — don't send confidential data.
-# Model set re-validated 2026-07-14. The previously slow 550B Nemotron returned
-# three real completions in 0.60-0.84s and is enabled again. Laguna XS.2 was
-# retired and replaced by XS 2.1; Hy3 was added after repeated non-empty probes.
-
 [[provider]]
 id = "kilo"
 label = "Kilo Gateway (keyless)"
@@ -82,33 +75,7 @@ adapter = "openai"
 base_url = "https://api.kilo.ai/api/gateway"
 auth = "none"
 models = [
-    { name = "openrouter/free", rpd = 0 },
-    { name = "kilo-auto/free", rpd = 0 },
-    { name = "poolside/laguna-m.1:free", rpd = 0, enabled = false },
-    { name = "poolside/laguna-xs-2.1:free", rpd = 0 },
-    { name = "stepfun/step-3.7-flash:free", rpd = 0 },
-    { name = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", rpd = 0 },
-    { name = "nvidia/nemotron-3-super-120b-a12b:free", rpd = 0 },
-    { name = "nvidia/nemotron-3-ultra-550b-a55b:free", rpd = 0 },
-    { name = "cohere/north-mini-code:free", rpd = 0 },
-    # Three repeat non-empty keyless completions on 2026-08-29.
-    { name = "dots-studio/dots-3-note-preview:free", rpd = 0 },
-    { name = "inclusionai/ling-3.0-flash-fin:free", rpd = 0, enabled = false },
-    { name = "liquid/lfm-2.5-2.6b:free", rpd = 0 },
-    { name = "meituan/longcat-2.0-free", rpd = 0, enabled = false },
-    { name = "minimax/minimax-m2.7:free", rpd = 0, enabled = false },
-    { name = "nvidia/nemotron-3.5-lightning:free", rpd = 0 },
+    { name = "minimax/minimax-m3.1-flash:free", rpd = 0 },
     { name = "poolside/laguna-s-2.1:free", rpd = 0 },
-    { name = "tencent/hy3:free", rpd = 0, enabled = false },
-    # Listed free, but not enabled until healthy keyless canaries succeed.
-    { name = "minimax/minimax-m3:free", rpd = 0, enabled = false, auto = false },
-    { name = "thinkingmachines/inkling-small:free", rpd = 0, enabled = false, auto = false },
-    { name = "thinkingmachines/inkling:free", rpd = 0, enabled = false, auto = false },
-    { name = "kwaipilot/kat-coder-pro-v2.5:free", rpd = 0, enabled = false },
-    # Three repeat non-empty completions on 2026-10-07.
-    { name = "inclusionai/ling-3.0-flash-sante:free", rpd = 0 },
+    { name = "dots-studio/dots-3-note-preview:free", rpd = 0 },
 ]
-
-# OpenCode Zen: keyless OpenAI-compatible gateway. Free promotional routes expire
-# quickly and are not part of the default zero-key pool until explicitly vetted for
-# privacy/retention posture.
