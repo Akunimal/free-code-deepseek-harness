@@ -8,13 +8,16 @@ allowlist de modelos y receipt de fuente/build; antes del inicio se verifican
 hash, procedencia y arquitectura. No requiere `C:\LocalAI`, Python local, otra
 instalación de FreeLLMpool ni un servicio/puerto preexistente. Auto Phoenix
 aparece primero. Un modelo concreto queda fijado estrictamente; solo Auto puede
-probar otra ruta gratuita elegible antes del primer byte del stream.
+probar otra ruta gratuita elegible antes del primer byte del stream. El contexto
+usa valores nativos revisados para modelos identificables; Auto y los alias
+dinámicos reciben un límite conservador de 32.768 tokens si el gateway no
+declara uno. El proveedor puede limitar más la ruta; ver valores y fuentes en
+las notas bilingües.
 
-**Estado de release:** v1.0.1 es una candidata local de fuente, todavía no
-publicada. Setup y portable se compilaron y verificaron estáticamente antes del
-seguimiento actual de Kilo/catálogo; luego se inició el setup una vez, pero la
-finalización de la instalación no está verificada. Esos artefactos están
-obsoletos para la fuente actual. El gate completo todavía no corrió. La última
+**Estado de release:** v1.0.1 es una candidata local, todavía no publicada. El
+setup y el portable actuales se compilaron y verificaron estáticamente para que
+el usuario los pruebe; este trabajo no los instaló ni ejecutó. La prueba
+pública de DSH con caché vacía y el gate completo todavía no corrieron. La última
 release desktop publicada es la histórica
 [v1.0.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
 No presentes la candidata como instalable ni como instalación limpia probada.
@@ -27,10 +30,11 @@ separado `0.2.1-alpha.11` para Windows x64 (ABI 149), que se descarga en el
 primer inicio cuando no hay caché por usuario válida. Su smoke público con
 caché vacía sigue siendo obligatorio. Phoenix sí viene en el payload desktop
 y se verifica localmente por hash/receipt; no se descarga aparte en el primer
-inicio. Cuando se compile, la salida aislada será
-`apps/shell/release-1.0.1-candidate/`. Todavía no existen tamaños ni hashes de
-setup/portable v1.0.1. Los artefactos, tags y carpetas anteriores son historia
-inmutable y no deben sobrescribirse.
+inicio. La salida aislada es
+`apps/shell/release-1.0.1-local-20261021-context-audit/`. Los tamaños y hashes
+de setup/portable están en las notas bilingües; son checks locales para probar,
+no una instalación limpia validada. Los artefactos, tags y carpetas anteriores
+son historia inmutable y no deben sobrescribirse.
 
 ## Build local de Windows
 
@@ -52,9 +56,9 @@ exactos:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-candidate'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-local-20261021-context-audit'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.1-candidate
+pnpm verify:desktop-release-assets apps/shell/release-1.0.1-local-20261021-context-audit
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
@@ -64,9 +68,10 @@ ninguno. `build:desktop` no reemplaza una carpeta de salida no vacía salvo que
 se habilite explícitamente. Conservá todos los artefactos anteriores e
 históricos.
 
-La carpeta candidata todavía no existe. No inventes nombres ni hashes:
-registralos en las notas bilingües solo tras compilar y verificar los artefactos
-exactos.
+Los artefactos candidatos actuales existen solo en la carpeta de salida local
+para que el usuario los pruebe. Mantené sus nombres y hashes exactos alineados
+con las notas bilingües; no presentes un check estático local como publicación
+ni como prueba de instalación limpia.
 
 ## Política de dependencias runtime
 

@@ -5,13 +5,12 @@
 Releases are manual and target Windows x64. This policy never authorizes
 touching the maintainer's running FreeCode instance.
 
-**Release status:** v1.0.1 is not published. Setup/portable were built and
-statically verified before the current Kilo/catalog source follow-up; the setup
-was later launched once, but installation completion is unverified. Those
-artifacts are stale for the current source and must be rebuilt. Its public
-clean-cache gate has not run. The last published desktop release is v1.0.0. Do
-not represent this candidate as install-ready or use a local runtime preload as
-public clean-install proof.
+**Release status:** v1.0.1 is not published. The current setup/portable were
+built and statically verified locally for the user's test; this workflow did
+not install or launch them. An older setup was previously launched, but installation
+completion is unverified. The public clean-cache gate has not run. The last
+published desktop release is v1.0.0. Do not represent this candidate as
+clean-install validated or use a local runtime preload as public proof.
 
 The public clean-cache first-run gate remains pending for v1.0.1.
 
@@ -45,7 +44,11 @@ v0.9.2 alpha2; they remain history.
 OmniRoute remains removed. Preserve user sessions and providers. Phoenix is a
 required, bundled FreeLLMpool 0.13.0 Windows x64 runtime, hash- and
 receipt-verified before startup. DSH remains separately downloaded on first
-launch. The local candidate output is `apps/shell/release-1.0.1-candidate/`;
+launch. Context windows shown for named Phoenix models use reviewed native
+values when the live gateway supplies none; Auto and dynamic aliases have a
+conservative 32,768-token app cap. Provider-specific route limits can be lower.
+See the bilingual notes for per-model values and sources. The local candidate
+output is `apps/shell/release-1.0.1-local-20261021-context-audit/`;
 artifact names and SHA-256 values are recorded in the bilingual candidate
 notes. These static checks do not replace the public clean-cache runtime proof.
 See the [bilingual candidate notes](../release-notes-v1.0.1.md).
@@ -96,9 +99,9 @@ artifacts into a new, isolated output directory and verify that exact directory:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-candidate'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-local-20261021-context-audit'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.1-candidate
+pnpm verify:desktop-release-assets apps/shell/release-1.0.1-local-20261021-context-audit
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 

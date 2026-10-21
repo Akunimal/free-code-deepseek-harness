@@ -5,14 +5,13 @@
 Las releases son manuales y tienen como target Windows x64. Esta política
 nunca autoriza tocar la instancia activa de FreeCode.
 
-**Estado de release:** v1.0.1 no está publicada. El setup y el portable se
-compilaron y verificaron estáticamente antes del seguimiento actual de Kilo y
-catálogo; luego se inició el setup una vez, pero la finalización de la
-instalación no está verificada. Esos artefactos están obsoletos para la fuente
-actual y deben recompilarse. El gate público de caché vacía no corrió. La última
-release desktop publicada es v1.0.0. No presentes esta candidata como lista
-para instalar ni uses una precarga local como prueba pública de instalación
-limpia.
+**Estado de release:** v1.0.1 no está publicada. El setup y el portable
+actuales se compilaron y verificaron estáticamente para que el usuario los
+pruebe; este flujo no los instaló ni ejecutó. Un setup anterior se inició, pero no se verificó la
+finalización de esa instalación. El gate público de caché vacía no corrió. La
+última release desktop publicada es v1.0.0. No presentes esta candidata como
+validada desde una instalación limpia ni uses una precarga local como prueba
+pública.
 
 El gate público de primer inicio con caché vacía sigue pendiente para v1.0.1.
 
@@ -46,8 +45,12 @@ v0.9.2 alpha2: quedan como historia.
 OmniRoute sigue retirado. Se conservan sesiones y proveedores del usuario.
 Phoenix es un runtime FreeLLMpool 0.13.0 obligatorio, empaquetado para Windows
 x64 y verificado por hash y recibo antes del inicio. DSH sigue descargándose
-por separado en el primer inicio. La salida local candidata está en
-`apps/shell/release-1.0.1-candidate/`; los nombres y SHA-256 de artefactos
+por separado en el primer inicio. Las ventanas de contexto para modelos Phoenix
+identificables usan valores nativos revisados si el gateway en vivo no informa
+uno; Auto y alias dinámicos tienen un límite conservador de 32.768 tokens en la
+app. El proveedor puede aplicar límites de ruta menores. Ver valores y fuentes
+por modelo en las notas bilingües. La salida local candidata está en
+`apps/shell/release-1.0.1-local-20261021-context-audit/`; los nombres y SHA-256 de artefactos
 figuran en las [notas bilingües candidatas](../release-notes-v1.0.1.md). Estos
 checks estáticos no reemplazan la prueba pública de runtime con caché vacía.
 
@@ -96,9 +99,9 @@ nueva y aislada, y verificá exactamente esa carpeta:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-candidate'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-local-20261021-context-audit'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.1-candidate
+pnpm verify:desktop-release-assets apps/shell/release-1.0.1-local-20261021-context-audit
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 

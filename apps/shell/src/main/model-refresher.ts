@@ -145,6 +145,59 @@ const DEEPSEEK_V4_CAPABILITIES: ListedModel = {
   // any level the model allows in the selector.
 };
 
+/** Native model context from the model owners' published model cards/configs.
+ * These are a fallback only when the live gateway and last-known catalog do
+ * not advertise a capacity. A provider may impose a lower per-route cap. */
+const REVIEWED_PHOENIX_CONTEXT_WINDOWS: Readonly<Record<string, number>> = {
+  // MiniMax M3.1 Flash; https://agent.minimax.io/tools/m3.1-flash
+  'kilo/minimax/minimax-m3.1-flash:free': 1_000_000,
+  // Poolside Laguna S 2.1; https://poolside.ai/blog/introducing-laguna-s-2-1
+  'kilo/poolside/laguna-s-2.1:free': 1_000_000,
+  // Dots3 Note Preview; https://huggingface.co/dots-studio/dots3-note-prev-fp8
+  'kilo/dots-studio/dots-3-note-preview:free': 512_000,
+  // Qwen model configs/cards; max_position_embeddings / native context.
+  'ovh/Qwen3.5-397B-A17B': 262_144,
+  'ovh/Qwen3.6-27B': 262_144,
+  'ovh/Qwen3.8-27B': 262_144,
+  'ovh/Qwen3.5-9B': 262_144,
+  'ovh/Qwen3-Coder-30B-A3B-Instruct': 262_144,
+  // GPT-OSS models; https://developers.openai.com/api/docs/models/gpt-oss-120b
+  // https://developers.openai.com/api/docs/models/gpt-oss-20b
+  'ovh/gpt-oss-120b': 131_072,
+  'ovh/gpt-oss-20b': 131_072,
+  'llm7/gpt-oss:20b': 131_072,
+  // The pinned FreeLLMpool Pollinations config documents these aliases as the
+  // same GPT-OSS-20B backend; upstream may change that mapping independently.
+  'pollinations/openai': 131_072,
+  'pollinations/openai-fast': 131_072,
+  'pollinations/gpt-oss': 131_072,
+  // Meta Llama 3.3 70B; https://github.com/meta-llama/llama-models/blob/main/models/llama3_3/MODEL_CARD.md
+  'ovh/Meta-Llama-3_3-70B-Instruct': 131_072,
+  // Qwen2.5-VL model config: https://huggingface.co/Qwen/Qwen2.5-VL-72B-Instruct/blob/main/config.json
+  'ovh/Qwen2.5-VL-72B-Instruct': 128_000,
+  // Mistral model configs/cards.
+  // https://huggingface.co/mistralai/Mistral-Small-3.2-24B-Instruct-2506/blob/main/params.json
+  // https://huggingface.co/mistralai/Mistral-Nemo-Instruct-2407
+  'ovh/Mistral-Small-3.2-24B-Instruct-2506': 131_072,
+  'ovh/Mistral-Nemo-Instruct-2407': 131_072,
+  // Codestral model alias; https://docs.mistral.ai/models/codestral-25-08
+  'llm7/codestral-latest': 131_072,
+  // https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.3/blob/main/config.json
+  'ovh/Mistral-7B-Instruct-v0.3': 32_768,
+};
+
+/** Auto and provider aliases without one stable model identity use a
+ * conservative app-side context cap, not a claim about their native model
+ * capacity. A live gateway declaration still takes precedence. */
+const CONSERVATIVE_PHOENIX_CONTEXT_CAPS: Readonly<Record<string, number>> = {
+  // Lowest reviewed native window among the curated fixed routes.
+  auto: 32_768,
+  // These provider selectors may resolve to different models over time.
+  'llm7/default': 32_768,
+  'llm7/fast': 32_768,
+  'pollinations/ovh-reasoning': 32_768,
+};
+
 interface ListedModel {
   id: string;
   contextWindow?: number;
@@ -520,7 +573,11 @@ function mergeModelCapabilities(model: ListedModel, cached?: ListedModel): Liste
   const explicitNonReasoning = model.reasoning === false || cached?.reasoning === false;
   const useDeepSeekV4Defaults = isDeepSeekV4Model(model.id) && !explicitNonReasoning;
   const fallback = useDeepSeekV4Defaults ? DEEPSEEK_V4_CAPABILITIES : undefined;
-  const contextWindow = model.contextWindow ?? cached?.contextWindow ?? fallback?.contextWindow;
+  const contextWindow = model.contextWindow
+    ?? REVIEWED_PHOENIX_CONTEXT_WINDOWS[model.id]
+    ?? CONSERVATIVE_PHOENIX_CONTEXT_CAPS[model.id]
+    ?? cached?.contextWindow
+    ?? fallback?.contextWindow;
   const maxOutputTokens = model.maxOutputTokens ?? cached?.maxOutputTokens ?? fallback?.maxOutputTokens;
   const reasoning = model.reasoning ?? cached?.reasoning ?? fallback?.reasoning;
   const reasoningEfforts = model.reasoningEfforts ?? cached?.reasoningEfforts ?? fallback?.reasoningEfforts;

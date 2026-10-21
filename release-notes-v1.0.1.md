@@ -5,14 +5,12 @@
 ### Candidate status — not published
 
 This document describes a local source candidate, not a finished release. The
-v1.0.1 setup and portable packages were built locally and passed static
-artifact verification before the Kilo/catalog follow-up. The setup was later
-launched once at the user's request, but successful installation is unverified.
-Those artifacts are stale for the current source and must be rebuilt. The
-mandatory public clean-cache DSH first-run smoke and full release gate have
-**not** run. Do not treat a local build, runtime cache or test fixture as proof
-that a fresh installation works. The last published desktop release remains
-v1.0.0.
+v1.0.1 setup and portable were built locally and statically verified for the
+user's test; this workflow did not run or install them. An older setup was launched previously,
+but successful installation was never verified. The mandatory public
+clean-cache DSH first-run smoke and full release gate have **not** run. Do not
+treat a local build, runtime cache or test fixture as proof that a fresh
+installation works. The last published desktop release remains v1.0.0.
 
 ### Phoenix replaces OpenCode2API
 
@@ -57,34 +55,59 @@ v1.0.0.
   upstream free providers and network. Packaging Phoenix does not make those
   external providers available during an outage.
 
+### Per-model context windows
+
+The gateway's `/models` catalog does not declare context for every route, so a
+generic 262,144-token fallback made unrelated models look like 256K. FreeCode
+now uses reviewed native model-card/config values for named routes when the live
+gateway gives no value. These are model-native limits, not a promise that a
+specific free provider route accepts the full window; route/provider caps may
+be lower. A live gateway declaration takes precedence. `auto`, `llm7/default`,
+`llm7/fast` and `pollinations/ovh-reasoning` are changing aliases, so the app
+uses a conservative 32,768-token cap unless the gateway declares a value.
+
+| Context (tokens) | Routes / interpretation |
+| ---: | --- |
+| 1,000,000 | [MiniMax M3.1 Flash](https://agent.minimax.io/tools/m3.1-flash); [Poolside Laguna S 2.1](https://poolside.ai/blog/introducing-laguna-s-2-1) |
+| 512,000 | [Dots3 Note Preview](https://huggingface.co/dots-studio/dots3-note-prev-fp8) |
+| 262,144 | Qwen3.5-397B-A17B, Qwen3.6-27B, Qwen3.8-27B, Qwen3.5-9B and Qwen3-Coder-30B-A3B-Instruct ([Qwen model cards](https://huggingface.co/Qwen)) |
+| 131,072 | GPT-OSS 120B/20B, Llama 3.3 70B, Mistral Small 3.2, Mistral Nemo and Codestral ([GPT-OSS 120B](https://developers.openai.com/api/docs/models/gpt-oss-120b), [GPT-OSS 20B](https://developers.openai.com/api/docs/models/gpt-oss-20b), [Llama 3.3](https://github.com/meta-llama/llama-models/blob/main/models/llama3_3/MODEL_CARD.md), [Mistral Small 3.2](https://huggingface.co/mistralai/Mistral-Small-3.2-24B-Instruct-2506/blob/main/params.json), [Mistral Nemo](https://huggingface.co/mistralai/Mistral-Nemo-Instruct-2407), [Codestral](https://docs.mistral.ai/models/codestral-25-08)); pinned Pollinations GPT-OSS aliases use this value provisionally |
+| 128,000 | [Qwen2.5-VL-72B-Instruct](https://huggingface.co/Qwen/Qwen2.5-VL-72B-Instruct/blob/main/config.json) |
+| 32,768 | [Mistral 7B v0.3](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.3/blob/main/config.json); conservative app cap for `auto`, `llm7/default`, `llm7/fast` and `pollinations/ovh-reasoning` |
+
+The 32,768-token value for aliases is an app-side safety cap, not a claim about
+their native capacity. Pollinations aliases are mapped by the pinned
+FreeLLMpool provider configuration and can change when that mapping changes.
+
 ### Candidate validation boundary
 
 Local source, contract, unit and package-resource checks plus static artifact
-verification do not replace the real public clean-cache DSH smoke. The local
-artifacts are in `apps/shell/release-1.0.1-candidate/`:
+verification do not replace the real public clean-cache DSH smoke. The updated
+local artifacts are built for user testing in
+`apps/shell/release-1.0.1-local-20261021-context-audit/`:
 
 | Artifact | Size | SHA-256 |
 | --- | ---: | --- |
-| `FreeCode-DeepSeek-Harness-1.0.1-win-x64-setup.exe` | 211,656,469 bytes | `60e62b7dc78daeb47a47cbb53ed08d03cef661948c77b462a561063c16c1acce` |
-| `FreeCode-DeepSeek-Harness-1.0.1-win-x64-portable.exe` | 211,281,345 bytes | `695cd3ff7f5e0645ada140feae3d788d5091b81a15aeb1fc463cb0679a70ea0a` |
+| `FreeCode-DeepSeek-Harness-1.0.1-win-x64-setup.exe` | 211,659,287 bytes | `5925394ded845d41d7107416f78368a296d06bf383f224225a818cee19034b51` |
+| `FreeCode-DeepSeek-Harness-1.0.1-win-x64-portable.exe` | 211,284,149 bytes | `6fe824e64b54a3b3356335738b1978b43fb6038debb46739984afbe9df00088b` |
 
-The setup blockmap and `latest.yml` also passed static checks. The setup was
-launched once, but its install completion is unknown; the portable was not
-launched. These files predate the Kilo/model-order source changes and are stale
-for the current source; they are not a published or clean-install-validated
-release. Follow the bilingual [release policy](docs/RELEASE-POLICY.md) before
-any future publication.
+The setup blockmap (223,280 bytes; SHA-256
+`9bf113056143ce9222aff547d3d78cca18fca468cfff6f3aa79847edb9712a19`) and
+`latest.yml` were also statically verified. Neither new artifact is run or
+installed; the user will test them. This
+candidate remains unpublished and is not clean-install validated. Follow the
+bilingual [release policy](docs/RELEASE-POLICY.md) before any future
+publication.
 
 ## Español
 
 ### Estado candidato — no publicada
 
 Este documento describe una candidata local, no una release terminada. El setup
-y el portable v1.0.1 se compilaron localmente y pasaron la verificación estática
-antes del seguimiento de Kilo/catálogo. Luego se inició el setup una vez a pedido
-del usuario, pero no se pudo verificar que la instalación terminara. Esos
-artefactos ya no corresponden a la fuente actual y hay que recompilarlos. Todavía
-no corrieron el smoke obligatorio de primer inicio de DSH con caché pública vacía
+y el portable v1.0.1 se compilaron y verificaron estáticamente para que el
+usuario los pruebe; este flujo no los ejecutó ni instaló. Un setup anterior se inició en otra
+ocasión, pero nunca se verificó que la instalación terminara. Todavía no
+corrieron el smoke obligatorio de primer inicio de DSH con caché pública vacía
 ni el gate completo de release. Un build local, caché o fixture de test no
 demuestra que funcione una instalación nueva. La última release desktop
 publicada sigue siendo v1.0.0.
@@ -134,20 +157,44 @@ publicada sigue siendo v1.0.0.
   gratuitos externos configurados y de la red. Empaquetar Phoenix no los hace
   disponibles durante una caída externa.
 
+### Ventanas de contexto por modelo
+
+El catálogo `/models` del gateway no declara contexto para cada ruta; por eso,
+el fallback genérico de 262.144 tokens hacía que modelos distintos aparecieran
+como 256K. Si el gateway en vivo no informa un valor, FreeCode ahora usa los
+valores nativos revisados en las fichas/configs de cada modelo identificable.
+Son ventanas nativas del modelo, no una promesa de que una ruta gratuita acepte
+el máximo: cada proveedor puede imponer un límite menor. Un valor declarado por
+el gateway en vivo tiene prioridad. `auto`, `llm7/default`, `llm7/fast` y
+`pollinations/ovh-reasoning` son alias cambiantes; la app les aplica un límite
+conservador de 32.768 tokens salvo que el gateway declare otro valor.
+
+| Contexto (tokens) | Rutas / interpretación |
+| ---: | --- |
+| 1.000.000 | [MiniMax M3.1 Flash](https://agent.minimax.io/tools/m3.1-flash); [Poolside Laguna S 2.1](https://poolside.ai/blog/introducing-laguna-s-2-1) |
+| 512.000 | [Dots3 Note Preview](https://huggingface.co/dots-studio/dots3-note-prev-fp8) |
+| 262.144 | Qwen3.5-397B-A17B, Qwen3.6-27B, Qwen3.8-27B, Qwen3.5-9B y Qwen3-Coder-30B-A3B-Instruct ([fichas Qwen](https://huggingface.co/Qwen)) |
+| 131.072 | GPT-OSS 120B/20B, Llama 3.3 70B, Mistral Small 3.2, Mistral Nemo y Codestral ([GPT-OSS 120B](https://developers.openai.com/api/docs/models/gpt-oss-120b), [GPT-OSS 20B](https://developers.openai.com/api/docs/models/gpt-oss-20b), [Llama 3.3](https://github.com/meta-llama/llama-models/blob/main/models/llama3_3/MODEL_CARD.md), [Mistral Small 3.2](https://huggingface.co/mistralai/Mistral-Small-3.2-24B-Instruct-2506/blob/main/params.json), [Mistral Nemo](https://huggingface.co/mistralai/Mistral-Nemo-Instruct-2407), [Codestral](https://docs.mistral.ai/models/codestral-25-08)); los alias GPT-OSS de Pollinations fijados se asignan provisionalmente a este valor |
+| 128.000 | [Qwen2.5-VL-72B-Instruct](https://huggingface.co/Qwen/Qwen2.5-VL-72B-Instruct/blob/main/config.json) |
+| 32.768 | [Mistral 7B v0.3](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.3/blob/main/config.json); límite conservador de la app para `auto`, `llm7/default`, `llm7/fast` y `pollinations/ovh-reasoning` |
+
+El límite de 32.768 para los alias es una protección de la app, no una
+afirmación sobre su capacidad nativa. Los alias de Pollinations se basan en la
+configuración FreeLLMpool fijada y pueden cambiar si upstream modifica ese mapa.
+
 ### Límite de validación de la candidata
 
 Los checks locales de fuente, contratos, unit tests, recursos y verificación
 estática de artefactos no reemplazan el smoke real de DSH desde caché pública
-vacía. Los builds locales están en `apps/shell/release-1.0.1-candidate/`:
+vacía. Los artefactos locales actualizados se compilan para prueba del usuario
+en `apps/shell/release-1.0.1-local-20261021-context-audit/`:
 
 | Artefacto | Tamaño | SHA-256 |
 | --- | ---: | --- |
-| `FreeCode-DeepSeek-Harness-1.0.1-win-x64-setup.exe` | 211.656.469 bytes | `60e62b7dc78daeb47a47cbb53ed08d03cef661948c77b462a561063c16c1acce` |
-| `FreeCode-DeepSeek-Harness-1.0.1-win-x64-portable.exe` | 211.281.345 bytes | `695cd3ff7f5e0645ada140feae3d788d5091b81a15aeb1fc463cb0679a70ea0a` |
+| `FreeCode-DeepSeek-Harness-1.0.1-win-x64-setup.exe` | 211.659.287 bytes | `5925394ded845d41d7107416f78368a296d06bf383f224225a818cee19034b51` |
+| `FreeCode-DeepSeek-Harness-1.0.1-win-x64-portable.exe` | 211.284.149 bytes | `6fe824e64b54a3b3356335738b1978b43fb6038debb46739984afbe9df00088b` |
 
-El blockmap del setup y `latest.yml` también pasaron checks estáticos. El setup
-se inició una vez, pero se desconoce si terminó la instalación; el portable no
-se ejecutó. Estos archivos son anteriores a los cambios de Kilo/orden de
-modelos y están obsoletos para la fuente actual; no constituyen una release
-publicada ni validada desde una instalación limpia. Antes de publicar, seguí la
-[política bilingüe de release](docs/RELEASE-POLICY.es.md).
+El blockmap del setup mide 223.280 bytes (SHA-256: 9bf113056143ce9222aff547d3d78cca18fca468cfff6f3aa79847edb9712a19); latest.yml también pasó la verificación estática. No
+se ejecutó ni instaló ninguno de los dos artefactos nuevos; el usuario los
+probará. Esta candidata sigue sin publicarse y no está validada desde una
+instalación limpia. Antes de publicar, seguí la [política bilingüe de release](docs/RELEASE-POLICY.es.md).

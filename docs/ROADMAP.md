@@ -43,17 +43,17 @@ excluyen Nemotron y alias dinámicos de Kilo. DSH `0.2.1-alpha.11` sigue
 descargándose por separado en el primer inicio. Ver las [notas candidatas
 bilingües v1.0.1](../release-notes-v1.0.1.md).
 
-**Estado candidato:** setup/portable se compilaron y verificaron estáticamente
-antes del seguimiento actual de Kilo/catálogo; luego se inició el setup una vez,
-pero la finalización de la instalación no está verificada. Esos artefactos están
-obsoletos para la fuente actual y deben recompilarse. No se corrió el gate
-público obligatorio de DSH con caché vacía; v1.0.1 no está lista para instalar
-ni publicada. La última release desktop publicada sigue siendo la histórica
+**Estado candidato:** setup/portable actuales compilados y verificados
+estáticamente para prueba local; no se instalaron ni ejecutaron. El gate público
+obligatorio de DSH con caché vacía no se corrió; v1.0.1 no está publicada ni
+validada desde una instalación limpia. La última release desktop publicada
+sigue siendo la histórica
 [v1.0.0](../release-notes-v1.0.0.md).
 
 Baseline actual publicada: `v1.0.0`; fuente candidata: `v1.0.1`.
-Runtime DSH: `0.2.1-alpha.11`; salida prevista, todavía inexistente:
-`apps/shell/release-1.0.1-candidate/`.
+Runtime DSH: `0.2.1-alpha.11`; artefactos locales para prueba del usuario:
+`apps/shell/release-1.0.1-local-20261021-context-audit/` (hashes en las notas
+bilingües v1.0.1).
 
 ## Estrategia de ahorro de contexto / Context-efficiency strategy
 

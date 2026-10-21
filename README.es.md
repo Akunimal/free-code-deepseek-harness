@@ -24,11 +24,17 @@ no vacía con HTTP 200 siguen en el selector. Los modelos que fallan se quitan
 inmediatamente; el éxito anterior queda solo como diagnóstico y el modelo
 reaparece después de una sonda válida.
 
+Phoenix no recibe un campo confiable de ventana de contexto para cada ruta.
+FreeCode muestra capacidades nativas revisadas para modelos identificables y
+un límite conservador de 32.768 tokens en la app para Auto y alias dinámicos;
+el proveedor puede imponer un límite menor por ruta. Las notas bilingües
+incluyen los valores por modelo y sus fuentes.
+
 **Estado de release:** v1.0.1 es una candidata local, no está publicada. El
-setup y el portable se compilaron y verificaron estáticamente antes de este
-seguimiento de Kilo/catálogo; luego se inició el setup una vez, pero no se pudo
-verificar que la instalación terminara. Esos artefactos ya no corresponden a la
-fuente actual y falta el gate obligatorio de caché vacía. La última release desktop publicada es la histórica
+setup y el portable actualizados se compilaron y verificaron estáticamente para
+que los pruebes; este flujo no ejecutó el instalador. Un build y una
+verificación estática no demuestran una instalación limpia. El gate obligatorio de caché vacía sigue
+pendiente. La última release desktop publicada es la histórica
 [v1.0.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
 Ver las [notas bilingües de la candidata v1.0.1](release-notes-v1.0.1.md) y
 el [historial de v1.0.0](release-notes-v1.0.0.md).
@@ -53,19 +59,20 @@ a modelos a través de Phoenix.
 
 Versión de la fuente: 1.0.1; runtime DSH fijado: `0.2.1-alpha.11`.
 
-**Estado de release:** solo candidata local. Setup/portable compilados y
-verificados estáticamente, pero no instalados ni ejecutados; no existe tag ni
-release v1.0.1. Antes de publicar siguen siendo obligatorios el smoke público
-de DSH con caché vacía y el gate completo.
+**Estado de release:** solo candidata local. El setup y el portable están
+compilados y verificados estáticamente para tu prueba local; este flujo no los
+instaló ni ejecutó. Antes de cualquier publicación futura siguen siendo
+obligatorios el smoke público de DSH con caché vacía y el gate completo.
 
 La fuente v1.0.1 fija Phoenix a FreeLLMpool 0.13.0 e incluye su gateway
 Windows x64, allowlist, licencia MIT y recibo de fuente/build. DSH sigue como
 runtime alpha.11 inmutable y separado. Ver las notas históricas de
 [v1.0.0](release-notes-v1.0.0.md) para el gateway anterior.
 
-La salida local `apps/shell/release-1.0.1-candidate/` ya contiene setup NSIS,
+La salida local actual es
+`apps/shell/release-1.0.1-local-20261021-context-audit/` e incluye setup NSIS,
 ejecutable portable de Windows, blockmap y `latest.yml`. Los hashes estáticos
-están en las [notas bilingües de candidata](release-notes-v1.0.1.md). El runtime
+exactos están en las [notas bilingües de candidata](release-notes-v1.0.1.md). El runtime
 alpha.11 (~423 MB) y su SHA-256 se publican en la
 [pre-release runtime-0.2.1-alpha.11](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/runtime-0.2.1-alpha.11). Se necesita Internet
 sin caché válida. El gate obligatorio usa el bootstrap/updater de producción,
@@ -99,6 +106,10 @@ Las releases anteriores conservan sus tags y binarios históricos.
   mitad de la respuesta. Solo una respuesta válida y no vacía con HTTP 200
   mantiene una ruta en el selector: los fallos de la sonda actual la quitan y
   una respuesta válida posterior la vuelve a mostrar.
+- **Contexto por modelo** — los modelos identificables usan ventanas nativas
+  revisadas en vez del 256K genérico. Auto y alias cambiantes tienen un límite
+  conservador de 32K en la app, salvo que el gateway declare uno; el proveedor
+  puede limitar más la ruta. Ver valores y referencias en las notas bilingües.
 - **Estado del catálogo** — muestra carga y fallos mientras se actualiza el
   catálogo del proveedor; un upstream vacío o caído no se presenta como lista
   exitosa.
@@ -322,14 +333,14 @@ enumera ni termina procesos ajenos.
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-candidate'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-local-20261021-context-audit'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.1-candidate
+pnpm verify:desktop-release-assets apps/shell/release-1.0.1-local-20261021-context-audit
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
-`build:desktop` crea setup y portable en la nueva carpeta
-`apps/shell/release-1.0.1-candidate/`; rechaza reemplazar una carpeta no vacía.
+`build:desktop` creó setup y portable en
+`apps/shell/release-1.0.1-local-20261021-context-audit/`; rechaza reemplazar una carpeta no vacía.
 `verify:desktop-release-assets` valida los PE exactos, el blockmap, los metadatos
 del updater y sus hashes sin iniciar ninguno de los ejecutables. El packaging
 desktop no reconstruye ni reemplaza el runtime DSH, que tiene su propia versión.
@@ -344,7 +355,7 @@ no se admite una precarga local como prueba pública de primer inicio.
 
 La [release v1.0.0 en GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0)
 es histórica; v1.0.1 todavía no se publicó. Los artefactos locales actuales
-están en `apps/shell/release-1.0.1-candidate/`; las carpetas históricas no se sobrescriben.
+están en `apps/shell/release-1.0.1-local-20261021-context-audit/`; las carpetas históricas no se sobrescriben.
 El gate no instala ni inicia la GUI de FreeCode. El smoke interactivo instala,
 inicia y desinstala, por lo que solo se permite en una VM Windows desechable;
 no se ejecuta en la workstation ni junto a tu instancia.

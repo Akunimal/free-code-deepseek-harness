@@ -861,6 +861,83 @@ describe('model-refresher', () => {
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
+  it('uses reviewed native capacities and conservative app caps for Phoenix aliases', async () => {
+    const { home, data } = tmpDirs();
+    const ids = [
+      'auto',
+      'kilo/minimax/minimax-m3.1-flash:free',
+      'kilo/poolside/laguna-s-2.1:free',
+      'kilo/dots-studio/dots-3-note-preview:free',
+      'ovh/gpt-oss-120b',
+      'ovh/gpt-oss-20b',
+      'llm7/gpt-oss:20b',
+      'ovh/Meta-Llama-3_3-70B-Instruct',
+      'ovh/Qwen3.5-397B-A17B',
+      'ovh/Qwen3.6-27B',
+      'ovh/Qwen3.8-27B',
+      'ovh/Qwen3.5-9B',
+      'ovh/Qwen3-Coder-30B-A3B-Instruct',
+      'ovh/Qwen2.5-VL-72B-Instruct',
+      'ovh/Mistral-Small-3.2-24B-Instruct-2506',
+      'ovh/Mistral-Nemo-Instruct-2407',
+      'ovh/Mistral-7B-Instruct-v0.3',
+      'llm7/default',
+      'llm7/fast',
+      'llm7/codestral-latest',
+      'pollinations/ovh-reasoning',
+      'pollinations/openai',
+      'pollinations/openai-fast',
+      'pollinations/gpt-oss',
+    ];
+    const curatedIds = JSON.parse(readFileSync(
+      join(import.meta.dirname, '../resources/phoenix/phoenix-model-ids.json'),
+      'utf8',
+    )) as string[];
+    expect([...ids].sort()).toEqual([...curatedIds].sort());
+    expect(new Set(ids).size).toBe(ids.length);
+    mockFetchWithModels(ids.slice(1), ids.slice(1));
+
+    try {
+      await refreshModels({
+        lbBaseUrl: LB,
+        homeDir: home,
+        userDataDir: data,
+        provider: 'freecode-phoenix',
+        exactModelIds: ids,
+        probeModels: false,
+      });
+      const models = readHarnessSettings(home)['llm-pi-ai'].providers['freecode-phoenix'].models;
+      expect(models).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: 'kilo/minimax/minimax-m3.1-flash:free', contextWindow: 1_000_000 }),
+        expect.objectContaining({ id: 'kilo/poolside/laguna-s-2.1:free', contextWindow: 1_000_000 }),
+        expect.objectContaining({ id: 'kilo/dots-studio/dots-3-note-preview:free', contextWindow: 512_000 }),
+        expect.objectContaining({ id: 'ovh/gpt-oss-120b', contextWindow: 131_072 }),
+        expect.objectContaining({ id: 'ovh/gpt-oss-20b', contextWindow: 131_072 }),
+        expect.objectContaining({ id: 'llm7/gpt-oss:20b', contextWindow: 131_072 }),
+        expect.objectContaining({ id: 'ovh/Meta-Llama-3_3-70B-Instruct', contextWindow: 131_072 }),
+        expect.objectContaining({ id: 'ovh/Qwen3.5-397B-A17B', contextWindow: 262_144 }),
+        expect.objectContaining({ id: 'ovh/Qwen3.6-27B', contextWindow: 262_144 }),
+        expect.objectContaining({ id: 'ovh/Qwen3.8-27B', contextWindow: 262_144 }),
+        expect.objectContaining({ id: 'ovh/Qwen3.5-9B', contextWindow: 262_144 }),
+        expect.objectContaining({ id: 'ovh/Qwen3-Coder-30B-A3B-Instruct', contextWindow: 262_144 }),
+        expect.objectContaining({ id: 'ovh/Qwen2.5-VL-72B-Instruct', contextWindow: 128_000 }),
+        expect.objectContaining({ id: 'ovh/Mistral-Small-3.2-24B-Instruct-2506', contextWindow: 131_072 }),
+        expect.objectContaining({ id: 'ovh/Mistral-Nemo-Instruct-2407', contextWindow: 131_072 }),
+        expect.objectContaining({ id: 'llm7/codestral-latest', contextWindow: 131_072 }),
+        expect.objectContaining({ id: 'pollinations/openai', contextWindow: 131_072 }),
+        expect.objectContaining({ id: 'pollinations/openai-fast', contextWindow: 131_072 }),
+        expect.objectContaining({ id: 'pollinations/gpt-oss', contextWindow: 131_072 }),
+        expect.objectContaining({ id: 'ovh/Mistral-7B-Instruct-v0.3', contextWindow: 32_768 }),
+        expect.objectContaining({ id: 'auto', contextWindow: 32_768 }),
+        expect.objectContaining({ id: 'llm7/default', contextWindow: 32_768 }),
+        expect.objectContaining({ id: 'llm7/fast', contextWindow: 32_768 }),
+        expect.objectContaining({ id: 'pollinations/ovh-reasoning', contextWindow: 32_768 }),
+      ]));
+    } finally {
+      rmSync(dirname(home), { recursive: true, force: true });
+    }
+  });
+
   it('carries gateway-declared context, output capability, supported efforts and defaults into each route', async () => {
     const { home, data } = tmpDirs();
     vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {

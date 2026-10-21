@@ -22,11 +22,17 @@ that return a valid, non-empty HTTP 200 chat completion remain selectable. A
 failed current probe is hidden immediately; prior success is diagnostic only,
 and the model reappears after a later valid completion.
 
-**Release status:** v1.0.1 is a local candidate, not published. Its setup and
-portable were built and statically verified before the Kilo/catalog follow-up;
-the setup was later launched once, but installation completion is unverified.
-Those artifacts are stale for the current source, and the mandatory clean-cache
-release gate has not run. The last published desktop release is the historical
+Phoenix does not receive a trustworthy context-window field for every route.
+FreeCode shows reviewed model-native capacities for named routes and a
+conservative 32,768-token app cap for Auto/dynamic aliases; a provider can
+enforce a lower route-specific limit. See the bilingual notes for the per-model
+values and source links.
+
+**Release status:** v1.0.1 is a local candidate, not published. The updated
+setup and portable were built and statically verified locally for user testing;
+this workflow did not run the installer. A successful build/static check does
+not prove a clean installation. The mandatory clean-cache release gate has not
+last published desktop release is the historical
 [v1.0.0 release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
 See the [bilingual v1.0.1 candidate notes](release-notes-v1.0.1.md) and
 [v1.0.0 history](release-notes-v1.0.0.md).
@@ -51,18 +57,20 @@ Harness coordinate files, tools, MCP servers and Phoenix-backed model calls.
 Source version: 1.0.1; pinned DSH runtime: `0.2.1-alpha.11`.
 
 **Release status:** local candidate only. Setup/portable are built and
-statically verified, but not installed or launched; no v1.0.1 tag or release
-exists. The public empty-cache DSH runtime proof and full release gate remain
-mandatory before publication.
+statically verified for the user's local test; this workflow did not install or
+launch them. The public empty-cache DSH runtime proof and full release gate
+remain mandatory before any later publication.
 
 The v1.0.1 source pins Phoenix to FreeLLMpool 0.13.0 and bundles its Windows
 x64 gateway, allowlist, MIT license and source/build receipt. DSH remains a
 separate immutable alpha.11 runtime asset. See the historical
 [v1.0.0 release notes](release-notes-v1.0.0.md) for the previous gateway.
 
-The local desktop output is `apps/shell/release-1.0.1-candidate/` and contains
-the NSIS setup, portable Windows executable, setup blockmap and `latest.yml`.
-Their static hashes are recorded in the [bilingual candidate notes](release-notes-v1.0.1.md).
+The updated local desktop output is
+`apps/shell/release-1.0.1-local-20261021-context-audit/` and contains the NSIS
+setup, portable Windows executable, setup blockmap and `latest.yml`. Their
+exact static hashes are recorded in the
+[bilingual candidate notes](release-notes-v1.0.1.md).
 The separate alpha.11 runtime (~423 MB) and its SHA-256
 are published in the [runtime-0.2.1-alpha.11 pre-release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/runtime-0.2.1-alpha.11).
 Internet is required without a valid cache. The mandatory gate uses production
@@ -96,6 +104,11 @@ Earlier releases retain their historical tags and binaries.
   A route stays selectable only after a valid, non-empty HTTP 200 chat
   completion. Failed current probes are hidden immediately, and a later valid
   completion makes the route selectable again.
+- **Per-model context metadata** — named models use reviewed native context
+  capacities instead of inheriting 256K by default. Auto and changing aliases
+  use a conservative 32K app-side cap unless the live gateway declares a value;
+  upstream providers may impose lower limits. See the bilingual notes for
+  values and references.
 - **Catalog status** — loading and failure state are exposed while the
   provider catalog is refreshed; an empty/unavailable upstream is not reported
   as a successful model list.
@@ -324,15 +337,15 @@ the recorded child PID tree and never enumerates or kills unrelated processes.
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-candidate'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-local-20261021-context-audit'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.1-candidate
+pnpm verify:desktop-release-assets apps/shell/release-1.0.1-local-20261021-context-audit
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
-`build:desktop` creates setup and portable artifacts in the new
-`apps/shell/release-1.0.1-candidate/` output directory; it refuses to replace an
-existing non-empty folder. `verify:desktop-release-assets` checks the exact PE
+`build:desktop` created setup and portable artifacts in
+`apps/shell/release-1.0.1-local-20261021-context-audit/`; it refuses to replace
+an existing non-empty folder. `verify:desktop-release-assets` checks the exact PE
 files, setup blockmap, updater metadata and hashes without launching either
 executable. Desktop packaging does not rebuild or replace the separately versioned DSH runtime. Only when the DSH
 runtime itself changes should maintainers bump its manifest version and run
@@ -345,7 +358,7 @@ first-install evidence.
 
 The [v1.0.0 GitHub release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0)
 is historical; v1.0.1 is not yet published. The current local artifacts are in
-`apps/shell/release-1.0.1-candidate/`; historical folders are not overwritten.
+`apps/shell/release-1.0.1-local-20261021-context-audit/`; historical folders are not overwritten.
 The gate does not install or launch the FreeCode GUI. The interactive installer
 smoke installs, launches and uninstalls, so it is only allowed in a disposable
 Windows VM, never on the workstation or beside the user's instance.

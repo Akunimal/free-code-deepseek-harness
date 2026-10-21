@@ -36,6 +36,23 @@ test('v1.0.1 bilingual candidate notes describe bundled Phoenix without claiming
   assert.doesNotMatch(notes, /v1\.0\.1 is published|v1\.0\.1 se public[oó]/i);
 });
 
+test('v1.0.1 bilingual Phoenix notes audit model-native contexts and conservative alias caps', () => {
+  const notes = read('release-notes-v1.0.1.md');
+  const english = notes.split('## English')[1]?.split('## Español')[0] ?? '';
+  const spanish = notes.split('## Español')[1] ?? '';
+  for (const [section, language] of [[english, 'English'], [spanish, 'Español']]) {
+    assert.match(section, /1[,.]000[,.]000/u, `${language} should record 1M routes`);
+    assert.match(section, /512[,.]000/u, `${language} should record the Dots3 context`);
+    assert.match(section, /262[,.]144/u, `${language} should record Qwen contexts`);
+    assert.match(section, /131[,.]072/u, `${language} should record 128K routes`);
+    assert.match(section, /128[,.]000/u, `${language} should distinguish Qwen2.5-VL's exact value`);
+    assert.match(section, /32[,.]768/u, `${language} should identify the conservative cap`);
+    assert.match(section, /provider|proveedor[ae]s?/iu, `${language} should disclose provider caps`);
+    assert.match(section, /native|nativ[oa]/iu, `${language} should distinguish model-native capacity`);
+    assert.match(section, /llm7\/default/u, `${language} should name a dynamic alias`);
+  }
+});
+
 test('v0.9.6 release notes are bilingual and disclose the private-desktop boundary and clean-cache requirement', () => {
   const notes = read('release-notes-v0.9.6.md');
   assert.match(notes, /^## English$/m);
@@ -113,7 +130,7 @@ test('active documentation aligns the unpublished Phoenix v1.0.1 candidate, alph
     assert.match(source, /v1\.0\.1/, file);
     assert.match(source, /0\.2\.1-alpha\.11/, file);
     assert.match(source, /release-notes-v1\.0\.1\.md/, file);
-    assert.match(source, /release-1\.0\.1-candidate/, file);
+    assert.match(source, /release-1\.0\.1-local-20261021-context-audit/, file);
     assert.match(source, /Phoenix/i, file);
     // ROADMAP keeps the historical v0.9.x Tor entries; current docs must not.
     if (file !== 'docs/ROADMAP.md') assert.doesNotMatch(source, /bundled Tor|Tor incluido|tor\.exe/, file);

@@ -166,6 +166,61 @@ running app while implementing this.
   confirmed `main` at `122bea761e69371a39e6ce1a004021296b0655c3`; no force push
   or tag/release was used. Integrity-pin work-unit commit: `31e4b08`.
 
+## Authorized follow-up: v1.0.1 publication, bilingual docs, and per-model context
+
+The user requests a v1.0.1 local build for their own testing, bilingual
+README/release notes explaining the OpenCode2API-to-Phoenix replacement and
+pool routing, and an audit because Phoenix models appear to all report 256K
+context. The user explicitly clarified: do not publish yet; compile locally
+first so they can test everything. This turn authorizes local source/docs/tests
+and desktop build only. It does not authorize push, tag, release, installer
+execution/installation, or interaction with a running FreeCode process. The
+public clean-cache runtime gate remains mandatory before any later publication.
+
+Initial source audit found the likely context cause: FreeLLMpool's OpenAI
+`/models` response returns IDs and capability evidence but not context-window
+metadata; FreeCode's model refresher only accepts declared `context_window`/
+`context_length`; `llm-pi-ai` therefore applies its generic 262,144-token
+`DEFAULT_CONTEXT_WINDOW` to every unannotated route. That number is a fallback,
+not verified per-model data. Add model-specific context values only where
+reviewed upstream model/provider documentation supports them, preserve a
+truthful documented fallback for dynamic/undocumented aliases, and test both
+known values and unknown fallback behavior. Do not probe model endpoints.
+
+- TDD: **red-green-refactor**, selected by the user; shell behavior uses
+  Vitest via the bundled pnpm fallback documented above; release/docs
+  contracts use `node --test`. No provider endpoint calls.
+- Scope: Phoenix context metadata enrichment and its tests; active English and
+  Spanish READMEs, v1.0.1 local-candidate notes/changelog, release policy,
+  release guides and roadmap; local desktop build and exact artifact
+  verification. Publication is
+  explicitly deferred until the user tests the local artifacts and separately
+  authorizes remote operations; do not run the publication gate or remote work
+  in this task.
+- Delivery strategy: reuse **stacked-to-main**. Forecast ~350 authored changed
+  lines excluding generated artifacts. Keep unrelated dirty Graphify/vendor
+  files unstaged; refresh Graphify after edits but never stage its output.
+
+### PHX101-11 checklist
+
+- [x] PHX101-11a: Add evidence-backed per-model context capacities for known
+  Phoenix routes, keep unknown/dynamic aliases explicitly on the documented
+  framework fallback, and protect parsing/enrichment/fallback in regression
+  tests. Sources must distinguish model-native context from provider-specific
+  route caps.
+- [x] PHX101-11b: Align bilingual README/release notes/changelog/policy/release
+  guides/roadmap with the OpenCode2API retirement, bundled Phoenix/FreeLLMpool
+  architecture, strict concrete pin versus Auto-only fallback behavior, model
+  pool health/ranking/context behavior, actual local v1.0.1 artifacts and
+  truthful unpublished status. Release-version docs contract passed 13/13.
+- [ ] PHX101-11c: Run local checks, rebuild setup/portable from the edited source,
+  statically verify the exact local artifacts, update Graphify, and record
+  evidence. Do not run or install either artifact; hand them to the user for
+  testing. The clean-cache DSH proof remains a later publication gate.
+- [ ] PHX101-11d: Deferred: after the user tests the local build and explicitly
+  re-authorizes publication, run the mandatory public clean-cache gate and
+  remote operation workflow. No push, tag or release is authorized now.
+
 ## Acceptance criteria and checks
 
 1. A clean packaged profile starts only the shipped FreeLLMpool Phoenix service
@@ -463,20 +518,33 @@ performed.
 
 ### Next step
 
-The latest local build is v1.0.1 at
-`apps/shell/release-1.0.1-local-20261021/`; PHX101-10 work-unit commit is
-`31e4b08`. The setup and portable are statically verified and ready for the
-user's local test, but were not run by this agent. Failed current Phoenix model
-probes are evicted from the selector by PHX101-9 (`c10d74e`). PHX101-8 source,
-tests, generated catalog, bilingual docs and local sidecar smoke remain
-committed as `3b7d975` and `774580e`. PHX101-6 Graphify freshness is still
-pending because previous update attempts did not replace the graph/manifest.
-The public clean-cache DSH first-run proof and `release:gate` have not been run;
-do not tag or publish before those gates and the user's successful local test.
-The authenticated GitHub API verified `Akunimal/free-code-deepseek-harness`
-`main` at `122bea761e69371a39e6ce1a004021296b0655c3`, which contains the current
-feature commits. The `git push` response reported the remote ref had already
-advanced to that exact SHA; no retry or force update was attempted.
+PHX101-11a/b source, tests and bilingual documentation are complete. The local
+v1.0.1 build is at
+`apps/shell/release-1.0.1-local-20261021-context-audit/`; the setup and portable
+passed the exact static verifier and were not launched or installed. Setup:
+211,659,287 bytes, SHA-256
+`5925394ded845d41d7107416f78368a296d06bf383f224225a818cee19034b51`; portable:
+211,284,149 bytes, SHA-256
+`6fe824e64b54a3b3356335738b1978b43fb6038debb46739984afbe9df00088b`. Blockmap:
+223,280 bytes, SHA-256
+`9bf113056143ce9222aff547d3d78cca18fca468cfff6f3aa79847edb9712a19`.
+Full shell suite passed 55 files / 386 tests; release-version docs passed
+13/13; build prepackage checks passed, including 323 fresh vendor bundles,
+headless adversarial and runtime tests, rendered conversation background proof,
+Electron 44/Node 24 ABI 149 bootstrap and 14/14 host-applicable native addons.
+`verify:desktop-release-assets` passed. An initial build command hit the known
+broken global pnpm shim; rerunning with the bundled pnpm directory prepended to
+PATH completed successfully.
+
+The mandated Graphify refresh was attempted after edits and re-extracted all
+6,175 uncached files (21 vendor syntax errors reported), then consumed multiple
+minutes and ~4.5 GB RAM without updating `graph.json`, `manifest.json` or the
+report. Only that task-owned Graphify process tree was interrupted; no FreeCode
+or unrelated process was touched. Graphify freshness remains pending. The
+public clean-cache DSH first-run proof and `release:gate` remain intentionally
+unrun because the user wants to test locally before publication. Do not push,
+tag, release, or run either artifact until the user returns with test results
+and separately authorizes those next steps.
 
 ## Relevant files
 

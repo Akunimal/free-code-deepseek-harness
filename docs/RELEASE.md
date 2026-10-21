@@ -10,11 +10,10 @@ another FreeLLMpool installation or a pre-existing port/service. Auto Phoenix
 is first in the selector. A concrete model stays strictly pinned; only Auto may
 try another eligible free route before the first stream byte.
 
-**Release status:** v1.0.1 is an unpublished local source candidate. Setup and
-portable were built and statically checked before the current Kilo/catalog
-follow-up; the setup was later launched once but install completion is
-unverified. Those artifacts are stale for current source. The full release gate
-has not run. The last published desktop release is the historical
+**Release status:** v1.0.1 is an unpublished local candidate. The current setup
+and portable were built and statically verified for user testing; neither was
+installed or launched by this work. The public clean-cache DSH proof and full
+release gate have not run. The last published desktop release is the historical
 [v1.0.0 release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
 Do not present the candidate as installable or claim clean-install proof.
 Candidate notes: [bilingual v1.0.1](../release-notes-v1.0.1.md).
@@ -26,9 +25,10 @@ The source version is 1.0.1. The DSH runtime remains a separate immutable
 the per-user cache is absent. Its public clean-cache smoke remains mandatory.
 Phoenix is bundled in the desktop payload and is locally receipt/hash checked;
 it is not a separate first-run download. Output, once built, is isolated in
-`apps/shell/release-1.0.1-candidate/`. No v1.0.1 setup/portable sizes or hashes
-exist yet. Older release folders, tags and assets are historical and must not
-be overwritten.
+`apps/shell/release-1.0.1-local-20261021-context-audit/`. Setup/portable sizes
+and hashes are recorded in the bilingual candidate notes. These local static
+checks are for user testing and are not fresh-install proof. Older release
+folders, tags and assets are historical and must not be overwritten.
 
 ## Local Windows build
 
@@ -50,9 +50,9 @@ exact artifacts:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-candidate'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-local-20261021-context-audit'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.1-candidate
+pnpm verify:desktop-release-assets apps/shell/release-1.0.1-local-20261021-context-audit
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
@@ -62,9 +62,9 @@ either artifact. `build:desktop` refuses to replace a non-empty output
 directory unless explicit replacement is enabled. Preserve all previous and
 historical artifacts.
 
-The candidate directory is not present yet. Do not invent filenames or hashes;
-record them in the bilingual notes only after a successful build and exact
-artifact verification.
+The current candidate artifacts exist only in the local output directory for
+the user to test. Keep their exact names and hashes aligned with the bilingual
+notes; do not treat local static checks as publication or clean-install proof.
 
 ## Runtime dependency policy
 
