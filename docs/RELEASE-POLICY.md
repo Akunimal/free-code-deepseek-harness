@@ -5,8 +5,9 @@
 Releases are manual and target Windows x64. This policy never authorizes
 touching the maintainer's running FreeCode instance.
 
-**Release status:** v1.0.1 is not published. Its setup/portable have not been
-built, and its release gate has not run. The last published desktop release is
+**Release status:** v1.0.1 is not published. Its setup/portable were built
+locally and statically verified, but neither was installed or launched; its
+release gate has not run. The last published desktop release is
 v1.0.0. Do not represent this candidate as install-ready or use a local runtime
 preload as public clean-install proof.
 
@@ -42,8 +43,9 @@ v0.9.2 alpha2; they remain history.
 OmniRoute remains removed. Preserve user sessions and providers. Phoenix is a
 required, bundled FreeLLMpool 0.13.0 Windows x64 runtime, hash- and
 receipt-verified before startup. DSH remains separately downloaded on first
-launch. The candidate output directory, once built, is
-`apps/shell/release-1.0.1-candidate/`; no v1.0.1 artifact hashes exist yet.
+launch. The local candidate output is `apps/shell/release-1.0.1-candidate/`;
+artifact names and SHA-256 values are recorded in the bilingual candidate
+notes. These static checks do not replace the public clean-cache runtime proof.
 See the [bilingual candidate notes](../release-notes-v1.0.1.md).
 
 After changing the pinned FreeLLMpool source or Phoenix build configuration,

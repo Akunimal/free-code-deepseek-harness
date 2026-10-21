@@ -5,11 +5,12 @@
 ### Candidate status — not published
 
 This document describes a local source candidate, not a finished release. The
-v1.0.1 setup and portable packages have **not** been built, installed or
-validated. The mandatory public clean-cache DSH first-run smoke and full
-release gate have **not** run. Do not treat a source checkout, local runtime
-cache or test fixture as proof that a fresh installation works. The last
-published desktop release remains v1.0.0.
+v1.0.1 setup and portable packages were built locally and passed static
+artifact verification, but neither has been installed or launched. The
+mandatory public clean-cache DSH first-run smoke and full release gate have
+**not** run. Do not treat a local build, runtime cache or test fixture as proof
+that a fresh installation works. The last published desktop release remains
+v1.0.0.
 
 ### Phoenix replaces OpenCode2API
 
@@ -41,22 +42,31 @@ published desktop release remains v1.0.0.
 
 ### Candidate validation boundary
 
-Local source, contract, unit and package-resource checks are useful but do not
-replace building the desktop artifacts or the real public clean-cache DSH
-smoke. No setup/portable filename, size, checksum, release tag or publication
-claim exists for v1.0.1 yet. Follow the bilingual [release policy](docs/RELEASE-POLICY.md)
-before any future release.
+Local source, contract, unit and package-resource checks plus static artifact
+verification do not replace the real public clean-cache DSH smoke. The local
+artifacts are in `apps/shell/release-1.0.1-candidate/`:
+
+| Artifact | Size | SHA-256 |
+| --- | ---: | --- |
+| `FreeCode-DeepSeek-Harness-1.0.1-win-x64-setup.exe` | 211,656,469 bytes | `60e62b7dc78daeb47a47cbb53ed08d03cef661948c77b462a561063c16c1acce` |
+| `FreeCode-DeepSeek-Harness-1.0.1-win-x64-portable.exe` | 211,281,345 bytes | `695cd3ff7f5e0645ada140feae3d788d5091b81a15aeb1fc463cb0679a70ea0a` |
+
+The setup blockmap and `latest.yml` also passed static checks. Neither
+executable was run; these local files are not a published or clean-install-
+validated release. Follow the bilingual [release policy](docs/RELEASE-POLICY.md)
+before any future publication.
 
 ## Español
 
 ### Estado candidato — no publicada
 
-Este documento describe una candidata local de fuente, no una release
-terminada. El setup y el portable v1.0.1 **no** se compilaron, instalaron ni
-validaron. Tampoco se ejecutaron el smoke obligatorio de primer inicio de DSH
-con caché pública vacía ni el gate completo de release. Un checkout, caché
-local o fixture de test no demuestra que funcione una instalación nueva. La
-última release desktop publicada sigue siendo v1.0.0.
+Este documento describe una candidata local, no una release terminada. El setup
+y el portable v1.0.1 se compilaron localmente y pasaron la verificación estática
+de artefactos, pero ninguno se instaló ni ejecutó. Todavía no corrieron el smoke
+obligatorio de primer inicio de DSH con caché pública vacía ni el gate completo
+de release. Un build local, caché o fixture de test no demuestra que funcione
+una instalación nueva. La última release desktop publicada sigue siendo
+v1.0.0.
 
 ### Phoenix reemplaza OpenCode2API
 
@@ -88,8 +98,16 @@ local o fixture de test no demuestra que funcione una instalación nueva. La
 
 ### Límite de validación de la candidata
 
-Los checks locales de fuente, contratos, unit tests y recursos del paquete son
-útiles, pero no reemplazan compilar los artefactos desktop ni el smoke real de
-DSH desde caché pública vacía. Todavía no existen nombre, tamaño o checksum de
-setup/portable, tag ni publicación v1.0.1. Antes de una futura release, seguir
-la [política bilingüe de release](docs/RELEASE-POLICY.es.md).
+Los checks locales de fuente, contratos, unit tests, recursos y verificación
+estática de artefactos no reemplazan el smoke real de DSH desde caché pública
+vacía. Los builds locales están en `apps/shell/release-1.0.1-candidate/`:
+
+| Artefacto | Tamaño | SHA-256 |
+| --- | ---: | --- |
+| `FreeCode-DeepSeek-Harness-1.0.1-win-x64-setup.exe` | 211.656.469 bytes | `60e62b7dc78daeb47a47cbb53ed08d03cef661948c77b462a561063c16c1acce` |
+| `FreeCode-DeepSeek-Harness-1.0.1-win-x64-portable.exe` | 211.281.345 bytes | `695cd3ff7f5e0645ada140feae3d788d5091b81a15aeb1fc463cb0679a70ea0a` |
+
+El blockmap del setup y `latest.yml` también pasaron checks estáticos. No se
+ejecutó ninguno de los binarios; estos archivos locales no constituyen una
+release publicada ni validada desde una instalación limpia. Antes de publicar,
+seguí la [política bilingüe de release](docs/RELEASE-POLICY.es.md).

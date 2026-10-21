@@ -12,9 +12,9 @@ puede probar otra ruta gratuita elegible antes de iniciar el stream; nunca lo
 cambia a mitad de respuesta. El catálogo depende de proveedores externos, por
 lo que requiere Internet y disponibilidad upstream.
 
-**Estado de release:** v1.0.1 es una candidata local, no está publicada. Aún
-no se compilaron ni instalaron setup/portable, y falta ejecutar el gate
-obligatorio de caché vacía. La última release desktop publicada es la histórica
+**Estado de release:** v1.0.1 es una candidata local, no está publicada. El
+setup y el portable se compilaron y verificaron estáticamente, pero ninguno se
+instaló ni ejecutó; falta el gate obligatorio de caché vacía. La última release desktop publicada es la histórica
 [v1.0.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
 Ver las [notas bilingües de la candidata v1.0.1](release-notes-v1.0.1.md) y
 el [historial de v1.0.0](release-notes-v1.0.0.md).
@@ -39,18 +39,20 @@ a modelos a través de Phoenix.
 
 Versión de la fuente: 1.0.1; runtime DSH fijado: `0.2.1-alpha.11`.
 
-**Estado de release:** solo candidata. Setup/portable no compilados; no existe
-tag ni release v1.0.1. Antes de publicar siguen siendo obligatorios el smoke
-público de DSH con caché vacía y el gate completo.
+**Estado de release:** solo candidata local. Setup/portable compilados y
+verificados estáticamente, pero no instalados ni ejecutados; no existe tag ni
+release v1.0.1. Antes de publicar siguen siendo obligatorios el smoke público
+de DSH con caché vacía y el gate completo.
 
 La fuente v1.0.1 fija Phoenix a FreeLLMpool 0.13.0 e incluye su gateway
 Windows x64, allowlist, licencia MIT y recibo de fuente/build. DSH sigue como
 runtime alpha.11 inmutable y separado. Ver las notas históricas de
 [v1.0.0](release-notes-v1.0.0.md) para el gateway anterior.
 
-La salida planeada es `apps/shell/release-1.0.1-candidate/` (todavía no
-compilada). Una release futura incluirá setup NSIS, ejecutable portable de Windows, blockmap y
-`latest.yml`. El runtime alpha.11 (~423 MB) y su SHA-256 se publican en la
+La salida local `apps/shell/release-1.0.1-candidate/` ya contiene setup NSIS,
+ejecutable portable de Windows, blockmap y `latest.yml`. Los hashes estáticos
+están en las [notas bilingües de candidata](release-notes-v1.0.1.md). El runtime
+alpha.11 (~423 MB) y su SHA-256 se publican en la
 [pre-release runtime-0.2.1-alpha.11](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/runtime-0.2.1-alpha.11). Se necesita Internet
 sin caché válida. El gate obligatorio usa el bootstrap/updater de producción,
 perfil/caché vacíos, SHA-256, manifiesto, ABI de Electron y arranque de CLI
@@ -114,14 +116,16 @@ modo Gentle AI se eliminaron en 1.0.0; los modos Standard cubren su uso.
 
 1. Para la versión estable publicada, usá la release histórica
    [v1.0.0 en GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
-   v1.0.1 sigue siendo candidata de fuente; todavía no hay instalador.
+   v1.0.1 sigue sin publicarse; sus artefactos locales todavía no pasaron el
+   gate obligatorio de instalación limpia y no son una release pública.
 2. Instalalo o descomprimilo y abrí el acceso directo/ejecutable real.
 3. Elegí la carpeta de tu proyecto en el picker.
 4. Esperá a que carguen los modelos free (spinner en el selector) y pedile al
    modelo que inspeccione o modifique el proyecto.
 
-El payload desktop planeado de v1.0.1 incluye Electron, el gateway Phoenix,
-dependencias nativas y Tesseract. Setup/portable aún no se compilaron. El
+El payload desktop compilado de v1.0.1 incluye Electron, el gateway Phoenix,
+dependencias nativas y Tesseract. Setup/portable pasaron la verificación
+estática, pero no se instalaron ni ejecutaron. El
 runtime DSH grande se distribuye
 como asset separado: en el primer inicio, FreeCode descarga el archivo Windows
 x64 fijado en `0.2.1-alpha.11` (~423 MB), verifica el SHA-256 de GitHub y ABI de
@@ -229,8 +233,8 @@ distingue un fallo de permisos de uno de herramienta/MCP.
 
 ## Updater y versión
 
-About usa `app.getVersion()`, por lo que un futuro binario empaquetado v1.0.1
-mostrará 1.0.1. La candidata actual todavía no está empaquetada.
+About usa `app.getVersion()`; la candidata local v1.0.1 usa esa versión. Aún no
+se instaló ni validó con el gate de runtime de caché vacía.
 La app chequea updates al iniciar y cada seis horas. El control de actualizar
 es exactamente el botón circular primario de Enviar, con la flecha apuntando
 hacia abajo. Al descargar, tooltip/menú de tray y notificación nativa lo
@@ -318,8 +322,8 @@ El runtime actual es alpha.11: se obtiene desde la
 no se admite una precarga local como prueba pública de primer inicio.
 
 La [release v1.0.0 en GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0)
-es histórica; v1.0.1 todavía no se publicó. Si se compila, la salida nueva será
-`apps/shell/release-1.0.1-candidate/`; las carpetas históricas no se sobrescriben.
+es histórica; v1.0.1 todavía no se publicó. Los artefactos locales actuales
+están en `apps/shell/release-1.0.1-candidate/`; las carpetas históricas no se sobrescriben.
 El gate no instala ni inicia la GUI de FreeCode. El smoke interactivo instala,
 inicia y desinstala, por lo que solo se permite en una VM Windows desechable;
 no se ejecuta en la workstation ni junto a tu instancia.

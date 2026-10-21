@@ -12,8 +12,9 @@ another eligible route, and only before streaming begins. The model provider
 catalog is external, so Internet and upstream availability are still needed.
 
 **Release status:** v1.0.1 is a local candidate, not published. Its setup and
-portable have not been built or installed, and the mandatory clean-cache
-release gate has not run. The last published desktop release is the historical
+portable were built locally and statically verified, but neither was installed
+or launched; the mandatory clean-cache release gate has not run. The last
+published desktop release is the historical
 [v1.0.0 release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
 See the [bilingual v1.0.1 candidate notes](release-notes-v1.0.1.md) and
 [v1.0.0 history](release-notes-v1.0.0.md).
@@ -37,18 +38,20 @@ Harness coordinate files, tools, MCP servers and Phoenix-backed model calls.
 
 Source version: 1.0.1; pinned DSH runtime: `0.2.1-alpha.11`.
 
-**Release status:** candidate only. Setup/portable are not built; no v1.0.1
-tag or release exists. The public empty-cache DSH runtime proof and the
-full release gate remain mandatory before publication.
+**Release status:** local candidate only. Setup/portable are built and
+statically verified, but not installed or launched; no v1.0.1 tag or release
+exists. The public empty-cache DSH runtime proof and full release gate remain
+mandatory before publication.
 
 The v1.0.1 source pins Phoenix to FreeLLMpool 0.13.0 and bundles its Windows
 x64 gateway, allowlist, MIT license and source/build receipt. DSH remains a
 separate immutable alpha.11 runtime asset. See the historical
 [v1.0.0 release notes](release-notes-v1.0.0.md) for the previous gateway.
 
-The planned desktop output is `apps/shell/release-1.0.1-candidate/` (not built
-yet). A future release consists of NSIS setup, a portable Windows executable,
-blockmap and `latest.yml`. The separate alpha.11 runtime (~423 MB) and its SHA-256
+The local desktop output is `apps/shell/release-1.0.1-candidate/` and contains
+the NSIS setup, portable Windows executable, setup blockmap and `latest.yml`.
+Their static hashes are recorded in the [bilingual candidate notes](release-notes-v1.0.1.md).
+The separate alpha.11 runtime (~423 MB) and its SHA-256
 are published in the [runtime-0.2.1-alpha.11 pre-release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/runtime-0.2.1-alpha.11).
 Internet is required without a valid cache. The mandatory gate uses production
 bootstrap/updater, an empty profile/cache, SHA-256, manifest, Electron ABI and
@@ -109,15 +112,16 @@ Gentle AI mode were removed in 1.0.0; the Standard modes cover their use.
 
 1. For the currently published stable build, use the historical
    [v1.0.0 GitHub release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
-   v1.0.1 remains an unpublished source candidate; do not expect an installer yet.
+   v1.0.1 remains unpublished; its local installer artifacts have not passed
+   the mandatory fresh-install gate and are not a public release.
 2. Install or unpack it and launch the real shortcut/executable.
 3. Select a project directory in the picker.
 4. Wait for the free models to load (spinner in the selector), then ask the
    model to inspect or change the project.
 
-The planned v1.0.1 desktop payload includes Electron, the bundled Phoenix
-gateway, native dependencies and Tesseract. Its setup/portable are not built
-yet. The large DSH runtime is a
+The locally built v1.0.1 desktop payload includes Electron, the bundled Phoenix
+gateway, native dependencies and Tesseract. Setup/portable passed static
+verification, but have not been installed or launched. The large DSH runtime is a
 separate release asset: on first launch, FreeCode downloads the pinned
 `0.2.1-alpha.11` Windows x64 archive (~423 MB), verifies GitHub's SHA-256 and
 Electron ABI, then caches it under `<userData>/harness-runtime`. Later starts
@@ -224,8 +228,8 @@ distinguishes permission failures from tool/MCP failures.
 
 ## Updater and versioning
 
-About reads `app.getVersion()`, so a future packaged v1.0.1 binary will report
-1.0.1. The current source candidate has not been packaged.
+About reads `app.getVersion()`; the locally built v1.0.1 candidate uses that
+version. It has not been installed or validated by the clean-cache runtime gate.
 The app checks for updates at startup and every six hours. The update control
 is the same circular primary button as Send, with the arrow pointing down.
 When downloading, the tray tooltip/menu and a native notification say so; the
@@ -320,7 +324,7 @@ The current runtime is alpha.11, fetched from the separate
 first-install evidence.
 
 The [v1.0.0 GitHub release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0)
-is historical; v1.0.1 is not yet published. If built, the fresh output is
+is historical; v1.0.1 is not yet published. The current local artifacts are in
 `apps/shell/release-1.0.1-candidate/`; historical folders are not overwritten.
 The gate does not install or launch the FreeCode GUI. The interactive installer
 smoke installs, launches and uninstalls, so it is only allowed in a disposable

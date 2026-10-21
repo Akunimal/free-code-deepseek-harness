@@ -5,8 +5,9 @@
 Las releases son manuales y tienen como target Windows x64. Esta política
 nunca autoriza tocar la instancia activa de FreeCode.
 
-**Estado de release:** v1.0.1 no está publicada. No se compilaron setup ni
-portable, y su gate de release todavía no corrió. La última release desktop
+**Estado de release:** v1.0.1 no está publicada. El setup y el portable se
+compilaron localmente y se verificaron estáticamente, pero ninguno se instaló
+ni ejecutó; el gate de release todavía no corrió. La última release desktop
 publicada es v1.0.0. No presentes esta candidata como lista para instalar ni
 uses una precarga local como prueba pública de instalación limpia.
 
@@ -42,9 +43,10 @@ v0.9.2 alpha2: quedan como historia.
 OmniRoute sigue retirado. Se conservan sesiones y proveedores del usuario.
 Phoenix es un runtime FreeLLMpool 0.13.0 obligatorio, empaquetado para Windows
 x64 y verificado por hash y recibo antes del inicio. DSH sigue descargándose
-por separado en el primer inicio. Cuando se compile, la salida candidata será
-`apps/shell/release-1.0.1-candidate/`; todavía no hay hashes de artefactos
-v1.0.1. Ver las [notas bilingües candidatas](../release-notes-v1.0.1.md).
+por separado en el primer inicio. La salida local candidata está en
+`apps/shell/release-1.0.1-candidate/`; los nombres y SHA-256 de artefactos
+figuran en las [notas bilingües candidatas](../release-notes-v1.0.1.md). Estos
+checks estáticos no reemplazan la prueba pública de runtime con caché vacía.
 
 Tras cambiar el source FreeLLMpool fijado o la configuración de build de
 Phoenix, recompilá y prepará el artefacto con `scripts/build-freellmpool.mjs`

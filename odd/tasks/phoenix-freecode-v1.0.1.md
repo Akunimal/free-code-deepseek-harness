@@ -16,10 +16,12 @@ once response streaming starts, neither model nor provider may change.
 
 The user explicitly authorized replacing all active `opencode2api` behavior
 with the Phoenix/FreeLLMpool system and setting this candidate to 1.0.1.
-Earlier confirmation of local TDD and stacked-to-main delivery applies. This
-authorizes local implementation and work-unit commits only: no push, merge,
-tag, release, installer execution, or interaction with a running FreeCode
-instance is authorized by this task.
+Earlier confirmation of local TDD and stacked-to-main delivery applies. The
+current user additionally authorized building the v1.0.1 Windows installer
+artifacts locally. This still does not authorize push, merge, tag, release,
+installer execution/installation, or interaction with a running FreeCode
+instance. Do not treat a successful local package build as clean-install proof
+or release readiness; the public clean-cache runtime gate remains required.
 
 ## Workflow and delivery
 
@@ -63,7 +65,9 @@ instance is authorized by this task.
   install before its authorized production gate.
 - Do not read local credentials, cookies, account files or logs. Do not probe
   external model endpoints, inspect/stop/restart/launch the user's running
-  FreeCode instance, run the installer, or perform remote operations.
+  FreeCode instance, run the installer, or perform remote operations. The
+  separately authorized local package build may use the existing dependency
+  and binary caches; stop rather than initiate unapproved downloads.
 
 ## Acceptance criteria and checks
 
@@ -82,9 +86,10 @@ instance is authorized by this task.
    includes the retired opencode2api executable.
 5. Targeted RED/GREEN tests, shell typecheck/Vitest, applicable `node --test`
    contracts, package-resource/headless checks, `git diff --check`, and a fresh
-   Graphify update complete. Installer build/run, public upstream health,
+   Graphify update complete. Installer execution, public upstream health,
    production clean-cache DSH gate, publication and remote state remain pending
-   unless separately authorized and executed.
+   unless separately authorized and executed. The authorized local installer
+   build is tracked separately in PHX101-7 and is not clean-install proof.
 
 ## Tasks
 
@@ -112,6 +117,11 @@ instance is authorized by this task.
   Graphify/vendor work, and close with a Conventional Commit. The normal and
   `--force` update attempts stalled before graph outputs changed; investigate
   the local CLI's post-extraction stage before retrying.
+- [x] PHX101-7: Build v1.0.1 setup and portable into the documented isolated
+  candidate directory, statically verify both artifacts, blockmap and metadata,
+  and record their hashes without executing/installing them or touching a live
+  FreeCode instance. Do not publish or call the build clean-install proof.
+  Commit: `78ef608` (bundle-freshness pin); package evidence follows below.
 
 ## Progress and recovery
 
@@ -168,9 +178,10 @@ PHX101-5 aligns root/shell package metadata to 1.0.1; updates the English and
 Spanish READMEs, architecture, release procedures/policy, roadmap, issue ledger,
 translation baseline and changelog; adds truthful bilingual candidate notes;
 and updates release/documentation contracts from old OpenCode Free wording to
-Phoenix strict-pin/Auto semantics. Documentation explicitly says that no
-v1.0.1 setup/portable or public empty-cache proof has run. The work is committed
-locally as `78d7b7a`; no push, tag, release or installer action was performed.
+Phoenix strict-pin/Auto semantics. At that point, documentation correctly said
+that no v1.0.1 setup/portable or public empty-cache proof had run. The work is
+committed locally as `78d7b7a`; no push, tag, release or installer action was
+performed.
 
 ### Verification log
 
@@ -234,14 +245,32 @@ locally as `78d7b7a`; no push, tag, release or installer action was performed.
   122,918 nodes / 263,625 edges / 4,581 communities. Only task-owned CLI runs
   were interrupted; no unrelated process or user's app was touched. Graph
   refresh is pending and must be reported as a freshness failure until verified.
+- PHX101-7 package: the first prepackage attempt correctly rejected a stale
+  `native-command` source-hash pin. Rebuilt only that upstream host package and
+  refreshed its tracked hash; the freshness gate then passed for all 323
+  packages. The full `pnpm build:desktop` completed with its adversarial
+  headless-window/descendant/Job tests, Phoenix staging, 28/28 runtime dependency
+  checks, production-bundle background render/transition/reduced-motion proof,
+  process-launch inventory, and 14/14 Electron ABI-compatible native addons.
+  `verify:desktop-release-assets` passed on the exact output without executing
+  either binary. Setup: `FreeCode-DeepSeek-Harness-1.0.1-win-x64-setup.exe`,
+  211,656,469 bytes, SHA-256
+  `60e62b7dc78daeb47a47cbb53ed08d03cef661948c77b462a561063c16c1acce`;
+  portable: `FreeCode-DeepSeek-Harness-1.0.1-win-x64-portable.exe`,
+  211,281,345 bytes, SHA-256
+  `695cd3ff7f5e0645ada140feae3d788d5091b81a15aeb1fc463cb0679a70ea0a`.
+  The setup blockmap (222,667 bytes) and `latest.yml` also passed static checks.
+  `node --test scripts/release-version-docs.test.mjs` passed 12/12 and
+  `git diff --check` passed. Neither artifact was run/installed; the public
+  clean-cache DSH first-run gate and full `release:gate` remain pending. No app
+  instance or user process was inspected or touched.
 
 ### Next step
 
-PHX101-1 through PHX101-5 are committed locally and their applicable tests
-passed. Next, diagnose and complete PHX101-6 Graphify refresh. Do not push, tag,
-publish, build or run an installer without separate authorization; the public
-clean-cache DSH gate remains required before v1.0.1 can be represented as
-installable.
+PHX101-7 is complete locally. The exact setup and portable are in
+`apps/shell/release-1.0.1-candidate/` and were not executed. PHX101-6 Graphify
+refresh remains pending, as do the public clean-cache DSH proof, full
+`release:gate`, and all remote publication actions.
 
 ## Relevant files
 
