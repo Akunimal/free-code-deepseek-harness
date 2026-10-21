@@ -53,7 +53,7 @@ describe('HarnessSupervisor (C5)', () => {
   });
   const tmp = mkdtempSync(join(tmpdir(), 'dsh-sup-test-'));
   const homeDir = join(tmp, 'home');
-  const lbUrl = 'http://127.0.0.1:1'; // LB not started in this smoke; supervisor must not care
+  // The supervisor's readiness is independent of the Phoenix gateway URL.
 
   afterAll(() => {
     try {
@@ -70,7 +70,7 @@ describe('HarnessSupervisor (C5)', () => {
 
   it('spawns dsh web, grabs readiness URL, shuts down', async () => {
     const diagnostics: string[] = [];
-    const sup = new HarnessSupervisor({ nodePath: nodeCmd, cliEntry: CLI_ENTRY, homeDir, lbUrl,
+    const sup = new HarnessSupervisor({ nodePath: nodeCmd, cliEntry: CLI_ENTRY, homeDir,
       log: (_level, message) => { diagnostics.push(message); if (diagnostics.length > 64) diagnostics.shift(); },
     });
     let ready: HarnessSupervisor['currentUrl'] = null;
@@ -118,7 +118,6 @@ describe('HarnessSupervisor lifecycle hardening', () => {
       nodePath: notExecutable,
       cliEntry: join(tmp, 'missing-cli.mjs'),
       homeDir: join(tmp, 'home'),
-      lbUrl: null,
       backoffBaseMs: 1,
       restartBudget: 2,
       log: (_level, message) => logs.push(message),
@@ -156,7 +155,6 @@ describe('HarnessSupervisor lifecycle hardening', () => {
       nodePath: process.execPath,
       cliEntry,
       homeDir,
-      lbUrl: 'http://127.0.0.1:1',
       backoffBaseMs: 10,
     });
     let readyCount = 0;
@@ -201,7 +199,6 @@ describe('HarnessSupervisor lifecycle hardening', () => {
       nodePath: process.execPath,
       cliEntry,
       homeDir,
-      lbUrl: 'http://127.0.0.1:1',
       backoffBaseMs: 1,
     });
     let readyCount = 0;

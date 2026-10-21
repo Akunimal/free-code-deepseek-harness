@@ -35,6 +35,10 @@ instance is authorized by this task.
 - Forecast: approximately 1,200 authored changed lines across coordinated
   source, packaging, tests, and bilingual documentation (generated/vendored
   upstream source and compiled binaries excluded).
+- Delivery slices (local only; no PRs/push authorized): PHX101-1 is the first
+  slice (`4852974c8cf74fe69905d90d51f2f1e87fdd3359`). PHX101-2 is the second
+  coherent slice and its commit is being recorded after this change. PHX101-3
+  through PHX101-5 remain later slices; each stays on this feature branch.
 - Preserve pre-existing dirty Graphify outputs and untracked vendor artifacts;
   stage only files belonging to this feature.
 
@@ -85,11 +89,11 @@ instance is authorized by this task.
 - [x] PHX101-1: Pin and vendor FreeLLMpool source/license, define the safe
   Phoenix catalog/build receipt, and produce/verify a self-contained Windows
   x64 gateway artifact. Prove standalone startup and model inventory with an
-  isolated local smoke. Commit: pending below.
-- [ ] PHX101-2: Replace the opencode2api runtime sidecar with the contained
+  isolated local smoke. Commit: `4852974c8cf74fe69905d90d51f2f1e87fdd3359`.
+- [x] PHX101-2: Replace the opencode2api runtime sidecar with the contained
   Phoenix/FreeLLMpool lifecycle, health/readiness reporting and shutdown;
   update the Harness endpoint without disturbing active DSH settings or
-  unrelated user providers.
+  unrelated user providers. Commit pending final identity recording.
 - [ ] PHX101-3: Add Phoenix model inventory/selector behavior and strict-pin vs
   Auto-only failover contracts, including no mid-stream route change, request
   cancellation and model-load status.
@@ -124,14 +128,24 @@ instance is authorized by this task.
 
 ### Current state
 
-PHX101-1 is implemented and locally verified. The pinned source is vendored,
+PHX101-1 is implemented, locally verified and committed as
+`4852974c8cf74fe69905d90d51f2f1e87fdd3359`. The pinned source is vendored,
 the bundle contains only the four approved keyless/free providers and enabled
 concrete model IDs plus Auto, and a self-contained Win x64 executable has a
 hash-bound staging receipt. The clean-profile service smoke ran the exact
 staged executable through the verified `headless-host`/`freecode-launcher`,
 returned authenticated `/v1/models` with 34 allowed IDs, and closed its
 test-owned process/profile. It made no external provider requests. The
-pre-existing graph/vendor working-tree entries remain untouched.
+  pre-existing graph/vendor working-tree entries remain untouched.
+
+PHX101-2 replaces the optional OpenCode sidecar/proxy-rotation path with a
+required, hash-verified Phoenix gateway. DSH receives only its per-run API key;
+model seeding uses the exact packaged allowlist with Auto first, preserves
+unrelated providers/defaults, migrates the previous managed route to Auto, and
+fails startup closed if the Phoenix payload is absent. The model refresher no
+longer consumes stale opencode2api capability caches. The Phoenix supervisor's
+failed readiness restart now retries instead of giving up after the first bad
+restart.
 
 ### Verification log
 
@@ -148,11 +162,25 @@ pre-existing graph/vendor working-tree entries remain untouched.
 - PHX101-1 isolated Windows service smoke: passed with 34 allowlisted model
   IDs using empty state and a per-test random key; no model/provider request
   sent upstream.
+- PHX101-2 TDD red/green: runtime composition tests first failed because the
+  runtime never started Phoenix and continued after a missing gateway; now
+  Phoenix starts before DSH, its ephemeral key is passed only to DSH, and a
+  Phoenix startup error fails closed. Gateway restart-readiness regression
+  first failed (only two launch attempts) and now passes with bounded retries.
+- PHX101-2 targeted Vitest: 5 suites / 56 tests passed across Phoenix gateway,
+  runtime composition, seeder, refresher, and Harness profile migration.
+- PHX101-2 full shell gate: `pnpm --filter @freecode/shell typecheck` passed;
+  `pnpm --filter @freecode/shell test` passed 57 files / 381 tests, including
+  live isolated DSH profile-HMR and headless-helper tests.
+- PHX101-2 diff check passed. Pre-existing Graphify outputs and vendor
+  artifacts remain unstaged and untouched.
 
 ### Next step
 
-Commit PHX101-1; next add the Phoenix lifecycle to the desktop runtime and
-replace the legacy managed provider while preserving custom provider data.
+PHX101-2 is complete; its local work-unit commit is next and its hash will be
+written here. Then proceed to PHX101-3: add explicit selector/catalog and
+Auto-only failover contracts, preserving concrete model pins and never
+switching a route after stream bytes start.
 
 ## Relevant files
 

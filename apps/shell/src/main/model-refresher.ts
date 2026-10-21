@@ -10,9 +10,9 @@ import { readHarnessSettings, writeHarnessSettings } from './harness-settings.js
 
 /**
  * Model refresher — probes OpenAI-compatible provider routes, persists a
- * catalog, and syncs responding models into the active web profile (by latency
- * asc). The OpenCode Free pool remains the required primary route; optional
- * local providers can be refreshed without making the whole refresh fail.
+ * catalog, and syncs responding models into the active web profile. The
+ * packaged Phoenix catalog is the required primary route; optional local
+ * providers can be refreshed without making the whole refresh fail.
  */
 
 export interface CatalogModel {
@@ -58,6 +58,8 @@ export interface ProviderRefreshTarget {
   refreshBaseUrl?: boolean;
   /** Settings route key and catalog provider key. */
   provider: string;
+  /** Optional selector group label. */
+  displayName?: string;
   /** Endpoint root; `/v1/models` and `/v1/chat/completions` are appended. */
   baseUrl: string;
   /** Optional Authorization value, for example `Bearer public`. */
@@ -88,7 +90,7 @@ export interface ProviderRefreshTarget {
  * retry loop; the regular long refresh cadence will re-check them later.
  */
 export function shouldRetryModelRefresh(catalog: ModelCatalog): boolean {
-  const models = catalog.providers['deepseek-free']?.models ?? [];
+  const models = catalog.providers['freecode-phoenix']?.models ?? [];
   if (models.length === 0) return true;
   return models.some(isRetryableModelProbeFailure);
 }
@@ -107,6 +109,14 @@ export interface RefresherConfig {
   homeDir: string; // DSH_HOME (profiles/web/cordis.patch.yml is watched by DSH)
   userDataDir: string; // model-catalog.json lives here
   authHeader?: string; // e.g. 'Bearer public'
+  /** Managed gateway settings key; defaults to Phoenix. */
+  provider?: string;
+  /** Canonical shipped catalog; excludes router aliases from selector results. */
+  exactModelIds?: readonly string[];
+  /** Do not send per-model requests to upstream services during discovery. */
+  probeModels?: boolean;
+  /** Environment variable holding the managed gateway's local API key. */
+  apiKeyEnv?: string;
   providers?: readonly ProviderRefreshTarget[];
   probeTimeoutMs?: number; // default 120000; free models can take >60s to answer
   onUpdate?: (catalog: ModelCatalog) => void;
@@ -117,11 +127,11 @@ const CATALOG_FILE = 'model-catalog.json';
 // A short probe timeout makes a healthy, advertised model disappear from the
 // user's selector while an in-flight request is still viable.
 const PROBE_TIMEOUT_MS = 120_000;
-const FREE_PROVIDER = 'deepseek-free';
+const FREE_PROVIDER = 'freecode-phoenix';
 
 /** Free models preferred as the out-of-the-box default, first match wins.
  *  Only applied when the model actually responds this refresh. */
-export const PREFERRED_DEFAULT_MODELS: readonly string[] = ['deepseek-v4.1-flash-free'];
+export const PREFERRED_DEFAULT_MODELS: readonly string[] = ['auto'];
 const REASONING_LEVELS = new Set<ModelReasoningLevel>(['minimal', 'low', 'medium', 'high', 'xhigh', 'max']);
 const DEEPSEEK_V4_CAPABILITIES: ListedModel = {
   id: '',
@@ -146,18 +156,24 @@ interface ListedModel {
 export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog> {
   const timeoutMs = cfg.probeTimeoutMs ?? PROBE_TIMEOUT_MS;
   const previousLastKnownGood = readLastKnownGoodByProvider(cfg.userDataDir);
+  const primaryProvider = cfg.provider ?? FREE_PROVIDER;
   const targets: ProviderRefreshTarget[] = [
     {
-      provider: FREE_PROVIDER,
+      provider: primaryProvider,
+      displayName: 'Phoenix',
       baseUrl: cfg.lbBaseUrl,
       authHeader: cfg.authHeader,
-      // 0.9.1: the anonymous lane exposes ONLY 200 responders. With zero
-      // responders the synced list is erased (never stale/dead models in
-      // the selector); bounded refresh retries repopulate it on recovery.
-      strictResponders: true,
+      exactModelIds: cfg.exactModelIds,
+      probeModels: cfg.probeModels,
+      apiKeyEnv: cfg.apiKeyEnv ?? 'FREECODE_PHOENIX_API_KEY',
+      defaultInput: ['text'],
+      // Phoenix's pinned manifest is the selector contract. Per-model probes
+      // would be slow, rate-limited and incorrectly imply live guarantees.
+      strictResponders: cfg.probeModels !== false,
+      fallbackModels: cfg.probeModels === false ? cfg.exactModelIds : undefined,
       refreshBaseUrl: true,
     },
-    ...(cfg.providers ?? []).filter((target) => target.provider !== FREE_PROVIDER),
+    ...(cfg.providers ?? []).filter((target) => target.provider !== primaryProvider),
   ];
 
   // Discover candidates first, but do not make them routable in DSH settings
@@ -166,14 +182,13 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
   // unverified or protocol-rejected route slip through while a slow probe is
   // still running. A slow model may take up to two minutes, so keep the UI in
   // its explicit "checking"/blocked state until the 200-only result is ready.
-  const cachedCapabilities = loadGatewayModelCapabilities(cfg.userDataDir);
   const listings = await Promise.all(targets.map(async (target, index) => {
     if (index === 0 && cfg.primaryUnavailable) return { target, ids: [] as ListedModel[] };
     try {
       const listed = await listModelIds(target, timeoutMs);
       return {
         target,
-        ids: listed.map(model => mergeModelCapabilities(model, cachedCapabilities?.get(model.id))),
+        ids: listed,
       };
     } catch (error) {
       // The required primary catalog keeps its historical failure contract.
@@ -237,18 +252,17 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
   for (const { target, entries } of results) {
     syncProviderModels(providers, target, entries);
   }
-  const responders = results.find(({ target }) => target.provider === FREE_PROVIDER)?.entries
+  const responders = results.find(({ target }) => target.provider === primaryProvider)?.entries
     .filter(model => model.responds).map(model => model.id) ?? [];
-  // Prefer the DeepSeek V4.1 free model as the out-of-the-box default when it
-  // responds; otherwise fall back to the fastest responder (responders[0]).
+  // Start with Auto Phoenix when available; otherwise use the first responder.
   const preferredDefault = responders.find(id => PREFERRED_DEFAULT_MODELS.includes(id)) ?? responders[0];
   const defaultModel = settings['agent-default-model'] as { provider?: unknown; model?: unknown } | undefined;
   const hasValidDefault = typeof defaultModel?.provider === 'string' && typeof defaultModel.model === 'string';
   if (preferredDefault !== undefined && (!hasValidDefault
-    || (defaultModel.provider === FREE_PROVIDER && !responders.includes(defaultModel.model as string)))) {
+    || (defaultModel.provider === primaryProvider && !responders.includes(defaultModel.model as string)))) {
     // New Sessions get a verified route after migration or when their old
     // selection is no longer served. Existing Session history stays intact.
-    settings['agent-default-model'] = { provider: FREE_PROVIDER, model: preferredDefault };
+    settings['agent-default-model'] = { provider: primaryProvider, model: preferredDefault };
   }
   writeHarnessSettings(cfg.homeDir, settings);
 
@@ -326,7 +340,12 @@ async function probeModels(
   timeoutMs: number,
 ): Promise<CatalogModel[]> {
   if (target.probeModels === false && !target.strictResponders) {
-    return ids.map(model => ({ ...model, responds: true, latencyMs: null, lastSeen: nowSeconds() }));
+    return ids.map(model => ({
+      ...mergeModelCapabilities(model),
+      responds: true,
+      latencyMs: null,
+      lastSeen: nowSeconds(),
+    }));
   }
   return Promise.all(ids.map(async (model) => {
     const { id } = model;
@@ -369,7 +388,7 @@ async function probeModels(
       failureKind = 'transport';
     }
     return {
-      ...model,
+      ...mergeModelCapabilities(model),
       id,
       responds,
       latencyMs,
@@ -407,57 +426,6 @@ function readLastKnownGoodByProvider(userDataDir: string): Record<string, string
     }));
   } catch {
     return {};
-  }
-}
-
-/**
- * Best-effort read of the gateway-advertised per-model capabilities.
- * The opencode2api gateway persists its served-model metadata next to its
- * config (`<userDataDir>/opencode2api/config.json.models.catalog.json`,
- * `metadata.zen` / `metadata.go` maps). Absent/unparseable files yield null
- * and the name-only policy applies. Never throws.
- */
-export function loadGatewayModelCapabilities(userDataDir: string): Map<string, ListedModel> | null {
-  try {
-    const raw = readFileSync(join(userDataDir, 'opencode2api', 'config.json.models.catalog.json'), 'utf8');
-    const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object') return null;
-    const metadata = (parsed as { metadata?: unknown }).metadata;
-    if (!metadata || typeof metadata !== 'object') return null;
-    const out = new Map<string, ListedModel>();
-    // The free, no-auth `zen` lane is what this app serves, so its metadata
-    // wins over any other lane (e.g. `go`) advertising the same id.
-    const lanes = metadata as Record<string, unknown>;
-    const laneOrder = ['zen', ...Object.keys(lanes).filter((name) => name !== 'zen')];
-    for (const laneName of laneOrder) {
-      const lane = lanes[laneName];
-      if (!lane || typeof lane !== 'object') continue;
-      for (const [id, info] of Object.entries(lane as Record<string, unknown>)) {
-        const record = asRecord(info);
-        if (record === undefined || out.has(id)) continue;
-        const contextWindow = positiveSafeInteger(record.context_window, record.contextWindow);
-        const maxOutputTokens = positiveSafeInteger(record.max_output, record.maxOutputTokens);
-        const reasoning = typeof record.reasoning === 'boolean' ? record.reasoning : undefined;
-        const reasoningEfforts = parseReasoningEfforts(record.reasoning_efforts, record.reasoningEfforts);
-        const defaultReasoningEffort = parseReasoningLevel(
-          record.default_reasoning_effort,
-          record.defaultReasoningEffort,
-        );
-        if (contextWindow === undefined && maxOutputTokens === undefined && reasoning === undefined
-          && reasoningEfforts === undefined && defaultReasoningEffort === undefined) continue;
-        out.set(id, {
-          id,
-          ...(contextWindow === undefined ? {} : { contextWindow }),
-          ...(maxOutputTokens === undefined ? {} : { maxOutputTokens }),
-          ...(reasoning === undefined ? {} : { reasoning }),
-          ...(reasoningEfforts === undefined ? {} : { reasoningEfforts }),
-          ...(defaultReasoningEffort === undefined ? {} : { defaultReasoningEffort }),
-        });
-      }
-    }
-    return out;
-  } catch {
-    return null;
   }
 }
 
@@ -526,14 +494,14 @@ function syncProviderModels(
   entries: CatalogModel[],
 ): void {
   const provider = providers[target.provider] ?? (providers[target.provider] = {
-    ...(target.provider === FREE_PROVIDER ? { displayName: 'OpenCode Free' } : {}),
+    ...(target.displayName ? { displayName: target.displayName } : {}),
     api: 'openai-completions',
     baseURL: providerBaseUrl(target.baseUrl),
-    ...(target.provider === FREE_PROVIDER || target.apiKeyEnv
-      ? { apiKeyEnv: target.provider === FREE_PROVIDER ? 'FREECODE_PUBLIC_KEY' : target.apiKeyEnv }
+    ...(target.apiKeyEnv
+      ? { apiKeyEnv: target.apiKeyEnv }
       : {}),
     defaultInput: target.defaultInput
-      ?? (target.provider === FREE_PROVIDER ? ['text'] : ['text', 'image']),
+      ?? ['text', 'image'],
     models: [],
   });
   if (target.apiKeyEnv !== undefined && provider.apiKeyEnv !== target.apiKeyEnv) {

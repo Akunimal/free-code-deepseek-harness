@@ -22,8 +22,6 @@ export interface HarnessSupervisorConfig {
   cliEntry: string;
   /** Directory for DSH_HOME (profiles, logs, sessions). */
   homeDir: string;
-  /** Port the load balancer is listening on (injected as OPENCODE2API_LB_URL). */
-  lbUrl: string | null;
   /** Extra env passed through to the child. */
   extraEnv?: Record<string, string>;
   /** Optional visible embedded Chromium bridge exposed to computer_use. */
@@ -253,7 +251,7 @@ export class HarnessSupervisor {
       'SYSTEMROOT', 'WINDIR', 'COMSPEC', 'PROGRAMFILES', 'PROGRAMFILES(X86)', 'LOCALAPPDATA',
       'APPDATA', 'COMMONPROGRAMFILES', 'COMMONPROGRAMFILES(X86)', 'ProgramData',
       'node_options', 'NODE_OPTIONS', 'ELECTRON_RUN_AS_NODE',
-      'DSH_HOME', 'OPENCODE2API_LB_URL',
+      'DSH_HOME',
       'FREECODE_EMBEDDED_BROWSER_ENDPOINT', 'FREECODE_EMBEDDED_BROWSER_TOKEN',
       'FREECODE_PUBLIC_KEY', 'DEEPSEEK_API_KEY',
     ] as const;
@@ -266,7 +264,6 @@ export class HarnessSupervisor {
       ...safeEnv,
       ...this.cfg.nodeEnv,
       DSH_HOME: this.cfg.homeDir,
-      ...(this.cfg.lbUrl ? { OPENCODE2API_LB_URL: this.cfg.lbUrl } : {}),
       ...(this.cfg.browserBridge ? {
         FREECODE_EMBEDDED_BROWSER_ENDPOINT: this.cfg.browserBridge.endpoint,
         FREECODE_EMBEDDED_BROWSER_TOKEN: this.cfg.browserBridge.token,

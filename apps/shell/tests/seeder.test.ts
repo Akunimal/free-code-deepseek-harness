@@ -10,6 +10,62 @@ const LB = 'http://127.0.0.1:41234/v1';
 function home() { const path = mkdtempSync(join(tmpdir(), 'dsh-seed-profile-')); roots.push(path); return path; }
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, {recursive: true, force: true}); });
 describe('provider startup migration', () => {
+  it('seeds Phoenix Auto and only the packaged model allowlist with its private runtime key', () => {
+    const root = home();
+    seedProviders({
+      homeDir: root,
+      lbBaseUrl: LB,
+      modelIds: ['auto', 'pollinations/openai-fast', 'kilo/step-3.5-flash-free'],
+      apiKeyEnv: 'FREECODE_PHOENIX_API_KEY',
+    });
+    const settings = readHarnessSettings(root);
+    expect(settings['llm-pi-ai'].providers['freecode-phoenix']).toMatchObject({
+      displayName: 'Phoenix',
+      api: 'openai-completions',
+      baseURL: LB,
+      apiKeyEnv: 'FREECODE_PHOENIX_API_KEY',
+      defaultInput: ['text'],
+      models: [
+        { id: 'auto' },
+        { id: 'pollinations/openai-fast' },
+        { id: 'kilo/step-3.5-flash-free' },
+      ],
+    });
+    expect(settings['agent-default-model']).toEqual({ provider: 'freecode-phoenix', model: 'auto' });
+    expect(settings['llm-pi-ai'].providers['deepseek-free']).toBeUndefined();
+  });
+
+  it('migrates an old managed default to Auto Phoenix while preserving unrelated user routes', () => {
+    const root = home();
+    writeHarnessSettings(root, {
+      'llm-pi-ai': { providers: {
+        'deepseek-free': { displayName: 'Legacy route', models: [{ id: 'old-model' }] },
+        custom: { displayName: 'My route', baseURL: 'http://127.0.0.1:9999/v1', models: [{ id: 'mine' }] },
+      } },
+      'agent-default-model': { provider: 'deepseek-free', model: 'old-model' },
+    });
+    seedProviders({
+      homeDir: root,
+      lbBaseUrl: LB,
+      modelIds: ['auto', 'pollinations/openai-fast'],
+    });
+    const settings = readHarnessSettings(root);
+    expect(settings['llm-pi-ai'].providers['freecode-phoenix'].models).toEqual([
+      { id: 'auto' }, { id: 'pollinations/openai-fast' },
+    ]);
+    expect(settings['agent-default-model']).toEqual({ provider: 'freecode-phoenix', model: 'auto' });
+    expect(settings['llm-pi-ai'].providers.custom).toEqual({
+      displayName: 'My route', baseURL: 'http://127.0.0.1:9999/v1', models: [{ id: 'mine' }],
+    });
+  });
+
+  it('rejects an untrusted or unordered Phoenix model seed', () => {
+    const root = home();
+    expect(() => seedProviders({ homeDir: root, lbBaseUrl: LB, modelIds: ['agent', 'openai/paid-model'] }))
+      .toThrow(/Phoenix model IDs/);
+    expect(existsSync(harnessSettingsPath(root))).toBe(false);
+  });
+
   it('creates only a valid dormant profile and no legacy placeholder', () => {
     const root = home(); const result = seedProviders({homeDir: root, lbBaseUrl: LB});
     expect(result).toEqual({seeded: true, path: harnessSettingsPath(root)});
@@ -22,6 +78,19 @@ describe('provider startup migration', () => {
     const before = readFileSync(harnessSettingsPath(root), 'utf8');
     expect(seedProviders({homeDir: root, lbBaseUrl: LB}).seeded).toBe(false);
     expect(readFileSync(harnessSettingsPath(root), 'utf8')).toBe(before);
+  });
+  it('removes a stale Phoenix route when no verified packaged model catalog was provided', () => {
+    const root = home();
+    writeHarnessSettings(root, {
+      'llm-pi-ai': { providers: {
+        'freecode-phoenix': { displayName: 'Phoenix', models: [{ id: 'old-model' }] },
+      } },
+      'agent-default-model': { provider: 'freecode-phoenix', model: 'old-model' },
+    });
+    seedProviders({ homeDir: root, lbBaseUrl: LB });
+    const settings = readHarnessSettings(root);
+    expect(settings['llm-pi-ai'].providers['freecode-phoenix']).toBeUndefined();
+    expect(settings['agent-default-model']).toBeUndefined();
   });
   it.each(['DeepSeek Free (pool)', 'FreeLLMPool', 'OpenCode Free'])('retires %s models and default until verified', (label) => {
     const root = home();

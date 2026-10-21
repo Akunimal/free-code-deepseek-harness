@@ -6,11 +6,10 @@ import { headlessHostPolicy } from './headless-host-policy.js';
 import type { McpRuntimeStatus } from '@freecode/shared-types';
 import { createShellRuntime, ShellRuntime } from './runtime.js';
 import { DEFAULT_POOL_SIZE } from '@freecode/opencode-adapter';
-import { createSecretStore, ensureSecret } from './secret-store.js';
+import { createSecretStore } from './secret-store.js';
 import { seedProviders } from './provider-seeder.js';
 import { refreshModels, ModelCatalog, shouldRetryModelRefresh } from './model-refresher.js';
-import { createModelCatalogRefreshState, createRefreshHold } from './model-refresh-state.js';
-import { shouldNotifyProxyStage } from './proxy-rotator.js';
+import { createModelCatalogRefreshState } from './model-refresh-state.js';
 import { registerIpc } from './ipc.js';
 import { isTrustedHarnessNavigation, isTrustedRendererInvocation as isTrustedRendererCall } from './renderer-security.js';
 import { createSingleFlight } from './single-flight.js';
@@ -140,12 +139,6 @@ async function bootstrap(harnessDir: string): Promise<ShellRuntime> {
   appLogger?.logger.info({}, '[DEBUG-STARTUP] bootstrap 3/5 createSecretStore starting');
   const secrets = await createSecretStore(userDataDir);
   appLogger?.logger.info({}, '[DEBUG-STARTUP] bootstrap 4/5 createSecretStore OK');
-  // OpenCode's public route is the zero-config OpenCode Free pool. Keep it in
-  // the vault so llm-pi-ai reports the seeded provider as configured, while
-  // never overwriting a user's private OpenCode key.
-  if (!process.env.FREECODE_PUBLIC_KEY) {
-    await ensureSecret(secrets, 'FREECODE_PUBLIC_KEY', 'public');
-  }
   appLogger?.logger.info({}, '[DEBUG-STARTUP] bootstrap 5/5 createShellRuntime starting');
   const runtime = await createShellRuntime({
     resourcesDir: resources,
@@ -157,8 +150,6 @@ async function bootstrap(harnessDir: string): Promise<ShellRuntime> {
     nodeEnv: nodeRuntimeEnv(app.isPackaged),
     extraEnv: buildHarnessExtraEnv(dialogBridge),
     uvxCommand,
-    onProxyPoolChanged: () => requestCatalogRefresh?.(),
-    onProxyRotationStatus: (status, healthy) => reportProxyRotation(status, healthy),
     browserBridge: embeddedBrowser ? { endpoint: embeddedBrowser.endpoint, token: embeddedBrowser.token } : undefined,
     log: (level, msg, meta) => {
       const fn = level === 'error' || level === 'warn' ? level : 'info';
@@ -203,12 +194,10 @@ let tray: Tray | null = null;
 let runtime: ShellRuntime | null = null;
 // Set once the catalog refresher exists; the egress proxy rotator calls it when
 // the pool changes so the selector is probed again without a restart.
-let requestCatalogRefresh: (() => void) | undefined;
 // Shared with the selector: loading while the catalog refresh or the egress
 // proxy harvest that precedes it is still running.
 const catalogRefreshState = createModelCatalogRefreshState();
 // Healthy proxy count after the last finished harvest (notification filter).
-let lastProxyPool = 0;
 let appLogger: AppLogger | null = null;
 let updateService: UpdateService | null = null;
 let updateTimer: NodeJS.Timeout | null = null;
@@ -276,36 +265,9 @@ function reportBackendState(kind: 'catalog' | 'pool', state: Exclude<BackendStat
 // generic transition gate hides the first observation as startup settling,
 // so this notifies directly, once per outage.
 let noFreeModelsNotified = false;
-// Egress proxy rotation stages, shown as native notifications so the user is
-// never left guessing whether the free models are coming.
-function reportProxyRotation(status: 'harvesting' | 'ready' | 'empty', healthy: number): void {
-  if (shuttingDown) return;
-  if (status === 'harvesting' && healthy === 0) proxyHarvestHold.hold();
-  else proxyHarvestHold.release();
-  const key = status === 'harvesting' ? 'status.proxy.harvesting' : status === 'ready' ? 'status.proxy.ready' : 'status.proxy.empty';
-  appLogger?.logger.info({ component: 'proxy', status, healthy }, 'proxy rotation stage');
-  const notify = shouldNotifyProxyStage(status, healthy, lastProxyPool);
-  if (status !== 'harvesting') lastProxyPool = healthy;
-  if (!notify) return;
-  try {
-    new Notification({ title: t(`${key}.title` as Parameters<typeof t>[0]), body: t(`${key}.message` as Parameters<typeof t>[0], String(healthy)) }).show();
-  } catch {
-    // Best effort; the log keeps the stage.
-  }
-}
-
-// While no proxy is healthy yet, keep the selector in its loading state so the
-// user sees the free models coming instead of an empty list.
-const proxyHarvestHold = createRefreshHold(catalogRefreshState, 180_000);
-
 function reportNoFreeModels(catalog: ModelCatalog): void {
   const anyResponder = Object.values(catalog.providers).some((provider) => provider.models.some((model) => model.responds));
   if (anyResponder) { noFreeModelsNotified = false; return; }
-  // A zero-responder catalog that will NOT be retried is a persistent block
-  // (Zen's 403 FreeTierError to this IP), not a transient warm-up. Engage the
-  // egress proxy rotator so the gateway gains a fallback lane; direct stays
-  // first. A still-retryable empty catalog is left alone.
-  if (!shouldRetryModelRefresh(catalog)) runtime?.engageProxyRotation();
   if (noFreeModelsNotified || shuttingDown) return;
   noFreeModelsNotified = true;
   appLogger?.logger.warn({ component: 'catalog' }, 'no free model answered the catalog probe');
@@ -1088,8 +1050,9 @@ app.whenReady().then(async () => {
   appLogger?.logger.info({}, '[DEBUG-STARTUP] 7/10 before bootstrap()');
   runtime = await bootstrap(harnessRuntimeDir);
   appLogger?.logger.info({}, '[DEBUG-STARTUP] 8/10 bootstrap() OK');
-  const opencodeUrl = runtime.opencode2api?.url ?? 'http://127.0.0.1:55405';
-  const opencodeApiKey = runtime.opencode2api?.apiKey ?? 'public';
+  const phoenixUrl = runtime.phoenix.url;
+  const phoenixApiKey = runtime.phoenix.apiKey;
+  const phoenixModelIds = runtime.phoenix.modelIds;
 
   // The gateway URL is known now, while the DSH child has not started yet.
   // Clear stale/unsupported model IDs before its first settings read; otherwise
@@ -1097,7 +1060,9 @@ app.whenReady().then(async () => {
   // gateway correctly rejects with an unsupported-protocol 400.
   seedProviders({
     homeDir: join(userDataDir, 'dsh-home'),
-    lbBaseUrl: `${opencodeUrl}/v1`,
+    lbBaseUrl: `${phoenixUrl}/v1`,
+    modelIds: runtime.phoenix.modelIds,
+    apiKeyEnv: 'FREECODE_PHOENIX_API_KEY',
   });
 
   // Register before start so MCP failures from the first child generation are
@@ -1152,13 +1117,13 @@ app.whenReady().then(async () => {
   await runtime.start();
   appLogger?.logger.info({}, '[DEBUG-STARTUP] 10/10 runtime.start() OK — harness should be starting');
 
-  reportBackendState('pool', 'ready', 'opencode2api gateway active');
+  reportBackendState('pool', 'ready', 'Phoenix FreeLLMpool gateway active');
 
   // FASE 6: model refresh at boot + every 30 min.
   let catalog: ModelCatalog | null = null;
   let refreshRetryAttempt = 0;
   let degradedProbeRetries = 0;
-  const OPENCODE_REFRESH_RETRY_MS = 30_000;
+  const PHOENIX_REFRESH_RETRY_MS = 30_000;
   const scheduleRefreshRetry = (): void => {
     if (refreshRetryTimer) return;
     const delay = REFRESH_RETRY_DELAYS_MS[Math.min(refreshRetryAttempt, REFRESH_RETRY_DELAYS_MS.length - 1)]!;
@@ -1172,13 +1137,14 @@ app.whenReady().then(async () => {
   const doRefresh = createSingleFlight(async (): Promise<ModelCatalog | null> => {
     try {
       catalog = await catalogRefreshState.run(() => refreshModels({
-        lbBaseUrl: opencodeUrl,
+        lbBaseUrl: phoenixUrl,
         homeDir: join(userDataDir, 'dsh-home'),
         userDataDir,
-        authHeader: `Bearer ${opencodeApiKey}`,
-        // Single lane: deepseek-free is the only provider seeded, served by
-        // the opencode2api gateway. The former opencode-free duplicate pointed
-        // at the same gateway and doubled every model in the selector.
+        authHeader: `Bearer ${phoenixApiKey}`,
+        provider: 'freecode-phoenix',
+        exactModelIds: phoenixModelIds,
+        probeModels: false,
+        apiKeyEnv: 'FREECODE_PHOENIX_API_KEY',
         providers: [],
         onUpdate: (c) => {
           catalog = c;
@@ -1195,7 +1161,7 @@ app.whenReady().then(async () => {
             ? `Some model probes failed at the transport layer; retaining ${retainedRoutes} previously HTTP-200-verified route(s).${retrySuffix}`
             : verifiedRoutes > 0
               ? `Some model probes failed transiently; ${verifiedRoutes} currently verified route(s) remain selectable.${retrySuffix}`
-              : `No free model is available right now: OpenCode Zen answers 403 to some networks and free tiers have rate limits (429). Try again later or from another network. Unverified routes stay hidden.${retrySuffix}`;
+              : `No Phoenix model is available right now. The local allowlisted catalog will retry automatically.${retrySuffix}`;
           reportBackendState('catalog', c.availability === 'degraded' ? 'degraded' : 'ready',
             c.availability === 'degraded' ? degradedMessage : undefined);
         },
@@ -1206,11 +1172,11 @@ app.whenReady().then(async () => {
       // choices or waiting for the 30-minute cadence. Permanent HTTP 4xx
       // protocol/auth failures only use that regular cadence. Bounded: 8
       // short retries per degraded period, then cadence.
-      if (opencodeUrl) {
+      if (phoenixUrl) {
         const shouldRetry = catalog ? shouldRetryModelRefresh(catalog) : true;
         if (!shouldRetry) degradedProbeRetries = 0;
         if (shouldRetry && degradedProbeRetries++ < 8 && !shuttingDown) {
-          refreshRetryTimer = setTimeout(() => { refreshRetryTimer = null; void doRefresh(); }, OPENCODE_REFRESH_RETRY_MS);
+          refreshRetryTimer = setTimeout(() => { refreshRetryTimer = null; void doRefresh(); }, PHOENIX_REFRESH_RETRY_MS);
           refreshRetryTimer.unref();
         }
       }
@@ -1222,7 +1188,6 @@ app.whenReady().then(async () => {
       return null;
     }
   });
-  requestCatalogRefresh = () => { void doRefresh(); };
   void doRefresh();
   refreshIntervalId = setInterval(() => void doRefresh(), REFRESH_INTERVAL_MS);
   refreshIntervalId.unref();
@@ -1232,7 +1197,7 @@ app.whenReady().then(async () => {
     runtime,
     userDataDir,
     homeDir: join(userDataDir, 'dsh-home'),
-    lbBaseUrl: opencodeUrl,
+    lbBaseUrl: phoenixUrl,
     catalogStore: { get: () => catalog },
     catalogRefreshState,
     reportModelRefreshFailure,

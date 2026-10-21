@@ -2,18 +2,17 @@ import { HarnessSupervisor, HarnessInstance } from './harness-supervisor.js';
 import { SecretStore, resolveSecrets } from './secret-store.js';
 import { join, resolve } from 'node:path';
 import { retireRemovedRuntime } from './retired-runtime.js';
-import { startOpencode2api, type Opencode2apiInstance } from './opencode2api.js';
-import { ProxyRotator } from './proxy-rotator.js';
+import { startPhoenixGateway, type PhoenixGatewayInstance } from './phoenix-gateway.js';
 import { embeddedMcpEnvironment, ensureEmbeddedMcpConfig } from './mcp-home.js';
 import type { EmbeddedMcpState, McpRuntimeStatus, WorkerHandle } from '@freecode/shared-types';
 
 /**
  * Shell runtime — owns the full backend stack of the desktop app:
- *   opencode2api (anonymous Zen) -> dsh web supervisor.
+ *   packaged Phoenix/FreeLLMpool gateway -> dsh web supervisor.
  */
 
 export interface ShellRuntimeConfig {
-  /** Static resources dir containing sidecars such as opencode2api and OCR. */
+  /** Static resources dir containing the packaged Phoenix gateway and OCR. */
   resourcesDir: string;
   /** Root containing the DSH CLI; defaults to resourcesDir for development. */
   harnessDir?: string;
@@ -35,17 +34,13 @@ export interface ShellRuntimeConfig {
   browserBridge?: { endpoint: string; token: string };
   /** Absolute uvx executable selected by the platform bootstrap. */
   uvxCommand?: string;
-  /** Called after the egress proxy pool changes and the gateway has reloaded. */
-  onProxyPoolChanged?: () => void;
-  /** Stage changes of the egress proxy rotation, for user-visible status. */
-  onProxyRotationStatus?: (status: 'harvesting' | 'ready' | 'empty', healthy: number) => void;
 }
 
 export type McpStatusListener = (status: McpRuntimeStatus) => void;
 
 export interface ShellRuntime {
-  /** opencode2api anonymous-Zen instance; undefined when unavailable. */
-  opencode2api?: Opencode2apiInstance;
+  /** Hash-verified Phoenix/FreeLLMpool gateway owned by this shell process. */
+  phoenix: PhoenixGatewayInstance;
   supervisor: HarnessSupervisor;
   /** No per-worker handles; returns empty array. */
   workers: () => WorkerHandle[];
@@ -56,10 +51,6 @@ export interface ShellRuntime {
   /** Reset enabled servers to starting before a supervisor restart. */
   resetMcpStatus(): void;
   onMcpStatus(listener: McpStatusListener): () => void;
-  /** Engage egress proxy rotation (idempotent). Called when the direct lane is
-   *  persistently blocked. A no-op when the gateway is down or rotation is
-   *  disabled. */
-  engageProxyRotation(): void;
   start(): Promise<void>;
   stop(): Promise<void>;
 }
@@ -163,52 +154,28 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
       extraEnv[k] = v;
     }
   }
-  // The no-auth gateway authenticates locally with the same public key the
-  // harness route uses, so server_keys and apiKeyEnv always agree even when
-  // the operator overrode FREECODE_PUBLIC_KEY.
-  const publicKey = extraEnv.FREECODE_PUBLIC_KEY ?? process.env.FREECODE_PUBLIC_KEY ?? 'public';
-  const opencode2api = await startOpencode2api({
-    resourcesDir: join(cfg.resourcesDir),
+  // Phoenix is a required part of this product build. A missing or invalid
+  // payload is a startup error; never start DSH with a stale gateway URL.
+  const phoenix = await startPhoenixGateway({
+    resourcesDir: cfg.resourcesDir,
     userDataDir: cfg.userDataDir,
-    apiKey: publicKey,
     log,
-  }).catch((error: unknown) => {
-    cfg.log?.('warn', 'opencode2api sidecar failed to start', {
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return undefined;
   });
-
-  // Egress rotation, demand-driven: engaged by the shell only when the direct
-  // lane is persistently blocked (a non-retryable empty catalog, i.e. Zen's
-  // 403 FreeTierError). While the user's own IP works, no proxy list is ever
-  // fetched and the gateway is never restarted — direct is always first.
-  // Opt-out: FREECODE_DISABLE_PROXY_ROTATION=1.
-  const rotationDisabled = process.env.FREECODE_DISABLE_PROXY_ROTATION === '1';
-  let proxyRotator: ProxyRotator | undefined;
-  if (opencode2api && !rotationDisabled) {
-    proxyRotator = new ProxyRotator({
-      proxyfilePath: opencode2api.proxyfilePath,
-      onStatus: (status, healthy) => cfg.onProxyRotationStatus?.(status, healthy),
-      onPoolChanged: async () => {
-        await opencode2api.restart();
-        // The catalog was probed before the proxies existed; ask for a fresh
-        // probe now so the selector updates without waiting for the cadence.
-        cfg.onProxyPoolChanged?.();
-      },
-      log,
-    });
-  }
+  const gatewayEnv = {
+    ...cfg.extraEnv,
+    ...mcpEnv,
+    ...extraEnv,
+    FREECODE_PHOENIX_API_KEY: phoenix.apiKey,
+  };
 
   const supervisor = new HarnessSupervisor({
     nodePath: cfg.nodePath,
     cliEntry,
     homeDir: join(cfg.userDataDir, 'dsh-home'),
-    lbUrl: opencode2api?.url ?? 'http://127.0.0.1:55405',
     // Product-managed MCP values are authoritative for the child process:
     // they are derived from the persisted catalog, not inherited from the
     // Electron environment. A new harness process reads the current toggles.
-    extraEnv: { ...cfg.extraEnv, ...mcpEnv, ...extraEnv },
+    extraEnv: gatewayEnv,
     browserBridge: cfg.browserBridge,
     nodeEnv: cfg.nodeEnv,
     log,
@@ -216,7 +183,7 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
   });
 
   return {
-    opencode2api,
+    phoenix,
     supervisor,
     workers: () => [],
     mcpState,
@@ -233,7 +200,7 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
         FREECODE_UVX_COMMAND: cfg.uvxCommand ?? 'uvx',
         ...ocrEnv,
       };
-      supervisor.updateExtraEnv({ ...cfg.extraEnv, ...mcpEnv, ...extraEnv });
+      supervisor.updateExtraEnv({ ...cfg.extraEnv, ...mcpEnv, ...extraEnv, FREECODE_PHOENIX_API_KEY: phoenix.apiKey });
       return mcpState();
     },
     resetMcpStatus,
@@ -241,15 +208,13 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
       mcpListeners.add(listener);
       return () => mcpListeners.delete(listener);
     },
-    engageProxyRotation: () => { proxyRotator?.engage(); },
     start: async () => {
       resetMcpStatus();
       await supervisor.start();
     },
     stop: async () => {
-      proxyRotator?.stop();
       await supervisor.stop();
-      await opencode2api?.stop();
+      await phoenix.stop();
     },
   };
 }

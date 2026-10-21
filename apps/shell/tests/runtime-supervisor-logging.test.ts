@@ -1,7 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+const startPhoenixGateway = vi.hoisted(() => vi.fn(async () => ({
+  url: 'http://127.0.0.1:41234', port: 41234, apiKey: 'test-key', modelIds: ['auto', 'provider/model'], pid: 4321,
+  restart: async () => {}, stop: async () => {},
+})));
+vi.mock('../src/main/phoenix-gateway.js', () => ({ startPhoenixGateway }));
 import { createShellRuntime } from '../src/main/runtime.js';
 import { HarnessSupervisor } from '../src/main/harness-supervisor.js';
 
@@ -50,7 +55,6 @@ describe('runtime supervisor diagnostics', () => {
       nodePath: process.execPath,
       cliEntry,
       homeDir: join(tempRoot, 'home'),
-      lbUrl: null,
       backoffBaseMs: 1,
       restartBudget: 1,
     });

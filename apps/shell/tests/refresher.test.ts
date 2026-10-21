@@ -67,6 +67,42 @@ function mockFetchWithModels(modelIds: string[], okIds: string[]): void {
 }
 
 describe('model-refresher', () => {
+  it('publishes the Phoenix allowlist without routing aliases or costly upstream probes', async () => {
+    const { home, data } = tmpDirs();
+    const requests: Array<{ url: string; method: string }> = [];
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const endpoint = String(url);
+      requests.push({ url: endpoint, method: init?.method ?? 'GET' });
+      if (endpoint.endsWith('/v1/models')) {
+        return new Response(JSON.stringify({ data: [
+          { id: 'auto' }, { id: 'agent' }, { id: 'spread' },
+          { id: 'pollinations/openai-fast' }, { id: 'openai/paid-model' },
+        ] }), { status: 200 });
+      }
+      return new Response('not found', { status: 404 });
+    }));
+
+    try {
+      const catalog = await refreshModels({
+        lbBaseUrl: LB,
+        homeDir: home,
+        userDataDir: data,
+        provider: 'freecode-phoenix',
+        exactModelIds: ['auto', 'pollinations/openai-fast'],
+        probeModels: false,
+        apiKeyEnv: 'FREECODE_PHOENIX_API_KEY',
+      });
+      expect(catalog.providers['freecode-phoenix']?.models.map((model) => model.id)).toEqual(['auto', 'pollinations/openai-fast']);
+      expect(readHarnessSettings(home)['llm-pi-ai'].providers['freecode-phoenix']).toMatchObject({
+        displayName: 'Phoenix', apiKeyEnv: 'FREECODE_PHOENIX_API_KEY',
+        models: [{ id: 'auto' }, { id: 'pollinations/openai-fast' }],
+      });
+      expect(requests.map((request) => request.method)).toEqual(['GET']);
+    } finally {
+      rmSync(dirname(home), { recursive: true, force: true });
+    }
+  });
+
   it('uses the minimum accepted output budget for upstream health probes', async () => {
     const { home, data } = tmpDirs();
     const probeBodies: Array<{ model: string; max_tokens: number }> = [];
@@ -106,7 +142,7 @@ describe('model-refresher', () => {
 
     try {
       const catalog = await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
-      expect(catalog.providers['deepseek-free']?.models.map((model) => model.id)).toEqual(['valid-model']);
+      expect(catalog.providers['freecode-phoenix']?.models.map((model) => model.id)).toEqual(['valid-model']);
     } finally {
       rmSync(dirname(home), { recursive: true, force: true });
     }
@@ -127,7 +163,7 @@ describe('model-refresher', () => {
   ])('retry policy: %s', (_name, models, expected) => {
     const catalog = {
       refreshedAt: 1,
-      providers: { 'deepseek-free': { models } },
+      providers: { 'freecode-phoenix': { models } },
     } as ModelCatalog;
     expect(shouldRetryModelRefresh(catalog)).toBe(expected);
   });
@@ -151,12 +187,12 @@ describe('model-refresher', () => {
       const catalog = await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
       expect(catalog.availability).toBe('degraded');
       expect(shouldRetryModelRefresh(catalog)).toBe(true);
-      expect(catalog.providers['deepseek-free']!.models).toEqual([
+      expect(catalog.providers['freecode-phoenix']!.models).toEqual([
         expect.objectContaining({ id: 'verified', responds: true }),
         expect.objectContaining({ id: 'temporarily-offline', failureKind: 'transport' }),
       ]);
       const settings = readHarnessSettings(home);
-      expect(settings['llm-pi-ai'].providers['deepseek-free'].models.map((model: { id: string }) => model.id))
+      expect(settings['llm-pi-ai'].providers['freecode-phoenix'].models.map((model: { id: string }) => model.id))
         .toEqual(['verified']);
     } finally {
       rmSync(dirname(home), { recursive: true, force: true });
@@ -182,14 +218,14 @@ describe('model-refresher', () => {
     });
 
     // Catalog keeps all models incl. non-responders.
-    const freeProvider = catalog.providers['deepseek-free']!;
+    const freeProvider = catalog.providers['freecode-phoenix']!;
     expect(freeProvider.models).toHaveLength(3);
     const reasoner = freeProvider.models.find((m) => m.id === 'deepseek-reasoner')!;
     expect(reasoner.responds).toBe(false);
 
     // settings.yaml syncs only responders, as schema-valid model objects.
     const settings = readHarnessSettings(home);
-    expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([
+    expect(settings['llm-pi-ai'].providers['freecode-phoenix'].models).toEqual([
       deepseekModel('deepseek-v3.2-free'),
       deepseekModel('deepseek-chat'),
     ]);
@@ -208,7 +244,7 @@ describe('model-refresher', () => {
     const settings = readHarnessSettings(home);
     // Upstream has no defaultModel key (schema = {providers}); the harness UI
     // preselects the first model in the list, so the fastest responder leads.
-    expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([
+    expect(settings['llm-pi-ai'].providers['freecode-phoenix'].models).toEqual([
       deepseekModel('deepseek-v3.2-free'),
       deepseekModel('deepseek-reasoner'),
       deepseekModel('deepseek-chat'),
@@ -231,8 +267,8 @@ describe('model-refresher', () => {
     const settings = readHarnessSettings(home);
     // User route untouched...
     expect(settings['llm-pi-ai'].providers['omniroute'].baseURL).toBe('http://127.0.0.1:8080/v1');
-    // ...and deepseek-free was added with responders (objects, not strings).
-    expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([
+    // ...and freecode-phoenix was added with responders (objects, not strings).
+    expect(settings['llm-pi-ai'].providers['freecode-phoenix'].models).toEqual([
       deepseekModel('deepseek-v3.2-free'),
       deepseekModel('deepseek-chat'),
     ]);
@@ -244,7 +280,7 @@ describe('model-refresher', () => {
     const { home, data } = tmpDirs();
     await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
     const settings = readHarnessSettings(home);
-    expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([
+    expect(settings['llm-pi-ai'].providers['freecode-phoenix'].models).toEqual([
       { id: 'x-preview-f', reasoningEfforts: false },
       deepseekModel('deepseek-v3.2-free'),
     ]);
@@ -256,19 +292,19 @@ describe('model-refresher', () => {
     const { home, data } = tmpDirs();
     const { mkdirSync, writeFileSync } = await import('node:fs');
     mkdirSync(home, { recursive: true });
-    writeFileSync(join(home, 'settings.yaml'), 'llm-pi-ai:\n  providers:\n    deepseek-free:\n      models: []\n');
+    writeFileSync(join(home, 'settings.yaml'), 'llm-pi-ai:\n  providers:\n    freecode-phoenix:\n      models: []\n');
     await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
     const settings = readHarnessSettings(home);
-    expect(settings['agent-default-model']).toEqual({ provider: 'deepseek-free', model: 'deepseek-v3.2-free' });
+    expect(settings['agent-default-model']).toEqual({ provider: 'freecode-phoenix', model: 'deepseek-v3.2-free' });
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
-  it('prefers deepseek-v4.1-flash-free as the default when it responds', async () => {
-    mockFetchWithModels(['other-free', 'deepseek-v4.1-flash-free'], ['other-free', 'deepseek-v4.1-flash-free']);
+  it('prefers Auto Phoenix as the default when it responds', async () => {
+    mockFetchWithModels(['other-free', 'auto', 'deepseek-v4.1-flash-free'], ['other-free', 'auto', 'deepseek-v4.1-flash-free']);
     const { home, data } = tmpDirs();
     await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
     const settings = readHarnessSettings(home);
-    expect(settings['agent-default-model']).toEqual({ provider: 'deepseek-free', model: 'deepseek-v4.1-flash-free' });
+    expect(settings['agent-default-model']).toEqual({ provider: 'freecode-phoenix', model: 'auto' });
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
@@ -277,7 +313,7 @@ describe('model-refresher', () => {
     const { home, data } = tmpDirs();
     await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
     const settings = readHarnessSettings(home);
-    expect(settings['agent-default-model']).toEqual({ provider: 'deepseek-free', model: 'only-model' });
+    expect(settings['agent-default-model']).toEqual({ provider: 'freecode-phoenix', model: 'only-model' });
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
@@ -286,7 +322,7 @@ describe('model-refresher', () => {
     const { home, data } = tmpDirs();
     await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
     const settings = readHarnessSettings(home);
-    expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([{
+    expect(settings['llm-pi-ai'].providers['freecode-phoenix'].models).toEqual([{
       id: 'mimo-v2.5-pro',
       reasoningEfforts: { off: null, high: 'high' },
       compat: { thinkingFormat: 'deepseek', supportsReasoningEffort: false },
@@ -299,7 +335,7 @@ describe('model-refresher', () => {
     const { home, data } = tmpDirs();
     await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
     const settings = readHarnessSettings(home);
-    expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual(
+    expect(settings['llm-pi-ai'].providers['freecode-phoenix'].models).toEqual(
       [deepseekModel('deepseek-v3.2-free')],
     );
     rmSync(dirname(home), { recursive: true, force: true });
@@ -309,7 +345,7 @@ describe('model-refresher', () => {
     const { home, data } = tmpDirs();
     const { mkdirSync, readFileSync: readFile, writeFileSync } = await import('node:fs');
     mkdirSync(home, { recursive: true });
-    writeFileSync(join(home, 'settings.yaml'), `llm-pi-ai:\n  providers:\n    deepseek-free:\n      models: []\nagent-default-model:\n  provider: deepseek-free\n  model: x-preview-f\n`);
+    writeFileSync(join(home, 'settings.yaml'), `llm-pi-ai:\n  providers:\n    freecode-phoenix:\n      models: []\nagent-default-model:\n  provider: freecode-phoenix\n  model: x-preview-f\n`);
     let releaseProbe!: () => void;
     let probeStarted = false;
     const gate = new Promise<void>((resolve) => { releaseProbe = resolve; });
@@ -330,19 +366,19 @@ describe('model-refresher', () => {
       await vi.waitFor(() => {
         expect(probeStarted).toBe(true);
         const settings = readHarnessSettings(home);
-        expect(settings['llm-pi-ai'].providers['deepseek-free'].models)
+        expect(settings['llm-pi-ai'].providers['freecode-phoenix'].models)
           .toEqual([]);
-        expect(settings['agent-default-model']).toEqual({ provider: 'deepseek-free', model: 'x-preview-f' });
+        expect(settings['agent-default-model']).toEqual({ provider: 'freecode-phoenix', model: 'x-preview-f' });
       }, { timeout: 250 });
     } finally {
       releaseProbe();
     }
     const catalog = await refresh;
-    expect(catalog.providers['deepseek-free']!.models[0]).toMatchObject({ id: 'slow-supported-model', responds: true });
+    expect(catalog.providers['freecode-phoenix']!.models[0]).toMatchObject({ id: 'slow-supported-model', responds: true });
     const settings = readHarnessSettings(home);
-    expect(settings['llm-pi-ai'].providers['deepseek-free'].models)
+    expect(settings['llm-pi-ai'].providers['freecode-phoenix'].models)
       .toEqual([{ id: 'slow-supported-model', reasoningEfforts: false }]);
-    expect(settings['agent-default-model']).toEqual({ provider: 'deepseek-free', model: 'slow-supported-model' });
+    expect(settings['agent-default-model']).toEqual({ provider: 'freecode-phoenix', model: 'slow-supported-model' });
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
@@ -350,7 +386,7 @@ describe('model-refresher', () => {
     const { home, data } = tmpDirs();
     const { mkdirSync, writeFileSync } = await import('node:fs');
     mkdirSync(home, { recursive: true });
-    writeFileSync(join(home, 'settings.yaml'), `llm-pi-ai:\n  providers:\n    deepseek-free:\n      models:\n        - id: x-preview-f\n`);
+    writeFileSync(join(home, 'settings.yaml'), `llm-pi-ai:\n  providers:\n    freecode-phoenix:\n      models:\n        - id: x-preview-f\n`);
     vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
       if (String(url).endsWith('/v1/models')) {
         return new Response(JSON.stringify({ data: [{ id: 'x-preview-f' }] }), { status: 200 });
@@ -369,15 +405,15 @@ describe('model-refresher', () => {
     }));
 
     const catalog = await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
-    expect(catalog.providers['deepseek-free']!.models[0]).toMatchObject({
+    expect(catalog.providers['freecode-phoenix']!.models[0]).toMatchObject({
       id: 'x-preview-f',
       responds: false,
       failureKind: 'http',
       statusCode: 400,
     });
-    expect(catalog.lastKnownGoodByProvider?.['deepseek-free']).toEqual([]);
+    expect(catalog.lastKnownGoodByProvider?.['freecode-phoenix']).toEqual([]);
     const settings = readHarnessSettings(home);
-    expect(settings['llm-pi-ai'].providers['deepseek-free']).toBeUndefined();
+    expect(settings['llm-pi-ai'].providers['freecode-phoenix']).toBeUndefined();
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
@@ -421,10 +457,10 @@ describe('model-refresher', () => {
 
     try {
       const first = await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
-      expect(first.providers['deepseek-free']!.models.map((model) => model.id)).toEqual([
+      expect(first.providers['freecode-phoenix']!.models.map((model) => model.id)).toEqual([
         'known-good', 'will-be-rejected',
       ]);
-      expect(first.lastKnownGoodByProvider?.['deepseek-free']).toEqual([
+      expect(first.lastKnownGoodByProvider?.['freecode-phoenix']).toEqual([
         'known-good', 'will-be-rejected',
       ]);
       // Upgrade catalogs created before the durable last-known-good field.
@@ -432,7 +468,7 @@ describe('model-refresher', () => {
         refreshedAt: 1,
         availability: 'ready',
         providers: {
-          'deepseek-free': {
+          'freecode-phoenix': {
             models: [
               { id: 'known-good', responds: true, latencyMs: 1, lastSeen: 1 },
               { id: 'will-be-rejected', responds: true, latencyMs: 1, lastSeen: 1 },
@@ -444,34 +480,34 @@ describe('model-refresher', () => {
       phase = 'transport-down';
       const degraded = await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
       expect(degraded.availability).toBe('degraded');
-      expect(degraded.providers['deepseek-free']!.models).toEqual([
+      expect(degraded.providers['freecode-phoenix']!.models).toEqual([
         expect.objectContaining({ id: 'known-good', responds: false, failureKind: 'transport', lastKnownGood: true }),
         expect.objectContaining({ id: 'new-candidate', responds: false, failureKind: 'transport' }),
         expect.objectContaining({ id: 'will-be-rejected', responds: false, failureKind: 'http', statusCode: 400 }),
       ]);
-      expect(degraded.lastKnownGoodByProvider?.['deepseek-free']).toEqual(['known-good']);
+      expect(degraded.lastKnownGoodByProvider?.['freecode-phoenix']).toEqual(['known-good']);
       let settings = readHarnessSettings(home);
-      expect(settings['llm-pi-ai'].providers['deepseek-free'].models.map((model: { id: string }) => model.id))
+      expect(settings['llm-pi-ai'].providers['freecode-phoenix'].models.map((model: { id: string }) => model.id))
         .toEqual(['known-good']);
-      expect(settings['agent-default-model']).toEqual({ provider: 'deepseek-free', model: 'known-good' });
+      expect(settings['agent-default-model']).toEqual({ provider: 'freecode-phoenix', model: 'known-good' });
 
       const repeatedFailure = await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
-      expect(repeatedFailure.lastKnownGoodByProvider?.['deepseek-free']).toEqual(['known-good']);
+      expect(repeatedFailure.lastKnownGoodByProvider?.['freecode-phoenix']).toEqual(['known-good']);
       settings = readHarnessSettings(home);
-      expect(settings['llm-pi-ai'].providers['deepseek-free'].models.map((model: { id: string }) => model.id))
+      expect(settings['llm-pi-ai'].providers['freecode-phoenix'].models.map((model: { id: string }) => model.id))
         .toEqual(['known-good']);
 
       phase = 'recovered';
       const recovered = await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
       expect(recovered.availability).toBe('ready');
-      expect(recovered.providers['deepseek-free']!.models).toEqual([
+      expect(recovered.providers['freecode-phoenix']!.models).toEqual([
         expect.objectContaining({ id: 'known-good', responds: true }),
         expect.objectContaining({ id: 'new-candidate', responds: true }),
         expect.objectContaining({ id: 'will-be-rejected', responds: false, failureKind: 'http', statusCode: 400 }),
       ]);
-      expect(recovered.lastKnownGoodByProvider?.['deepseek-free']).toEqual(['known-good', 'new-candidate']);
+      expect(recovered.lastKnownGoodByProvider?.['freecode-phoenix']).toEqual(['known-good', 'new-candidate']);
       settings = readHarnessSettings(home);
-      expect(settings['llm-pi-ai'].providers['deepseek-free'].models.map((model: { id: string }) => model.id))
+      expect(settings['llm-pi-ai'].providers['freecode-phoenix'].models.map((model: { id: string }) => model.id))
         .toEqual(['known-good', 'new-candidate']);
     } finally {
       rmSync(dirname(home), { recursive: true, force: true });
@@ -581,7 +617,7 @@ describe('model-refresher', () => {
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
-  it('offers generic effort to gateway-advertised reasoning models', async () => {
+  it('does not import stale opencode2api metadata into the Phoenix model catalog', async () => {
     mockFetchWithModels(['space-bunny-free', 'jev-1.13-free'], ['space-bunny-free', 'jev-1.13-free']);
     const { home, data } = tmpDirs();
     const { mkdirSync, writeFileSync } = await import('node:fs');
@@ -594,27 +630,41 @@ describe('model-refresher', () => {
     );
     await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
     const settings = readHarnessSettings(home);
-    const models = settings['llm-pi-ai'].providers['deepseek-free'].models;
-    expect(models).toContainEqual({ id: 'space-bunny-free', reasoningEfforts: { off: null, low: 'low', high: 'high' } });
+    const models = settings['llm-pi-ai'].providers['freecode-phoenix'].models;
+    expect(models).toContainEqual({ id: 'space-bunny-free', reasoningEfforts: false });
     expect(models).toContainEqual({ id: 'jev-1.13-free', reasoningEfforts: false });
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
-  it('prefers the free zen lane over other lanes advertising the same id', async () => {
-    mockFetchWithModels(['shared-free'], ['shared-free']);
+  it('uses Phoenix-advertised model metadata instead of stale gateway metadata', async () => {
     const { home, data } = tmpDirs();
     const { mkdirSync, writeFileSync } = await import('node:fs');
     mkdirSync(join(data, 'opencode2api'), { recursive: true });
     writeFileSync(
       join(data, 'opencode2api', 'config.json.models.catalog.json'),
       JSON.stringify({ metadata: {
-        go: { 'shared-free': { context_window: 1_000_000, max_output: 100_000 } },
         zen: { 'shared-free': { context_window: 200_000, max_output: 32_000 } },
       } }),
     );
-    await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
-    const models = readHarnessSettings(home)['llm-pi-ai'].providers['deepseek-free'].models;
-    expect(models).toContainEqual(expect.objectContaining({ id: 'shared-free', contextWindow: 200_000, outputMaxTokens: 32_000 }));
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => String(url).endsWith('/v1/models')
+      ? new Response(JSON.stringify({ data: [
+        { id: 'auto' },
+        { id: 'pollinations/openai-fast', context_window: 321_000, max_output: 24_000, reasoning: true, reasoning_efforts: ['low', 'high'] },
+      ] }), { status: 200 })
+      : new Response('not found', { status: 404 })));
+    await refreshModels({
+      lbBaseUrl: LB,
+      homeDir: home,
+      userDataDir: data,
+      provider: 'freecode-phoenix',
+      exactModelIds: ['auto', 'pollinations/openai-fast'],
+      probeModels: false,
+    });
+    const models = readHarnessSettings(home)['llm-pi-ai'].providers['freecode-phoenix'].models;
+    expect(models).toContainEqual({
+      id: 'pollinations/openai-fast', contextWindow: 321_000, outputMaxTokens: 24_000,
+      reasoningEfforts: { off: null, low: 'low', high: 'high' },
+    });
     rmSync(dirname(home), { recursive: true, force: true });
   });
 
@@ -644,7 +694,7 @@ describe('model-refresher', () => {
 
     try {
       await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
-      const models = readHarnessSettings(home)['llm-pi-ai'].providers['deepseek-free'].models;
+      const models = readHarnessSettings(home)['llm-pi-ai'].providers['freecode-phoenix'].models;
       expect(models).toContainEqual({
         id: 'deepseek-v4-flash',
         contextWindow: 1_048_576,
@@ -678,7 +728,7 @@ describe('model-refresher', () => {
 
     try {
       await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
-      const models = readHarnessSettings(home)['llm-pi-ai'].providers['deepseek-free'].models;
+      const models = readHarnessSettings(home)['llm-pi-ai'].providers['freecode-phoenix'].models;
       expect(models).toContainEqual({
         id: 'deepseek-v4-pro',
         contextWindow: 1_048_576,
@@ -712,7 +762,7 @@ describe('model-refresher', () => {
 
     try {
       await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
-      const models = readHarnessSettings(home)['llm-pi-ai'].providers['deepseek-free'].models;
+      const models = readHarnessSettings(home)['llm-pi-ai'].providers['freecode-phoenix'].models;
       expect(models).toContainEqual({
         id: 'deepseek-v4-flash',
         contextWindow: 524_288,
@@ -731,7 +781,7 @@ describe('model-refresher', () => {
     const { home, data } = tmpDirs();
     await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
     const settings = readHarnessSettings(home);
-    expect(settings['llm-pi-ai'].providers['deepseek-free'].models).toEqual([
+    expect(settings['llm-pi-ai'].providers['freecode-phoenix'].models).toEqual([
       { id: 'space-bunny-free', reasoningEfforts: false },
     ]);
     rmSync(dirname(home), { recursive: true, force: true });
@@ -743,7 +793,7 @@ describe('model-refresher', () => {
     mkdirSync(home, { recursive: true });
     writeFileSync(
       join(home, 'settings.yaml'),
-      `llm-pi-ai:\n  providers:\n    deepseek-free:\n      models:\n        - id: last-known-good\n`,
+      `llm-pi-ai:\n  providers:\n    freecode-phoenix:\n      models:\n        - id: last-known-good\n`,
     );
     mockFetchWithModels(['x-preview-f', 'deepseek-v3.2-free'], []);
 
@@ -753,7 +803,7 @@ describe('model-refresher', () => {
     // 0.9.1: stale entries are erased instead of kept as last-known-good,
     // so the selector never offers dead models. Bounded refresh retries
     // repopulate the lane on upstream recovery.
-    expect(settings['llm-pi-ai'].providers['deepseek-free']).toBeUndefined();
+    expect(settings['llm-pi-ai'].providers['freecode-phoenix']).toBeUndefined();
     rmSync(dirname(home), { recursive: true, force: true });
   });
 });

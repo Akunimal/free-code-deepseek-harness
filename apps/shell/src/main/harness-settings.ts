@@ -5,9 +5,9 @@ import { randomUUID } from 'node:crypto';
 import { isMap, isSeq, parseDocument, YAMLMap, YAMLSeq } from 'yaml';
 
 type Settings = Record<string, any>;
-const MANAGED_PROVIDER = 'deepseek-free';
+const MANAGED_PROVIDER = 'freecode-phoenix';
 // kilo-free: retired group from earlier 0.9.8 builds; removed from saved profiles.
-const MANAGED_KEYS = new Set([MANAGED_PROVIDER, 'kilo-free', 'opencode-free', 'perplexity-free', 'gemini-web']);
+const MANAGED_KEYS = new Set([MANAGED_PROVIDER, 'deepseek-free', 'kilo-free', 'opencode-free', 'perplexity-free', 'gemini-web']);
 const ENTRY_NAMES: Record<string, string> = {
   'llm-pi-ai': '@deepseek-ai/dsh-llm-pi-ai',
   'agent-default-model': '@deepseek-ai/dsh-agent-default-model',
@@ -105,7 +105,9 @@ export function writeHarnessSettings(home: string, settings: Settings): boolean 
         const currentValue = isMap(current) ? current.toJSON() : current;
         if (JSON.stringify(currentValue) !== JSON.stringify(value)) target.set(key, doc.createNode(value));
       }
-    } else if (config.get('provider') !== undefined && config.get('provider') !== MANAGED_PROVIDER) {
+    } else if (config.get('provider') !== undefined
+      && !MANAGED_KEYS.has(String(config.get('provider')))
+      && config.get('provider') !== desired.provider) {
       // Do not overwrite a concurrent user selection of another provider.
       continue;
     } else if (JSON.stringify(config.toJSON()) !== JSON.stringify(desired)) {
