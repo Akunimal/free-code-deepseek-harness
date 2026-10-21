@@ -154,6 +154,17 @@ running app while implementing this.
   active documentation.
   Commit identity: `c10d74e`.
 
+### PHX101-10 checklist
+
+- [x] PHX101-10: Rebuild the updated v1.0.1 Windows setup and portable artifacts
+  from current source; run the package's headless/resource checks and exact
+  static release-asset verification, and record hashes. Neither artifact was
+  executed and no FreeCode instance was launched/inspected/stopped. The user
+  will test locally; no tag or release until that test succeeds. Push was
+  requested, but is pending explicit destination, branch and credential/session
+  confirmation under the repository's remote-operation policy. Integrity-pin
+  work-unit commit: `31e4b08`.
+
 ## Acceptance criteria and checks
 
 1. A clean packaged profile starts only the shipped FreeLLMpool Phoenix service
@@ -218,6 +229,10 @@ running app while implementing this.
   freshness is tracked separately by PHX101-6. Do not build or run the app
   installer unless separately requested. Source/test/resource slice committed
   as `3b7d975`; bilingual docs/task evidence slice committed as `774580e`.
+- [x] PHX101-10: Rebuild and statically verify the current v1.0.1 setup and
+  portable artifacts for the user's local test; do not execute either artifact
+  or publish. Integrity-pin work-unit commit: `31e4b08`; build evidence recorded
+  below.
 
 ## Progress and recovery
 
@@ -420,16 +435,42 @@ performed.
   manifest/graph output (21 syntax-error files were reported; graph stats stayed
   at 122,918 nodes / 263,625 edges). The graph mtime predates the updated source;
   PHX101-6 remains pending, and no Graphify or vendor artifact was staged.
+- PHX101-10 first build attempt correctly stopped at `verify-runtime-dependencies`
+  because the runtime dependency pin still named the prior Phoenix binary hash.
+  `freellmpool-staging.mjs --verify` confirmed the current binary against its
+  immutable-source build receipt; `refresh-runtime-dependency-pins.mjs` then
+  refreshed only the stale Phoenix SHA-256 (the DSH pin was unchanged). The
+  focused dependency check passed 28/28 before the full build rerun.
+- PHX101-10 package: `pnpm build:desktop` passed on current source into the new
+  isolated `apps/shell/release-1.0.1-local-20261021/` directory. Prepackage
+  checks passed: 323 vendor bundles fresh, runtime manifest/dependencies,
+  hidden-window/descendant/Job adversarial tests on both staged and packaged
+  helpers, 23 headless-runtime contracts, conversation-bundle and rendered
+  background transition/ASCII animation/reduced-motion proof, process-launch
+  inventory, Electron 44.0.0 bootstrap, and 14/14 host-applicable native addons.
+  The exact static asset verifier passed without executing artifacts. Setup:
+  `FreeCode-DeepSeek-Harness-1.0.1-win-x64-setup.exe`, 211,657,457 bytes,
+  SHA-256 `89b538c511d574b5f2bcf0db0faea6c884eca72e92d40816dcaca38b46e93a1c`;
+  portable: `FreeCode-DeepSeek-Harness-1.0.1-win-x64-portable.exe`, 211,282,319
+  bytes, SHA-256 `ed592f667c82d47925969c12dee43e426127f1d0d348824dfc4b1f45712d391c`.
+  Blockmap (223,193 bytes) and `latest.yml` also verified. No installer/app was
+  run; the public clean-cache DSH first-run gate and `release:gate` remain pending
+  for publication. Work-unit commit: `31e4b08`.
 
 ### Next step
 
-PHX101-9 is locally implemented and committed as `c10d74e`; failed current
-probes no longer stay in the selector. PHX101-8 source, tests, generated
-catalog, bilingual docs and local sidecar smoke remain committed locally as
-`3b7d975` and `774580e`. PHX101-6 Graphify freshness remains pending because
-the update did not replace the stale graph/manifest. The prior v1.0.1 artifacts
-predate this work and are stale; no new installer, public clean-cache DSH proof,
-full `release:gate`, push, tag, or release was performed.
+The latest local build is v1.0.1 at
+`apps/shell/release-1.0.1-local-20261021/`; PHX101-10 work-unit commit is
+`31e4b08`. The setup and portable are statically verified and ready for the
+user's local test, but were not run by this agent. Failed current Phoenix model
+probes are evicted from the selector by PHX101-9 (`c10d74e`). PHX101-8 source,
+tests, generated catalog, bilingual docs and local sidecar smoke remain
+committed as `3b7d975` and `774580e`. PHX101-6 Graphify freshness is still
+pending because previous update attempts did not replace the graph/manifest.
+The public clean-cache DSH first-run proof and `release:gate` have not been run;
+do not tag or publish before those gates and the user's successful local test.
+Remote push was requested but is pending destination/branch/session confirmation
+per policy.
 
 ## Relevant files
 
