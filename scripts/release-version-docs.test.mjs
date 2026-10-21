@@ -6,13 +6,13 @@ import test from 'node:test';
 const root = resolve(import.meta.dirname, '..');
 const read = (relativePath) => readFileSync(join(root, relativePath), 'utf8');
 
-test('root and shell metadata agree on 1.0.1 and keep the DSH alpha11 runtime pin', () => {
+test('root and shell metadata agree on 1.0.1 and keep the DSH alpha12 runtime pin', () => {
   const rootVersion = JSON.parse(read('package.json')).version;
   const shellVersion = JSON.parse(read('apps/shell/package.json')).version;
 
   assert.equal(rootVersion, '1.0.1');
   assert.equal(shellVersion, rootVersion);
-  assert.equal(JSON.parse(read('apps/shell/harness-runtime.json')).version, '0.2.1-alpha.11');
+  assert.equal(JSON.parse(read('apps/shell/harness-runtime.json')).version, '0.2.1-alpha.12');
   const phoenix = JSON.parse(read('apps/shell/resources/runtime-deps.json')).dependencies
     .find((dependency) => dependency.id === 'phoenix');
   assert.equal(phoenix?.required, true);
@@ -124,13 +124,13 @@ test('bilingual 0.9.4 notes identify the published release and retain candidate 
 const activeDocs = ['README.md', 'README.es.md', 'docs/RELEASE.md', 'docs/RELEASE.es.md',
   'docs/RELEASE-POLICY.md', 'docs/RELEASE-POLICY.es.md', 'docs/ROADMAP.md'];
 
-test('active documentation aligns the unpublished Phoenix v1.0.1 candidate, alpha.11 and containment', () => {
+test('active documentation aligns the unpublished Phoenix v1.0.1 candidate, alpha.12 and containment', () => {
   for (const file of activeDocs) {
     const source = read(file);
     assert.match(source, /v1\.0\.1/, file);
-    assert.match(source, /0\.2\.1-alpha\.11/, file);
+    assert.match(source, /0\.2\.1-alpha\.12/, file);
     assert.match(source, /release-notes-v1\.0\.1\.md/, file);
-    assert.match(source, /release-1\.0\.1-local-20261021-context-audit/, file);
+    assert.match(source, /release-1\.0\.1-local-20261021-recovery/, file);
     assert.match(source, /Phoenix/i, file);
     // ROADMAP keeps the historical v0.9.x Tor entries; current docs must not.
     if (file !== 'docs/ROADMAP.md') assert.doesNotMatch(source, /bundled Tor|Tor incluido|tor\.exe/, file);
@@ -173,7 +173,7 @@ test('READMEs agree on Phoenix gateway, version, support and first-run network',
     assert.match(doc, /pnpm release:gate/);
     assert.match(doc, /pnpm verify:desktop-release-assets/);
     assert.match(doc, /v1\.0\.0[\s\S]{0,80}histor|histor[\s\S]{0,80}v1\.0\.0/i);
-    assert.match(doc, /runtime-0\.2\.1-alpha\.11/);
+    assert.match(doc, /runtime-0\.2\.1-alpha\.12/);
     assert.match(doc, /candidate|candidata/i);
     assert.doesNotMatch(doc, /current[^\n]*opencode2api gateway|gateway opencode2api incluido/i);
     assert.doesNotMatch(doc, /start hidden, preventing console flashes|arrancan ocultos: no flashean/);

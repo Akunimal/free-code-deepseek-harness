@@ -23,11 +23,20 @@ installation works. The last published desktop release remains v1.0.0.
   `freecode-launcher` / `headless-host` containment path.
 - Does not require `C:\LocalAI`, Python installed on the user's computer, a
   separate FreeLLMpool installation, or an existing local service/port.
-- DSH `0.2.1-alpha.11` remains a separate first-launch download, verified by
+- DSH `0.2.1-alpha.12` remains a separate first-launch download, verified by
   SHA-256 and Electron ABI. Its public empty-cache first-run gate is still
   mandatory and pending for this candidate.
 
 ### Model selection and failover
+
+Health refresh hides unavailable models without deleting their configured
+descriptors. Existing pinned turns retain their model, context and reasoning
+settings after tools; a later successful probe restores selector availability.
+Auto compacts under pressure before the next step using a 4,096-token summary
+budget compatible with its 32K cap. Failed summarization retains history, and
+Auto failover forwards the complete prepared messages and tool results.
+The new alpha.12 runtime is local and unpublished; use the matching archive
+and preparation script in the local test bundle before running setup.
 
 - **Auto Phoenix** appears first in the selector and can use eligible,
   allowlisted FreeLLMpool routes.
@@ -84,15 +93,15 @@ FreeLLMpool provider configuration and can change when that mapping changes.
 Local source, contract, unit and package-resource checks plus static artifact
 verification do not replace the real public clean-cache DSH smoke. The updated
 local artifacts are built for user testing in
-`apps/shell/release-1.0.1-local-20261021-context-audit/`:
+`apps/shell/release-1.0.1-local-20261021-recovery/`:
 
 | Artifact | Size | SHA-256 |
 | --- | ---: | --- |
-| `FreeCode-DeepSeek-Harness-1.0.1-win-x64-setup.exe` | 211,659,287 bytes | `5925394ded845d41d7107416f78368a296d06bf383f224225a818cee19034b51` |
-| `FreeCode-DeepSeek-Harness-1.0.1-win-x64-portable.exe` | 211,284,149 bytes | `6fe824e64b54a3b3356335738b1978b43fb6038debb46739984afbe9df00088b` |
+| `FreeCode-DeepSeek-Harness-1.0.1-win-x64-setup.exe` | 211,664,279 bytes | `4d9062b3b62b930c4c539b3f44139c2824056729f4d8f27ba116622d736591f4` |
+| `FreeCode-DeepSeek-Harness-1.0.1-win-x64-portable.exe` | 211,289,141 bytes | `849b3e8ebac7af5bf014eb7296d7a4dda3693360ff0d528bc52b5aa1b8bd26dd` |
 
-The setup blockmap (223,280 bytes; SHA-256
-`9bf113056143ce9222aff547d3d78cca18fca468cfff6f3aa79847edb9712a19`) and
+The setup blockmap (223,228 bytes; SHA-256
+`e075fad134dc1ca7421b05122a709a7e5e9e2e03e4ddd1ea130cef5e9bf36d85`) and
 `latest.yml` were also statically verified. Neither new artifact is run or
 installed; the user will test them. This
 candidate remains unpublished and is not clean-install validated. Follow the
@@ -123,11 +132,20 @@ publicada sigue siendo v1.0.0.
   `freecode-launcher` / `headless-host`.
 - No requiere `C:\LocalAI`, Python instalado en la computadora del usuario,
   FreeLLMpool instalado aparte ni un servicio/puerto local preexistente.
-- DSH `0.2.1-alpha.11` sigue como descarga separada del primer inicio,
+- DSH `0.2.1-alpha.12` sigue como descarga separada del primer inicio,
   verificada por SHA-256 y ABI de Electron. Su gate público con caché vacía
   sigue siendo obligatorio y está pendiente para esta candidata.
 
 ### Selector de modelos y failover
+
+El refresco oculta modelos no disponibles sin borrar sus descriptores
+configurados. Los turnos fijados conservan modelo, contexto y effort después
+de las herramientas; una sonda válida posterior los devuelve al selector.
+Auto compacta ante presión antes del próximo paso con un presupuesto de
+resumen de 4.096 tokens compatible con su límite de 32K. Si falla el resumen,
+conserva el historial; el failover reenvía todos los mensajes preparados y
+resultados de herramientas. El nuevo runtime alpha.12 es local y no está
+publicado: usá su archivo y script de preparación junto al setup para probarlo.
 
 - **Auto Phoenix** aparece primero en el selector y puede usar las rutas
   FreeLLMpool permitidas y elegibles.
@@ -187,14 +205,14 @@ configuración FreeLLMpool fijada y pueden cambiar si upstream modifica ese mapa
 Los checks locales de fuente, contratos, unit tests, recursos y verificación
 estática de artefactos no reemplazan el smoke real de DSH desde caché pública
 vacía. Los artefactos locales actualizados se compilan para prueba del usuario
-en `apps/shell/release-1.0.1-local-20261021-context-audit/`:
+en `apps/shell/release-1.0.1-local-20261021-recovery/`:
 
 | Artefacto | Tamaño | SHA-256 |
 | --- | ---: | --- |
-| `FreeCode-DeepSeek-Harness-1.0.1-win-x64-setup.exe` | 211.659.287 bytes | `5925394ded845d41d7107416f78368a296d06bf383f224225a818cee19034b51` |
-| `FreeCode-DeepSeek-Harness-1.0.1-win-x64-portable.exe` | 211.284.149 bytes | `6fe824e64b54a3b3356335738b1978b43fb6038debb46739984afbe9df00088b` |
+| `FreeCode-DeepSeek-Harness-1.0.1-win-x64-setup.exe` | 211.664.279 bytes | `4d9062b3b62b930c4c539b3f44139c2824056729f4d8f27ba116622d736591f4` |
+| `FreeCode-DeepSeek-Harness-1.0.1-win-x64-portable.exe` | 211.289.141 bytes | `849b3e8ebac7af5bf014eb7296d7a4dda3693360ff0d528bc52b5aa1b8bd26dd` |
 
-El blockmap del setup mide 223.280 bytes (SHA-256: 9bf113056143ce9222aff547d3d78cca18fca468cfff6f3aa79847edb9712a19); latest.yml también pasó la verificación estática. No
+El blockmap del setup mide 223.228 bytes (SHA-256: e075fad134dc1ca7421b05122a709a7e5e9e2e03e4ddd1ea130cef5e9bf36d85); latest.yml también pasó la verificación estática. No
 se ejecutó ni instaló ninguno de los dos artefactos nuevos; el usuario los
 probará. Esta candidata sigue sin publicarse y no está validada desde una
 instalación limpia. Antes de publicar, seguí la [política bilingüe de release](docs/RELEASE-POLICY.es.md).

@@ -37,9 +37,10 @@ broker autenticado. Las pruebas nativas adversarias de ventanas/descendientes
 y cierre del Job corren contra el helper exacto preparado y empaquetado;
 los strings de fuente no bastan. Ver [contención y límites](HEADLESS-DESKTOP.md).
 
-El pin separado de DSH es `0.2.1-alpha.11` (ABI 149), 423.195.661 bytes, SHA-256
-`396bc019a74ad71be0fa0e3074298fc41f1621713080d31cf990ae64b3282473`.
-Se publica en la pre-release [runtime-0.2.1-alpha.11](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/runtime-0.2.1-alpha.11) antes del gate; no
+El pin separado de DSH es `0.2.1-alpha.12` (ABI 149), local y todavía sin publicar.
+Su tarball y checksum deben publicarse en una release separada del runtime
+antes del gate público de caché vacía. Para la prueba local se usa el archivo
+exacto y el script de preparación que acompañan al setup; no
 se reemplaza ningún asset anterior. v0.9.5 publicó alpha9, v0.9.4 alpha8 y
 v0.9.2 alpha2: quedan como historia.
 OmniRoute sigue retirado. Se conservan sesiones y proveedores del usuario.
@@ -50,7 +51,7 @@ identificables usan valores nativos revisados si el gateway en vivo no informa
 uno; Auto y alias dinámicos tienen un límite conservador de 32.768 tokens en la
 app. El proveedor puede aplicar límites de ruta menores. Ver valores y fuentes
 por modelo en las notas bilingües. La salida local candidata está en
-`apps/shell/release-1.0.1-local-20261021-context-audit/`; los nombres y SHA-256 de artefactos
+`apps/shell/release-1.0.1-local-20261021-recovery/`; los nombres y SHA-256 de artefactos
 figuran en las [notas bilingües candidatas](../release-notes-v1.0.1.md). Estos
 checks estáticos no reemplazan la prueba pública de runtime con caché vacía.
 
@@ -80,7 +81,7 @@ dejar la config del gateway apuntando a su instalación temporal eliminada.
 
 La futura release desktop v1.0.1 contendrá setup NSIS, portable, blockmap del setup y
 `latest.yml`. El runtime DSH separado tiene versión independiente: v1.0.1
-descarga el runtime Windows x64 exacto `0.2.1-alpha.11` desde la pre-release pública runtime-0.2.1-alpha.11,
+descarga el runtime Windows x64 exacto `0.2.1-alpha.12` desde la pre-release pública runtime-0.2.1-alpha.12,
 que también incluye el checksum SHA-256. El gate verifica el archivo fijado
 local y el manifest empaquetado; nunca vuelve a generar, elimina ni reemplaza
 ese tarball inmutable. El packaging desktop habitual tampoco ejecuta
@@ -99,9 +100,9 @@ nueva y aislada, y verificá exactamente esa carpeta:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-local-20261021-context-audit'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-local-20261021-recovery'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.1-local-20261021-context-audit
+pnpm verify:desktop-release-assets apps/shell/release-1.0.1-local-20261021-recovery
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 

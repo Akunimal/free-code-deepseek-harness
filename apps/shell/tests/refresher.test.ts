@@ -618,7 +618,8 @@ describe('model-refresher', () => {
         expect.objectContaining({ id: 'healthy-route', responds: true }),
         expect.objectContaining({ id: 'offline-route', responds: false, failureKind: 'transport' }),
       ]);
-      expect(readHarnessSettings(home)['llm-pi-ai'].providers['freecode-phoenix'].models.map((model: { id: string }) => model.id))
+      expect(readHarnessSettings(home)['llm-pi-ai'].providers['freecode-phoenix'].models
+        .filter((model: { selectable?: boolean }) => model.selectable !== false).map((model: { id: string }) => model.id))
         .toEqual(['auto', 'healthy-route']);
     } finally {
       rmSync(dirname(home), { recursive: true, force: true });

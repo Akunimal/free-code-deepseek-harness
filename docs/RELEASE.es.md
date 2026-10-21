@@ -26,12 +26,12 @@ Notas candidatas: [v1.0.1 bilingües](../release-notes-v1.0.1.md).
 ## Baseline actual
 
 La fuente está en versión 1.0.1. El runtime DSH continúa como asset inmutable
-separado `0.2.1-alpha.11` para Windows x64 (ABI 149), que se descarga en el
+separado `0.2.1-alpha.12` para Windows x64 (ABI 149), que se descarga en el
 primer inicio cuando no hay caché por usuario válida. Su smoke público con
 caché vacía sigue siendo obligatorio. Phoenix sí viene en el payload desktop
 y se verifica localmente por hash/receipt; no se descarga aparte en el primer
 inicio. La salida aislada es
-`apps/shell/release-1.0.1-local-20261021-context-audit/`. Los tamaños y hashes
+`apps/shell/release-1.0.1-local-20261021-recovery/`. Los tamaños y hashes
 de setup/portable están en las notas bilingües; son checks locales para probar,
 no una instalación limpia validada. Los artefactos, tags y carpetas anteriores
 son historia inmutable y no deben sobrescribirse.
@@ -56,9 +56,9 @@ exactos:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-local-20261021-context-audit'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-local-20261021-recovery'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.1-local-20261021-context-audit
+pnpm verify:desktop-release-assets apps/shell/release-1.0.1-local-20261021-recovery
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
@@ -83,7 +83,9 @@ de build y bytes stageados exactos antes de empaquetar. No queda activo ni se
 empaqueta binario, adaptador, source o pipeline de OpenCode2API.
 
 El runtime DSH se excluye de setup/portable y solo se obtiene por separado al
-primer inicio. Usa el asset público `runtime-0.2.1-alpha.11` y su SHA-256; los
+primer inicio. La distribución pública requiere el asset `runtime-0.2.1-alpha.12`
+y su SHA-256, todavía sin publicar. La prueba local usa el archivo exacto y el
+script de preparación junto al setup. Después de publicarse, los
 inicios posteriores reutilizan la caché por usuario validada. Si falta el
 runtime, no es válido o falla la descarga inicial, DSH debe permanecer detenido
 y ofrecer Reintentar/Cerrar. El packaging desktop habitual no reconstruye el

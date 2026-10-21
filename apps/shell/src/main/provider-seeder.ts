@@ -36,7 +36,9 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
       baseURL: cfg.lbBaseUrl,
       apiKeyEnv: cfg.apiKeyEnv ?? 'FREECODE_PHOENIX_API_KEY',
       defaultInput: ['text'],
-      models: modelIds.map((id) => ({ id })),
+      // Registry membership survives health refresh; only live responders are
+      // selectable. Saved pins remain resolvable while initial probes run.
+      models: modelIds.map((id) => ({ id, selectable: false })),
     };
     const selected = settings['agent-default-model'];
     const selectedId = typeof selected?.model === 'string' ? selected.model : undefined;

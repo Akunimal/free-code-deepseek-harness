@@ -574,18 +574,58 @@ no app-instance access, install, provider requests, push, tag or publication.
   catalog/config/dynamic-config tests, plus the pi-ai package TypeScript build.
   The live-config regression sends an actual local request before and after
   hiding the same route, then restores selector visibility and metadata.
-- [ ] PHX101-12b: Keep Phoenix's exact allowlist configured through failed
+  Work-unit commit: `e740b8f` (54 source/test/doc lines plus its replay patch).
+- [x] PHX101-12b: Keep Phoenix's exact allowlist configured through failed
   probes, change only selector visibility, preserve concrete defaults and
   metadata, start with unavailable choices hidden, and prove failure/recovery
   against an isolated real Host using a test-owned local upstream.
-- [ ] PHX101-12c: Run applicable checks, rebuild the affected runtime and local
+- [x] PHX101-12c: Run applicable checks, rebuild the affected runtime and local
   candidate artifacts, update Graphify and record exact evidence. Do not
   execute the installer or publish; the user tests locally.
-- [ ] PHX101-12d: User additionally requests Auto-only recovery to another
+- [x] PHX101-12d: User additionally requests Auto-only recovery to another
   model with context compaction first when feasible, otherwise complete history
   forwarding. Inspect the actual compaction/Auto paths, implement any necessary
   repair and deterministically test history/tool continuity, without changing
   a concrete pin or switching after downstream stream bytes were committed.
+  Inspection found the inherited 65,536-token compaction headroom exceeded
+  Auto's conservative 32,768 context, disabling proactive compaction. The new
+  Auto-only policy uses 4,096 headroom/summary tokens. RED reproduced the invalid
+  budget; GREEN policy test, 110 compaction/Loader tests, and 5 deterministic
+  router behaviors pass (including full/compacted history and tool results
+  preserved across Auto failover). Pinned selection is never switched.
+
+### PHX101-12 verification complete
+
+- Shell RED reproduced removing a freshly verified MiniMax route, switching its
+  default and losing its context/effort when a later catalog omitted it.
+  GREEN: 56 refresher/seeder/recovery tests. Shell typecheck passed.
+- Vendor build completed. Both patch 183 and 184 pass ordered replay,
+  idempotency, manifest and whitespace verification with the bundled pnpm.
+- Runtime packaging: `package:runtime` built and materialized the offline
+  `0.2.1-alpha.12` DSH stage into `apps/shell/resources/freecode/`, refreshed
+  runtime dependency pins, passed 23 headless runtime contracts, and updated
+  `runtime-manifest.json` to alpha.12.
+- Full shell test suite: `pnpm --filter @freecode/shell test` passed 58 files / 393
+  tests, including the real Host multi-step tool recovery proof, profile HMR, and
+  supervisor smoke with isolated process teardown.
+- Routing contracts: `scripts/phoenix-router-contracts.test.mjs` passed 1/1
+  protecting history/tool preservation across Auto fallback.
+- Documentation contracts: `node --test scripts/release-version-docs.test.mjs`
+  passed 13/13.
+- Shell typecheck and `git diff --check` passed.
+- Candidate build: `apps/shell/release-1.0.1-local-20261021-recovery/` was built
+  via `pnpm build:desktop`. Static asset verifier (`verify:desktop-release-assets`)
+  passed without executing either binary:
+  - Setup: `FreeCode-DeepSeek-Harness-1.0.1-win-x64-setup.exe` (211,664,279 bytes;
+    SHA-256 `4d9062b3b62b930c4c539b3f44139c2824056729f4d8f27ba116622d736591f4`).
+  - Portable: `FreeCode-DeepSeek-Harness-1.0.1-win-x64-portable.exe` (211,289,141
+    bytes; SHA-256 `849b3e8ebac7af5bf014eb7296d7a4dda3693360ff0d528bc52b5aa1b8bd26dd`).
+  - Setup blockmap (223,228 bytes; SHA-256
+    `e075fad134dc1ca7421b05122a709a7e5e9e2e03e4ddd1ea130cef5e9bf36d85`) and
+    `latest.yml` verified.
+  Neither artifact was launched or installed; both are handed to the user for testing.
+- Graphify update: `graphify update .` completed (121,656 nodes, 258,904 edges,
+  4,654 communities); graph outputs remain unstaged per policy.
 
 ## Relevant files
 

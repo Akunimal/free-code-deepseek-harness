@@ -24,6 +24,12 @@ no vacía con HTTP 200 siguen en el selector. Los modelos que fallan se quitan
 inmediatamente; el éxito anterior queda solo como diagnóstico y el modelo
 reaparece después de una sonda válida.
 
+El refresco cambia la disponibilidad del selector sin borrar el registro de
+modelos incluido. Un turno fijado puede continuar después de las herramientas,
+conservando contexto y effort. Auto intenta compactar ante presión de contexto
+antes del próximo paso; si falla el resumen, conserva el historial preparado.
+El failover de Auto reenvía ese historial completo y los resultados de herramientas.
+
 Phoenix no recibe un campo confiable de ventana de contexto para cada ruta.
 FreeCode muestra capacidades nativas revisadas para modelos identificables y
 un límite conservador de 32.768 tokens en la app para Auto y alias dinámicos;
@@ -39,7 +45,7 @@ pendiente. La última release desktop publicada es la histórica
 Ver las [notas bilingües de la candidata v1.0.1](release-notes-v1.0.1.md) y
 el [historial de v1.0.0](release-notes-v1.0.0.md).
 
-El runtime DSH `0.2.1-alpha.11` sigue descargándose por separado en el primer
+El runtime DSH `0.2.1-alpha.12` sigue descargándose por separado en el primer
 inicio; no viene en setup/portable. Una instalación limpia necesita Internet
 para descargar y verificar ese runtime público exacto. Phoenix sí va incluido
 en el payload desktop y se valida antes de arrancar.
@@ -57,7 +63,7 @@ a modelos a través de Phoenix.
 
 ## Estado actual: candidata v1.0.1 (Windows x64)
 
-Versión de la fuente: 1.0.1; runtime DSH fijado: `0.2.1-alpha.11`.
+Versión de la fuente: 1.0.1; runtime DSH fijado: `0.2.1-alpha.12`.
 
 **Estado de release:** solo candidata local. El setup y el portable están
 compilados y verificados estáticamente para tu prueba local; este flujo no los
@@ -66,18 +72,20 @@ obligatorios el smoke público de DSH con caché vacía y el gate completo.
 
 La fuente v1.0.1 fija Phoenix a FreeLLMpool 0.13.0 e incluye su gateway
 Windows x64, allowlist, licencia MIT y recibo de fuente/build. DSH sigue como
-runtime alpha.11 inmutable y separado. Ver las notas históricas de
+runtime alpha.12 inmutable y separado. Ver las notas históricas de
 [v1.0.0](release-notes-v1.0.0.md) para el gateway anterior.
 
 La salida local actual es
-`apps/shell/release-1.0.1-local-20261021-context-audit/` e incluye setup NSIS,
+`apps/shell/release-1.0.1-local-20261021-recovery/` e incluye setup NSIS,
 ejecutable portable de Windows, blockmap y `latest.yml`. Los hashes estáticos
 exactos están en las [notas bilingües de candidata](release-notes-v1.0.1.md). El runtime
-alpha.11 (~423 MB) y su SHA-256 se publican en la
-[pre-release runtime-0.2.1-alpha.11](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/runtime-0.2.1-alpha.11). Se necesita Internet
+alpha.12 es local y no está publicado. El paquete de prueba incluye su tarball,
+SHA-256 y `Prepare-Local-Runtime.ps1`: prepará ese runtime exacto después de
+cerrar FreeCode antes de probar el setup. No uses el setup solo sobre un perfil
+limpio hasta que exista el asset público correspondiente. Se necesita Internet
 sin caché válida. El gate obligatorio usa el bootstrap/updater de producción,
 perfil/caché vacíos, SHA-256, manifiesto, ABI de Electron y arranque de CLI
-oculto. No se publica si falla. Los runtimes anteriores no satisfacen alpha.11.
+oculto. No se publica si falla. Los runtimes anteriores no satisfacen alpha.12.
 
 Phoenix reenvía los pedidos a los proveedores upstream permitidos. Esos
 proveedores reciben el contenido y pueden aplicar sus propias políticas de
@@ -160,7 +168,7 @@ dependencias nativas y Tesseract. Setup/portable pasaron la verificación
 estática, pero no se instalaron ni ejecutaron. El
 runtime DSH grande se distribuye
 como asset separado: en el primer inicio, FreeCode descarga el archivo Windows
-x64 fijado en `0.2.1-alpha.11` (~423 MB), verifica el SHA-256 de GitHub y ABI de
+x64 fijado en `0.2.1-alpha.12` (~423 MB), verifica el SHA-256 de GitHub y ABI de
 Electron, y lo guarda en `<userData>/harness-runtime`. Los arranques siguientes
 reutilizan la caché validada sin conexión. Cualquier primer inicio sin caché
 válida requiere Internet; si falla la descarga o validación, ofrece
@@ -333,14 +341,14 @@ enumera ni termina procesos ajenos.
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-local-20261021-context-audit'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-local-20261021-recovery'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.1-local-20261021-context-audit
+pnpm verify:desktop-release-assets apps/shell/release-1.0.1-local-20261021-recovery
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 `build:desktop` creó setup y portable en
-`apps/shell/release-1.0.1-local-20261021-context-audit/`; rechaza reemplazar una carpeta no vacía.
+`apps/shell/release-1.0.1-local-20261021-recovery/`; rechaza reemplazar una carpeta no vacía.
 `verify:desktop-release-assets` valida los PE exactos, el blockmap, los metadatos
 del updater y sus hashes sin iniciar ninguno de los ejecutables. El packaging
 desktop no reconstruye ni reemplaza el runtime DSH, que tiene su propia versión.
@@ -349,13 +357,14 @@ se debe subir su versión en el manifest y ejecutar `pnpm package:runtime:releas
 las versiones existentes del runtime son inmutables.
 
 Las builds anteriores del runtime quedan como historia en sus releases.
-El runtime actual es alpha.11: se obtiene desde la
-[pre-release runtime-0.2.1-alpha.11](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/runtime-0.2.1-alpha.11);
-no se admite una precarga local como prueba pública de primer inicio.
+El runtime actual es alpha.12 local; `runtime-0.2.1-alpha.12` todavía no se
+publicó. Su release pública separada y la prueba de
+primer inicio con caché vacía están pendientes; una preparación local no cuenta
+como prueba pública de primer inicio.
 
 La [release v1.0.0 en GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0)
 es histórica; v1.0.1 todavía no se publicó. Los artefactos locales actuales
-están en `apps/shell/release-1.0.1-local-20261021-context-audit/`; las carpetas históricas no se sobrescriben.
+están en `apps/shell/release-1.0.1-local-20261021-recovery/`; las carpetas históricas no se sobrescriben.
 El gate no instala ni inicia la GUI de FreeCode. El smoke interactivo instala,
 inicia y desinstala, por lo que solo se permite en una VM Windows desechable;
 no se ejecuta en la workstation ni junto a tu instancia.

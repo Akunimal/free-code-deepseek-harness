@@ -51,7 +51,7 @@ describe('provider startup migration', () => {
     });
     const settings = readHarnessSettings(root);
     expect(settings['llm-pi-ai'].providers['freecode-phoenix'].models).toEqual([
-      { id: 'auto' }, { id: 'pollinations/openai-fast' },
+      { id: 'auto', selectable: false }, { id: 'pollinations/openai-fast', selectable: false },
     ]);
     expect(settings['agent-default-model']).toEqual({ provider: 'freecode-phoenix', model: 'auto' });
     expect(settings['llm-pi-ai'].providers.custom).toEqual({

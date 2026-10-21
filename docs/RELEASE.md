@@ -21,11 +21,11 @@ Candidate notes: [bilingual v1.0.1](../release-notes-v1.0.1.md).
 ## Current baseline
 
 The source version is 1.0.1. The DSH runtime remains a separate immutable
-`0.2.1-alpha.11` Windows x64 asset (ABI 149), downloaded on first start when
+`0.2.1-alpha.12` Windows x64 asset (ABI 149), downloaded on first start when
 the per-user cache is absent. Its public clean-cache smoke remains mandatory.
 Phoenix is bundled in the desktop payload and is locally receipt/hash checked;
 it is not a separate first-run download. Output, once built, is isolated in
-`apps/shell/release-1.0.1-local-20261021-context-audit/`. Setup/portable sizes
+`apps/shell/release-1.0.1-local-20261021-recovery/`. Setup/portable sizes
 and hashes are recorded in the bilingual candidate notes. These local static
 checks are for user testing and are not fresh-install proof. Older release
 folders, tags and assets are historical and must not be overwritten.
@@ -50,9 +50,9 @@ exact artifacts:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-local-20261021-context-audit'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-local-20261021-recovery'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.1-local-20261021-context-audit
+pnpm verify:desktop-release-assets apps/shell/release-1.0.1-local-20261021-recovery
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
@@ -76,7 +76,9 @@ pin, build receipt and exact staged bytes before packaging. No OpenCode2API
 binary, adapter, source tree or build pipeline is active or packaged.
 
 The DSH runtime is excluded from setup/portable and fetched separately only on
-first start. It uses the public `runtime-0.2.1-alpha.11` asset and SHA-256;
+first start. Public distribution requires the `runtime-0.2.1-alpha.12` asset and SHA-256;
+that asset is not published yet. Local tests use the matching archive and
+preparation script beside setup. After publication,
 later starts reuse a verified per-user cache. A missing/invalid runtime or
 failed first-run download must keep DSH stopped and offer Retry/Close. Ordinary
 desktop packaging does not rebuild the runtime. Run

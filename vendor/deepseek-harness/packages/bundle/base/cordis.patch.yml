@@ -340,6 +340,14 @@
 
     - id: compaction-basic
       name: '@deepseek-ai/dsh-compaction-basic'
+      config:
+        modelPolicies:
+          - provider: freecode-phoenix
+            model: auto
+            headroomTokens: 4096
+            maxTokens: 4096
+            summarizationProvider: freecode-phoenix
+            summarizationModel: auto
 
     # Human `/compact`: one useful reduction below the automatic threshold. Backend
     # independent, so it follows whichever compaction service this leaf mounts.

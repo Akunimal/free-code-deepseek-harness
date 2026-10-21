@@ -1,0 +1,62 @@
+diff --git a/vendor/deepseek-harness/packages/bundle/base/README.md b/vendor/deepseek-harness/packages/bundle/base/README.md
+index c3d0e6fd39..54a7b8920e 100644
+--- a/vendor/deepseek-harness/packages/bundle/base/README.md
++++ b/vendor/deepseek-harness/packages/bundle/base/README.md
+@@ -9,6 +9,8 @@ English | [中文](README.zh.md)
+
+ ## Summary
+
++The FreeCode fork configures `freecode-phoenix/auto` compaction with 4,096 tokens of headroom and summary output, keeping pressure recovery usable within its conservative 32K context. Summary failure preserves the current history; only Auto may change the upstream model before response streaming.
++
+ Every base-backed `dsh --profile` surface runs on `dsh-base`, so those surfaces share a model connection, the full tool set, durable session history, and workspace safety defaults. The shipped `sdk-minimal` profile deliberately uses a complete standalone tree instead. You rarely touch this bundle directly — shipped base-backed profiles already include it, and a custom base-backed profile names it first. When you need different defaults, change your profile patch or add a later bundle; this package is not a library you import.
+
+ ## Table of Contents
+diff --git a/vendor/deepseek-harness/packages/bundle/base/README.zh.md b/vendor/deepseek-harness/packages/bundle/base/README.zh.md
+index cf2bf9bd34..be704a677f 100644
+--- a/vendor/deepseek-harness/packages/bundle/base/README.zh.md
++++ b/vendor/deepseek-harness/packages/bundle/base/README.zh.md
+@@ -9,6 +9,8 @@ kind: "package-bundle"
+
+ ## 概述
+
++FreeCode 分支为 `freecode-phoenix/auto` 配置 4,096 token 的余量与摘要输出，使其在保守的 32K 上下文中仍能根据压力压缩。摘要失败时保留当前历史；只有 Auto 可以在响应开始流式传输之前切换上游模型。
++
+ 每个基于 base 的 `dsh --profile` 表层都运行在 `dsh-base` 上，因此这些表层共享模型连接、完整工具集、持久会话历史和 workspace 安全默认值。随附的 `sdk-minimal` profile 刻意改用完整的独立配置树。你通常不直接操作本组合包——随发行版交付的基于 base 的 profile 已经包含它，自定义的基于 base 的 profile 则把它放在第一位。需要其他默认值时，应修改自己的 profile patch 或添加后续组合包；本包不是供导入的库。
+
+ ## 目录
+diff --git a/vendor/deepseek-harness/packages/bundle/base/cordis.patch.yml b/vendor/deepseek-harness/packages/bundle/base/cordis.patch.yml
+index 9c35ebf5c2..5f44238cd6 100644
+--- a/vendor/deepseek-harness/packages/bundle/base/cordis.patch.yml
++++ b/vendor/deepseek-harness/packages/bundle/base/cordis.patch.yml
+@@ -340,6 +340,14 @@
+
+     - id: compaction-basic
+       name: '@deepseek-ai/dsh-compaction-basic'
++      config:
++        modelPolicies:
++          - provider: freecode-phoenix
++            model: auto
++            headroomTokens: 4096
++            maxTokens: 4096
++            summarizationProvider: freecode-phoenix
++            summarizationModel: auto
+
+     # Human `/compact`: one useful reduction below the automatic threshold. Backend
+     # independent, so it follows whichever compaction service this leaf mounts.
+diff --git a/vendor/deepseek-harness/packages/compaction/compaction-basic/tests/compaction-basic.spec.ts b/vendor/deepseek-harness/packages/compaction/compaction-basic/tests/compaction-basic.spec.ts
+index 3736aa5c5e..d5f35b9262 100644
+--- a/vendor/deepseek-harness/packages/compaction/compaction-basic/tests/compaction-basic.spec.ts
++++ b/vendor/deepseek-harness/packages/compaction/compaction-basic/tests/compaction-basic.spec.ts
+@@ -1748,10 +1748,12 @@ describe('automatic listener and loader composition', () => {
+     })
+     compact.error = 'temporary failure'
+     const session = conversation(4)
++      const before = [...session.surface.nodes]
+
+     await expect(preStep(ctx, agent(session, MODEL))).resolves.toEqual({ kind: 'enter', messages: [] })
+     expect(warnings).toContainEqual(expect.stringContaining('temporary failure'))
+     expect(session.snapshotEvents().some(event => event.type === 'compaction/summary')).toBe(false)
++      expect(session.surface.nodes).toEqual(before)
+   })
+
+   it('warns once per routed target when proactive pressure has no context metadata', async () => {

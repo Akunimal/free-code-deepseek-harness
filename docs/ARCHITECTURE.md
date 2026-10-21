@@ -50,6 +50,12 @@ or compatibility failures remain visible and retryable.
    Timeouts/transport errors, HTTP errors and empty/malformed 200 responses
    remove the model immediately. Prior success is diagnostic only; a later
    successful probe restores the model.
+   The exact packaged registry remains configured independently of selector
+   eligibility (`selectable: false`); a health refresh cannot invalidate the
+   next step of a pinned turn or erase its context/effort metadata. Auto has a
+   4,096-token compaction headroom/summary policy for its conservative 32K cap.
+   Failed summarization preserves history; Auto routing forwards the full
+   prepared messages and tool results without truncation on failover.
 5. The supervisor starts `dsh web --host 127.0.0.1 --port 0 --no-open` with a
    whitelisted environment and waits for its authenticated readiness URL.
 6. The shell opens one hardened `BrowserWindow` with context isolation, no Node

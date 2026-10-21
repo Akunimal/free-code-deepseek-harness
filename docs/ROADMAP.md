@@ -11,7 +11,7 @@ selector; concrete choices remain strict pins, while Auto retries eligible
 free routes only before streaming commits. Concrete models keep the pinned
 capability-score order regardless of probe latency. The Kilo no-auth snapshot
 contains MiniMax M3.1 Flash, Laguna S 2.1 and Dots3 Note Preview; Nemotron and
-dynamic Kilo aliases are excluded. DSH `0.2.1-alpha.11` remains a separate
+dynamic Kilo aliases are excluded. DSH `0.2.1-alpha.12` remains a separate
 first-launch download. See the [bilingual v1.0.1 candidate notes](../release-notes-v1.0.1.md).
 
 All shell-owned background Windows process trees continue to launch through
@@ -39,7 +39,7 @@ concretos quedan fijados estrictamente y solo Auto reintenta rutas gratuitas
 antes de iniciar el stream. Los modelos concretos conservan el orden fijado por
 puntuación de capacidad, sin que la latencia los adelante. La instantánea Kilo
 sin clave incluye MiniMax M3.1 Flash, Laguna S 2.1 y Dots3 Note Preview; se
-excluyen Nemotron y alias dinámicos de Kilo. DSH `0.2.1-alpha.11` sigue
+excluyen Nemotron y alias dinámicos de Kilo. DSH `0.2.1-alpha.12` sigue
 descargándose por separado en el primer inicio. Ver las [notas candidatas
 bilingües v1.0.1](../release-notes-v1.0.1.md).
 
@@ -51,8 +51,8 @@ sigue siendo la histórica
 [v1.0.0](../release-notes-v1.0.0.md).
 
 Baseline actual publicada: `v1.0.0`; fuente candidata: `v1.0.1`.
-Runtime DSH: `0.2.1-alpha.11`; artefactos locales para prueba del usuario:
-`apps/shell/release-1.0.1-local-20261021-context-audit/` (hashes en las notas
+Runtime DSH: `0.2.1-alpha.12`; artefactos locales para prueba del usuario:
+`apps/shell/release-1.0.1-local-20261021-recovery/` (hashes en las notas
 bilingües v1.0.1).
 
 ## Estrategia de ahorro de contexto / Context-efficiency strategy

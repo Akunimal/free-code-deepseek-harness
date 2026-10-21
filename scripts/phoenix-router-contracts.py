@@ -7,6 +7,7 @@ contract must never call a public model endpoint or use an API credential.
 from __future__ import annotations
 
 import sys
+from copy import deepcopy
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -17,11 +18,42 @@ sys.path.insert(0, str(ROOT / "vendor" / "freellmpool" / "src"))
 
 from freellmpool import router  # noqa: E402
 from freellmpool.errors import AllProvidersExhausted, ProviderHTTPError  # noqa: E402
-from freellmpool.models import Model, Provider  # noqa: E402
+from freellmpool.models import Model, Provider, Reply  # noqa: E402
 from freellmpool.proxy import _parse_model  # noqa: E402
 
 
 class PhoenixRoutingContracts(unittest.TestCase):
+    def test_auto_fallback_keeps_full_or_compacted_history_and_tool_results(self) -> None:
+        tool_call = {"id": "system-info", "type": "function", "function": {"name": "system_info", "arguments": "{}"}}
+        tools = [{"type": "function", "function": {"name": "system_info", "parameters": {"type": "object", "properties": {}}}}]
+        for prefix in (
+            [{"role": "user", "content": "Original request"}, {"role": "assistant", "content": "Original response"}],
+            [{"role": "user", "content": "Compacted conversation: preserve the user's goal and completed steps."}],
+        ):
+            with self.subTest(prefix=prefix):
+                pool = self.make_pool()
+                messages = [{"role": "system", "content": "System instructions"}, *prefix,
+                            {"role": "assistant", "content": None, "tool_calls": [tool_call]},
+                            {"role": "tool", "tool_call_id": "system-info", "content": "Windows system information"},
+                            {"role": "user", "content": "Continue"}]
+                original = deepcopy(messages)
+                calls = []
+
+                def fake_call(provider, model, history, **kwargs):
+                    calls.append((provider.id, deepcopy(history), deepcopy(kwargs.get("tools"))))
+                    if provider.id == "route-a":
+                        raise ProviderHTTPError(503, "upstream unavailable", retryable=False)
+                    return Reply("recovered", provider.id, model, {})
+
+                with patch.object(router._client, "call", side_effect=fake_call):
+                    reply = pool.chat(messages, tools=tools, max_tokens=4096)
+                self.assertEqual(reply.provider_id, "route-b")
+                self.assertEqual([call[0] for call in calls], ["route-a", "route-b"])
+                for _, history, sent_tools in calls:
+                    self.assertEqual(history, original)
+                    self.assertEqual(sent_tools, tools)
+                self.assertEqual(messages, original)
+
     def make_pool(self) -> router.Pool:
         providers = [
             Provider("route-a", "Route A", "openai", "https://route-a.invalid/v1", (Model("shared-model"),), auth="none"),

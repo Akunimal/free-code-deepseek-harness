@@ -77,10 +77,9 @@ export interface ProviderRefreshTarget {
   alwaysExposedModels?: ReadonlySet<string>;
   /** Schema-valid seed models used when the route has not answered yet. */
   fallbackModels?: readonly string[];
-  /** When true, settings expose ONLY models with a valid, non-empty HTTP 200
-   *  chat completion from this refresh. Every failed current probe is removed,
-   *  including transport errors, HTTP rejections and malformed/empty 200s;
-   *  prior success is diagnostic only. */
+  /** When true, only valid, non-empty current HTTP 200 completions are
+   *  selectable. With an exact allowlist, failed models stay registered but
+   *  hidden so active pins and context metadata survive recovery. */
   strictResponders?: boolean;
 }
 
@@ -231,12 +230,9 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
     ...(cfg.providers ?? []).filter((target) => target.provider !== primaryProvider),
   ];
 
-  // Discover candidates first, but do not make them routable in DSH settings
-  // until the strict lane has completed its bounded probes. The selector and
-  // Host both consume settings.yaml; publishing candidates here would let an
-  // unverified or protocol-rejected route slip through while a slow probe is
-  // still running. A slow model may take up to two minutes, so keep the UI in
-  // its explicit "checking"/blocked state until a valid completion is ready.
+  // Only a valid current probe makes a model selectable. The exact packaged
+  // registry stays configured independently so an active pinned turn can
+  // continue after a tool step even when a health refresh hides its model.
   const listings = await Promise.all(targets.map(async (target, index) => {
     if (index === 0 && cfg.primaryUnavailable) return { target, ids: [] as ListedModel[] };
     try {
@@ -319,8 +315,10 @@ export async function refreshModels(cfg: RefresherConfig): Promise<ModelCatalog>
   const preferredDefault = responders.find(id => PREFERRED_DEFAULT_MODELS.includes(id)) ?? responders[0];
   const defaultModel = settings['agent-default-model'] as { provider?: unknown; model?: unknown } | undefined;
   const hasValidDefault = typeof defaultModel?.provider === 'string' && typeof defaultModel.model === 'string';
+  const hasRecoverablePin = hasValidDefault && defaultModel.provider === primaryProvider
+    && cfg.exactModelIds?.includes(defaultModel.model as string) === true;
   if (preferredDefault !== undefined && (!hasValidDefault
-    || (defaultModel.provider === primaryProvider && !responders.includes(defaultModel.model as string)))) {
+    || (defaultModel.provider === primaryProvider && !hasRecoverablePin && !responders.includes(defaultModel.model as string)))) {
     // New Sessions get a verified route after migration or when their old
     // selection is no longer served. Existing Session history stays intact.
     settings['agent-default-model'] = { provider: primaryProvider, model: preferredDefault };
@@ -574,9 +572,9 @@ function mergeModelCapabilities(model: ListedModel, cached?: ListedModel): Liste
   const useDeepSeekV4Defaults = isDeepSeekV4Model(model.id) && !explicitNonReasoning;
   const fallback = useDeepSeekV4Defaults ? DEEPSEEK_V4_CAPABILITIES : undefined;
   const contextWindow = model.contextWindow
+    ?? cached?.contextWindow
     ?? REVIEWED_PHOENIX_CONTEXT_WINDOWS[model.id]
     ?? CONSERVATIVE_PHOENIX_CONTEXT_CAPS[model.id]
-    ?? cached?.contextWindow
     ?? fallback?.contextWindow;
   const maxOutputTokens = model.maxOutputTokens ?? cached?.maxOutputTokens ?? fallback?.maxOutputTokens;
   const reasoning = model.reasoning ?? cached?.reasoning ?? fallback?.reasoning;
@@ -618,6 +616,33 @@ function syncProviderModels(
     provider.apiKeyEnv = target.apiKeyEnv;
   }
   if (target.refreshBaseUrl) provider.baseURL = providerBaseUrl(target.baseUrl);
+  if (target.strictResponders && target.exactModelIds !== undefined) {
+    const current = new Map(entries.map(model => [model.id, model]));
+    const configured = new Map<string, Record<string, unknown>>();
+    for (const value of Array.isArray(provider.models) ? provider.models : []) {
+      const model = asRecord(value);
+      if (typeof model?.id === 'string') configured.set(model.id, model);
+    }
+    provider.models = target.exactModelIds.map(id => {
+      const previous = configured.get(id);
+      const previousEfforts = asRecord(previous?.reasoningEfforts);
+      const cached: ListedModel = {
+        id,
+        contextWindow: positiveSafeInteger(previous?.contextWindow),
+        maxOutputTokens: positiveSafeInteger(previous?.outputMaxTokens),
+        reasoning: previous?.reasoningEfforts === false ? false : undefined,
+        reasoningEfforts: previous?.reasoningEfforts === false ? false
+          : previousEfforts === undefined ? undefined : parseReasoningEfforts(Object.keys(previousEfforts)),
+        defaultReasoningEffort: parseReasoningLevel(previous?.defaultReasoningEffort),
+      };
+      const probed = current.get(id);
+      return {
+        ...modelSettingsForModel(mergeModelCapabilities(probed ?? { id }, cached)),
+        ...(probed?.responds === true ? {} : { selectable: false }),
+      };
+    });
+    return;
+  }
   // For Phoenix, exactModelIds is the source-controlled capability-quality
   // order generated from the pinned benchmark table (and Kilo's documented
   // usage-rank fallback). Never let a fast but lower-ranked probe leapfrog a

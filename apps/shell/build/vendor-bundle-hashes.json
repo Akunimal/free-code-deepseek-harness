@@ -187,7 +187,7 @@
   "vendor/deepseek-harness/packages/llm/llm-deepseek": "4c37395f7847381fbbf8768a733243f7fc599e1fda6078fe6d6055802d2c4aa3",
   "vendor/deepseek-harness/packages/llm/llm-deepseek-account": "de4087ddb4450e2b4d6e6a24e45e06d0c24e8e45449010ba310e4e27012021ab",
   "vendor/deepseek-harness/packages/llm/llm-deepseek-api-key": "359abbe074f57a218d4dac9fda09d77f4ccb0a6eacb321065f833b7d014ca8e8",
-  "vendor/deepseek-harness/packages/llm/llm-pi-ai": "e7b5f8587a950be2431e01244dceb36af91563477562bf9da4102b6e4dcc9b46",
+  "vendor/deepseek-harness/packages/llm/llm-pi-ai": "78bf154181101251aad2b8a9f19dfde3d92acf9058de11b5eb1d41e782464983",
   "vendor/deepseek-harness/packages/llm/llm-retry": "ee2763a458df1cc82c3c365a85cd5f4d55ecd65db026e21cfa32673a8cd51410",
   "vendor/deepseek-harness/packages/llm/plugin-package-inventory-deepseek": "5d4abb4bf7439a9d47aa9343cae282ebd6fca7d2fd7199cb30bb19b89adb4c78",
   "vendor/deepseek-harness/packages/llm/token-meter": "f14ebed46a1dd2ca48538719c1773955b71404571f3b66684dc55454a96eab38",

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, rmSync, existsSync, writeFileSync, readFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { launchHiddenSync } from '../src/main/freecode-launcher.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -23,7 +23,7 @@ const CLI_ENTRY = join(VENDOR, 'apps/cli/lib/bin.js');
 
 const nodeCmd =
   process.platform === 'win32'
-    ? process.env.DSH_TEST_NODE ?? 'C:\\Program Files\\nodejs\\node.exe'
+    ? join(import.meta.dirname, '../node_modules/electron/dist/electron.exe')
     : 'node';
 
 function built(): boolean {
@@ -41,10 +41,11 @@ function visibleWindowsInTree(rootPid: number): number {
     '$visible = @($ids | ForEach-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue } | Where-Object { $_.MainWindowHandle -ne 0 })',
     '$visible.Count',
   ].join('\n');
-  const output = execFileSync('powershell.exe', [
+  const output = launchHiddenSync({ executable: 'powershell.exe', args: [
     '-NoProfile', '-NonInteractive', '-Command', script,
-  ], { encoding: 'utf8', windowsHide: true });
-  return Number.parseInt(output.trim(), 10) || 0;
+  ], timeout: 15_000 });
+  expect(output.status, String(output.stderr)).toBe(0);
+  return Number.parseInt(String(output.stdout).trim(), 10) || 0;
 }
 
 describe('HarnessSupervisor (C5)', () => {
@@ -71,6 +72,7 @@ describe('HarnessSupervisor (C5)', () => {
   it('spawns dsh web, grabs readiness URL, shuts down', async () => {
     const diagnostics: string[] = [];
     const sup = new HarnessSupervisor({ nodePath: nodeCmd, cliEntry: CLI_ENTRY, homeDir,
+      nodeEnv: { ELECTRON_RUN_AS_NODE: '1' },
       log: (_level, message) => { diagnostics.push(message); if (diagnostics.length > 64) diagnostics.shift(); },
     });
     let ready: HarnessSupervisor['currentUrl'] = null;

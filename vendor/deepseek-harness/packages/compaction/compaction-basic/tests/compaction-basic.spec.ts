@@ -1748,10 +1748,12 @@ describe('automatic listener and loader composition', () => {
     })
     compact.error = 'temporary failure'
     const session = conversation(4)
+      const before = [...session.surface.nodes]
 
     await expect(preStep(ctx, agent(session, MODEL))).resolves.toEqual({ kind: 'enter', messages: [] })
     expect(warnings).toContainEqual(expect.stringContaining('temporary failure'))
     expect(session.snapshotEvents().some(event => event.type === 'compaction/summary')).toBe(false)
+      expect(session.surface.nodes).toEqual(before)
   })
 
   it('warns once per routed target when proactive pressure has no context metadata', async () => {

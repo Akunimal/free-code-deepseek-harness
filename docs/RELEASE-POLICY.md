@@ -36,10 +36,11 @@ Explicit GUI actions use the authenticated broker. Native adversarial window,
 descendant and Job-lifetime tests run against the exact staged and packaged
 helper; source strings are not sufficient. See [scope/limits](HEADLESS-DESKTOP.md).
 
-The separate DSH runtime pin is `0.2.1-alpha.11` (ABI 149), 423,195,661 bytes, SHA-256
-`396bc019a74ad71be0fa0e3074298fc41f1621713080d31cf990ae64b3282473`.
-It is published in the [runtime-0.2.1-alpha.11](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/runtime-0.2.1-alpha.11) pre-release before the
-gate; no prior asset is replaced. v0.9.5 published alpha9, v0.9.4 alpha8 and
+The separate DSH runtime pin is `0.2.1-alpha.12` (ABI 149), currently local and
+unpublished. Its archive/checksum must be published under a separate runtime
+release before the public clean-cache gate; no prior asset is replaced.
+Local tests use the matching archive and preparation script shipped beside
+setup. v0.9.5 published alpha9, v0.9.4 alpha8 and
 v0.9.2 alpha2; they remain history.
 OmniRoute remains removed. Preserve user sessions and providers. Phoenix is a
 required, bundled FreeLLMpool 0.13.0 Windows x64 runtime, hash- and
@@ -48,7 +49,7 @@ launch. Context windows shown for named Phoenix models use reviewed native
 values when the live gateway supplies none; Auto and dynamic aliases have a
 conservative 32,768-token app cap. Provider-specific route limits can be lower.
 See the bilingual notes for per-model values and sources. The local candidate
-output is `apps/shell/release-1.0.1-local-20261021-context-audit/`;
+output is `apps/shell/release-1.0.1-local-20261021-recovery/`;
 artifact names and SHA-256 values are recorded in the bilingual candidate
 notes. These static checks do not replace the public clean-cache runtime proof.
 See the [bilingual candidate notes](../release-notes-v1.0.1.md).
@@ -81,8 +82,8 @@ its deleted temporary install tree.
 
 The future v1.0.1 desktop release will contain the NSIS setup, portable executable,
 setup blockmap and `latest.yml`. The separate DSH runtime has an independent
-version: v1.0.1 downloads the exact `0.2.1-alpha.11` Windows x64 runtime from
-the public runtime-0.2.1-alpha.11 pre-release, which also provides its SHA-256 checksum. The release gate
+version: v1.0.1 downloads the exact `0.2.1-alpha.12` Windows x64 runtime from
+the public runtime-0.2.1-alpha.12 pre-release, which also provides its SHA-256 checksum. The release gate
 verifies the pinned local archive and packaged runtime manifest; it never
 rebuilds, removes or replaces that immutable archive. Ordinary `build:desktop`
 packaging also does not run `package:runtime`.
@@ -99,9 +100,9 @@ artifacts into a new, isolated output directory and verify that exact directory:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-local-20261021-context-audit'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-local-20261021-recovery'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.1-local-20261021-context-audit
+pnpm verify:desktop-release-assets apps/shell/release-1.0.1-local-20261021-recovery
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 

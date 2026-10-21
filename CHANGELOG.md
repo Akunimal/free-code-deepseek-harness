@@ -13,10 +13,17 @@ See [bilingual candidate notes / notas bilingües de la candidata](release-notes
 - Added reviewed per-model context-window metadata; Auto and dynamic aliases
   receive a conservative app-side cap when no live gateway context is declared.
   Provider-specific route limits can be lower; see bilingual v1.0.1 notes.
+- Kept exact Phoenix routes configured while failed health probes hide selector
+  choices, preserving pinned-turn continuation, context and reasoning metadata.
+  Auto compaction now fits its 32K cap and failover retains complete prepared
+  history and tool results. / Se conserva el registro de rutas Phoenix aunque
+  una sonda las oculte, con continuidad del turno fijado, contexto y effort.
+  Auto compacta dentro de 32K y el failover conserva el historial preparado y
+  los resultados de herramientas completos.
 - Removed OpenCode2API binaries, runtime dependencies, adapters, staging and
   startup paths. The candidate does not need `C:\LocalAI`, external Python,
   a separate FreeLLMpool install, or a pre-existing gateway service.
-- DSH `0.2.1-alpha.11` remains a separate first-launch runtime download.
+- DSH `0.2.1-alpha.12` remains a separate first-launch runtime download.
 - Candidate only: the updated local setup/portable were built and statically
   verified for user testing. Neither is installed/launched here; the mandatory public
   clean-cache release gate has not run. No first-install claim is made.

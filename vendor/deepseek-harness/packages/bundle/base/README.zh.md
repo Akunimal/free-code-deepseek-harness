@@ -9,6 +9,8 @@ kind: "package-bundle"
 
 ## 概述
 
+FreeCode 分支为 `freecode-phoenix/auto` 配置 4,096 token 的余量与摘要输出，使其在保守的 32K 上下文中仍能根据压力压缩。摘要失败时保留当前历史；只有 Auto 可以在响应开始流式传输之前切换上游模型。
+
 每个基于 base 的 `dsh --profile` 表层都运行在 `dsh-base` 上，因此这些表层共享模型连接、完整工具集、持久会话历史和 workspace 安全默认值。随附的 `sdk-minimal` profile 刻意改用完整的独立配置树。你通常不直接操作本组合包——随发行版交付的基于 base 的 profile 已经包含它，自定义的基于 base 的 profile 则把它放在第一位。需要其他默认值时，应修改自己的 profile patch 或添加后续组合包；本包不是供导入的库。
 
 ## 目录

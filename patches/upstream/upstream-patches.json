@@ -467,6 +467,19 @@
         "apps/shell/tests/phoenix-recovery.test.ts"
       ],
       "vendorOnly": true
+    },
+    {
+      "file": "184-freecode-auto-compaction-budget.patch",
+      "order": 184,
+      "owner": "freecode",
+      "description": "Fit Phoenix Auto compaction within its 32K context and preserve history when summarization fails",
+      "seam": "packages/bundle/base + packages/compaction/compaction-basic",
+      "contractTests": [
+        "apps/shell/tests/phoenix-compaction.test.ts",
+        "packages/compaction/compaction-basic/tests/compaction-basic.spec.ts",
+        "scripts/phoenix-router-contracts.py"
+      ],
+      "vendorOnly": true
     }
   ]
 }

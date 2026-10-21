@@ -22,6 +22,12 @@ that return a valid, non-empty HTTP 200 chat completion remain selectable. A
 failed current probe is hidden immediately; prior success is diagnostic only,
 and the model reappears after a later valid completion.
 
+Health refresh changes selector availability without deleting the packaged
+model registry. An active pinned turn can continue after tools, retaining its
+context and reasoning settings. Auto attempts compaction under context pressure
+before its next step; if summarization fails, it keeps the prepared history.
+Auto failover forwards that complete history and tool results to the next route.
+
 Phoenix does not receive a trustworthy context-window field for every route.
 FreeCode shows reviewed model-native capacities for named routes and a
 conservative 32,768-token app cap for Auto/dynamic aliases; a provider can
@@ -32,12 +38,12 @@ values and source links.
 setup and portable were built and statically verified locally for user testing;
 this workflow did not run the installer. A successful build/static check does
 not prove a clean installation. The mandatory clean-cache release gate has not
-last published desktop release is the historical
+run. The last published desktop release is the historical
 [v1.0.0 release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
 See the [bilingual v1.0.1 candidate notes](release-notes-v1.0.1.md) and
 [v1.0.0 history](release-notes-v1.0.0.md).
 
-The DSH runtime `0.2.1-alpha.11` remains a separate first-launch download,
+The DSH runtime `0.2.1-alpha.12` remains a separate first-launch download,
 not part of setup/portable. A fresh install still needs Internet to fetch and
 verify that exact public runtime. Phoenix itself is bundled in the desktop
 payload and checked before startup.
@@ -54,7 +60,7 @@ Harness coordinate files, tools, MCP servers and Phoenix-backed model calls.
 
 ## Current status: v1.0.1 candidate (Windows x64)
 
-Source version: 1.0.1; pinned DSH runtime: `0.2.1-alpha.11`.
+Source version: 1.0.1; pinned DSH runtime: `0.2.1-alpha.12`.
 
 **Release status:** local candidate only. Setup/portable are built and
 statically verified for the user's local test; this workflow did not install or
@@ -63,19 +69,21 @@ remain mandatory before any later publication.
 
 The v1.0.1 source pins Phoenix to FreeLLMpool 0.13.0 and bundles its Windows
 x64 gateway, allowlist, MIT license and source/build receipt. DSH remains a
-separate immutable alpha.11 runtime asset. See the historical
+separate immutable alpha.12 runtime asset. See the historical
 [v1.0.0 release notes](release-notes-v1.0.0.md) for the previous gateway.
 
 The updated local desktop output is
-`apps/shell/release-1.0.1-local-20261021-context-audit/` and contains the NSIS
+`apps/shell/release-1.0.1-local-20261021-recovery/` and contains the NSIS
 setup, portable Windows executable, setup blockmap and `latest.yml`. Their
 exact static hashes are recorded in the
 [bilingual candidate notes](release-notes-v1.0.1.md).
-The separate alpha.11 runtime (~423 MB) and its SHA-256
-are published in the [runtime-0.2.1-alpha.11 pre-release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/runtime-0.2.1-alpha.11).
+The separate alpha.12 runtime is local and unpublished. The local test bundle
+includes its archive, SHA-256 and `Prepare-Local-Runtime.ps1`; prepare that exact
+runtime after closing FreeCode before testing setup. Do not use setup alone on
+a clean profile until the matching public runtime asset exists.
 Internet is required without a valid cache. The mandatory gate uses production
 bootstrap/updater, an empty profile/cache, SHA-256, manifest, Electron ABI and
-hidden CLI startup. Failure blocks publication. Older runtimes do not satisfy alpha.11.
+hidden CLI startup. Failure blocks publication. Older runtimes do not satisfy alpha.12.
 
 Phoenix forwards requests to the configured allowlisted upstream providers.
 They receive the request contents and may apply their own availability,
@@ -156,7 +164,7 @@ The locally built v1.0.1 desktop payload includes Electron, the bundled Phoenix
 gateway, native dependencies and Tesseract. Setup/portable passed static
 verification, but have not been installed or launched. The large DSH runtime is a
 separate release asset: on first launch, FreeCode downloads the pinned
-`0.2.1-alpha.11` Windows x64 archive (~423 MB), verifies GitHub's SHA-256 and
+`0.2.1-alpha.12` Windows x64 archive (~423 MB), verifies GitHub's SHA-256 and
 Electron ABI, then caches it under `<userData>/harness-runtime`. Later starts
 reuse the verified cache offline. Any first launch without a valid cache needs
 network access; a failed download or validation offers Retry/Close and does not
@@ -337,14 +345,14 @@ the recorded child PID tree and never enumerates or kills unrelated processes.
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-local-20261021-context-audit'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-local-20261021-recovery'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.1-local-20261021-context-audit
+pnpm verify:desktop-release-assets apps/shell/release-1.0.1-local-20261021-recovery
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 `build:desktop` created setup and portable artifacts in
-`apps/shell/release-1.0.1-local-20261021-context-audit/`; it refuses to replace
+`apps/shell/release-1.0.1-local-20261021-recovery/`; it refuses to replace
 an existing non-empty folder. `verify:desktop-release-assets` checks the exact PE
 files, setup blockmap, updater metadata and hashes without launching either
 executable. Desktop packaging does not rebuild or replace the separately versioned DSH runtime. Only when the DSH
@@ -352,13 +360,14 @@ runtime itself changes should maintainers bump its manifest version and run
 `pnpm package:runtime:release`; existing runtime versions are immutable.
 
 Previous runtime builds remain historical in their releases.
-The current runtime is alpha.11, fetched from the separate
-[runtime-0.2.1-alpha.11 pre-release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/runtime-0.2.1-alpha.11); a local preload is not public
+The current runtime is local alpha.12. The planned `runtime-0.2.1-alpha.12`
+release is unpublished. Its separate public runtime release and
+clean-cache first-run proof are pending; local preparation is not public
 first-install evidence.
 
 The [v1.0.0 GitHub release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0)
 is historical; v1.0.1 is not yet published. The current local artifacts are in
-`apps/shell/release-1.0.1-local-20261021-context-audit/`; historical folders are not overwritten.
+`apps/shell/release-1.0.1-local-20261021-recovery/`; historical folders are not overwritten.
 The gate does not install or launch the FreeCode GUI. The interactive installer
 smoke installs, launches and uninstalls, so it is only allowed in a disposable
 Windows VM, never on the workstation or beside the user's instance.
