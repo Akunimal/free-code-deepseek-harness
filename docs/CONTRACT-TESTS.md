@@ -2,7 +2,7 @@
 
 Contract tests protect the seams between this shell, the bundled Phoenix /
 FreeLLMpool gateway and the vendored DeepSeek Harness. They run before
-upstream subtree merges and manual releases. The v1.0.1 candidate verifies the
+upstream subtree merges and manual releases. The v1.0.2 candidate verifies the
 Phoenix source pin, build receipt, model allowlist, architecture, installed
 payload hash and lifecycle without requiring a machine-local service. The
 retired OpenCode2API implementation and adapter are no longer built or
@@ -10,7 +10,7 @@ packaged; v1.0.0 and earlier release notes remain historical.
 
 The release contract also checks the portable Windows target, unique
 setup/portable artifact names, the actual fork owner/repository, and the
-manual-release policy. The Windows candidate targets v1.0.1; no artifact is
+manual-release policy. The Windows candidate targets v1.0.2; no artifact is
 considered release-ready before the real clean-cache runtime gate passes.
 
 Run them with:

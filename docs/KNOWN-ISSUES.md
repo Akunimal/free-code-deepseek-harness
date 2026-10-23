@@ -1,21 +1,21 @@
 # Known issues / Problemas conocidos
 
 Última sincronización documental / Last documentation sync: 2026-10-21
-Última release desktop publicada / Latest published desktop release: `v1.0.1`
+Última release desktop publicada / Latest published desktop release: `v1.0.2`
 
 ## Estado actual / Current status
 
-Release: `v1.0.1`; DSH `0.2.1-alpha.12` (ABI 149).
-**Estado de release:** v1.0.1 reemplaza OpenCode2API por Phoenix/FreeLLMpool 0.13.0 debido a la inestabilidad de los servicios upstream y la rotación de proxies. Setup y portable se compilaron, verificaron e instalaron con éxito. El gate público y la mitigación de cookies HTTP 431 en loopback fueron completados y probados.
+Release: `v1.0.2`; DSH `0.2.1-alpha.12` (ABI 149).
+**Estado de release:** v1.0.2 reemplaza OpenCode2API por Phoenix/FreeLLMpool 0.13.0 debido a la inestabilidad de los servicios upstream y la rotación de proxies. Setup y portable se compilaron, verificaron e instalaron con éxito. El gate público y la mitigación de cookies HTTP 431 en loopback fueron completados y probados.
 
-**Release status:** v1.0.1 replaces OpenCode2API with Phoenix/FreeLLMpool 0.13.0 due to upstream endpoint instability and broken proxy rotation. Setup and portable executables were built, verified, and cleanly installed. The public release gate and HTTP 431 loopback cookie cleanup were completed and tested.
+**Release status:** v1.0.2 replaces OpenCode2API with Phoenix/FreeLLMpool 0.13.0 due to upstream endpoint instability and broken proxy rotation. Setup and portable executables were built, verified, and cleanly installed. The public release gate and HTTP 431 loopback cookie cleanup were completed and tested.
 
-v1.0.1 sólo se soporta Windows x64; Windows ARM64, Linux y macOS no están
+v1.0.2 sólo se soporta Windows x64; Windows ARM64, Linux y macOS no están
 probados ni soportados. Phoenix va empaquetado y verificado en la release. DSH
 alpha.12 sigue como runtime separado que se descarga con SHA-256; hace falta
-Internet si no hay caché válida. Ver [notas de release](../release-notes-v1.0.1.md).
+Internet si no hay caché válida. Ver [notas de release](../release-notes-v1.0.2.md).
 
-v1.0.1 targets Windows x64 only; other platforms are untested/unsupported.
+v1.0.2 targets Windows x64 only; other platforms are untested/unsupported.
 Phoenix is bundled and verified in the release. DSH alpha.12 remains a
 separate SHA-256-verified first-launch download requiring Internet without a
 valid cache. Upstream model availability and optional PATH helpers remain limitations.
@@ -30,14 +30,14 @@ Las rutas Phoenix FreeLLMpool dependen de la disponibilidad upstream, límites d
 
 ### KI-002 — Separate first-launch runtime download / Descarga del runtime en el primer inicio
 
-The v1.0.1 setup and portable are verified and published. DSH is separate from
+The v1.0.2 setup and portable are verified and published. DSH is separate from
 setup/portable: the current source pins `0.2.1-alpha.12` for Windows x64,
 downloaded and verified on first launch, then cached per user. Earlier
 v0.9.4/v0.9.5 releases used alpha8/alpha9; those historical assets do not
 satisfy the current pin. Network retrieval is expected when the cache is absent
 and is not by itself evidence of a hang.
 
-El setup y el portable v1.0.1 están verificados y publicados. DSH va separado de
+El setup y el portable v1.0.2 están verificados y publicados. DSH va separado de
 setup/portable: la fuente actual fija `0.2.1-alpha.12` para Windows x64, que se
 descarga y verifica al primer inicio y luego se guarda en caché por usuario. Las
 releases anteriores usaban alpha8/alpha9; esos assets históricos no satisfacen el
@@ -80,12 +80,12 @@ Cambiar de proveedor puede recuperar la solicitud sólo si el modelo seleccionad
 
 ### KI-006 — Anonymous lane quota is external / La cuota del lane anónimo es externa
 
-**Historical, superseded in v1.0.1:** the old `deepseek-free` OpenCode2API lane
+**Historical, superseded in v1.0.2:** the old `deepseek-free` OpenCode2API lane
 depended on shared opencode.ai quota. Phoenix obtains its allowlisted catalog
 from pinned FreeLLMpool; provider availability and quota remain external
 operational limits, as described in KI-001.
 
-**Histórico, reemplazado en v1.0.1:** el antiguo lane `deepseek-free` de
+**Histórico, reemplazado en v1.0.2:** el antiguo lane `deepseek-free` de
 OpenCode2API dependía de la cuota compartida de opencode.ai. Phoenix obtiene
 ahora su catálogo permitido desde FreeLLMpool fijado; la disponibilidad y cuota
 del proveedor siguen siendo límites operativos externos, como describe KI-001.
@@ -93,22 +93,22 @@ del proveedor siguen siendo límites operativos externos, como describe KI-001.
 ### KI-007 — Non-Windows platforms untested / Plataformas no-Windows sin probar
 
 Windows ARM64, Linux and macOS were not tested by the maintainer and have
-no published artifacts. v1.0.1 supports Windows x64 only; its Phoenix service
+no published artifacts. v1.0.2 supports Windows x64 only; its Phoenix service
 is a Windows x64 executable and does not bundle Tor. Contributor builds for
 other platforms must not be treated as usable releases.
 
 Windows ARM64, Linux y macOS no fueron probados por el mantenedor y no
-tienen artefactos publicados. v1.0.1 solo soporta Windows x64; el servicio
+tienen artefactos publicados. v1.0.2 solo soporta Windows x64; el servicio
 Phoenix es un ejecutable Windows x64 y no incluye Tor. Los builds de
 contribuidores para otras plataformas no deben tratarse como releases utilizables.
 
 ### KI-008 — Tor is failover, not the default path / Tor es failover, no la ruta por defecto
 
-**Historical, superseded in v1.0.1:** the previous OpenCode2API/Tor egress
+**Historical, superseded in v1.0.2:** the previous OpenCode2API/Tor egress
 rotation lane is no longer part of the active runtime or package. Phoenix uses
 its configured FreeLLMpool routes and does not bundle or control Tor.
 
-**Histórico, reemplazado en v1.0.1:** el lane anterior de rotación de salida
+**Histórico, reemplazado en v1.0.2:** el lane anterior de rotación de salida
 OpenCode2API/Tor ya no forma parte del runtime ni del paquete activo. Phoenix
 usa sus rutas FreeLLMpool configuradas y no incluye ni controla Tor.
 

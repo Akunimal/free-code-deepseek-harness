@@ -1,14 +1,14 @@
 # Architecture
 
-FreeCode DeepSeek Harness v1.0.1 is a Windows x64 Electron shell around the
+FreeCode DeepSeek Harness v1.0.2 is a Windows x64 Electron shell around the
 upstream DeepSeek Harness web application. The shell owns native lifecycle, the
 local Phoenix model gateway, secrets, model discovery, MCP configuration,
 packaging and tray/UI affordances. Phoenix is pinned FreeLLMpool 0.13.0, shipped
 as a Windows x64 executable with its MIT license, exact model allowlist and
 source/build receipt. It requires no machine-installed Python, `C:\LocalAI`,
 separate FreeLLMpool service or fixed gateway port. The upstream subtree owns
-the agent runtime and conversation web product. v1.0.1 is published for
-Windows x64; see the [bilingual release notes](../release-notes-v1.0.1.md).
+the agent runtime and conversation web product. v1.0.2 is published for
+Windows x64; see the [bilingual release notes](../release-notes-v1.0.2.md).
 
 ```mermaid
 flowchart LR
@@ -193,7 +193,7 @@ edits are temporary working changes until represented by a patch. See
 
 ## Windows release scope
 
-v1.0.1 targets Windows x64 NSIS and portable artifacts only, verified and
+v1.0.2 targets Windows x64 NSIS and portable artifacts only, verified and
 published with the bundled Phoenix gateway. Linux/macOS are contributor-only
 manual builds and have no release gate, no binary upload and no claim of
 parity. The local release gate is documented in [`docs/RELEASE.md`](RELEASE.md).

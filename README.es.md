@@ -2,9 +2,9 @@
 
 ![Selector de modelos de FreeCode con Auto Phoenix y modelos gratuitos](docs/assets/app-model-selector.png)
 
-### Release actual: v1.0.1 (Windows x64)
+### Release actual: v1.0.2 (Windows x64)
 
-La release v1.0.1 reemplaza el gateway OpenCode2API por Phoenix,
+La release v1.0.2 reemplaza el gateway OpenCode2API por Phoenix,
 incluido y verificado por hash/procedencia, compilado desde FreeLLMpool 0.13.0
 fijado. La migración se realizó porque OpenCode2API dejó de ser estable upstream
 (caídas recurrentes de los endpoints, rotura en el pool de rotación de proxies
@@ -47,11 +47,11 @@ acumulación de cookies de autenticación efímeras `dsh-auth-*` que superaban e
 límite de 16 KB de Node.js, mediante purga automática al arrancar/navegar y
 ampliación a `--max-http-header-size=65536`.
 
-**Estado de release:** v1.0.1 está publicada para Windows x64. El setup y el
+**Estado de release:** v1.0.2 está compilada localmente para Windows x64 y aún no publicada. El setup y el
 portable actualizados se compilaron y verificaron; la instalación y smoke tests
 fueron completados con éxito. La última release desktop publicada fue la histórica
 [v1.0.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
-Ver las [notas bilingües de la release v1.0.1](release-notes-v1.0.1.md) y
+Ver las [notas bilingües de la release v1.0.2](release-notes-v1.0.2.md) y
 el [historial de v1.0.0](release-notes-v1.0.0.md).
 
 El runtime DSH `0.2.1-alpha.12` sigue descargándose por separado en el primer
@@ -70,22 +70,22 @@ a modelos a través de Phoenix.
 
 ## Español
 
-## Estado actual: v1.0.1 (Windows x64)
+## Estado actual: v1.0.2 (Windows x64)
 
-Versión de la fuente: 1.0.1; runtime DSH fijado: `0.2.1-alpha.12`.
+Versión de la fuente: 1.0.2; runtime DSH fijado: `0.2.1-alpha.12`.
 
 **Estado de release:** publicada para Windows x64. El setup y el portable están
 compilados, verificados y publicados tras probar su instalación y smoke.
 
-La fuente v1.0.1 fija Phoenix a FreeLLMpool 0.13.0 e incluye su gateway
+La fuente v1.0.2 fija Phoenix a FreeLLMpool 0.13.0 e incluye su gateway
 Windows x64, allowlist, licencia MIT y recibo de fuente/build. DSH sigue como
 runtime alpha.12 inmutable y separado. Ver las notas históricas de
 [v1.0.0](release-notes-v1.0.0.md) para el gateway anterior.
 
 La salida desktop actual es
-`apps/shell/release-1.0.1-final-20261021/` e incluye setup NSIS,
+`apps/shell/release-1.0.2-final-20261023/` e incluye setup NSIS,
 ejecutable portable de Windows, blockmap y `latest.yml`. Los hashes estáticos
-exactos están en las [notas bilingües de release](release-notes-v1.0.1.md). El runtime
+exactos están en las [notas bilingües de release](release-notes-v1.0.2.md). El runtime
 alpha.12 es local y no está publicado. El paquete de prueba incluye su tarball,
 SHA-256 y `Prepare-Local-Runtime.ps1`: prepará ese runtime exacto después de
 cerrar FreeCode antes de probar el setup. No uses el setup solo sobre un perfil
@@ -103,7 +103,7 @@ FreeCode ya no agrega el pool de rotación de proxies de OpenCode2API.
 están probados ni soportados. Los builds son locales sin GitHub Actions; los binarios no están firmados.
 Las releases anteriores conservan sus tags y binarios históricos.
 
-## Qué incluye la release v1.0.1
+## Qué incluye la release v1.0.2
 
 - **Gateway Phoenix + FreeLLMpool 0.13.0 incluido** — ejecutable Windows x64
   verificado, licencia MIT, allowlist exacta de modelos y recibo de
@@ -161,13 +161,13 @@ modo Gentle AI se eliminaron en 1.0.0; los modos Standard cubren su uso.
 
 ## Instalación y primer uso
 
-1. Descargá el instalador o ejecutable portable desde la [release v1.0.1 de GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.1).
+1. Descargá el instalador o ejecutable portable desde la [release v1.0.1 de GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.1) (última publicada; v1.0.2 aún no está publicada).
 2. Instalalo o descomprimilo y abrí el acceso directo/ejecutable real.
 3. Elegí la carpeta de tu proyecto en el picker.
 4. Esperá a que carguen los modelos free (spinner en el selector) y pedile al
    modelo que inspeccione o modifique el proyecto.
 
-El payload desktop de v1.0.1 incluye Electron, el gateway Phoenix,
+El payload desktop de v1.0.2 incluye Electron, el gateway Phoenix,
 dependencias nativas y Tesseract. Setup y portable fueron verificados y
 probados. El runtime DSH grande se distribuye
 como asset separado: en el primer inicio, FreeCode descarga el archivo Windows
@@ -276,7 +276,7 @@ distingue un fallo de permisos de uno de herramienta/MCP.
 
 ## Updater y versión
 
-About usa `app.getVersion()`; la release v1.0.1 usa esa versión.
+About usa `app.getVersion()`; la release v1.0.2 usa esa versión.
 La app chequea updates al iniciar y cada seis horas. El control de actualizar
 es exactamente el botón circular primario de Enviar, con la flecha apuntando
 hacia abajo. Al descargar, tooltip/menú de tray y notificación nativa lo
@@ -331,7 +331,7 @@ limitado a vendor y fail-closed. No dejes una feature permanente como edición
 directa de `vendor/deepseek-harness`. Ver
 [docs/UPSTREAM-PATCHING.md](docs/UPSTREAM-PATCHING.md).
 
-## Gate local de Windows: v1.0.1
+## Gate local de Windows: v1.0.2
 
 Ejecutá desde PowerShell en Windows x64. El gate no es interactivo en la
 interfaz desktop: compila un paquete NSIS en un directorio temporal único,
@@ -343,14 +343,14 @@ enumera ni termina procesos ajenos.
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-final-20261021'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.2-final-20261023'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.1-final-20261021
+pnpm verify:desktop-release-assets apps/shell/release-1.0.2-final-20261023
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 `build:desktop` creó setup y portable en
-`apps/shell/release-1.0.1-final-20261021/`; rechaza reemplazar una carpeta no vacía.
+`apps/shell/release-1.0.2-final-20261023/`; rechaza reemplazar una carpeta no vacía.
 `verify:desktop-release-assets` valida los PE exactos, el blockmap, los metadatos
 del updater y sus hashes sin iniciar ninguno de los ejecutables. El packaging
 desktop no reconstruye ni reemplaza el runtime DSH, que tiene su propia versión.
@@ -363,8 +363,8 @@ El runtime actual es alpha.12; la pre-release `runtime-0.2.1-alpha.12`
 provee el asset verificado correspondiente.
 
 La [release v1.0.0 en GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0)
-es histórica; v1.0.1 está publicada en GitHub Releases. Los artefactos actuales
-están en `apps/shell/release-1.0.1-final-20261021/`; las carpetas históricas no se sobrescriben.
+es histórica; v1.0.2 aún no está publicada en GitHub Releases. Los artefactos actuales
+están en `apps/shell/release-1.0.2-final-20261023/`; las carpetas históricas no se sobrescriben.
 El gate no instala ni inicia la GUI de FreeCode. El smoke interactivo instala,
 inicia y desinstala, por lo que solo se permite en una VM Windows desechable;
 no se ejecuta en la workstation ni junto a tu instancia.
@@ -372,7 +372,7 @@ Ver la [política de release](docs/RELEASE-POLICY.es.md).
 
 ## Builds manuales de otros sistemas
 
-Linux y macOS no son targets de release de v1.0.1, y Windows ARM64 tampoco
+Linux y macOS no son targets de release de v1.0.2, y Windows ARM64 tampoco
 está probado. Un contribuidor puede trabajar en un host nativo con Node,
 pnpm, Git, herramientas de build de Electron y dependencias nativas del
 sistema:
@@ -414,7 +414,7 @@ hardening and the local release policy.
 ## Índice de documentación
 
 - [Inventario de features upstream](docs/UPSTREAM-FEATURES.md)
-- [Notas de release v1.0.1](release-notes-v1.0.1.md)
+- [Notas de release v1.0.2](release-notes-v1.0.2.md)
 - [Notas históricas de v1.0.0](release-notes-v1.0.0.md)
 - [Notas de la release v0.9.6](release-notes-v0.9.6.md)
 - [v0.9.5 — history / historial](release-notes-v0.9.5.md)

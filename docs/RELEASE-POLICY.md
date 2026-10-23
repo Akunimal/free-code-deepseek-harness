@@ -1,16 +1,16 @@
 # Release policy
 
-### Current release: v1.0.1 (Windows x64)
+### Current release: v1.0.2 (Windows x64)
 
 Releases are manual and target Windows x64. This policy never authorizes
 touching the maintainer's running FreeCode instance.
 
-**Release status:** v1.0.1 is published for Windows x64. The current setup and
+**Release status:** v1.0.2 is built locally for Windows x64 and not yet published. The current setup and
 portable were built, verified, and published on GitHub Releases. All mandatory
 gates, tests, and installation checks passed. The last published desktop
 release was the historical v1.0.0.
 
-See the [bilingual release notes](../release-notes-v1.0.1.md).
+See the [bilingual release notes](../release-notes-v1.0.2.md).
 
 ## Mandatory fresh-install proof
 
@@ -28,7 +28,7 @@ inspect, stop, or restart unrelated processes.
 
 ## Windows containment and runtime
 
-v1.0.1 requires the GUI-subsystem `headless-host`, a private desktop and Job
+v1.0.2 requires the GUI-subsystem `headless-host`, a private desktop and Job
 assignment while the child is suspended, with no direct-spawn fallback.
 Explicit GUI actions use the authenticated broker. Native adversarial window,
 descendant and Job-lifetime tests run against the exact staged and packaged
@@ -47,10 +47,10 @@ launch. Context windows shown for named Phoenix models use reviewed native
 values when the live gateway supplies none; Auto and dynamic aliases have a
 conservative 32,768-token app cap. Provider-specific route limits can be lower.
 See the bilingual notes for per-model values and sources. The release
-output is `apps/shell/release-1.0.1-final-20261021/`;
+output is `apps/shell/release-1.0.2-final-20261023/`;
 artifact names and SHA-256 values are recorded in the bilingual release
 notes.
-See the [bilingual release notes](../release-notes-v1.0.1.md).
+See the [bilingual release notes](../release-notes-v1.0.2.md).
 
 After changing the pinned FreeLLMpool source or Phoenix build configuration,
 rebuild and stage it through `scripts/build-freellmpool.mjs` and
@@ -78,9 +78,9 @@ its deleted temporary install tree.
 
 ## Release contents and pinned runtime
 
-The v1.0.1 desktop release contains the NSIS setup, portable executable,
+The v1.0.2 desktop release contains the NSIS setup, portable executable,
 setup blockmap and `latest.yml`. The separate DSH runtime has an independent
-version: v1.0.1 downloads the exact `0.2.1-alpha.12` Windows x64 runtime from
+version: v1.0.2 downloads the exact `0.2.1-alpha.12` Windows x64 runtime from
 the public runtime-0.2.1-alpha.12 pre-release, which also provides its SHA-256 checksum. The release gate
 verifies the pinned local archive and packaged runtime manifest; it never
 rebuilds, removes or replaces that immutable archive. Ordinary `build:desktop`
@@ -98,9 +98,9 @@ artifacts into a new, isolated output directory and verify that exact directory:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-final-20261021'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.2-final-20261023'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.1-final-20261021
+pnpm verify:desktop-release-assets apps/shell/release-1.0.2-final-20261023
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
@@ -147,7 +147,7 @@ setup selected explicitly:
 ```powershell
 $env:FREECODE_ALLOW_INTERACTIVE_NSIS_SMOKE = '1'
 $env:FREECODE_NSIS_SMOKE_ENV = 'disposable-vm'
-$env:FREECODE_NSIS_SETUP_PATH = 'C:\path\to\exact\FreeCode-DeepSeek-Harness-1.0.1-win-x64-setup.exe'
+$env:FREECODE_NSIS_SETUP_PATH = 'C:\path\to\exact\FreeCode-DeepSeek-Harness-1.0.2-win-x64-setup.exe'
 pnpm --filter @freecode/shell smoke:nsis
 ```
 

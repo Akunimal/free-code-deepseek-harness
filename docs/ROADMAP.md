@@ -1,8 +1,8 @@
 # Roadmap / Hoja de ruta
 
-### Current release / Release actual: v1.0.1 (Windows x64)
+### Current release / Release actual: v1.0.2 (Windows x64)
 
-v1.0.1 replaces the active OpenCode2API integration with a
+v1.0.2 replaces the active OpenCode2API integration with a
 self-contained Phoenix gateway built from pinned FreeLLMpool 0.13.0. It bundles
 the verified Windows x64 executable, model allowlist, MIT license and build
 receipt; it needs no `C:\LocalAI`, external Python, separate FreeLLMpool
@@ -12,12 +12,12 @@ free routes only before streaming commits. Concrete models keep the pinned
 capability-score order regardless of probe latency. The Kilo no-auth snapshot
 contains MiniMax M3.1 Flash, Laguna S 2.1 and Dots3 Note Preview; Nemotron and
 dynamic Kilo aliases are excluded. DSH `0.2.1-alpha.12` remains a separate
-first-launch download. See the [bilingual v1.0.1 release notes](../release-notes-v1.0.1.md).
+first-launch download. See the [bilingual v1.0.2 release notes](../release-notes-v1.0.2.md).
 
 All shell-owned background Windows process trees continue to launch through
 `freecode-launcher` and the verified GUI-subsystem `headless-host` helper.
 
-**Release status:** v1.0.1 is published for Windows x64. The setup and portable
+**Release status:** v1.0.2 is built locally for Windows x64 and not yet published. The setup and portable
 executables are built, verified, and published on GitHub Releases. The last
 published desktop release was historical [v1.0.0](../release-notes-v1.0.0.md).
 
@@ -25,9 +25,9 @@ published desktop release was historical [v1.0.0](../release-notes-v1.0.0.md).
 
 The historical v1.0.0 setup and portable passed their full release gate,
 including the public empty-cache runtime download. This is evidence for that
-release only, not for v1.0.1.
+release only, not for v1.0.2.
 
-La versión v1.0.1 reemplaza la integración activa de OpenCode2API por Phoenix,
+La versión v1.0.2 reemplaza la integración activa de OpenCode2API por Phoenix,
 un gateway autocontenido compilado desde FreeLLMpool 0.13.0 fijado. Incluye el
 ejecutable Windows x64 verificado, allowlist, licencia MIT y receipt de build;
 no requiere `C:\LocalAI`, Python externo, FreeLLMpool instalado aparte ni un
@@ -38,16 +38,16 @@ puntuación de capacidad, sin que la latencia los adelante. La instantánea Kilo
 sin clave incluye MiniMax M3.1 Flash, Laguna S 2.1 y Dots3 Note Preview; se
 excluyen Nemotron y alias dinámicos de Kilo. DSH `0.2.1-alpha.12` sigue
 descargándose por separado en el primer inicio. Ver las [notas de release
-bilingües v1.0.1](../release-notes-v1.0.1.md).
+bilingües v1.0.2](../release-notes-v1.0.2.md).
 
-**Estado de release:** v1.0.1 está publicada para Windows x64. Setup y portable
+**Estado de release:** v1.0.2 está compilada localmente para Windows x64 y aún no publicada. Setup y portable
 fueron verificados e instalados exitosamente. La última release desktop publicada
 anteriormente fue la histórica [v1.0.0](../release-notes-v1.0.0.md).
 
-Baseline actual publicada: `v1.0.1`.
+Baseline actual publicada: `v1.0.2`.
 Runtime DSH: `0.2.1-alpha.12`; artefactos de release:
-`apps/shell/release-1.0.1-final-20261021/` (hashes en las notas
-bilingües v1.0.1).
+`apps/shell/release-1.0.2-final-20261023/` (hashes en las notas
+bilingües v1.0.2).
 
 ## Estrategia de ahorro de contexto / Context-efficiency strategy
 
@@ -62,11 +62,11 @@ RTK and Caveman are not enabled together by default: they may complement each ot
 
 ## En curso / In progress
 
-v1.0.1: source candidate only; setup/portable and public clean-cache DSH gate pending. / Candidata de fuente; setup/portable y gate público de caché vacía DSH pendientes.
+v1.0.2: source candidate only; setup/portable and public clean-cache DSH gate pending. / Candidata de fuente; setup/portable y gate público de caché vacía DSH pendientes.
 
 ## Completado / Completed
 
-### `v1.0.1` — Phoenix FreeLLMpool gateway / Gateway Phoenix FreeLLMpool
+### `v1.0.2` — Phoenix FreeLLMpool gateway / Gateway Phoenix FreeLLMpool
 
 **Status / Estado:** local source candidate only; no desktop assets, clean-cache
 proof or publication / solo candidata local de fuente; sin artefactos desktop,

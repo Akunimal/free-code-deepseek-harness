@@ -216,24 +216,31 @@ logCheck(
 
 // ── CHECK 15: LB retry is bounded ───────────────────────────────────
 
-const lbPath = join(REPO_ROOT, 'packages/opencode-adapter/src/lb.ts');
-const lbSrc = readFileSafe(lbPath);
+// The retired OpenCode2API adapter (packages/opencode-adapter/src/lb.ts) is gone.
+// The active gateway is the pinned Phoenix FreeLLMpool source; check its bounded
+// retry and its post-commit no-retry rule there.
+const phoenixClientPath = join(REPO_ROOT, 'vendor/freellmpool/src/freellmpool/client.py');
+const phoenixProxyPath = join(REPO_ROOT, 'vendor/freellmpool/src/freellmpool/proxy.py');
+const phoenixClientSrc = readFileSafe(phoenixClientPath);
+const phoenixProxySrc = readFileSafe(phoenixProxyPath);
 
 logCheck(
-  'lb-retry-bounded',
-  lbSrc !== null
-    && lbSrc.includes('MAX_ATTEMPTS')
-    && lbSrc.includes('RETRYABLE_STATUSES'),
-  'LB must have bounded retry with MAX_ATTEMPTS and RETRYABLE_STATUSES',
+  'phoenix-retry-bounded',
+  phoenixClientSrc !== null
+    && /^_MAX_TRANSPORT_ATTEMPTS = \d+/m.test(phoenixClientSrc)
+    && phoenixClientSrc.includes('def _retryable(status: int)')
+    && phoenixClientSrc.includes('attempt + 1 < attempt_limit'),
+  'Phoenix client must bound transport retries with _MAX_TRANSPORT_ATTEMPTS and gate them on _retryable',
 );
 
-// ── CHECK 16: LB enforces post-commit no-retry ─────────────────────
+// ── CHECK 16: Phoenix enforces post-commit no-retry ────────────────
 
 logCheck(
-  'lb-post-commit-no-retry',
-  lbSrc !== null
-    && lbSrc.includes('downstream_started'),
-  'LB must not retry after downstream headers are sent',
+  'phoenix-post-commit-no-retry',
+  phoenixProxySrc !== null
+    && phoenixProxySrc.includes('before the HTTP response was committed')
+    && phoenixProxySrc.includes('never trigger provider retry'),
+  'Phoenix proxy must not retry a provider after the HTTP response is committed',
 );
 
 // ── CHECK 17: OCR IPC does not expose binary path ──────────────────

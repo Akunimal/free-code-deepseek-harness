@@ -6,11 +6,11 @@ import test from 'node:test';
 const root = resolve(import.meta.dirname, '..');
 const read = (relativePath) => readFileSync(join(root, relativePath), 'utf8');
 
-test('root and shell metadata agree on 1.0.1 and keep the DSH alpha12 runtime pin', () => {
+test('root and shell metadata agree on 1.0.2 and keep the DSH alpha12 runtime pin', () => {
   const rootVersion = JSON.parse(read('package.json')).version;
   const shellVersion = JSON.parse(read('apps/shell/package.json')).version;
 
-  assert.equal(rootVersion, '1.0.1');
+  assert.equal(rootVersion, '1.0.2');
   assert.equal(shellVersion, rootVersion);
   assert.equal(JSON.parse(read('apps/shell/harness-runtime.json')).version, '0.2.1-alpha.12');
   const phoenix = JSON.parse(read('apps/shell/resources/runtime-deps.json')).dependencies
@@ -123,13 +123,13 @@ test('bilingual 0.9.4 notes identify the published release and retain candidate 
 const activeDocs = ['README.md', 'README.es.md', 'docs/RELEASE.md', 'docs/RELEASE.es.md',
   'docs/RELEASE-POLICY.md', 'docs/RELEASE-POLICY.es.md', 'docs/ROADMAP.md'];
 
-test('active documentation aligns the Phoenix v1.0.1 release, alpha.12 and containment', () => {
+test('active documentation aligns the Phoenix v1.0.2 release, alpha.12 and containment', () => {
   for (const file of activeDocs) {
     const source = read(file);
-    assert.match(source, /v1\.0\.1/, file);
+    assert.match(source, /v1\.0\.2/, file);
     assert.match(source, /0\.2\.1-alpha\.12/, file);
-    assert.match(source, /release-notes-v1\.0\.1\.md/, file);
-    assert.match(source, /release-1\.0\.1-final-20261021/, file);
+    assert.match(source, /release-notes-v1\.0\.2\.md/, file);
+    assert.match(source, /release-1\.0\.2-final-20261023/, file);
     assert.match(source, /Phoenix/i, file);
     // ROADMAP keeps the historical v0.9.x Tor entries; current docs must not.
     if (file !== 'docs/ROADMAP.md') assert.doesNotMatch(source, /bundled Tor|Tor incluido|tor\.exe/, file);
@@ -153,14 +153,14 @@ test('architecture, contracts and issue ledger describe Phoenix rather than an a
   const contracts = read('docs/CONTRACT-TESTS.md');
   assert.match(contracts, /concrete[\s\S]{0,80}pin|pin[\s\S]{0,80}concrete/i);
   assert.match(contracts, /Auto[\s\S]{0,160}(?:pre-stream|before streaming)/i);
-  assert.match(contracts, /v1\.0\.1/);
+  assert.match(contracts, /v1\.0\.2/);
 });
 
 test('READMEs agree on Phoenix gateway, version, support and first-run network', () => {
   const en = read('README.md');
   const es = read('README.es.md');
-  assert.match(en, /Source version: 1\.0\.1/);
-  assert.match(es, /Versión de la fuente: 1\.0\.1/);
+  assert.match(en, /Source version: 1\.0\.2/);
+  assert.match(es, /Versión de la fuente: 1\.0\.2/);
   assert.match(en, /Windows x64 only/i);
   assert.match(es, /solo Windows x64/i);
   for (const doc of [en, es]) {

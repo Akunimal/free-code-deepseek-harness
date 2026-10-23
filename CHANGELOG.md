@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.0.2 — Local build / Compilación local — 2026-10-23
+
+See [bilingual release notes / notas bilingües](release-notes-v1.0.2.md).
+
+- Phoenix selector now exposes only concrete routes that return a live OpenAI
+  tool call (`tool_choice: required`, declared function). Text-only and
+  unavailable routes stay out of the selector; the runtime refresher re-verifies
+  each route on every refresh.
+- Phoenix allowlist: 25 IDs (`auto` plus 24 routes). Removed routes that
+  returned 404/400/402 or answered without tool calls. Added six Free.ai routes
+  and three Kilo routes that passed tool calling. Dynamic Kilo routers
+  (`kilo-auto/*`, `openrouter/free`) and Nemotron remain excluded.
+- Selector label for Auto is `Phoenix auto`.
+- Rebuilt the pinned FreeLLMpool 0.13.0 gateway with the new allowlist.
+- DSH `0.2.1-alpha.12` runtime and first-launch download policy unchanged.
+
 ## 1.0.1 — Stable / Estable — 2026-10-21
 
 See [bilingual release notes / notas bilingües](release-notes-v1.0.1.md).

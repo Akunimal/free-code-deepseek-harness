@@ -1,16 +1,16 @@
 # Política de releases
 
-### Release actual: v1.0.1 (Windows x64)
+### Release actual: v1.0.2 (Windows x64)
 
 Las releases son manuales y tienen como target Windows x64. Esta política
 nunca autoriza tocar la instancia activa de FreeCode.
 
-**Estado de release:** v1.0.1 está publicada para Windows x64. El setup y el
+**Estado de release:** v1.0.2 está compilada localmente para Windows x64 y aún no publicada. El setup y el
 portable actuales se compilaron, verificaron y publicaron en GitHub Releases.
 Todos los gates obligatorios, tests e instalación limpia fueron completados.
 La última release desktop publicada anteriormente fue la histórica v1.0.0.
 
-Ver las [notas bilingües de release](../release-notes-v1.0.1.md).
+Ver las [notas bilingües de release](../release-notes-v1.0.2.md).
 
 ## Prueba obligatoria de instalación limpia
 
@@ -28,7 +28,7 @@ procesos ajenos.
 
 ## Contención Windows y runtime
 
-v1.0.1 exige `headless-host` GUI, escritorio privado y Job asignado con el
+v1.0.2 exige `headless-host` GUI, escritorio privado y Job asignado con el
 destino suspendido, sin fallback directo. Las acciones GUI explícitas usan el
 broker autenticado. Las pruebas nativas adversarias de ventanas/descendientes
 y cierre del Job corren contra el helper exacto preparado y empaquetado;
@@ -48,8 +48,8 @@ identificables usan valores nativos revisados si el gateway en vivo no informa
 uno; Auto y alias dinámicos tienen un límite conservador de 32.768 tokens en la
 app. El proveedor puede aplicar límites de ruta menores. Ver valores y fuentes
 por modelo en las notas bilingües. La salida de release está en
-`apps/shell/release-1.0.1-final-20261021/`; los nombres y SHA-256 de artefactos
-figuran en las [notas bilingües de release](../release-notes-v1.0.1.md).
+`apps/shell/release-1.0.2-final-20261023/`; los nombres y SHA-256 de artefactos
+figuran en las [notas bilingües de release](../release-notes-v1.0.2.md).
 
 Tras cambiar el source FreeLLMpool fijado o la configuración de build de
 Phoenix, recompilá y prepará el artefacto con `scripts/build-freellmpool.mjs`
@@ -75,8 +75,8 @@ las rutas temporales: `--user-data-dir` de Chromium no redirige por sí solo
 `app.getPath('userData')` de Electron. Sin un perfil privado, el smoke puede
 dejar la config del gateway apuntando a su instalación temporal eliminada.
 
-La release desktop v1.0.1 contiene setup NSIS, portable, blockmap del setup y
-`latest.yml`. El runtime DSH separado tiene versión independiente: v1.0.1
+La release desktop v1.0.2 contiene setup NSIS, portable, blockmap del setup y
+`latest.yml`. El runtime DSH separado tiene versión independiente: v1.0.2
 descarga el runtime Windows x64 exacto `0.2.1-alpha.12` desde la pre-release pública runtime-0.2.1-alpha.12,
 que también incluye el checksum SHA-256. El gate verifica el archivo fijado
 local y el manifest empaquetado; nunca vuelve a generar, elimina ni reemplaza
@@ -96,9 +96,9 @@ nueva y aislada, y verificá exactamente esa carpeta:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.1-final-20261021'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.2-final-20261023'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.1-final-20261021
+pnpm verify:desktop-release-assets apps/shell/release-1.0.2-final-20261023
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
@@ -145,7 +145,7 @@ setup exacto:
 ```powershell
 $env:FREECODE_ALLOW_INTERACTIVE_NSIS_SMOKE = '1'
 $env:FREECODE_NSIS_SMOKE_ENV = 'disposable-vm'
-$env:FREECODE_NSIS_SETUP_PATH = 'C:\path\to\exact\FreeCode-DeepSeek-Harness-1.0.1-win-x64-setup.exe'
+$env:FREECODE_NSIS_SETUP_PATH = 'C:\path\to\exact\FreeCode-DeepSeek-Harness-1.0.2-win-x64-setup.exe'
 pnpm --filter @freecode/shell smoke:nsis
 ```
 
