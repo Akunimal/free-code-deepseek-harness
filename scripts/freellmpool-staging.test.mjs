@@ -36,6 +36,7 @@ function makeFixture() {
   writeFileSync(join(vendor, 'src', 'freellmpool', 'providers.toml'), '[[provider]]\nid = "ovh"\n');
   writeFileSync(join(source, 'phoenix-entry.py'), 'from freellmpool import Pool\n');
   writeFileSync(join(source, 'phoenix-providers.toml'), '[[provider]]\nid = "ovh"\n');
+  writeFileSync(join(source, 'freecode-providers.toml'), '[[provider]]\nid = "freeai"\n');
   writeFileSync(join(source, 'phoenix-model-ids.json'), '["auto","ovh/model"]\n');
   const toolchain = {
     pythonVersion: '3.14.2',

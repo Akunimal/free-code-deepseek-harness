@@ -2,7 +2,10 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const PHOENIX_PROVIDER_ORDER = Object.freeze(['pollinations', 'llm7', 'ovh', 'kilo']);
+export const PHOENIX_PROVIDER_ORDER = Object.freeze(['pollinations', 'llm7', 'ovh', 'kilo', 'freeai']);
+// FreeCode-owned slice appended after the pinned FreeLLMpool slice. It keeps
+// vendor/freellmpool unmodified.
+const FREECODE_PROVIDER_SLICE = 'freecode-providers.toml';
 
 // FreeLLMpool's bundled capability values (benchmarks where known, its
 // documented name heuristic otherwise) are the primary selector quality
@@ -34,6 +37,10 @@ const MODEL_QUALITY_SCORES = Object.freeze({
   'ovh/gpt-oss-20b': 0.46,
   'ovh/Qwen3-Coder-30B-A3B-Instruct': 0.7969,
   'ovh/Qwen3.8-27B': 0.46,
+  // Free.ai publishes no size or benchmark for these models. Use the neutral
+  // 0.5 that the other unreviewed routes use until a review assigns a value.
+  'freeai/qwen3-coder': 0.5,
+  'freeai/qwen-coder': 0.5,
 });
 
 const KILO_CODE_AGENT_RANKS = Object.freeze({
@@ -116,8 +123,8 @@ function trimTrailingSectionComments(block) {
   return lines.join('\n').trim();
 }
 
-export function extractPhoenixCatalog(upstreamToml) {
-  const lines = upstreamToml.replaceAll('\r\n', '\n').split('\n');
+export function extractPhoenixCatalog(upstreamToml, freecodeToml = '') {
+  const lines = `${upstreamToml}\n${freecodeToml}`.replaceAll('\r\n', '\n').split('\n');
   const sections = [];
   const providerIds = [];
   const concreteModelIds = [];
@@ -158,10 +165,14 @@ export function extractPhoenixCatalog(upstreamToml) {
   return { providerIds, modelIds, text };
 }
 
+export function readFreeCodeSlice(root) {
+  return readFileSync(join(root, 'apps', 'shell', 'resources', 'phoenix', FREECODE_PROVIDER_SLICE), 'utf8');
+}
+
 export function verifyPhoenixCatalog(root) {
   const upstreamPath = join(root, 'vendor', 'freellmpool', 'src', 'freellmpool', 'providers.toml');
   const outputPath = join(root, 'apps', 'shell', 'resources', 'phoenix', 'phoenix-providers.toml');
-  const expected = extractPhoenixCatalog(readFileSync(upstreamPath, 'utf8'));
+  const expected = extractPhoenixCatalog(readFileSync(upstreamPath, 'utf8'), readFreeCodeSlice(root));
   const actual = readFileSync(outputPath, 'utf8').replaceAll('\r\n', '\n');
   if (actual !== expected.text) throw new Error('Phoenix provider catalog is stale or includes routes outside its pinned source slice');
   const idsPath = join(root, 'apps', 'shell', 'resources', 'phoenix', 'phoenix-model-ids.json');
@@ -176,7 +187,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const idsPath = join(root, 'apps', 'shell', 'resources', 'phoenix', 'phoenix-model-ids.json');
   if (process.argv[2] === '--write') {
     const upstreamPath = join(root, 'vendor', 'freellmpool', 'src', 'freellmpool', 'providers.toml');
-    const { providerIds, modelIds, text } = extractPhoenixCatalog(readFileSync(upstreamPath, 'utf8'));
+    const { providerIds, modelIds, text } = extractPhoenixCatalog(readFileSync(upstreamPath, 'utf8'), readFreeCodeSlice(root));
     writeFileSync(outputPath, text, 'utf8');
     writeFileSync(idsPath, `${JSON.stringify(modelIds, null, 2)}\n`, 'utf8');
     console.log(`Phoenix catalog generated from pinned providers: ${providerIds.join(', ')} (${modelIds.length} model IDs)`);

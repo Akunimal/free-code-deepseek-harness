@@ -889,6 +889,8 @@ describe('model-refresher', () => {
       'pollinations/openai',
       'pollinations/openai-fast',
       'pollinations/gpt-oss',
+      'freeai/qwen3-coder',
+      'freeai/qwen-coder',
     ];
     const curatedIds = JSON.parse(readFileSync(
       join(import.meta.dirname, '../resources/phoenix/phoenix-model-ids.json'),
@@ -933,6 +935,8 @@ describe('model-refresher', () => {
         expect.objectContaining({ id: 'llm7/default', contextWindow: 32_768 }),
         expect.objectContaining({ id: 'llm7/fast', contextWindow: 32_768 }),
         expect.objectContaining({ id: 'pollinations/ovh-reasoning', contextWindow: 32_768 }),
+        expect.objectContaining({ id: 'freeai/qwen3-coder', contextWindow: 32_768 }),
+        expect.objectContaining({ id: 'freeai/qwen-coder', contextWindow: 32_768 }),
       ]));
     } finally {
       rmSync(dirname(home), { recursive: true, force: true });

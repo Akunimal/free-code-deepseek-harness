@@ -1,0 +1,16 @@
+# FreeCode-owned provider slice. scripts/phoenix-catalog.mjs appends it after the
+# pinned FreeLLMpool slice, so vendor/freellmpool stays unmodified.
+#
+# Free.ai: keyless OpenAI-compatible endpoint, no Authorization header. Each model
+# below was probed live on 2026-10-23 with three repeat non-empty anonymous
+# completions and a tool call. Free.ai publishes no native context windows.
+[[provider]]
+id = "freeai"
+label = "Free.ai (keyless)"
+adapter = "openai"
+base_url = "https://api.free.ai/v1"
+auth = "none"
+models = [
+    { name = "qwen3-coder", rpd = 0 },
+    { name = "qwen-coder", rpd = 0 },
+]

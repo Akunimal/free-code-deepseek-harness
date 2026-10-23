@@ -1,6 +1,6 @@
 import { isAbsolute } from 'node:path';
 
-const PROVIDER_IDS = new Set(['pollinations', 'llm7', 'ovh', 'kilo']);
+const PROVIDER_IDS = new Set(['pollinations', 'llm7', 'ovh', 'kilo', 'freeai']);
 const ROUTING_ALIASES = new Set(['auto', 'agent', 'spread', 'fast', 'quality', 'fair']);
 const FORBIDDEN_DYNAMIC_KILO_IDS = new Set(['kilo/openrouter/free', 'kilo/kilo-auto/free']);
 const OS_ENV_KEYS = ['PATH', 'SYSTEMROOT', 'WINDIR', 'TEMP', 'TMP', 'COMSPEC'];

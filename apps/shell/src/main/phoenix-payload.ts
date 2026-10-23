@@ -13,7 +13,7 @@ export const PHOENIX_UPSTREAM = Object.freeze({
 const BINARY_NAME = 'freellmpool-win-x64.exe';
 const MODEL_FILE = 'phoenix-model-ids.json';
 const RECEIPT_FILE = 'freecode-build-receipt.json';
-const ALLOWED_PROVIDERS = new Set(['pollinations', 'llm7', 'ovh', 'kilo']);
+const ALLOWED_PROVIDERS = new Set(['pollinations', 'llm7', 'ovh', 'kilo', 'freeai']);
 const FORBIDDEN_DYNAMIC_KILO_IDS = new Set(['kilo/openrouter/free', 'kilo/kilo-auto/free']);
 
 export interface VerifiedPhoenixPayload {

@@ -17,6 +17,8 @@
   "llm7/default",
   "llm7/fast",
   "ovh/Mistral-Nemo-Instruct-2407",
+  "freeai/qwen3-coder",
+  "freeai/qwen-coder",
   "llm7/gpt-oss:20b",
   "ovh/gpt-oss-20b",
   "ovh/Qwen3.8-27B",

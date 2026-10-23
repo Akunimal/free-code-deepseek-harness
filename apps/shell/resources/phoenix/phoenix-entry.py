@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 
-PHOENIX_PROVIDERS = frozenset({"pollinations", "ovh", "kilo", "llm7"})
+PHOENIX_PROVIDERS = frozenset({"pollinations", "ovh", "kilo", "llm7", "freeai"})
 OS_ENVIRONMENT = frozenset(
     {"PATH", "SYSTEMROOT", "WINDIR", "TEMP", "TMP", "COMSPEC"}
 )

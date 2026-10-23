@@ -88,6 +88,7 @@ function sourceFingerprint(root, vendor, source) {
     join(vendor, 'pyproject.toml'),
     join(source, 'phoenix-entry.py'),
     join(source, 'phoenix-providers.toml'),
+    join(source, 'freecode-providers.toml'),
     join(source, 'phoenix-model-ids.json'),
     join(source, 'freecode-build-metadata.json'),
     join(root, 'scripts', 'freellmpool-build-lock.json'),

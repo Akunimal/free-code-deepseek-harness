@@ -2,14 +2,14 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
-import { extractPhoenixCatalog, phoenixModelQualityScore, verifyPhoenixCatalog } from './phoenix-catalog.mjs';
+import { extractPhoenixCatalog, phoenixModelQualityScore, readFreeCodeSlice, verifyPhoenixCatalog } from './phoenix-catalog.mjs';
 
 const root = new URL('..', import.meta.url).pathname.replace(/^\//, '').replaceAll('%20', ' ');
 
-test('Phoenix ships only the pinned keyless/free provider slice in deterministic upstream order', () => {
+test('Phoenix ships only the pinned keyless/free provider slices in deterministic order', () => {
   const upstream = readFileSync(join(root, 'vendor', 'freellmpool', 'src', 'freellmpool', 'providers.toml'), 'utf8');
-  const catalog = extractPhoenixCatalog(upstream);
-  assert.deepEqual(catalog.providerIds, ['pollinations', 'llm7', 'ovh', 'kilo']);
+  const catalog = extractPhoenixCatalog(upstream, readFreeCodeSlice(root));
+  assert.deepEqual(catalog.providerIds, ['pollinations', 'llm7', 'ovh', 'kilo', 'freeai']);
   assert.equal(catalog.modelIds[0], 'auto');
   assert.ok(catalog.modelIds.includes('pollinations/openai-fast'));
   assert.ok(!catalog.modelIds.includes('pollinations/gpt-oss-20b'));
@@ -22,7 +22,7 @@ test('Phoenix ships only the pinned keyless/free provider slice in deterministic
 
 test('Kilo exposes only its direct no-auth non-Nemotron free routes, ranked by quality before speed', () => {
   const upstream = readFileSync(join(root, 'vendor', 'freellmpool', 'src', 'freellmpool', 'providers.toml'), 'utf8');
-  const catalog = extractPhoenixCatalog(upstream);
+  const catalog = extractPhoenixCatalog(upstream, readFreeCodeSlice(root));
   const kiloIds = catalog.modelIds.filter((id) => id.startsWith('kilo/'));
   assert.deepEqual(kiloIds, [
     'kilo/minimax/minimax-m3.1-flash:free',
@@ -49,6 +49,17 @@ test('Kilo exposes only its direct no-auth non-Nemotron free routes, ranked by q
   assert.ok(ordered.indexOf('kilo/poolside/laguna-s-2.1:free') < ordered.indexOf('kilo/dots-studio/dots-3-note-preview:free'));
 });
 
+test('Free.ai is a keyless FreeCode slice with its two live-probed routes', () => {
+  const upstream = readFileSync(join(root, 'vendor', 'freellmpool', 'src', 'freellmpool', 'providers.toml'), 'utf8');
+  const catalog = extractPhoenixCatalog(upstream, readFreeCodeSlice(root));
+  assert.deepEqual(catalog.modelIds.filter((id) => id.startsWith('freeai/')), ['freeai/qwen3-coder', 'freeai/qwen-coder']);
+  const block = catalog.text.split('[[provider]]').find((part) => /^\s*id\s*=\s*"freeai"\s*$/m.test(part));
+  assert.ok(block, 'Free.ai provider must be in the Phoenix catalog');
+  assert.match(block, /^base_url\s*=\s*"https:\/\/api\.free\.ai\/v1"\s*$/m);
+  assert.match(block, /^auth\s*=\s*"none"\s*$/m);
+  assert.doesNotMatch(block, /key_env|key_optional/);
+});
+
 test('checked-in Phoenix catalog exactly matches the pinned source slice', () => {
   assert.equal(verifyPhoenixCatalog(root), true);
 });
@@ -56,7 +67,7 @@ test('checked-in Phoenix catalog exactly matches the pinned source slice', () =>
 test('checked-in model IDs contain Auto and only enabled canonical routes', () => {
   const ids = JSON.parse(readFileSync(join(root, 'apps', 'shell', 'resources', 'phoenix', 'phoenix-model-ids.json'), 'utf8'));
   assert.equal(ids[0], 'auto');
-  assert.ok(ids.every((id) => id === 'auto' || /^(pollinations|llm7|ovh|kilo)\/.+/.test(id)));
+  assert.ok(ids.every((id) => id === 'auto' || /^(pollinations|llm7|ovh|kilo|freeai)\/.+/.test(id)));
   assert.doesNotMatch(JSON.stringify(ids), /nemotron|kilo\/kilo-auto\/free|kilo\/openrouter\/free/i);
   assert.equal(new Set(ids).size, ids.length);
 });

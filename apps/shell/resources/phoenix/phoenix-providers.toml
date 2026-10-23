@@ -79,3 +79,14 @@ models = [
     { name = "poolside/laguna-s-2.1:free", rpd = 0 },
     { name = "dots-studio/dots-3-note-preview:free", rpd = 0 },
 ]
+
+[[provider]]
+id = "freeai"
+label = "Free.ai (keyless)"
+adapter = "openai"
+base_url = "https://api.free.ai/v1"
+auth = "none"
+models = [
+    { name = "qwen3-coder", rpd = 0 },
+    { name = "qwen-coder", rpd = 0 },
+]

@@ -195,6 +195,9 @@ const CONSERVATIVE_PHOENIX_CONTEXT_CAPS: Readonly<Record<string, number>> = {
   'llm7/default': 32_768,
   'llm7/fast': 32_768,
   'pollinations/ovh-reasoning': 32_768,
+  // Free.ai publishes no native window for these models; cap them until one is reviewed.
+  'freeai/qwen3-coder': 32_768,
+  'freeai/qwen-coder': 32_768,
 };
 
 interface ListedModel {
