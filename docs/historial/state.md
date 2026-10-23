@@ -1,8 +1,8 @@
 # Estado de traspaso histórico — FreeCode DeepSeek Harness
 
 > La fuente vigente para la implementación Windows-only 0.6.0 es
-> [`docs/STATE-0.6.0.md`](docs/STATE-0.6.0.md) y su orden de ejecución es
-> [`docs/ROADMAP-0.6.0.md`](docs/ROADMAP-0.6.0.md). El historial debajo conserva
+> [`docs/STATE-0.6.0.md`](../STATE-0.6.0.md) y su orden de ejecución es
+> [`docs/ROADMAP-0.6.0.md`](../ROADMAP-0.6.0.md). El historial debajo conserva
 > evidencia de releases anteriores y no debe interpretarse como que Gemini2API,
 > LSP independientes o builds Linux/macOS forman parte de 0.6.0.
 

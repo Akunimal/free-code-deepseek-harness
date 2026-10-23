@@ -235,7 +235,7 @@ test('changelog and issue ledger distinguish 0.9.6 fixes from earlier releases a
   assert.match(issues, /0\.2\.1-alpha\.9/);
   assert.match(issues, /Windows x64 only/);
   assert.match(issues, /sólo se soporta Windows x64/);
-  assert.match(read('TODO-spanish-translations.md'), /baseline.*v1\.0\.1/);
+  assert.match(read('docs/historial/TODO-spanish-translations.md'), /baseline.*v1\.0\.1/);
 });
 
 test('release guides keep isolated hidden children, static desktop checks and no workstation installer smoke', () => {
