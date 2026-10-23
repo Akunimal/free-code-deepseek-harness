@@ -2,8 +2,9 @@
 # pinned FreeLLMpool slice, so vendor/freellmpool stays unmodified.
 #
 # Free.ai: keyless OpenAI-compatible endpoint, no Authorization header. Each model
-# below was probed live on 2026-10-23 with three repeat non-empty anonymous
-# completions and a tool call. Free.ai publishes no native context windows.
+# below returned a tool call in a live anonymous probe on 2026-10-23. The first
+# two also passed three repeat completions. Free.ai publishes no native context
+# windows. Per-IP quota can answer 429 for a while after a burst of probes.
 [[provider]]
 id = "freeai"
 label = "Free.ai (keyless)"
@@ -13,4 +14,10 @@ auth = "none"
 models = [
     { name = "qwen3-coder", rpd = 0 },
     { name = "qwen-coder", rpd = 0 },
+    { name = "qwen-vl", rpd = 0 },
+    { name = "qwen7b", rpd = 0 },
+    { name = "qwen25-vl", rpd = 0 },
+    { name = "deepseek-r1", rpd = 0 },
+    { name = "mistral", rpd = 0 },
+    { name = "qwen3-8b", rpd = 0 },
 ]

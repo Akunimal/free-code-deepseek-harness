@@ -41,11 +41,20 @@ const MODEL_QUALITY_SCORES = Object.freeze({
   // 0.5 that the other unreviewed routes use until a review assigns a value.
   'freeai/qwen3-coder': 0.5,
   'freeai/qwen-coder': 0.5,
+  'freeai/qwen-vl': 0.5,
+  'freeai/qwen7b': 0.5,
+  'freeai/qwen25-vl': 0.5,
+  'freeai/deepseek-r1': 0.5,
+  'freeai/mistral': 0.5,
+  'freeai/qwen3-8b': 0.5,
+  // Kilo publishes no Code-agent rank for these routes; neutral until reviewed.
+  'kilo/reflection/beam-free': 0.5,
+  'kilo/recursive/flint-v1.0:free': 0.5,
+  'kilo/liquid/lfm-2.5-2.6b:free': 0.5,
 });
 
 const KILO_CODE_AGENT_RANKS = Object.freeze({
   // Official model-card Code-agent ranks, not benchmark scores.
-  'kilo/minimax/minimax-m3.1-flash:free': 14,
   'kilo/poolside/laguna-s-2.1:free': 98,
   'kilo/dots-studio/dots-3-note-preview:free': 99,
 });
@@ -53,8 +62,49 @@ const KILO_CODE_AGENT_RANKS = Object.freeze({
 // normalization floor for its rank percentile; this only positions Kilo routes
 // approximately alongside FreeLLMpool's separate 0..1 capability scale.
 const KILO_RANK_NORMALIZATION_FLOOR = 500;
-const KILO_FREE_MODEL_NAMES = Object.freeze(Object.keys(KILO_CODE_AGENT_RANKS).map((id) => id.slice('kilo/'.length)));
+// Kilo routes that returned a real OpenAI tool call on 2026-10-23. Dynamic
+// routers (kilo-auto/*, openrouter/free) and Nemotron are excluded by policy.
+const KILO_TOOL_VERIFIED_NAMES = Object.freeze([
+  'poolside/laguna-s-2.1:free',
+  'dots-studio/dots-3-note-preview:free',
+  'reflection/beam-free',
+  'recursive/flint-v1.0:free',
+  'liquid/lfm-2.5-2.6b:free',
+]);
 const FORBIDDEN_KILO_MODEL_IDS = new Set(['kilo/openrouter/free', 'kilo/kilo-auto/free']);
+
+// Concrete routes that returned a real OpenAI tool call (`tool_choice: required`
+// with a declared function) in a live probe on 2026-10-23, or on the same day in
+// the stillworks registry check. A route that is text-only, rate-limited on
+// every probe, or unavailable is left out. Free.ai rate-limited the final
+// re-probe, so its entries rest on the earlier passes; the runtime refresher
+// re-verifies each route before it becomes selectable.
+export const PHOENIX_TOOL_VERIFIED_IDS = new Set([
+  'pollinations/openai',
+  'pollinations/openai-fast',
+  'llm7/default',
+  'llm7/gpt-oss:20b',
+  'ovh/Meta-Llama-3_3-70B-Instruct',
+  'ovh/Qwen3.5-397B-A17B',
+  'ovh/gpt-oss-120b',
+  'ovh/Mistral-Small-3.2-24B-Instruct-2506',
+  'ovh/Mistral-Nemo-Instruct-2407',
+  'ovh/Qwen3.6-27B',
+  'ovh/Qwen3.8-27B',
+  'kilo/poolside/laguna-s-2.1:free',
+  'kilo/dots-studio/dots-3-note-preview:free',
+  'kilo/reflection/beam-free',
+  'kilo/recursive/flint-v1.0:free',
+  'kilo/liquid/lfm-2.5-2.6b:free',
+  'freeai/qwen3-coder',
+  'freeai/qwen-coder',
+  'freeai/qwen-vl',
+  'freeai/qwen7b',
+  'freeai/qwen25-vl',
+  'freeai/deepseek-r1',
+  'freeai/mistral',
+  'freeai/qwen3-8b',
+]);
 
 export function phoenixModelQualityScore(id) {
   const kiloRank = KILO_CODE_AGENT_RANKS[id];
@@ -100,14 +150,14 @@ function replaceModelEntries(block, entries, providerId) {
 
 function applyPhoenixModelPolicy(block, providerId) {
   if (providerId === 'kilo') {
-    return replaceModelEntries(block, KILO_FREE_MODEL_NAMES.map((name) => `{ name = "${name}", rpd = 0 }`), providerId);
+    return replaceModelEntries(block, KILO_TOOL_VERIFIED_NAMES.map((name) => `{ name = "${name}", rpd = 0 }`), providerId);
   }
 
   const entries = readModelEntries(block, providerId);
   const allowed = entries.filter((entry) => {
     const name = entry.match(/\bname\s*=\s*"((?:[^"\\]|\\.)*)"/)?.[1];
     if (name === undefined) throw new Error(`FreeLLMpool provider ${providerId} has a model without a literal name`);
-    return !/nemotron/i.test(name);
+    return !/nemotron/i.test(name) && PHOENIX_TOOL_VERIFIED_IDS.has(`${providerId}/${name}`);
   });
   return allowed.length === entries.length ? block : replaceModelEntries(block, allowed, providerId);
 }

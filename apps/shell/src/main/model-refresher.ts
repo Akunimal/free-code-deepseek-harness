@@ -27,6 +27,8 @@ export interface CatalogModel {
   lastSeen: number;
   failureKind?: 'http' | 'transport' | 'invalid-response';
   statusCode?: number;
+  /** The route returned a valid tool call for a declared function in the current probe. */
+  toolCalling?: boolean;
   /** The route previously returned a usable completion; its current probe failed before HTTP. */
   lastKnownGood?: boolean;
 }
@@ -198,6 +200,12 @@ const CONSERVATIVE_PHOENIX_CONTEXT_CAPS: Readonly<Record<string, number>> = {
   // Free.ai publishes no native window for these models; cap them until one is reviewed.
   'freeai/qwen3-coder': 32_768,
   'freeai/qwen-coder': 32_768,
+  'freeai/qwen-vl': 32_768,
+  'freeai/qwen7b': 32_768,
+  'freeai/qwen25-vl': 32_768,
+  'freeai/deepseek-r1': 32_768,
+  'freeai/mistral': 32_768,
+  'freeai/qwen3-8b': 32_768,
 };
 
 interface ListedModel {
@@ -451,6 +459,7 @@ async function probeModels(
     let latencyMs: number | null = null;
     let failureKind: CatalogModel['failureKind'];
     let statusCode: number | undefined;
+    let toolCalling = false;
     try {
       const res = await fetch(endpointUrl(target.baseUrl, '/chat/completions'), {
         method: 'POST',
@@ -488,6 +497,9 @@ async function probeModels(
         }
         if (!responds) failureKind = 'invalid-response';
       }
+      if (responds && target.strictResponders) {
+        toolCalling = await probeToolCalling(target, id, timeoutMs);
+      }
       latencyMs = Date.now() - started;
     } catch {
       responds = false;
@@ -500,10 +512,58 @@ async function probeModels(
       responds,
       latencyMs,
       lastSeen: nowSeconds(),
+      toolCalling,
       ...(failureKind === undefined ? {} : { failureKind }),
       ...(statusCode === undefined ? {} : { statusCode }),
     };
   }));
+}
+
+const TOOL_PROBE = {
+  type: 'function',
+  function: {
+    name: 'freecode_ping',
+    description: 'Health check. Call it exactly once with no arguments.',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+  },
+};
+
+/** A route is tool-capable only when it answers a declared function with a
+ * named tool call. Plain text, refusals and undeclared tool names fail. */
+async function probeToolCalling(target: ProviderRefreshTarget, id: string, timeoutMs: number): Promise<boolean> {
+  try {
+    const res = await fetch(endpointUrl(target.baseUrl, '/chat/completions'), {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        ...(target.authHeader ? { Authorization: target.authHeader } : {}),
+      },
+      body: JSON.stringify({
+        model: id,
+        messages: [{ role: 'user', content: 'Call the freecode_ping tool.' }],
+        tools: [TOOL_PROBE],
+        tool_choice: 'required',
+        max_tokens: 64,
+        stream: false,
+      }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (res.status !== 200) {
+      await res.body?.cancel().catch(() => undefined);
+      return false;
+    }
+    const choices = asRecord(await res.json())?.choices;
+    if (!Array.isArray(choices)) return false;
+    return choices.some((choice) => {
+      const calls = asRecord(asRecord(choice)?.message)?.tool_calls;
+      return Array.isArray(calls) && calls.some((call) => {
+        const name = asRecord(asRecord(call)?.function)?.name;
+        return name === TOOL_PROBE.function.name;
+      });
+    });
+  } catch {
+    return false;
+  }
 }
 
 function readLastKnownGoodByProvider(userDataDir: string): Record<string, string[]> {
@@ -641,7 +701,9 @@ function syncProviderModels(
       const probed = current.get(id);
       return {
         ...modelSettingsForModel(mergeModelCapabilities(probed ?? { id }, cached)),
-        ...(probed?.responds === true ? {} : { selectable: false }),
+        // Auto is the router entry. Every concrete route must also prove tool calling.
+        ...(probed?.responds === true && (id === 'auto' || probed.toolCalling === true)
+          ? {} : { selectable: false }),
       };
     });
     return;
@@ -718,6 +780,7 @@ function syncProviderModels(
 
 function modelSettingsForModel(model: ListedModel): {
   id: string;
+  name?: string;
   contextWindow?: number;
   outputMaxTokens?: number;
   reasoningEfforts: ModelReasoningEfforts;
@@ -735,6 +798,8 @@ function modelSettingsForModel(model: ListedModel): {
     : undefined;
   return {
     id: model.id,
+    // Auto is a router mode, not a provider model id: label it for the selector.
+    ...(model.id === 'auto' ? { name: 'Phoenix auto' } : {}),
     ...(model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow }),
     ...(model.maxOutputTokens === undefined ? {} : { outputMaxTokens: model.maxOutputTokens }),
     reasoningEfforts,

@@ -7,7 +7,7 @@ import { readHarnessSettings, writeHarnessSettings } from '../src/main/harness-s
 import { seedProviders } from '../src/main/provider-seeder.js';
 
 const roots: string[] = [];
-const pinned = 'kilo/minimax/minimax-m3.1-flash:free';
+const pinned = 'kilo/poolside/laguna-s-2.1:free';
 const allowed = ['auto', pinned, 'ovh/Qwen3.5-397B-A17B'];
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -27,8 +27,14 @@ it.each([503, 400, 200, 'transport'] as const)('keeps a verified pin and its con
         context_window: 900_000, max_output_tokens: 64_000,
         reasoning: true, reasoning_efforts: ['high'], default_reasoning_effort: 'high',
       } : {}) })) : [] }), { status: 200 });
-    const id = JSON.parse(String(init?.body)).model;
+    const body = JSON.parse(String(init?.body)) as { model: string; tools?: unknown };
+    const id = body.model;
     if (fails && id === pinned && failure === 'transport') throw new Error('test-owned connection loss');
+    if (body.tools !== undefined) {
+      return new Response(JSON.stringify({ choices: [{ message: { role: 'assistant', content: null,
+        tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'freecode_ping', arguments: '{}' } }] } }] }),
+      { status: fails && id === pinned && typeof failure === 'number' ? failure : 200 });
+    }
     return new Response(JSON.stringify({ choices: [{ message: { role: 'assistant',
       content: fails && id === pinned && failure === 200 ? '' : 'pong' } }] }),
     { status: fails && id === pinned && typeof failure === 'number' ? failure : 200 });

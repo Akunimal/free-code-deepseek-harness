@@ -20,7 +20,9 @@ replaces them for the current work.
 
 ## What Phoenix serves now
 
-Five keyless or key-optional providers, 26 model IDs including `auto`:
+Five keyless or key-optional providers, 25 model IDs including `auto`. Every concrete
+route passed a live OpenAI tool call on 2026-10-23 (`PHOENIX_TOOL_VERIFIED_IDS` in
+`scripts/phoenix-catalog.mjs`). Dynamic Kilo routers and Nemotron stay excluded:
 
 - `pollinations`, `ovh`, `kilo`: keyless, from the pinned FreeLLMpool slice.
 - `llm7`: key optional (`LLM7_API_KEY`), from the pinned slice.

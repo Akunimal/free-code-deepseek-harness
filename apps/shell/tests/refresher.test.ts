@@ -18,6 +18,20 @@ function successfulCompletionResponse(): Response {
   }), { status: 200, headers: { 'content-type': 'application/json' } });
 }
 
+function toolCallCompletionResponse(): Response {
+  return new Response(JSON.stringify({
+    choices: [{
+      index: 0,
+      message: {
+        role: 'assistant',
+        content: null,
+        tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'freecode_ping', arguments: '{}' } }],
+      },
+      finish_reason: 'tool_calls',
+    }],
+  }), { status: 200, headers: { 'content-type': 'application/json' } });
+}
+
 function deepseekModel(id: string): { id: string; reasoningEfforts: typeof REASONING_EFFORTS } {
   return { id, reasoningEfforts: REASONING_EFFORTS };
 }
@@ -146,7 +160,9 @@ describe('model-refresher', () => {
         return new Response(JSON.stringify({ data: [{ id: 'muse-spark-1.3-contributor-free' }] }), { status: 200 });
       }
       if (endpoint.endsWith('/v1/chat/completions')) {
-        probeBodies.push(JSON.parse(String(init?.body)) as { model: string; max_tokens: number });
+        const body = JSON.parse(String(init?.body)) as { model: string; max_tokens: number; tools?: unknown };
+        if (body.tools !== undefined) return toolCallCompletionResponse();
+        probeBodies.push(body);
         return successfulCompletionResponse();
       }
       return new Response('not found', { status: 404 });
@@ -156,6 +172,36 @@ describe('model-refresher', () => {
       await refreshModels({ lbBaseUrl: LB, homeDir: home, userDataDir: data });
       expect(probeBodies).toHaveLength(1);
       expect(probeBodies[0]).toMatchObject({ model: 'muse-spark-1.3-contributor-free', max_tokens: 16 });
+    } finally {
+      rmSync(dirname(home), { recursive: true, force: true });
+    }
+  });
+
+  it('hides concrete routes that answer chat but cannot call tools, keeps Phoenix auto', async () => {
+    const { home, data } = tmpDirs();
+    vi.stubGlobal('fetch', vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const endpoint = String(url);
+      if (endpoint.endsWith('/v1/models')) return new Response('unavailable', { status: 503 });
+      if (endpoint.endsWith('/v1/chat/completions')) {
+        const { model, tools } = JSON.parse(String(init?.body)) as { model: string; tools?: unknown };
+        if (tools !== undefined && model === 'tool-route') return toolCallCompletionResponse();
+        return successfulCompletionResponse();
+      }
+      return new Response('not found', { status: 404 });
+    }));
+
+    try {
+      await refreshModels({
+        lbBaseUrl: LB,
+        homeDir: home,
+        userDataDir: data,
+        exactModelIds: ['auto', 'tool-route', 'text-only-route'],
+      });
+      const models = readHarnessSettings(home)['llm-pi-ai'].providers['freecode-phoenix'].models as Array<{
+        id: string; name?: string; selectable?: boolean;
+      }>;
+      expect(models.filter(model => model.selectable !== false).map(model => model.id)).toEqual(['auto', 'tool-route']);
+      expect(models.find(model => model.id === 'auto')?.name).toBe('Phoenix auto');
     } finally {
       rmSync(dirname(home), { recursive: true, force: true });
     }
@@ -597,9 +643,11 @@ describe('model-refresher', () => {
       const endpoint = String(url);
       if (endpoint.endsWith('/v1/models')) return new Response('unavailable', { status: 503 });
       if (endpoint.endsWith('/v1/chat/completions')) {
-        const { model } = JSON.parse(String(init?.body)) as { model: string };
-        probed.push(model);
-        if (model === 'auto' || model === 'healthy-route') return successfulCompletionResponse();
+        const { model, tools } = JSON.parse(String(init?.body)) as { model: string; tools?: unknown };
+        if (tools === undefined) probed.push(model);
+        if (model === 'auto' || model === 'healthy-route') {
+          return tools === undefined ? successfulCompletionResponse() : toolCallCompletionResponse();
+        }
         throw new TypeError('socket hang up');
       }
       return new Response('not found', { status: 404 });
@@ -866,31 +914,30 @@ describe('model-refresher', () => {
     const { home, data } = tmpDirs();
     const ids = [
       'auto',
-      'kilo/minimax/minimax-m3.1-flash:free',
       'kilo/poolside/laguna-s-2.1:free',
       'kilo/dots-studio/dots-3-note-preview:free',
+      'kilo/reflection/beam-free',
+      'kilo/recursive/flint-v1.0:free',
+      'kilo/liquid/lfm-2.5-2.6b:free',
       'ovh/gpt-oss-120b',
-      'ovh/gpt-oss-20b',
       'llm7/gpt-oss:20b',
       'ovh/Meta-Llama-3_3-70B-Instruct',
       'ovh/Qwen3.5-397B-A17B',
       'ovh/Qwen3.6-27B',
       'ovh/Qwen3.8-27B',
-      'ovh/Qwen3.5-9B',
-      'ovh/Qwen3-Coder-30B-A3B-Instruct',
-      'ovh/Qwen2.5-VL-72B-Instruct',
       'ovh/Mistral-Small-3.2-24B-Instruct-2506',
       'ovh/Mistral-Nemo-Instruct-2407',
-      'ovh/Mistral-7B-Instruct-v0.3',
       'llm7/default',
-      'llm7/fast',
-      'llm7/codestral-latest',
-      'pollinations/ovh-reasoning',
       'pollinations/openai',
       'pollinations/openai-fast',
-      'pollinations/gpt-oss',
       'freeai/qwen3-coder',
       'freeai/qwen-coder',
+      'freeai/qwen-vl',
+      'freeai/qwen7b',
+      'freeai/qwen25-vl',
+      'freeai/deepseek-r1',
+      'freeai/mistral',
+      'freeai/qwen3-8b',
     ];
     const curatedIds = JSON.parse(readFileSync(
       join(import.meta.dirname, '../resources/phoenix/phoenix-model-ids.json'),
@@ -911,32 +958,28 @@ describe('model-refresher', () => {
       });
       const models = readHarnessSettings(home)['llm-pi-ai'].providers['freecode-phoenix'].models;
       expect(models).toEqual(expect.arrayContaining([
-        expect.objectContaining({ id: 'kilo/minimax/minimax-m3.1-flash:free', contextWindow: 1_000_000 }),
         expect.objectContaining({ id: 'kilo/poolside/laguna-s-2.1:free', contextWindow: 1_000_000 }),
         expect.objectContaining({ id: 'kilo/dots-studio/dots-3-note-preview:free', contextWindow: 512_000 }),
         expect.objectContaining({ id: 'ovh/gpt-oss-120b', contextWindow: 131_072 }),
-        expect.objectContaining({ id: 'ovh/gpt-oss-20b', contextWindow: 131_072 }),
         expect.objectContaining({ id: 'llm7/gpt-oss:20b', contextWindow: 131_072 }),
         expect.objectContaining({ id: 'ovh/Meta-Llama-3_3-70B-Instruct', contextWindow: 131_072 }),
         expect.objectContaining({ id: 'ovh/Qwen3.5-397B-A17B', contextWindow: 262_144 }),
         expect.objectContaining({ id: 'ovh/Qwen3.6-27B', contextWindow: 262_144 }),
         expect.objectContaining({ id: 'ovh/Qwen3.8-27B', contextWindow: 262_144 }),
-        expect.objectContaining({ id: 'ovh/Qwen3.5-9B', contextWindow: 262_144 }),
-        expect.objectContaining({ id: 'ovh/Qwen3-Coder-30B-A3B-Instruct', contextWindow: 262_144 }),
-        expect.objectContaining({ id: 'ovh/Qwen2.5-VL-72B-Instruct', contextWindow: 128_000 }),
         expect.objectContaining({ id: 'ovh/Mistral-Small-3.2-24B-Instruct-2506', contextWindow: 131_072 }),
         expect.objectContaining({ id: 'ovh/Mistral-Nemo-Instruct-2407', contextWindow: 131_072 }),
-        expect.objectContaining({ id: 'llm7/codestral-latest', contextWindow: 131_072 }),
         expect.objectContaining({ id: 'pollinations/openai', contextWindow: 131_072 }),
         expect.objectContaining({ id: 'pollinations/openai-fast', contextWindow: 131_072 }),
-        expect.objectContaining({ id: 'pollinations/gpt-oss', contextWindow: 131_072 }),
-        expect.objectContaining({ id: 'ovh/Mistral-7B-Instruct-v0.3', contextWindow: 32_768 }),
         expect.objectContaining({ id: 'auto', contextWindow: 32_768 }),
         expect.objectContaining({ id: 'llm7/default', contextWindow: 32_768 }),
-        expect.objectContaining({ id: 'llm7/fast', contextWindow: 32_768 }),
-        expect.objectContaining({ id: 'pollinations/ovh-reasoning', contextWindow: 32_768 }),
         expect.objectContaining({ id: 'freeai/qwen3-coder', contextWindow: 32_768 }),
         expect.objectContaining({ id: 'freeai/qwen-coder', contextWindow: 32_768 }),
+        expect.objectContaining({ id: 'freeai/qwen-vl', contextWindow: 32_768 }),
+        expect.objectContaining({ id: 'freeai/qwen7b', contextWindow: 32_768 }),
+        expect.objectContaining({ id: 'freeai/qwen25-vl', contextWindow: 32_768 }),
+        expect.objectContaining({ id: 'freeai/deepseek-r1', contextWindow: 32_768 }),
+        expect.objectContaining({ id: 'freeai/mistral', contextWindow: 32_768 }),
+        expect.objectContaining({ id: 'freeai/qwen3-8b', contextWindow: 32_768 }),
       ]));
     } finally {
       rmSync(dirname(home), { recursive: true, force: true });

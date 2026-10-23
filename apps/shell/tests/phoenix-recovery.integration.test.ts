@@ -18,7 +18,7 @@ it('continues the same real Host turn after a tool call when refresh hides its m
     .toContain('hiddenModelIds');
   const executable = process.platform === 'win32' ? resolve('node_modules/electron/dist/electron.exe') : process.execPath;
   expect(existsSync(executable), 'the packaged Electron ABI is required for the Host proof').toBe(true);
-  const pinned = 'kilo/minimax/minimax-m3.1-flash:free';
+  const pinned = 'kilo/poolside/laguna-s-2.1:free';
   const modelIds = ['auto', pinned];
   let failing = false;
   const generations: Array<{ model: string; messages: Array<{ role: string; tool_call_id?: string; content?: string }>; tools: Array<{ function: { name: string } }> }> = [];
@@ -41,7 +41,10 @@ it('continues the same real Host turn after a tool call when refresh hides its m
       const body = JSON.parse(raw);
       if (body.stream === false) {
         response.writeHead(failing ? 503 : 200, { 'content-type': 'application/json' });
-        response.end(JSON.stringify({ choices: [{ message: { role: 'assistant', content: 'pong' } }] }));
+        const message = Array.isArray(body.tools)
+          ? { role: 'assistant', content: null, tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'freecode_ping', arguments: '{}' } }] }
+          : { role: 'assistant', content: 'pong' };
+        response.end(JSON.stringify({ choices: [{ message }] }));
         return;
       }
       if (!Array.isArray(body.tools) || body.tools.length === 0) {

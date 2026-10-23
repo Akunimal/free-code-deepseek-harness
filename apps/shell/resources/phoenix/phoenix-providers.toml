@@ -5,17 +5,8 @@ adapter = "openai"
 base_url = "https://text.pollinations.ai/openai"
 auth = "none"
 models = [
-    # The public listing defines openai-fast as the canonical route. Keep its
-    # aliases available for exact pins without retrying/fanning out to the same
-    # gpt-oss-20b backend more than once during automatic routing. Alias list
-    # checked against the authoritative public listing on 2026-08-29.
     { name = "openai", rpd = 0, auto = false },
     { name = "openai-fast", rpd = 0 },
-    # Public listing plus three repeat non-empty anonymous completions on
-    # 2026-08-23. The provider currently resolves this selector to gpt-oss-20b.
-    { name = "gpt-oss", rpd = 0, auto = false },
-    { name = "gpt-oss-20b", rpd = 0, enabled = false, auto = false },
-    { name = "ovh-reasoning", rpd = 0, auto = false },
 ]
 
 [[provider]]
@@ -26,21 +17,7 @@ base_url = "https://api.llm7.io/v1"
 key_env = "LLM7_API_KEY"
 key_optional = true
 models = [
-    # LLM7's documented durable free selectors. Both returned three repeat
-    # non-empty anonymous completions through the real endpoint on 2026-07-29.
-    # `pro` is intentionally absent because it is a paid selector.
     { name = "default", rpd = 60 },
-    { name = "fast", rpd = 60 },
-    { name = "codestral-latest", rpd = 0 },
-    { name = "qwen3-235b", rpd = 0, enabled = false },
-    { name = "kimi-k2.6", rpd = 0, enabled = false },
-    { name = "minimax-m2.7", rpd = 0, enabled = false },
-    { name = "mistral-small-3.2", rpd = 0, enabled = false },
-    { name = "GLM-4.6V-Flash", rpd = 0, enabled = false },
-    { name = "devstral-small-2:24b", rpd = 0, enabled = false },
-    { name = "deepseek-v4-flash", rpd = 0, enabled = false },
-    { name = "deepseek-v3.1:671b-terminus", rpd = 0, enabled = false },
-    { name = "gemma3:27b", rpd = 0, enabled = false },
     { name = "gpt-oss:20b", rpd = 0, auto = false },
 ]
 
@@ -52,19 +29,11 @@ base_url = "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1"
 auth = "none"
 models = [
     { name = "Meta-Llama-3_3-70B-Instruct", rpd = 0 },
-    { name = "Llama-3.1-8B-Instruct", rpd = 0, enabled = false },
     { name = "Qwen3.5-397B-A17B", rpd = 0 },
     { name = "gpt-oss-120b", rpd = 0 },
     { name = "Mistral-Small-3.2-24B-Instruct-2506", rpd = 0 },
     { name = "Mistral-Nemo-Instruct-2407", rpd = 0 },
     { name = "Qwen3.6-27B", rpd = 0 },
-    { name = "Qwen3-32B", rpd = 0, enabled = false },
-    { name = "Qwen3.5-9B", rpd = 0 },
-    { name = "Qwen2.5-VL-72B-Instruct", rpd = 0 },
-    { name = "Mistral-7B-Instruct-v0.3", rpd = 0 },
-    { name = "gpt-oss-20b", rpd = 0 },
-    { name = "Qwen3-Coder-30B-A3B-Instruct", rpd = 0 },
-    # Three repeat non-empty completions on 2026-10-07; slow canaries keep it pin-only.
     { name = "Qwen3.8-27B", rpd = 0, auto = false },
 ]
 
@@ -75,9 +44,11 @@ adapter = "openai"
 base_url = "https://api.kilo.ai/api/gateway"
 auth = "none"
 models = [
-    { name = "minimax/minimax-m3.1-flash:free", rpd = 0 },
     { name = "poolside/laguna-s-2.1:free", rpd = 0 },
     { name = "dots-studio/dots-3-note-preview:free", rpd = 0 },
+    { name = "reflection/beam-free", rpd = 0 },
+    { name = "recursive/flint-v1.0:free", rpd = 0 },
+    { name = "liquid/lfm-2.5-2.6b:free", rpd = 0 },
 ]
 
 [[provider]]
@@ -89,4 +60,10 @@ auth = "none"
 models = [
     { name = "qwen3-coder", rpd = 0 },
     { name = "qwen-coder", rpd = 0 },
+    { name = "qwen-vl", rpd = 0 },
+    { name = "qwen7b", rpd = 0 },
+    { name = "qwen25-vl", rpd = 0 },
+    { name = "deepseek-r1", rpd = 0 },
+    { name = "mistral", rpd = 0 },
+    { name = "qwen3-8b", rpd = 0 },
 ]
