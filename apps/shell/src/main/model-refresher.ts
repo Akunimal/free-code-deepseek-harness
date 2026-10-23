@@ -120,7 +120,7 @@ export interface RefresherConfig {
   /** Environment variable holding the managed gateway's local API key. */
   apiKeyEnv?: string;
   providers?: readonly ProviderRefreshTarget[];
-  probeTimeoutMs?: number; // default 120000; free models can take >60s to answer
+  probeTimeoutMs?: number; // default PROBE_TIMEOUT_MS (45 s)
   onUpdate?: (catalog: ModelCatalog) => void;
 }
 
@@ -128,7 +128,11 @@ const CATALOG_FILE = 'model-catalog.json';
 // x-preview-f has been observed taking about a minute on a cold/upstream path.
 // A short probe timeout makes a healthy, advertised model disappear from the
 // user's selector while an in-flight request is still viable.
-const PROBE_TIMEOUT_MS = 120_000;
+// Each route runs a ping and, when it answers, a tool probe. Measured on the
+// installed app (2026-10-23) the slowest route that still answered took
+// ~30 s, and most answered in 1-3 s. 120 s let one hung route hold the whole
+// "Updating catalog" state for minutes; 45 s keeps that margin with a bounded wait.
+const PROBE_TIMEOUT_MS = 45_000;
 const FREE_PROVIDER = 'freecode-phoenix';
 
 /** Free models preferred as the out-of-the-box default, first match wins.

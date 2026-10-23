@@ -20,6 +20,8 @@ from v1.0.1 and changes which Phoenix routes the selector offers.
 - Dynamic Kilo routers (`kilo-auto/*`, `openrouter/free`) and Nemotron routes
   stay excluded.
 - Free.ai routes are capped at 32,768 tokens until a native window is published.
+- Each route probe times out after 45 s. A hung route no longer holds the
+  "Updating catalog" state for minutes.
 - The gateway keeps per-route circuit breakers (base cooldown 60 s, maximum 1 h),
   so Auto stops routing to a route that keeps failing before the next refresh.
 
@@ -35,8 +37,8 @@ from v1.0.1 and changes which Phoenix routes the selector offers.
 
 | Artifact | Size (bytes) | SHA-256 |
 | --- | --- | --- |
-| Setup `FreeCode-DeepSeek-Harness-1.0.2-win-x64-setup.exe` | 210,614,027 | `627481fe408f6a06394ab83ec88f9c588714ce86f99a9216c732a81d8edc33ff` |
-| Portable `FreeCode-DeepSeek-Harness-1.0.2-win-x64-portable.exe` | 210,238,903 | `19ac0371b0cd0f2ff45544090aba8dd23661b4d70d1c0f903bec120468572a92` |
+| Setup `FreeCode-DeepSeek-Harness-1.0.2-win-x64-setup.exe` | 210,614,305 | `622081e81be9c9851cb79dde99a5238901d1bb6bdec3a88ad909f45ed0042349` |
+| Portable `FreeCode-DeepSeek-Harness-1.0.2-win-x64-portable.exe` | 210,239,181 | `c7813525ac396bb817b9e91c9423c2b982f45488c15dd92cfcf266af965c29d0` |
 
 Output is in `apps/shell/release-1.0.2-final-20261023/`. Earlier releases and
 their artifacts are unchanged.
@@ -63,6 +65,8 @@ rutas Phoenix ofrece el selector.
   Nemotron siguen excluidos.
 - Las rutas de Free.ai tienen tope de 32.768 tokens hasta que se publique una
   ventana nativa.
+- Cada probe de ruta tiene timeout de 45 s. Una ruta colgada ya no mantiene el
+  estado "Updating catalog" durante minutos.
 - El gateway conserva circuit breakers por ruta (cooldown base 60 s, máximo 1 h),
   así Auto deja de enrutar a una ruta que sigue fallando antes del siguiente refresh.
 
@@ -78,8 +82,8 @@ rutas Phoenix ofrece el selector.
 
 | Artefacto | Tamaño (bytes) | SHA-256 |
 | --- | --- | --- |
-| Setup `FreeCode-DeepSeek-Harness-1.0.2-win-x64-setup.exe` | 210.614.027 | `627481fe408f6a06394ab83ec88f9c588714ce86f99a9216c732a81d8edc33ff` |
-| Portable `FreeCode-DeepSeek-Harness-1.0.2-win-x64-portable.exe` | 210.238.903 | `19ac0371b0cd0f2ff45544090aba8dd23661b4d70d1c0f903bec120468572a92` |
+| Setup `FreeCode-DeepSeek-Harness-1.0.2-win-x64-setup.exe` | 210.614.305 | `622081e81be9c9851cb79dde99a5238901d1bb6bdec3a88ad909f45ed0042349` |
+| Portable `FreeCode-DeepSeek-Harness-1.0.2-win-x64-portable.exe` | 210.239.181 | `c7813525ac396bb817b9e91c9423c2b982f45488c15dd92cfcf266af965c29d0` |
 
 La salida está en `apps/shell/release-1.0.2-final-20261023/`. Las versiones
 anteriores y sus artefactos no cambian.
