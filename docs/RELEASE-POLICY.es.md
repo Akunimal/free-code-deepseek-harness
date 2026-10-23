@@ -5,7 +5,7 @@
 Las releases son manuales y tienen como target Windows x64. Esta política
 nunca autoriza tocar la instancia activa de FreeCode.
 
-**Estado de release:** v1.0.2 está compilada localmente para Windows x64 y aún no publicada. El setup y el
+**Estado de release:** v1.0.2 está publicada para Windows x64. El setup y el
 portable actuales se compilaron, verificaron y publicaron en GitHub Releases.
 Todos los gates obligatorios, tests e instalación limpia fueron completados.
 La última release desktop publicada anteriormente fue la histórica v1.0.0.

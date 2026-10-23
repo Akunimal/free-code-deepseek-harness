@@ -5,7 +5,7 @@
 Releases are manual and target Windows x64. This policy never authorizes
 touching the maintainer's running FreeCode instance.
 
-**Release status:** v1.0.2 is built locally for Windows x64 and not yet published. The current setup and
+**Release status:** v1.0.2 is published for Windows x64. The current setup and
 portable were built, verified, and published on GitHub Releases. All mandatory
 gates, tests, and installation checks passed. The last published desktop
 release was the historical v1.0.0.

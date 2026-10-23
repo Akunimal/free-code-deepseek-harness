@@ -10,7 +10,7 @@ another FreeLLMpool installation or a pre-existing port/service. Auto Phoenix
 is first in the selector. A concrete model stays strictly pinned; only Auto may
 try another eligible free route before the first stream byte.
 
-**Release status:** v1.0.2 is built locally for Windows x64 and not yet published. The NSIS setup and
+**Release status:** v1.0.2 is published for Windows x64. The NSIS setup and
 portable executables were built, verified, and published on GitHub Releases.
 The last published desktop release was the historical
 [v1.0.0 release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).

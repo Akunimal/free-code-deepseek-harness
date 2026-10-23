@@ -44,7 +44,7 @@ issue on Windows loopback (`127.0.0.1`) where accumulated ephemeral `dsh-auth-*`
 cookies exceeded Node's 16 KB default header buffer, by adding automatic
 startup/navigation cookie cleanup and extending `--max-http-header-size=65536`.
 
-**Release status:** v1.0.2 is built locally for Windows x64 and not yet published. The updated setup and
+**Release status:** v1.0.2 is published for Windows x64. The updated setup and
 portable were built and verified; the full test suite and installation smoke
 passed. The last published desktop release was the historical
 [v1.0.0 release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
@@ -157,7 +157,7 @@ Gentle AI mode were removed in 1.0.0; the Standard modes cover their use.
 
 ## Install and first run
 
-1. Download the [v1.0.1 GitHub release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.1) (latest published; v1.0.2 is not yet published)
+1. Download the [v1.0.2 GitHub release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.2)
    setup installer or standalone portable executable.
 2. Install or unpack it and launch the real shortcut/executable.
 3. Select a project directory in the picker.
@@ -367,7 +367,7 @@ The current runtime is local alpha.12. The `runtime-0.2.1-alpha.12`
 release provides the verified public runtime asset.
 
 The [v1.0.0 GitHub release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0)
-is historical; v1.0.2 is not yet published on GitHub Releases. The current release artifacts are in
+is historical; v1.0.2 is published on GitHub Releases. The current release artifacts are in
 `apps/shell/release-1.0.2-final-20261023/`; historical folders are not overwritten.
 The gate does not install or launch the FreeCode GUI. The interactive installer
 smoke installs, launches and uninstalls, so it is only allowed in a disposable

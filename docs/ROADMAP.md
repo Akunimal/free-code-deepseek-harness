@@ -17,7 +17,7 @@ first-launch download. See the [bilingual v1.0.2 release notes](../release-notes
 All shell-owned background Windows process trees continue to launch through
 `freecode-launcher` and the verified GUI-subsystem `headless-host` helper.
 
-**Release status:** v1.0.2 is built locally for Windows x64 and not yet published. The setup and portable
+**Release status:** v1.0.2 is published for Windows x64. The setup and portable
 executables are built, verified, and published on GitHub Releases. The last
 published desktop release was historical [v1.0.0](../release-notes-v1.0.0.md).
 
@@ -40,7 +40,7 @@ excluyen Nemotron y alias dinámicos de Kilo. DSH `0.2.1-alpha.12` sigue
 descargándose por separado en el primer inicio. Ver las [notas de release
 bilingües v1.0.2](../release-notes-v1.0.2.md).
 
-**Estado de release:** v1.0.2 está compilada localmente para Windows x64 y aún no publicada. Setup y portable
+**Estado de release:** v1.0.2 está publicada para Windows x64. Setup y portable
 fueron verificados e instalados exitosamente. La última release desktop publicada
 anteriormente fue la histórica [v1.0.0](../release-notes-v1.0.0.md).
 

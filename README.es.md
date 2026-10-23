@@ -47,7 +47,7 @@ acumulación de cookies de autenticación efímeras `dsh-auth-*` que superaban e
 límite de 16 KB de Node.js, mediante purga automática al arrancar/navegar y
 ampliación a `--max-http-header-size=65536`.
 
-**Estado de release:** v1.0.2 está compilada localmente para Windows x64 y aún no publicada. El setup y el
+**Estado de release:** v1.0.2 está publicada para Windows x64. El setup y el
 portable actualizados se compilaron y verificaron; la instalación y smoke tests
 fueron completados con éxito. La última release desktop publicada fue la histórica
 [v1.0.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
@@ -161,7 +161,7 @@ modo Gentle AI se eliminaron en 1.0.0; los modos Standard cubren su uso.
 
 ## Instalación y primer uso
 
-1. Descargá el instalador o ejecutable portable desde la [release v1.0.1 de GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.1) (última publicada; v1.0.2 aún no está publicada).
+1. Descargá el instalador o ejecutable portable desde la [release v1.0.2 de GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.2).
 2. Instalalo o descomprimilo y abrí el acceso directo/ejecutable real.
 3. Elegí la carpeta de tu proyecto en el picker.
 4. Esperá a que carguen los modelos free (spinner en el selector) y pedile al
@@ -363,7 +363,7 @@ El runtime actual es alpha.12; la pre-release `runtime-0.2.1-alpha.12`
 provee el asset verificado correspondiente.
 
 La [release v1.0.0 en GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0)
-es histórica; v1.0.2 aún no está publicada en GitHub Releases. Los artefactos actuales
+es histórica; v1.0.2 está publicada en GitHub Releases. Los artefactos actuales
 están en `apps/shell/release-1.0.2-final-20261023/`; las carpetas históricas no se sobrescriben.
 El gate no instala ni inicia la GUI de FreeCode. El smoke interactivo instala,
 inicia y desinstala, por lo que solo se permite en una VM Windows desechable;

@@ -2,9 +2,9 @@
 
 ## English
 
-### Release v1.0.2 — Windows x64 (local build, not yet published)
+### Release v1.0.2 — Windows x64 (published)
 
-v1.0.2 is built locally for Windows x64 with an NSIS setup installer and a
+v1.0.2 is published for Windows x64 with an NSIS setup installer and a
 standalone portable executable. It keeps the Phoenix/FreeLLMpool 0.13.0 gateway
 from v1.0.1 and changes which Phoenix routes the selector offers.
 
@@ -45,9 +45,9 @@ their artifacts are unchanged.
 
 ## Español
 
-### Release v1.0.2 — Windows x64 (compilación local, aún no publicada)
+### Release v1.0.2 — Windows x64 (publicada)
 
-v1.0.2 está compilada localmente para Windows x64 con instalador NSIS y ejecutable
+v1.0.2 está publicada para Windows x64 con instalador NSIS y ejecutable
 portable. Mantiene el gateway Phoenix/FreeLLMpool 0.13.0 de v1.0.1 y cambia qué
 rutas Phoenix ofrece el selector.
 

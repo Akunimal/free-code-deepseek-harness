@@ -14,7 +14,7 @@ dinámicos reciben un límite conservador de 32.768 tokens si el gateway no
 declara uno. El proveedor puede limitar más la ruta; ver valores y fuentes en
 las notas bilingües.
 
-**Estado de release:** v1.0.2 está compilada localmente para Windows x64 y aún no publicada. El setup y el
+**Estado de release:** v1.0.2 está publicada para Windows x64. El setup y el
 portable actuales se compilaron, verificaron y publicaron en GitHub Releases.
 La última release desktop publicada anteriormente fue la histórica
 [v1.0.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
