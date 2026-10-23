@@ -13,6 +13,10 @@ are in one language only. Each entry below says which.
 
 ## Start here
 
+- [Handoff state (Free.ai provider, Phoenix)](../STATE.md): current branch and
+  commits, provider rules, how to add a provider, rejected candidates. Read it
+  before changing Phoenix.
+
 - [README](../README.md) / [README.es.md](../README.es.md): what FreeCode is,
   install, first run.
 - [CHANGELOG](../CHANGELOG.md): version history.
