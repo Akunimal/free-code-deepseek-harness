@@ -1,5 +1,7 @@
 # FreeCode DeepSeek Harness
 
+![Selector de modelos de FreeCode con Auto Phoenix y modelos gratuitos](docs/assets/app-model-selector.png)
+
 ### Release actual: v1.0.1 (Windows x64)
 
 La release v1.0.1 reemplaza el gateway OpenCode2API por Phoenix,
