@@ -16,8 +16,12 @@ __pycache__/
 apps/shell/resources/opencode2api/
 apps/shell/resources/dsh-cli/
 apps/shell/resources/dsh-web/
-apps/shell/resources/freecode/
+# Generated staging and runtime payloads stay out of git. The Windows headless
+# helper is committed so a fresh clone needs no Go toolchain.
+apps/shell/resources/freecode/*
 !apps/shell/resources/freecode/.gitkeep
+!apps/shell/resources/freecode/headless-host.exe
+!apps/shell/resources/freecode/headless-host.json
 apps/shell/release/
 apps/shell/release-*/
 # Local release staging; upload these assets but do not commit binaries.
@@ -31,6 +35,10 @@ graphify-out/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/
 .tmp-graphify*/
 *.exe
 !native/**/build/
+# Pinned FreeLLMpool gateway, committed so a fresh clone needs no PyInstaller build.
+# Release setup and portable executables stay ignored.
+!apps/shell/resources/phoenix/freellmpool-win-x64.exe
+!apps/shell/resources/freecode/headless-host.exe
 
 # Native addon builds
 apps/shell/native/*/build/
