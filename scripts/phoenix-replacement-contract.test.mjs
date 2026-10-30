@@ -6,10 +6,12 @@ import test from 'node:test';
 const root = new URL('../', import.meta.url);
 const read = (path) => readFileSync(new URL(path, root), 'utf8');
 
-test('no active OpenCode2API source, gateway package, or build pipeline remains', () => {
+test('no active OpenCode2API or Phoenix source, gateway package, or build pipeline remains', () => {
   const retiredPaths = [
     'apps/shell/src/main/opencode2api.ts',
     'apps/shell/src/main/proxy-rotator.ts',
+    'apps/shell/src/main/phoenix-gateway.ts',
+    'apps/shell/src/main/phoenix-payload.ts',
     'apps/shell/tests/opencode2api-proxyfile.test.ts',
     'apps/shell/tests/proxy-rotator.test.ts',
     'scripts/apply-opencode2api-patches.mjs',
@@ -18,6 +20,7 @@ test('no active OpenCode2API source, gateway package, or build pipeline remains'
     'scripts/build-opencode2api.test.mjs',
     'scripts/opencode2api-staging.mjs',
     'scripts/opencode2api-staging.test.mjs',
+    'scripts/freellmpool-staging.mjs',
     'vendor/opencode2api',
     'packages/opencode-adapter',
     'patches/opencode2api-developer-role.patch',
@@ -29,32 +32,24 @@ test('no active OpenCode2API source, gateway package, or build pipeline remains'
   assert.deepEqual(stillPresent, [], `retired gateway artifacts remain active: ${stillPresent.join(', ')}`);
 });
 
-test('the app packages and verifies only the pinned Phoenix FreeLLMpool gateway', () => {
+test('the app packages without external Go gateway binaries and uses dsh-our-free-model', () => {
   const runtimeDeps = JSON.parse(read('apps/shell/resources/runtime-deps.json'));
   const phoenix = runtimeDeps.dependencies.find((dependency) => dependency.id === 'phoenix');
   const packageConfig = read('apps/shell/electron-builder.yml');
   const shellPackage = JSON.parse(read('apps/shell/package.json'));
-  const rootPackage = JSON.parse(read('package.json'));
   const preflight = read('apps/shell/src/main/preflight.ts');
   const packageRuntime = read('scripts/package-runtime.sh');
 
-  assert.ok(phoenix, 'Phoenix must have a pinned runtime manifest entry');
-  assert.equal(phoenix.required, true);
-  assert.equal(phoenix.path, 'phoenix/freellmpool-win-x64.exe');
-  assert.equal(phoenix.network, true);
+  assert.equal(phoenix, undefined, 'Phoenix must not be in runtime dependencies');
   assert.equal(runtimeDeps.dependencies.some((dependency) => dependency.id === 'opencode2api'
-    || /opencode2api/i.test(dependency.path ?? '')), false);
+    || /opencode2api|phoenix/i.test(dependency.path ?? '')), false);
   assert.match(packageConfig, /'\*\*\/\*'/);
-  assert.match(packageConfig, /'!opencode2api\/\*\*'/);
-  assert.match(shellPackage.scripts['prepackage:verify'], /freellmpool-staging\.mjs --verify/);
+  assert.doesNotMatch(shellPackage.scripts['prepackage:verify'], /freellmpool-staging/);
   assert.doesNotMatch(shellPackage.scripts['prepackage:verify'], /opencode2api/);
-  assert.doesNotMatch(JSON.stringify(shellPackage.dependencies), /opencode-adapter/);
-  assert.doesNotMatch(rootPackage.scripts.test + rootPackage.scripts['test:contract'], /opencode-adapter/);
-  assert.match(preflight, /freellmpool-win-x64\.exe/);
+  assert.doesNotMatch(preflight, /freellmpool/);
   assert.doesNotMatch(preflight, /opencode2api/);
-  assert.match(packageRuntime, /freellmpool-staging\.mjs/);
+  assert.doesNotMatch(packageRuntime, /freellmpool-staging\.mjs/);
   assert.doesNotMatch(packageRuntime, /opencode2api-staging\.mjs/);
-  assert.match(read('scripts/verify-nsis-install-layout.mjs'), /resources\/freecode\/phoenix\/freellmpool-win-x64\.exe/);
 });
 
 test('Linux AppImage release validation refuses an unsupported sidecar architecture', () => {

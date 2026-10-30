@@ -75,8 +75,7 @@ test('release plan statically validates an isolated NSIS build without install o
   assert.match(commandText, /release-artifacts\.test\.mjs/);
   assert.match(commandText, /release-version-docs\.test\.mjs/);
   assert.match(commandText, /vendor-client-contracts\.test\.mjs/);
-  assert.match(commandText, /phoenix-router-contracts\.test\.mjs/);
-  assert.match(commandText, /freellmpool-staging\.test\.mjs/);
+  assert.doesNotMatch(commandText, /freellmpool-staging\.test\.mjs/);
   assert.doesNotMatch(commandText, /opencode2api-staging\.test\.mjs/);
   assert.ok(plan.some(step => step.label === 'vendor-strict-typechecks'
     && step.args.join(' ').includes('tsc -b tsconfig.host.json tsconfig.client.json')));

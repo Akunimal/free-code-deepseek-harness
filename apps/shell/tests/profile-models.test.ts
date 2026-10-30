@@ -41,15 +41,18 @@ describe('active DSH profile model boundary', () => {
   it('refuses a malformed profile without overwriting user data', () => {
     const {home, path} = fixture(); const malformed = '- id: [unterminated';
     writeFileSync(path, malformed);
-    expect(() => seedProviders({homeDir: home, lbBaseUrl: 'http://127.0.0.1:51593/v1'})).toThrow('Invalid DSH configuration');
+    expect(() => seedProviders({homeDir: home})).toThrow('Invalid DSH configuration');
     expect(readFileSync(path, 'utf8')).toBe(malformed);
   });
-  it('removes the stale app route and default before boot without losing custom routes', () => {
+  it('removes the stale app route and sets default to our-free-model without losing custom routes', () => {
     const {home, path} = fixture();
-    seedProviders({homeDir: home, lbBaseUrl: 'http://127.0.0.1:51593/v1'});
+    seedProviders({homeDir: home});
     expect(providers(path)['freecode-phoenix']).toBeUndefined();
     expect(providers(path).custom.models).toEqual(['custom-model']);
-    expect(profile(path).find(x => x.id === 'agent-default-model')).toBeUndefined();
+    expect(profile(path).find(x => x.id === 'agent-default-model')?.config).toEqual({
+      provider: 'our-free-model',
+      model: 'deepseek-v4.1-flash-free',
+    });
     expect(existsSync(join(home, 'settings.yaml'))).toBe(false);
   });
 
@@ -76,7 +79,7 @@ describe('active DSH profile model boundary', () => {
     const {home, path} = fixture();
     writeFileSync(path, readFileSync(path, 'utf8') + '\n# do not execute or rewrite this expression\n- id: custom-plugin\n  disabled: !!js process.env.USER_PLUGIN_DISABLED\n');
     writeFileSync(join(home, 'settings.yaml'), 'llm-pi-ai:\n  providers:\n    freecode-phoenix:\n      models: [{id: x-preview-f}]\nui-theme:\n  dark: true\n');
-    seedProviders({homeDir: home, lbBaseUrl: 'http://127.0.0.1:51593/v1'});
+    seedProviders({homeDir: home});
     expect(readFileSync(path, 'utf8')).toContain('disabled: !!js process.env.USER_PLUGIN_DISABLED');
     expect(readFileSync(path, 'utf8')).toContain('# do not execute or rewrite this expression');
     expect(readFileSync(join(home, 'settings.yaml'), 'utf8')).not.toContain('x-preview-f');

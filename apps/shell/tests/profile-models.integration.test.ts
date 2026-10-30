@@ -11,7 +11,7 @@ it('updates the real running Host selector and endpoint through profile HMR with
   const home = mkdtempSync(join(tmpdir(), 'freecode-profile-host-'));
   const profile = join(home, 'profiles/web'); mkdirSync(profile, {recursive: true});
   writeFileSync(join(profile, 'cordis.patch.yml'), `- id: llm-pi-ai\n  name: '@deepseek-ai/dsh-llm-pi-ai'\n  config:\n    providers:\n      freecode-phoenix:\n        api: openai-completions\n        baseURL: http://127.0.0.1:50291/v1\n        models: [{id: x-preview-f}]\n- id: agent-default-model\n  name: '@deepseek-ai/dsh-agent-default-model'\n  config: {provider: freecode-phoenix, model: x-preview-f}\n`);
-  seedProviders({homeDir: home, lbBaseUrl: 'http://127.0.0.1:51593/v1'});
+  seedProviders({homeDir: home});
   const proc = launchHidden({ executable: process.platform === 'win32' ? resolve('node_modules/electron/dist/electron.exe') : process.execPath,
     args: [resolve('../../vendor/deepseek-harness/apps/cli/lib/bin.js'), 'web', '--host', '127.0.0.1', '--port', '0', '--no-open'],
     env: {...process.env, ELECTRON_RUN_AS_NODE: '1', DSH_HOME: home, FREECODE_WEB_MODE: '1', FREECODE_PUBLIC_KEY: 'public'},

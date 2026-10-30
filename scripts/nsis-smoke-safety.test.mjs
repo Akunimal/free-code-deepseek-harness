@@ -100,15 +100,15 @@ test('installed app smoke redirects all user-scoped writes into the disposable i
   assert.equal(environment.env.PATH, 'C:\\Windows\\System32');
 });
 
-test('NSIS clean install and upgrade smoke require Phoenix and reject the retired gateway', () => {
+test('NSIS clean install and upgrade smoke require runtime manifest and reject the retired gateways', () => {
   const installSmoke = readFileSync(new URL('verify-nsis-install-layout.mjs', import.meta.url), 'utf8');
   const upgradeSmoke = readFileSync(new URL('verify-nsis-upgrade.mjs', import.meta.url), 'utf8');
 
-  assert.match(installSmoke, /resources\/freecode\/phoenix\/freellmpool-win-x64\.exe/);
-  assert.match(installSmoke, /resources\/freecode\/phoenix\/freecode-build-receipt\.json/);
+  assert.match(installSmoke, /'resources\/freecode\/runtime-manifest\.json'/);
   assert.match(installSmoke, /'resources\/freecode\/opencode2api'/);
+  assert.match(installSmoke, /'resources\/freecode\/phoenix'/);
   assert.match(upgradeSmoke, /legacyLayoutIsPopulated[\s\S]*resources\/freecode\/opencode2api\/opencode2api-win-x64\.exe/);
-  assert.match(upgradeSmoke, /layoutIsPopulated[\s\S]*resources\/freecode\/phoenix\/freellmpool-win-x64\.exe/);
+  assert.match(upgradeSmoke, /layoutIsPopulated[\s\S]*!existsSync\(join\(installDir, 'resources\/freecode\/phoenix'\)\)/);
   assert.match(upgradeSmoke, /layoutIsPopulated[\s\S]*!existsSync\(join\(installDir, 'resources\/freecode\/opencode2api'\)\)/);
 });
 

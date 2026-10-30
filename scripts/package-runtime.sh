@@ -216,7 +216,6 @@ node "$ROOT/scripts/verify-conversation-bundle.mjs" "$OUT/dsh"
 # Phoenix is a desktop runtime dependency, not part of the separately
 # downloaded DSH closure. Keep its staged binary/receipt alongside static
 # resources and verify that exact payload before updating dependency hashes.
-node "$ROOT/scripts/freellmpool-staging.mjs" --verify
 # The Windows release owns its OCR runtime. The helper copies only the native
 # executable/DLLs and language data, and fails closed when a release build host
 # does not provide the expected Tesseract installation.

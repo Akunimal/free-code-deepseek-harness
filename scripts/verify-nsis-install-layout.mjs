@@ -107,15 +107,12 @@ try {
     exitCode = 2;
   } else {
     const REQUIRED_FILES = [
-      'resources/freecode/phoenix/freellmpool-win-x64.exe',
-      'resources/freecode/phoenix/freecode-build-receipt.json',
-      'resources/freecode/phoenix/phoenix-model-ids.json',
-      'resources/freecode/phoenix/LICENSE',
       'resources/freecode/runtime-manifest.json',
     ];
     const FORBIDDEN_PATHS = [
       'resources/freecode/dsh',
       'resources/freecode/opencode2api',
+      'resources/freecode/phoenix',
     ];
     const missing = REQUIRED_FILES.filter((rel) => !existsSync(join(installDir, rel)));
     const unexpectedlyBundled = FORBIDDEN_PATHS.filter((rel) => existsSync(join(installDir, rel)));

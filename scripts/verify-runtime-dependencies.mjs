@@ -77,14 +77,9 @@ if (!payloadExists) {
 }
 
 const legacyGatewayPresent = manifest.dependencies.some((dep) => dep.id === 'opencode2api'
-  || /opencode2api/i.test(dep.path ?? ''));
-logCheck('retired-gateway-absent', !legacyGatewayPresent, legacyGatewayPresent ? 'OpenCode2API runtime entry is forbidden' : 'Phoenix replaces the retired gateway');
-const phoenix = manifest.dependencies.find((dep) => dep.id === 'phoenix');
-const phoenixContractValid = phoenix?.required === true
-  && phoenix.path === 'phoenix/freellmpool-win-x64.exe'
-  && phoenix.arch === 'win-x64'
-  && phoenix.network === true;
-logCheck('phoenix-gateway-contract', phoenixContractValid, phoenixContractValid ? phoenix.path : 'required pinned Windows x64 Phoenix gateway missing or invalid');
+  || dep.id === 'phoenix'
+  || /opencode2api|freellmpool/i.test(dep.path ?? ''));
+logCheck('retired-gateways-absent', !legacyGatewayPresent, legacyGatewayPresent ? 'Retired gateways forbidden' : 'dsh-our-free-model is sole backend');
 
 // 3. Check each dependency
 const requiredMissing = [];

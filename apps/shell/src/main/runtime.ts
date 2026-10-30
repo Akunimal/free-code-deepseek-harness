@@ -2,17 +2,16 @@ import { HarnessSupervisor, HarnessInstance } from './harness-supervisor.js';
 import { SecretStore, resolveSecrets } from './secret-store.js';
 import { join, resolve } from 'node:path';
 import { retireRemovedRuntime } from './retired-runtime.js';
-import { startPhoenixGateway, type PhoenixGatewayInstance } from './phoenix-gateway.js';
 import { embeddedMcpEnvironment, ensureEmbeddedMcpConfig } from './mcp-home.js';
 import type { EmbeddedMcpState, McpRuntimeStatus, WorkerHandle } from '@freecode/shared-types';
 
 /**
- * Shell runtime — owns the full backend stack of the desktop app:
- *   packaged Phoenix/FreeLLMpool gateway -> dsh web supervisor.
+ * Shell runtime — owns the backend stack of the desktop app:
+ *   dsh web supervisor powered by dsh-our-free-model plugin.
  */
 
 export interface ShellRuntimeConfig {
-  /** Static resources dir containing the packaged Phoenix gateway and OCR. */
+  /** Static resources dir. */
   resourcesDir: string;
   /** Root containing the DSH CLI; defaults to resourcesDir for development. */
   harnessDir?: string;
@@ -39,8 +38,6 @@ export interface ShellRuntimeConfig {
 export type McpStatusListener = (status: McpRuntimeStatus) => void;
 
 export interface ShellRuntime {
-  /** Hash-verified Phoenix/FreeLLMpool gateway owned by this shell process. */
-  phoenix: PhoenixGatewayInstance;
   supervisor: HarnessSupervisor;
   /** No per-worker handles; returns empty array. */
   workers: () => WorkerHandle[];
@@ -154,19 +151,10 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
       extraEnv[k] = v;
     }
   }
-  // Phoenix is a required part of this product build. A missing or invalid
-  // payload is a startup error; never start DSH with a stale gateway URL.
-  const phoenix = await startPhoenixGateway({
-    resourcesDir: cfg.resourcesDir,
-    userDataDir: cfg.userDataDir,
-    log,
-  });
-
   const gatewayEnv = {
     ...cfg.extraEnv,
     ...mcpEnv,
     ...extraEnv,
-    FREECODE_PHOENIX_API_KEY: phoenix.apiKey,
   };
 
   const supervisor = new HarnessSupervisor({
@@ -184,7 +172,6 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
   });
 
   return {
-    phoenix,
     supervisor,
     workers: () => [],
     mcpState,
@@ -205,7 +192,6 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
         ...cfg.extraEnv,
         ...mcpEnv,
         ...extraEnv,
-        FREECODE_PHOENIX_API_KEY: phoenix.apiKey,
       });
       return mcpState();
     },
@@ -220,7 +206,6 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
     },
     stop: async () => {
       await supervisor.stop();
-      await phoenix.stop();
     },
   };
 }

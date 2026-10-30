@@ -1,7 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { assertHeadlessDesktopRuntime } from './headless-runtime-capability.js';
-import { verifyPhoenixPayload } from './phoenix-payload.js';
 
 /**
  * Startup preflight — verifies the harness runtime layout is intact before
@@ -49,14 +48,6 @@ function criticalPaths(resourcesDir: string, harnessDir: string, platform: NodeJ
     { path: join(dsh, 'node_modules', '@deepseek-ai', 'dsh-host-directory-picker-native', 'lib', 'index.js'),
       label: 'directory-picker-native bundle' },
   ];
-  if (platform === 'win32') {
-    paths.push(
-      { path: join(resourcesDir, 'phoenix', 'freellmpool-win-x64.exe'), label: 'Phoenix FreeLLMpool win-x64 executable' },
-      { path: join(resourcesDir, 'phoenix', 'freecode-build-receipt.json'), label: 'Phoenix build receipt' },
-      { path: join(resourcesDir, 'phoenix', 'phoenix-model-ids.json'), label: 'Phoenix model allowlist' },
-      { path: join(resourcesDir, 'phoenix', 'LICENSE'), label: 'Phoenix FreeLLMpool license' },
-    );
-  }
   return paths;
 }
 
@@ -188,12 +179,6 @@ export function verifyHarnessLayout(options: PreflightOptions): PreflightResult 
     } catch {
       // Already reported.
     }
-  }
-
-  try {
-    verifyPhoenixPayload(options.resourcesDir, platform, arch);
-  } catch (error) {
-    warnings.push(error instanceof Error ? error.message : String(error));
   }
 
   const bridgeWarning = verifyBridgeInvariant(harnessDir, platform);

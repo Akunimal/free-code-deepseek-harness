@@ -72,18 +72,14 @@ describe('runtime dependency pins', () => {
   it('refreshes the integrity lock automatically after the staged runtime is copied', () => {
     const packageScript = readFileSync(new URL('../../../scripts/package-runtime.sh', import.meta.url), 'utf8')
     expect(packageScript).toContain('refresh-runtime-dependency-pins.mjs')
-    expect(packageScript).toContain('freellmpool-staging.mjs')
+    expect(packageScript).not.toContain('freellmpool-staging.mjs')
     expect(packageScript).not.toContain('opencode2api-staging.mjs')
   })
 
-  it('does not declare OpenCode2API as a runtime dependency', () => {
+  it('does not declare OpenCode2API or Phoenix as runtime dependencies', () => {
     const manifest = JSON.parse(readFileSync(new URL('../resources/runtime-deps.json', import.meta.url), 'utf8')) as RuntimeManifest
     expect(manifest.dependencies.some((dependency) => dependency.id === 'opencode2api'
-      || /opencode2api/i.test(dependency.path ?? ''))).toBe(false)
-    expect(manifest.dependencies.find((dependency) => dependency.id === 'phoenix')).toMatchObject({
-      required: true,
-      path: 'phoenix/freellmpool-win-x64.exe',
-      network: true,
-    })
+      || dependency.id === 'phoenix'
+      || /opencode2api|freellmpool/i.test(dependency.path ?? ''))).toBe(false)
   })
 })

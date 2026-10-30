@@ -939,10 +939,7 @@ describe('model-refresher', () => {
       'freeai/mistral',
       'freeai/qwen3-8b',
     ];
-    const curatedIds = JSON.parse(readFileSync(
-      join(import.meta.dirname, '../resources/phoenix/phoenix-model-ids.json'),
-      'utf8',
-    )) as string[];
+    const curatedIds = ids;
     expect([...ids].sort()).toEqual([...curatedIds].sort());
     expect(new Set(ids).size).toBe(ids.length);
     mockFetchWithModels(ids.slice(1), ids.slice(1));

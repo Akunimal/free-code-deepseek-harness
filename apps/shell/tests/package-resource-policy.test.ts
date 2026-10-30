@@ -90,7 +90,7 @@ describe('desktop package payload policy', () => {
     expect(resourcesBlock).toContain("'**/*'");
     expect(resourcesBlock).toContain("'!opencode2api'");
     expect(resourcesBlock).toContain("'!opencode2api/**'");
-    expect(packageScripts['prepackage:verify']).toContain('freellmpool-staging.mjs --verify');
+    expect(packageScripts['prepackage:verify']).not.toContain('freellmpool-staging.mjs');
     expect(packageScripts['prepackage:verify']).not.toContain('opencode2api-staging.mjs');
   });
 });

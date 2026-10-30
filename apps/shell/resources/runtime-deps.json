@@ -9,30 +9,6 @@
   "payloadDir": "resources/freecode",
   "dependencies": [
     {
-      "id": "phoenix",
-      "name": "Phoenix FreeLLMpool Gateway",
-      "version": "0.13.0",
-      "arch": "win-x64",
-      "source": "0xzr/freellmpool@e4411650da95edf3002c6789ccd1c816aedae1d4",
-      "license": "MIT",
-      "sha256": "bde20c6741d783f0c9940e50b45601f4b06b98f69a9f8ed202b5ed594162cb20",
-      "path": "phoenix/freellmpool-win-x64.exe",
-      "launch": {
-        "type": "exec",
-        "args": [
-          "--host",
-          "127.0.0.1",
-          "--port",
-          "$PHOENIX_PORT",
-          "--state-dir",
-          "$PHOENIX_STATE_DIR"
-        ],
-        "cwd": "$PHOENIX_STATE_DIR"
-      },
-      "network": true,
-      "required": true
-    },
-    {
       "id": "dsh-cli",
       "name": "dsh CLI",
       "version": "0.2.1-alpha.1",
