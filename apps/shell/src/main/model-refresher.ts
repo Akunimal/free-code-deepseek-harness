@@ -431,6 +431,7 @@ function hasUsableChatCompletion(value: unknown): boolean {
     if (!message) return false;
     const content = message.content;
     if (typeof content === 'string' && content.trim().length > 0) return true;
+    if (typeof message.reasoning_content === 'string' && message.reasoning_content.trim().length > 0) return true;
     if (Array.isArray(content) && content.some((part) => {
       const block = asRecord(part);
       return typeof block?.text === 'string' && block.text.trim().length > 0;

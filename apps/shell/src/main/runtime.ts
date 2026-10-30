@@ -161,6 +161,7 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
     userDataDir: cfg.userDataDir,
     log,
   });
+
   const gatewayEnv = {
     ...cfg.extraEnv,
     ...mcpEnv,
@@ -200,7 +201,12 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
         FREECODE_UVX_COMMAND: cfg.uvxCommand ?? 'uvx',
         ...ocrEnv,
       };
-      supervisor.updateExtraEnv({ ...cfg.extraEnv, ...mcpEnv, ...extraEnv, FREECODE_PHOENIX_API_KEY: phoenix.apiKey });
+      supervisor.updateExtraEnv({
+        ...cfg.extraEnv,
+        ...mcpEnv,
+        ...extraEnv,
+        FREECODE_PHOENIX_API_KEY: phoenix.apiKey,
+      });
       return mcpState();
     },
     resetMcpStatus,

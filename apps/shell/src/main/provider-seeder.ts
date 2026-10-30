@@ -10,7 +10,7 @@ export interface SeederConfig {
 }
 
 const PHOENIX_PROVIDER = 'freecode-phoenix';
-const LEGACY_MANAGED_PROVIDERS = ['deepseek-free', 'kilo-free', 'gemini-web'] as const;
+const LEGACY_MANAGED_PROVIDERS = ['deepseek-free', 'kilo-free', 'gemini-web', 'freecode-opencode'] as const;
 
 /**
  * Retire app-owned routes before DSH reads its active web profile. Current DSH
