@@ -11,6 +11,7 @@ const MANAGED_KEYS = new Set([MANAGED_PROVIDER, 'deepseek-free', 'kilo-free', 'o
 const ENTRY_NAMES: Record<string, string> = {
   'llm-pi-ai': '@deepseek-ai/dsh-llm-pi-ai',
   'agent-default-model': '@deepseek-ai/dsh-agent-default-model',
+  'our-free-model': 'dsh-our-free-model',
 };
 export function harnessSettingsPath(home: string): string {
   return join(home, 'profiles', 'web', 'cordis.patch.yml');
@@ -77,6 +78,13 @@ export function writeHarnessSettings(home: string, settings: Settings): boolean 
     let node = entry(entries, ns);
     const desired = settings[ns];
     if (desired === undefined) {
+      if (ns === 'our-free-model') {
+        if (!node) {
+          node = doc.createNode({ id: ns, name, config: { distribution: 'managed' } }) as YAMLMap;
+          entries.add(node);
+        }
+        continue;
+      }
       const selectedProvider = node?.getIn(['config', 'provider']);
       if (ns === 'agent-default-model' && typeof selectedProvider === 'string'
         && !MANAGED_KEYS.has(selectedProvider)) continue;
@@ -130,4 +138,19 @@ export function writeHarnessSettings(home: string, settings: Settings): boolean 
     changed = atomicWrite(legacyPath, String(legacy)) || changed;
   }
   return changed;
+}
+
+export function ensureOurFreeModelPlugin(home: string): boolean {
+  const { path, doc, entries } = profileDocument(home);
+  let node = entry(entries, 'our-free-model');
+  if (!node) {
+    node = doc.createNode({
+      id: 'our-free-model',
+      name: 'dsh-our-free-model',
+      config: { distribution: 'managed' },
+    }) as YAMLMap;
+    entries.add(node);
+    return atomicWrite(path, String(doc));
+  }
+  return false;
 }
