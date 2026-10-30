@@ -1,13 +1,13 @@
 {
   "name": "@freecode/shell",
-  "version": "1.0.4",
+  "version": "1.0.3",
   "private": true,
   "description": "Electron main + preload for the free-code-deepseek-harness desktop shell",
   "type": "module",
   "main": "./dist/src/main/index.js",
   "scripts": {
-    "build": "node ../../scripts/build-headless-host.mjs && node ../../scripts/clean-shell-dist.mjs && tsc -p tsconfig.json && node --input-type=module -e \"import{buildSync}from'esbuild';buildSync({entryPoints:['dist/src/preload/index.js'],bundle:true,platform:'node',format:'cjs',outfile:'dist/src/preload/index.js',allowOverwrite:true,external:['electron']})\"",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "node ../../scripts/build-headless-host.mjs && node ../../scripts/clean-shell-dist.mjs && node ../../node_modules/typescript/bin/tsc -p tsconfig.json && node --input-type=module -e \"import{buildSync}from'esbuild';buildSync({entryPoints:['dist/src/preload/index.js'],bundle:true,platform:'node',format:'cjs',outfile:'dist/src/preload/index.js',allowOverwrite:true,external:['electron']})\"",
+    "typecheck": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json --noEmit",
     "test": "node ../../scripts/build-headless-host.mjs && vitest run --config vitest.config.ts",
     "dev": "pnpm build && electron .",
     "package:runtime": "node ../../scripts/run-package-runtime.mjs",

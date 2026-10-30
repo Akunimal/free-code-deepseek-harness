@@ -7,6 +7,7 @@ import type { McpRuntimeStatus } from '@freecode/shared-types';
 import { createShellRuntime, ShellRuntime } from './runtime.js';
 import { createSecretStore } from './secret-store.js';
 import { seedProviders } from './provider-seeder.js';
+import { deployOurFreeModelPlugin } from './plugin-deployer.js';
 import type { ModelCatalog } from './model-refresher.js';
 import { createModelCatalogRefreshState } from './model-refresh-state.js';
 import { registerIpc } from './ipc.js';
@@ -1058,6 +1059,12 @@ app.whenReady().then(async () => {
   appLogger?.logger.info({}, '[DEBUG-STARTUP] 7/10 before bootstrap()');
   runtime = await bootstrap(harnessRuntimeDir);
   appLogger?.logger.info({}, '[DEBUG-STARTUP] 8/10 bootstrap() OK');
+
+  deployOurFreeModelPlugin({
+    resourcesDir: resources,
+    harnessRuntimeDir,
+    userDataDir,
+  });
 
   seedProviders({
     homeDir: join(userDataDir, 'dsh-home'),
