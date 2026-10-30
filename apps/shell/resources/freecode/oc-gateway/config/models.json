@@ -1,0 +1,111 @@
+{
+  "_generated": {
+    "by": "scripts/sync-models.js",
+    "from": "config.json.models.catalog.json",
+    "at": "2026-10-22T00:31:54.724Z"
+  },
+  "cooldown_cap_seconds": 300,
+  "models": {
+    "beam-free": {
+      "modalities": [
+        "text"
+      ],
+      "context_window": 1048576,
+      "max_output": 131072,
+      "supports_reasoning": true,
+      "supports_tools": true
+    },
+    "deepseek-v4.1-flash-free": {
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "context_window": 1000000,
+      "max_output": 32000,
+      "supports_reasoning": true,
+      "supports_tools": true
+    },
+    "flint-40b-free": {
+      "modalities": [
+        "text"
+      ],
+      "context_window": 262144,
+      "max_output": 65536,
+      "supports_reasoning": true,
+      "supports_tools": true
+    },
+    "glm-5.3-flash-free": {
+      "modalities": [
+        "text",
+        "image",
+        "video"
+      ],
+      "context_window": 200000,
+      "max_output": 32000,
+      "supports_reasoning": true,
+      "supports_tools": true
+    },
+    "mimo-v2.6-flash-free": {
+      "modalities": [
+        "text",
+        "image",
+        "audio",
+        "video"
+      ],
+      "context_window": 256000,
+      "max_output": 32000,
+      "supports_reasoning": true,
+      "supports_tools": true
+    },
+    "minimax-m3.1-flash-free": {
+      "modalities": [
+        "text",
+        "image",
+        "video"
+      ],
+      "context_window": 1000000,
+      "max_output": 512000,
+      "supports_reasoning": true,
+      "supports_tools": true
+    },
+    "nemotron-3.5-lightning-free": {
+      "modalities": [
+        "text"
+      ],
+      "context_window": 262144,
+      "max_output": 32000,
+      "supports_reasoning": true,
+      "supports_tools": true
+    },
+    "nemotron-3.5-super-vl-free": {
+      "modalities": [
+        "text",
+        "image"
+      ],
+      "context_window": 1048576,
+      "max_output": 131072,
+      "supports_reasoning": true,
+      "supports_tools": true
+    }
+  },
+  "fallback_chains": {
+    "default": [
+      "beam-free",
+      "nemotron-3.5-super-vl-free",
+      "deepseek-v4.1-flash-free",
+      "minimax-m3.1-flash-free",
+      "flint-40b-free",
+      "nemotron-3.5-lightning-free",
+      "glm-5.3-flash-free"
+    ],
+    "mimo-v2.6-flash-free": [
+      "beam-free",
+      "nemotron-3.5-super-vl-free",
+      "deepseek-v4.1-flash-free",
+      "minimax-m3.1-flash-free",
+      "flint-40b-free",
+      "nemotron-3.5-lightning-free",
+      "glm-5.3-flash-free"
+    ]
+  }
+}

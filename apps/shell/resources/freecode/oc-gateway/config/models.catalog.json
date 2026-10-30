@@ -1,0 +1,2586 @@
+{
+  "schema_version": 3,
+  "updated_at": "2026-10-22T11:27:52.1685191Z",
+  "zen": [
+    "beam-free",
+    "big-pickle",
+    "claude-fable-5",
+    "claude-fable-5-1",
+    "claude-haiku-4-5",
+    "claude-haiku-5-5",
+    "claude-opus-4-5",
+    "claude-opus-4-6",
+    "claude-opus-4-7",
+    "claude-opus-4-8",
+    "claude-opus-5",
+    "claude-opus-5-5",
+    "claude-opus-5-5-backup",
+    "claude-sonnet-4-5",
+    "claude-sonnet-4-6",
+    "claude-sonnet-5",
+    "claude-sonnet-5-5",
+    "deepseek-v4-flash",
+    "deepseek-v4-pro",
+    "deepseek-v4.1-flash",
+    "deepseek-v4.1-flash-free",
+    "flint-40b-free",
+    "gemini-3-flash",
+    "gemini-3.1-pro",
+    "gemini-3.5-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.6-flash",
+    "gemini-3.7-flash",
+    "gemini-3.8-flash",
+    "gemini-4-argon",
+    "glm-5",
+    "glm-5.1",
+    "glm-5.2",
+    "glm-5.3",
+    "glm-5.3-flash",
+    "glm-5.3-flash-free",
+    "gpt-5",
+    "gpt-5-codex",
+    "gpt-5-nano",
+    "gpt-5.1",
+    "gpt-5.1-codex",
+    "gpt-5.1-codex-max",
+    "gpt-5.1-codex-mini",
+    "gpt-5.2",
+    "gpt-5.2-codex",
+    "gpt-5.3-codex",
+    "gpt-5.3-codex-spark",
+    "gpt-5.4",
+    "gpt-5.4-mini",
+    "gpt-5.4-nano",
+    "gpt-5.4-pro",
+    "gpt-5.5",
+    "gpt-5.5-pro",
+    "gpt-5.6-luna",
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-6-astra",
+    "gpt-6-luna",
+    "gpt-6-sol",
+    "gpt-6.1-sol",
+    "grok-4.5",
+    "grok-4.6",
+    "grok-4.7",
+    "grok-build-0.1",
+    "jev-1.13",
+    "jev-1.13-free",
+    "kimi-k2.5",
+    "kimi-k2.6",
+    "kimi-k2.7-code",
+    "kimi-k3",
+    "mimo-v2.6-flash-free",
+    "minimax-m2.5",
+    "minimax-m2.7",
+    "minimax-m3",
+    "minimax-m3.1-flash-free",
+    "mistral-large-4",
+    "muse-spark-1.2",
+    "muse-spark-1.3",
+    "muse-wonder-1.0",
+    "nemotron-3.5-lightning-free",
+    "nemotron-3.5-super-vl-free",
+    "qwen3.5-plus",
+    "qwen3.6-plus",
+    "qwen3.8-flash",
+    "qwen3.8-max",
+    "test"
+  ],
+  "go": [],
+  "native_protocols": {
+    "go": {
+      "beam-free": "chat",
+      "cat-jam-free": "chat",
+      "claude-haiku-5-5": "anthropic",
+      "deepseek-v4-pro": "chat",
+      "deepseek-v4.1-flash": "chat",
+      "glm-5.2": "chat",
+      "glm-5.3": "chat",
+      "glm-5.3-flash": "chat",
+      "gpt-5.6-luna": "responses",
+      "gpt-6-luna": "responses",
+      "grok-4.7": "responses",
+      "hy3": "chat",
+      "hy4-preview": "chat",
+      "kimi-k2.7-code": "chat",
+      "kimi-k3": "chat",
+      "longcat-2.0": "chat",
+      "longcat-2.5-preview-free": "chat",
+      "mimo-v2.5": "chat",
+      "mimo-v2.5-pro": "chat",
+      "mimo-v2.6-flash": "chat",
+      "mimo-v2.6-pro": "chat",
+      "minimax-m2.7": "anthropic",
+      "minimax-m3": "anthropic",
+      "minimax-m3.1-flash-free": "chat",
+      "muse-spark-1.2-contributor": "responses",
+      "muse-spark-1.3-contributor": "responses",
+      "qwen3.7-plus": "anthropic",
+      "qwen3.8-flash": "anthropic",
+      "qwen3.8-max": "anthropic",
+      "space-bunny": "chat",
+      "step-5-preview": "chat",
+      "step-5-preview-free": "chat"
+    },
+    "zen": {
+      "beam-free": "chat",
+      "big-pickle": "chat",
+      "cat-jam-free": "chat",
+      "claude-3-5-haiku": "anthropic",
+      "claude-fable-5": "anthropic",
+      "claude-fable-5-1": "anthropic",
+      "claude-haiku-4-5": "anthropic",
+      "claude-haiku-5-5": "anthropic",
+      "claude-opus-4-1": "anthropic",
+      "claude-opus-4-5": "anthropic",
+      "claude-opus-4-6": "anthropic",
+      "claude-opus-4-7": "anthropic",
+      "claude-opus-4-8": "anthropic",
+      "claude-opus-5": "anthropic",
+      "claude-opus-5-5": "anthropic",
+      "claude-sonnet-4": "anthropic",
+      "claude-sonnet-4-5": "anthropic",
+      "claude-sonnet-4-6": "anthropic",
+      "claude-sonnet-5": "anthropic",
+      "claude-sonnet-5-5": "anthropic",
+      "deepseek-v4-flash": "chat",
+      "deepseek-v4-flash-free": "chat",
+      "deepseek-v4-flash-vision-exp": "chat",
+      "deepseek-v4-pro": "chat",
+      "deepseek-v4.1-flash": "chat",
+      "deepseek-v4.1-flash-free": "chat",
+      "exo-free": "chat",
+      "fledge-alpha-free": "chat",
+      "flint-40b-free": "chat",
+      "glm-4.6": "chat",
+      "glm-4.7": "chat",
+      "glm-4.7-free": "chat",
+      "glm-5": "chat",
+      "glm-5-free": "chat",
+      "glm-5.1": "chat",
+      "glm-5.2": "chat",
+      "glm-5.3": "chat",
+      "glm-5.3-flash": "chat",
+      "glm-5.3-flash-free": "chat",
+      "gpt-5": "responses",
+      "gpt-5-codex": "responses",
+      "gpt-5-nano": "responses",
+      "gpt-5.1": "responses",
+      "gpt-5.1-codex": "responses",
+      "gpt-5.1-codex-max": "responses",
+      "gpt-5.1-codex-mini": "responses",
+      "gpt-5.2": "responses",
+      "gpt-5.2-codex": "responses",
+      "gpt-5.3-codex": "responses",
+      "gpt-5.3-codex-spark": "responses",
+      "gpt-5.4": "responses",
+      "gpt-5.4-mini": "responses",
+      "gpt-5.4-nano": "responses",
+      "gpt-5.4-pro": "responses",
+      "gpt-5.5": "responses",
+      "gpt-5.5-pro": "responses",
+      "gpt-5.6-luna": "responses",
+      "gpt-5.6-sol": "responses",
+      "gpt-5.6-terra": "responses",
+      "gpt-6-astra": "responses",
+      "gpt-6-luna": "responses",
+      "gpt-6-sol": "responses",
+      "gpt-6.1-sol": "responses",
+      "grok-4.5": "responses",
+      "grok-4.6": "responses",
+      "grok-4.7": "responses",
+      "grok-build-0.1": "responses",
+      "grok-code": "chat",
+      "hy3-free": "chat",
+      "hy3-preview-free": "chat",
+      "kimi-k2": "chat",
+      "kimi-k2-thinking": "chat",
+      "kimi-k2.5": "chat",
+      "kimi-k2.5-free": "chat",
+      "kimi-k2.6": "chat",
+      "kimi-k2.7-code": "chat",
+      "kimi-k3": "chat",
+      "laguna-s-2.1-free": "chat",
+      "ling-2.6-flash-free": "chat",
+      "ling-3.0-flash-fin-free": "chat",
+      "ling-3.0-flash-free": "chat",
+      "ling-3.0-tiny-free": "chat",
+      "ling-3.1-flash-free": "chat",
+      "ll-alpha-free": "chat",
+      "longcat-2.0-free": "chat",
+      "longcat-2.5-preview-free": "chat",
+      "mimo-v2-flash-free": "chat",
+      "mimo-v2-omni-free": "chat",
+      "mimo-v2-pro-free": "chat",
+      "mimo-v2.5-free": "chat",
+      "mimo-v2.6-flash-free": "chat",
+      "minimax-m2.1": "chat",
+      "minimax-m2.1-free": "anthropic",
+      "minimax-m2.5": "chat",
+      "minimax-m2.5-free": "anthropic",
+      "minimax-m2.7": "chat",
+      "minimax-m3": "chat",
+      "minimax-m3-free": "anthropic",
+      "minimax-m3.1-flash-free": "chat",
+      "muse-spark-1.2": "responses",
+      "muse-spark-1.2-contributor-free": "responses",
+      "muse-spark-1.3": "responses",
+      "muse-spark-1.3-contributor-free": "responses",
+      "muse-wonder-1.0": "responses",
+      "nemotron-3-super-free": "chat",
+      "nemotron-3-ultra-free": "chat",
+      "nemotron-3.5-lightning-free": "chat",
+      "nemotron-3.5-super-vl-free": "chat",
+      "north-mini-code-free": "chat",
+      "qwen3-coder": "chat",
+      "qwen3.5-plus": "anthropic",
+      "qwen3.6-plus": "anthropic",
+      "qwen3.6-plus-free": "anthropic",
+      "qwen3.8-flash": "anthropic",
+      "qwen3.8-max": "chat",
+      "ring-2.6-1t-free": "chat",
+      "space-bunny-free": "chat",
+      "step-5-preview-free": "chat",
+      "trinity-large-preview-free": "chat",
+      "x-preview-f-free": "chat"
+    }
+  },
+  "unsupported": {
+    "go": {
+      "gemini-4-argon-contributor": true
+    },
+    "zen": {
+      "gemini-3-flash": true,
+      "gemini-3-pro": true,
+      "gemini-3.1-pro": true,
+      "gemini-3.5-flash": true,
+      "gemini-3.5-flash-lite": true,
+      "gemini-3.6-flash": true,
+      "gemini-3.7-flash": true,
+      "gemini-3.8-flash": true,
+      "gemini-4-argon": true,
+      "mistral-large-4": true
+    }
+  },
+  "metadata": {
+    "go": {
+      "beam-free": {
+        "context_window": 1048576,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "cat-jam-free": {
+        "context_window": 1048576,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "claude-haiku-5-5": {
+        "context_window": 1000000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "deepseek-v4-pro": {
+        "context_window": 1000000,
+        "max_output": 384000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "deepseek-v4.1-flash": {
+        "context_window": 1000000,
+        "max_output": 384000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gemini-4-argon-contributor": {
+        "context_window": 1048576,
+        "max_output": 65536,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "glm-5.2": {
+        "context_window": 1000000,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "glm-5.3": {
+        "context_window": 1000000,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "glm-5.3-flash": {
+        "context_window": 1000000,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gpt-5.6-luna": {
+        "context_window": 1050000,
+        "max_input": 922000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gpt-6-luna": {
+        "context_window": 1050000,
+        "max_input": 922000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "grok-4.7": {
+        "context_window": 500000,
+        "max_output": 500000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "hy3": {
+        "context_window": 256000,
+        "max_input": 192000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "hy4-preview": {
+        "context_window": 1024000,
+        "max_output": 64000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "kimi-k2.7-code": {
+        "context_window": 262144,
+        "max_output": 262144,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "kimi-k3": {
+        "context_window": 1048576,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "longcat-2.0": {
+        "context_window": 1000000,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "longcat-2.5-preview-free": {
+        "context_window": 1000000,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "mimo-v2.5": {
+        "context_window": 1000000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "mimo-v2.5-pro": {
+        "context_window": 1048576,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "mimo-v2.6-flash": {
+        "context_window": 1048576,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "mimo-v2.6-pro": {
+        "context_window": 1048576,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "minimax-m2.7": {
+        "context_window": 204800,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "minimax-m3": {
+        "context_window": 1000000,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "minimax-m3.1-flash-free": {
+        "context_window": 1000000,
+        "max_output": 512000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "muse-spark-1.2-contributor": {
+        "context_window": 1048576,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "muse-spark-1.3-contributor": {
+        "context_window": 1048576,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "qwen3.7-plus": {
+        "context_window": 1000000,
+        "max_output": 65536,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "qwen3.8-flash": {
+        "context_window": 1000000,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "qwen3.8-max": {
+        "context_window": 1000000,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "space-bunny": {
+        "context_window": 1048576,
+        "max_input": 524288,
+        "max_output": 524288,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "step-5-preview": {
+        "context_window": 1000000,
+        "max_input": 1000000,
+        "max_output": 65536,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "step-5-preview-free": {
+        "context_window": 1000000,
+        "max_input": 1000000,
+        "max_output": 65536,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      }
+    },
+    "zen": {
+      "beam-free": {
+        "context_window": 1048576,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "big-pickle": {
+        "context_window": 200000,
+        "max_input": 160000,
+        "max_output": 32000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "cat-jam-free": {
+        "context_window": 1048576,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "claude-3-5-haiku": {
+        "context_window": 200000,
+        "max_output": 8192,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "claude-fable-5": {
+        "context_window": 1000000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "claude-fable-5-1": {
+        "context_window": 1000000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "claude-haiku-4-5": {
+        "context_window": 200000,
+        "max_output": 64000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "claude-haiku-5-5": {
+        "context_window": 1000000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "claude-opus-4-1": {
+        "context_window": 200000,
+        "max_output": 32000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "claude-opus-4-5": {
+        "context_window": 200000,
+        "max_output": 64000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "claude-opus-4-6": {
+        "context_window": 1000000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "claude-opus-4-7": {
+        "context_window": 1000000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "claude-opus-4-8": {
+        "context_window": 1000000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "claude-opus-5": {
+        "context_window": 1000000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "claude-opus-5-5": {
+        "context_window": 1000000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "claude-sonnet-4": {
+        "context_window": 1000000,
+        "max_output": 64000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "claude-sonnet-4-5": {
+        "context_window": 1000000,
+        "max_output": 64000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "claude-sonnet-4-6": {
+        "context_window": 1000000,
+        "max_output": 64000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "claude-sonnet-5": {
+        "context_window": 1000000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "claude-sonnet-5-5": {
+        "context_window": 1000000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "deepseek-v4-flash": {
+        "context_window": 1000000,
+        "max_output": 384000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "deepseek-v4-flash-free": {
+        "context_window": 200000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "deepseek-v4-flash-vision-exp": {
+        "context_window": 1000000,
+        "max_output": 384000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "deepseek-v4-pro": {
+        "context_window": 1000000,
+        "max_output": 384000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "deepseek-v4.1-flash": {
+        "context_window": 1000000,
+        "max_output": 384000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "deepseek-v4.1-flash-free": {
+        "context_window": 200000,
+        "max_output": 32000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "exo-free": {
+        "context_window": 1048576,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "fledge-alpha-free": {
+        "context_window": 1048576,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "flint-40b-free": {
+        "context_window": 262144,
+        "max_output": 65536,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gemini-3-flash": {
+        "context_window": 1048576,
+        "max_output": 65536,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gemini-3-pro": {
+        "context_window": 1048576,
+        "max_output": 65536,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gemini-3.1-pro": {
+        "context_window": 1048576,
+        "max_output": 65536,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gemini-3.5-flash": {
+        "context_window": 1048576,
+        "max_output": 65536,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gemini-3.5-flash-lite": {
+        "context_window": 1048576,
+        "max_output": 65536,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gemini-3.6-flash": {
+        "context_window": 1048576,
+        "max_output": 65536,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gemini-3.7-flash": {
+        "context_window": 1048576,
+        "max_output": 65536,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gemini-3.8-flash": {
+        "context_window": 1048576,
+        "max_output": 65536,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gemini-4-argon": {
+        "context_window": 1048576,
+        "max_output": 65536,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "glm-4.6": {
+        "context_window": 204800,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "glm-4.7": {
+        "context_window": 204800,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "glm-4.7-free": {
+        "context_window": 204800,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "glm-5": {
+        "context_window": 204800,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "glm-5-free": {
+        "context_window": 204800,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "glm-5.1": {
+        "context_window": 204800,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "glm-5.2": {
+        "context_window": 1000000,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "glm-5.3": {
+        "context_window": 1000000,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "glm-5.3-flash": {
+        "context_window": 1000000,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "glm-5.3-flash-free": {
+        "context_window": 200000,
+        "max_output": 32000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gpt-5": {
+        "context_window": 400000,
+        "max_input": 272000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gpt-5-codex": {
+        "context_window": 400000,
+        "max_input": 272000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gpt-5-nano": {
+        "context_window": 400000,
+        "max_input": 272000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gpt-5.1": {
+        "context_window": 400000,
+        "max_input": 272000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gpt-5.1-codex": {
+        "context_window": 400000,
+        "max_input": 272000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gpt-5.1-codex-max": {
+        "context_window": 400000,
+        "max_input": 272000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gpt-5.1-codex-mini": {
+        "context_window": 400000,
+        "max_input": 272000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gpt-5.2": {
+        "context_window": 400000,
+        "max_input": 272000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gpt-5.2-codex": {
+        "context_window": 400000,
+        "max_input": 272000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gpt-5.3-codex": {
+        "context_window": 400000,
+        "max_input": 272000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gpt-5.3-codex-spark": {
+        "context_window": 128000,
+        "max_input": 128000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gpt-5.4": {
+        "context_window": 1050000,
+        "max_input": 922000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gpt-5.4-mini": {
+        "context_window": 400000,
+        "max_input": 272000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gpt-5.4-nano": {
+        "context_window": 400000,
+        "max_input": 272000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gpt-5.4-pro": {
+        "context_window": 1050000,
+        "max_input": 922000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gpt-5.5": {
+        "context_window": 1050000,
+        "max_input": 922000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gpt-5.5-pro": {
+        "context_window": 1050000,
+        "max_input": 922000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gpt-5.6-luna": {
+        "context_window": 1050000,
+        "max_input": 922000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gpt-5.6-sol": {
+        "context_window": 1050000,
+        "max_input": 922000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gpt-5.6-terra": {
+        "context_window": 1050000,
+        "max_input": 922000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gpt-6-astra": {
+        "context_window": 1050000,
+        "max_input": 922000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gpt-6-luna": {
+        "context_window": 1050000,
+        "max_input": 922000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gpt-6-sol": {
+        "context_window": 1050000,
+        "max_input": 922000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "gpt-6.1-sol": {
+        "context_window": 1050000,
+        "max_input": 922000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "grok-4.5": {
+        "context_window": 500000,
+        "max_output": 500000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "grok-4.6": {
+        "context_window": 500000,
+        "max_output": 500000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "grok-4.7": {
+        "context_window": 500000,
+        "max_output": 500000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "grok-build-0.1": {
+        "context_window": 256000,
+        "max_output": 256000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "grok-code": {
+        "context_window": 256000,
+        "max_output": 256000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "hy3-free": {
+        "context_window": 190000,
+        "max_input": 192000,
+        "max_output": 64000,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "hy3-preview-free": {
+        "context_window": 256000,
+        "max_output": 64000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "kimi-k2": {
+        "context_window": 262144,
+        "max_output": 262144,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "kimi-k2-thinking": {
+        "context_window": 262144,
+        "max_output": 262144,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "kimi-k2.5": {
+        "context_window": 262144,
+        "max_output": 65536,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "kimi-k2.5-free": {
+        "context_window": 262144,
+        "max_output": 262144,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "kimi-k2.6": {
+        "context_window": 262144,
+        "max_output": 65536,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "kimi-k2.7-code": {
+        "context_window": 262144,
+        "max_output": 262144,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "kimi-k3": {
+        "context_window": 1048576,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "laguna-s-2.1-free": {
+        "context_window": 256000,
+        "max_output": 32000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "ling-2.6-flash-free": {
+        "context_window": 262100,
+        "max_output": 32800,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "ling-3.0-flash-fin-free": {
+        "context_window": 262144,
+        "max_output": 32768,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "ling-3.0-flash-free": {
+        "context_window": 262144,
+        "max_output": 32768,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "ling-3.0-tiny-free": {
+        "context_window": 262144,
+        "max_output": 32768,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "ling-3.1-flash-free": {
+        "context_window": 262144,
+        "max_output": 32768,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "ll-alpha-free": {
+        "context_window": 262144,
+        "max_output": 65536,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "longcat-2.0-free": {
+        "context_window": 1000000,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "longcat-2.5-preview-free": {
+        "context_window": 1000000,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "mimo-v2-flash-free": {
+        "context_window": 262144,
+        "max_output": 65536,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "mimo-v2-omni-free": {
+        "context_window": 262144,
+        "max_output": 64000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "audio",
+          "pdf"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "mimo-v2-pro-free": {
+        "context_window": 1048576,
+        "max_output": 64000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "mimo-v2.5-free": {
+        "context_window": 200000,
+        "max_output": 32000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "mimo-v2.6-flash-free": {
+        "context_window": 200000,
+        "max_output": 32000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "minimax-m2.1": {
+        "context_window": 204800,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "minimax-m2.1-free": {
+        "context_window": 204800,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "minimax-m2.5": {
+        "context_window": 204800,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "minimax-m2.5-free": {
+        "context_window": 204800,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "minimax-m2.7": {
+        "context_window": 204800,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "minimax-m3": {
+        "context_window": 512000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "minimax-m3-free": {
+        "context_window": 200000,
+        "max_output": 32000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "minimax-m3.1-flash-free": {
+        "context_window": 1000000,
+        "max_output": 512000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "mistral-large-4": {
+        "context_window": 524288,
+        "max_output": 262144,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "muse-spark-1.2": {
+        "context_window": 1048576,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "muse-spark-1.2-contributor-free": {
+        "context_window": 1048576,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "muse-spark-1.3": {
+        "context_window": 1048576,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "muse-spark-1.3-contributor-free": {
+        "context_window": 1048576,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "muse-wonder-1.0": {
+        "context_window": 1048576,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "nemotron-3-super-free": {
+        "context_window": 204800,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "nemotron-3-ultra-free": {
+        "context_window": 1000000,
+        "max_output": 128000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "nemotron-3.5-lightning-free": {
+        "context_window": 262144,
+        "max_output": 262144,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "nemotron-3.5-super-vl-free": {
+        "context_window": 1048576,
+        "max_input": 1048576,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "north-mini-code-free": {
+        "context_window": 256000,
+        "max_output": 64000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "qwen3-coder": {
+        "context_window": 262144,
+        "max_output": 65536,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "qwen3.5-plus": {
+        "context_window": 262144,
+        "max_output": 65536,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "qwen3.6-plus": {
+        "context_window": 262144,
+        "max_output": 65536,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "qwen3.6-plus-free": {
+        "context_window": 262144,
+        "max_output": 65536,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "qwen3.8-flash": {
+        "context_window": 1000000,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "qwen3.8-max": {
+        "context_window": 262144,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "ring-2.6-1t-free": {
+        "context_window": 262000,
+        "max_output": 66000,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "space-bunny-free": {
+        "context_window": 1048576,
+        "max_input": 524288,
+        "max_output": 524288,
+        "reasoning": true,
+        "tool_call": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "step-5-preview-free": {
+        "context_window": 1000000,
+        "max_input": 1000000,
+        "max_output": 65536,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "trinity-large-preview-free": {
+        "context_window": 131072,
+        "max_output": 131072,
+        "tool_call": true,
+        "input_modalities": [
+          "text"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      },
+      "x-preview-f-free": {
+        "context_window": 1000000,
+        "max_output": 131072,
+        "reasoning": true,
+        "tool_call": true,
+        "structured_output": true,
+        "input_modalities": [
+          "text",
+          "image",
+          "video"
+        ],
+        "output_modalities": [
+          "text"
+        ]
+      }
+    }
+  }
+}
