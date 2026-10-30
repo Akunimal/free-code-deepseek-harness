@@ -36,3 +36,13 @@ Packaging must execute the adversarial native window/descendant and Job-lifetime
 tests against the exact staged and packaged helper, alongside runtime GUI-broker
 compatibility checks. Source-string contracts alone do not satisfy this policy.
 See [Windows desktop containment](docs/HEADLESS-DESKTOP.md) for scope and limits.
+
+## Release versioning and build workflow
+
+Every build or packaging generated for testing new features, fixes, or removals must increment the version number (+1 patch, e.g. 1.0.2 -> 1.0.3) in both `package.json` and `apps/shell/package.json` before generating the installers.
+
+### Mandatory Release Flow:
+1. **Increment & Local Build**: The agent bumps the version number in root and shell `package.json` and compiles the test setup and portable binaries (`FreeCode-DeepSeek-Harness-<version>-win-x64-setup.exe`).
+2. **User Local Verification**: The user installs and tests the generated build locally. The agent never tags or publishes prematurely.
+3. **User Approval (OK)**: The agent waits for the user's explicit OK / confirmation.
+4. **Bilingual Tag & Release**: Upon receiving the user's OK, the agent creates the git tag (`v<version>`), writes/updates the bilingual release documentation (`release-notes-v<version>.md`, `README.md`, `README.es.md` in English and Spanish), and finalizes the release.
