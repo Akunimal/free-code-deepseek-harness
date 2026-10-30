@@ -82,14 +82,14 @@ describe('desktop package payload policy', () => {
     expect(runtimeSmoke).not.toContain("'resources', 'freecode', 'dsh'");
   });
 
-  it('excludes every retired Phoenix and OpenCode2API gateway payload', () => {
+  it('packages opencode2api gateway payload and excludes legacy staging scripts', () => {
     const config = readFileSync(builderConfig, 'utf8');
     const packageScripts = JSON.parse(readFileSync(shellPackage, 'utf8')).scripts;
     const resourcesBlock = config.split('extraResources:')[1]?.split('\nicon:')[0] ?? '';
 
     expect(resourcesBlock).toContain("'**/*'");
-    expect(resourcesBlock).toContain("'!opencode2api'");
-    expect(resourcesBlock).toContain("'!opencode2api/**'");
+    expect(resourcesBlock).not.toContain("'!opencode2api'");
+    expect(resourcesBlock).not.toContain("'!opencode2api/**'");
     expect(packageScripts['prepackage:verify']).not.toContain('freellmpool-staging.mjs');
     expect(packageScripts['prepackage:verify']).not.toContain('opencode2api-staging.mjs');
   });

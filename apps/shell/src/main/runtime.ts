@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import { retireRemovedRuntime } from './retired-runtime.js';
 import { embeddedMcpEnvironment, ensureEmbeddedMcpConfig } from './mcp-home.js';
 import type { EmbeddedMcpState, McpRuntimeStatus, WorkerHandle } from '@freecode/shared-types';
+import type { OcGatewayInstance } from './oc-gateway.js';
 
 /**
  * Shell runtime — owns the backend stack of the desktop app:
@@ -39,6 +40,7 @@ export type McpStatusListener = (status: McpRuntimeStatus) => void;
 
 export interface ShellRuntime {
   supervisor: HarnessSupervisor;
+  ocGateway?: OcGatewayInstance;
   /** No per-worker handles; returns empty array. */
   workers: () => WorkerHandle[];
   /** Current managed MCP config plus live connection evidence. */
@@ -171,7 +173,7 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
     onMcpStatus: emitMcpStatus,
   });
 
-  return {
+  const runtimeInstance: ShellRuntime = {
     supervisor,
     workers: () => [],
     mcpState,
@@ -206,6 +208,11 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
     },
     stop: async () => {
       await supervisor.stop();
+      if (runtimeInstance.ocGateway) {
+        await runtimeInstance.ocGateway.stop();
+      }
     },
   };
+
+  return runtimeInstance;
 }

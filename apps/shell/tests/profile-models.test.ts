@@ -44,13 +44,13 @@ describe('active DSH profile model boundary', () => {
     expect(() => seedProviders({homeDir: home})).toThrow('Invalid DSH configuration');
     expect(readFileSync(path, 'utf8')).toBe(malformed);
   });
-  it('removes the stale app route and sets default to our-free-model without losing custom routes', () => {
+  it('removes the stale app route and sets default to freecode-opencode without losing custom routes', () => {
     const {home, path} = fixture();
     seedProviders({homeDir: home});
     expect(providers(path)['freecode-phoenix']).toBeUndefined();
     expect(providers(path).custom.models).toEqual(['custom-model']);
     expect(profile(path).find(x => x.id === 'agent-default-model')?.config).toEqual({
-      provider: 'our-free-model',
+      provider: 'freecode-opencode',
       model: 'deepseek-v4.1-flash-free',
     });
     expect(existsSync(join(home, 'settings.yaml'))).toBe(false);

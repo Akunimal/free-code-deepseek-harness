@@ -2,21 +2,25 @@ import { harnessSettingsPath, readHarnessSettings, writeHarnessSettings } from '
 
 export interface SeederConfig {
   homeDir: string;
+  ocBaseUrl?: string;
+  ocModelIds?: readonly string[];
+  apiKeyEnv?: string;
 }
 
-const DEFAULT_PROVIDER = 'our-free-model';
-const DEFAULT_MODEL = 'deepseek-v4.1-flash-free';
+export const OPENCODE_PROVIDER = 'freecode-opencode';
+export const DEFAULT_MODEL = 'deepseek-v4.1-flash-free';
+
 const LEGACY_MANAGED_PROVIDERS = [
   'deepseek-free',
   'kilo-free',
   'gemini-web',
-  'freecode-opencode',
   'freecode-phoenix',
+  'our-free-model',
 ] as const;
 
 /**
  * Retire app-owned legacy routes before DSH reads its active web profile.
- * Seed 'our-free-model' with DeepSeek V4.1 Flash as the default model.
+ * Seed 'freecode-opencode' backed by the local opencode2api proxy stack.
  */
 export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: string } {
   const settings = readHarnessSettings(cfg.homeDir);
@@ -35,9 +39,21 @@ export function seedProviders(cfg: SeederConfig): { seeded: boolean; path: strin
     removed.add('perplexity-free');
   }
 
+  if (cfg.ocBaseUrl) {
+    const models = (cfg.ocModelIds && cfg.ocModelIds.length > 0 ? cfg.ocModelIds : [DEFAULT_MODEL]).map((id) => ({ id }));
+    providers[OPENCODE_PROVIDER] = {
+      displayName: 'OpenCode Free',
+      api: 'openai-completions',
+      baseURL: cfg.ocBaseUrl,
+      apiKeyEnv: cfg.apiKeyEnv ?? 'FREECODE_OPENCODE_API_KEY',
+      defaultInput: ['text', 'image'],
+      models,
+    };
+  }
+
   const selected = settings['agent-default-model'];
   if (selected === undefined || removed.has(selected.provider)) {
-    settings['agent-default-model'] = { provider: DEFAULT_PROVIDER, model: DEFAULT_MODEL };
+    settings['agent-default-model'] = { provider: OPENCODE_PROVIDER, model: DEFAULT_MODEL };
   }
 
   return { seeded: writeHarnessSettings(cfg.homeDir, settings), path: harnessSettingsPath(cfg.homeDir) };

@@ -5,13 +5,21 @@ import { randomUUID } from 'node:crypto';
 import { isMap, isSeq, parseDocument, YAMLMap, YAMLSeq } from 'yaml';
 
 type Settings = Record<string, any>;
-const MANAGED_PROVIDER = 'freecode-phoenix';
+const MANAGED_PROVIDER = 'freecode-opencode';
 // kilo-free: retired group from earlier 0.9.8 builds; removed from saved profiles.
-const MANAGED_KEYS = new Set([MANAGED_PROVIDER, 'deepseek-free', 'kilo-free', 'opencode-free', 'perplexity-free', 'gemini-web']);
+const MANAGED_KEYS = new Set([
+  MANAGED_PROVIDER,
+  'freecode-phoenix',
+  'our-free-model',
+  'deepseek-free',
+  'kilo-free',
+  'opencode-free',
+  'perplexity-free',
+  'gemini-web',
+]);
 const ENTRY_NAMES: Record<string, string> = {
   'llm-pi-ai': '@deepseek-ai/dsh-llm-pi-ai',
   'agent-default-model': '@deepseek-ai/dsh-agent-default-model',
-  'our-free-model': 'dsh-our-free-model',
 };
 export function harnessSettingsPath(home: string): string {
   return join(home, 'profiles', 'web', 'cordis.patch.yml');
@@ -66,25 +74,23 @@ export function writeHarnessSettings(home: string, settings: Settings): boolean 
   const providers = settings['llm-pi-ai']?.providers ?? {};
   // DSH refuses a hand-declared route with an empty catalog. Absence, not an
   // invalid models:[], is its supported dormant state.
-  if (Array.isArray(providers[MANAGED_PROVIDER]?.models) && providers[MANAGED_PROVIDER].models.length === 0) {
-    delete providers[MANAGED_PROVIDER];
+  if (Array.isArray(providers['freecode-phoenix']?.models) && providers['freecode-phoenix'].models.length === 0) {
+    delete providers['freecode-phoenix'];
   }
   const selected = settings['agent-default-model'];
-  if (selected?.provider === MANAGED_PROVIDER && !providers[MANAGED_PROVIDER]?.models?.some(
+  if (selected?.provider === 'freecode-phoenix' && !providers['freecode-phoenix']?.models?.some(
     (model: any) => (typeof model === 'string' ? model : model?.id) === selected.model,
   )) delete settings['agent-default-model'];
+
+  const ourFreeModelNode = entry(entries, 'our-free-model');
+  if (ourFreeModelNode) {
+    entries.items.splice(entries.items.indexOf(ourFreeModelNode), 1);
+  }
 
   for (const [ns, name] of Object.entries(ENTRY_NAMES)) {
     let node = entry(entries, ns);
     const desired = settings[ns];
     if (desired === undefined) {
-      if (ns === 'our-free-model') {
-        if (!node) {
-          node = doc.createNode({ id: ns, name, config: { distribution: 'managed' } }) as YAMLMap;
-          entries.add(node);
-        }
-        continue;
-      }
       const selectedProvider = node?.getIn(['config', 'provider']);
       if (ns === 'agent-default-model' && typeof selectedProvider === 'string'
         && !MANAGED_KEYS.has(selectedProvider)) continue;

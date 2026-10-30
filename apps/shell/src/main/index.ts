@@ -7,7 +7,8 @@ import type { McpRuntimeStatus } from '@freecode/shared-types';
 import { createShellRuntime, ShellRuntime } from './runtime.js';
 import { createSecretStore } from './secret-store.js';
 import { seedProviders } from './provider-seeder.js';
-import { deployOurFreeModelPlugin } from './plugin-deployer.js';
+import { startOcGateway, type OcGatewayInstance } from './oc-gateway.js';
+import { sanitizeAndRetireLegacyPlugins } from './plugin-deployer.js';
 import type { ModelCatalog } from './model-refresher.js';
 import { createModelCatalogRefreshState } from './model-refresh-state.js';
 import { registerIpc } from './ipc.js';
@@ -1060,14 +1061,31 @@ app.whenReady().then(async () => {
   runtime = await bootstrap(harnessRuntimeDir);
   appLogger?.logger.info({}, '[DEBUG-STARTUP] 8/10 bootstrap() OK');
 
-  deployOurFreeModelPlugin({
-    resourcesDir: resources,
-    harnessRuntimeDir,
+  sanitizeAndRetireLegacyPlugins({
     userDataDir,
   });
 
+  let ocGateway: OcGatewayInstance | undefined;
+  try {
+    ocGateway = await startOcGateway({
+      resourcesDir: resources,
+      userDataDir,
+      packaged: app.isPackaged,
+      log: (level, msg, meta) => {
+        const fn = level === 'error' || level === 'warn' ? level : 'info';
+        appLogger?.logger[fn]?.(meta ?? {}, msg);
+      },
+    });
+    runtime.ocGateway = ocGateway;
+    appLogger?.logger.info({ url: ocGateway.url, port: ocGateway.port }, 'oc-gateway ready');
+  } catch (error) {
+    appLogger?.logger.error({ error }, 'failed to start oc-gateway');
+  }
+
   seedProviders({
     homeDir: join(userDataDir, 'dsh-home'),
+    ocBaseUrl: ocGateway?.url,
+    ocModelIds: ocGateway?.modelIds,
   });
 
   // Register before start so MCP failures from the first child generation are
