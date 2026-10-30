@@ -79,7 +79,8 @@ export function ensureCanonicalSession(ocHome: string): string {
   const bytes = randomBytes(14);
   let randPart = '';
   for (let i = 0; i < 14; i++) {
-    randPart += chars[bytes[i] % chars.length];
+    const byte = bytes[i] ?? 0;
+    randPart += chars[byte % chars.length] ?? '0';
   }
   const sessionId = `ses_${hexPart}${randPart}`;
   writeFileSync(sessionPath, JSON.stringify({ sessionId, createdAt: new Date().toISOString() }, null, 2), 'utf8');
