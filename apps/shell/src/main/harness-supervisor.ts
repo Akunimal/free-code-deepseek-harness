@@ -253,7 +253,7 @@ export class HarnessSupervisor {
       'node_options', 'NODE_OPTIONS', 'ELECTRON_RUN_AS_NODE',
       'DSH_HOME',
       'FREECODE_EMBEDDED_BROWSER_ENDPOINT', 'FREECODE_EMBEDDED_BROWSER_TOKEN',
-      'FREECODE_PUBLIC_KEY', 'DEEPSEEK_API_KEY',
+      'FREECODE_OPENCODE_API_KEY', 'FREECODE_PUBLIC_KEY', 'DEEPSEEK_API_KEY',
     ] as const;
     const safeEnv: Record<string, string> = {};
     for (const key of SAFE_ENV_KEYS) {

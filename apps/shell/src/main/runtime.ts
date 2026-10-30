@@ -144,7 +144,7 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
     cfg.log?.(level as 'debug' | 'info' | 'warn' | 'error', msg, meta) : undefined;
 
   const cliEntry = resolve(join(cfg.harnessDir ?? cfg.resourcesDir, 'dsh', 'apps', 'cli', 'lib', 'bin.js'));
-  const secretEnvNames = cfg.secretEnvNames ?? ['FREECODE_PUBLIC_KEY'];
+  const secretEnvNames = cfg.secretEnvNames ?? ['FREECODE_OPENCODE_API_KEY', 'FREECODE_PUBLIC_KEY'];
   const extraEnv: Record<string, string> = {};
   if (cfg.secrets) {
     for (const [k, v] of Object.entries(
@@ -154,6 +154,8 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
     }
   }
   const gatewayEnv = {
+    FREECODE_OPENCODE_API_KEY: extraEnv['FREECODE_OPENCODE_API_KEY'] ?? 'freecode-public',
+    FREECODE_PUBLIC_KEY: extraEnv['FREECODE_PUBLIC_KEY'] ?? 'public',
     ...cfg.extraEnv,
     ...mcpEnv,
     ...extraEnv,

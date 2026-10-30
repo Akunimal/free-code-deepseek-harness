@@ -91,4 +91,18 @@ describe('provider startup migration', () => {
       model: 'deepseek-v4.1-flash-free',
     });
   });
+
+  it('ensures runtime environment supplies FREECODE_OPENCODE_API_KEY to avoid MISSING_CREDENTIAL', async () => {
+    const { createShellRuntime } = await import('../src/main/runtime.js');
+    const root = home();
+    const runtime = await createShellRuntime({
+      resourcesDir: root,
+      nodePath: process.execPath,
+      userDataDir: root,
+    });
+    // The supervisor's extraEnv must contain FREECODE_OPENCODE_API_KEY
+    const supervisor = runtime.supervisor as any;
+    expect(supervisor.cfg.extraEnv.FREECODE_OPENCODE_API_KEY).toBe('freecode-public');
+    expect(supervisor.cfg.extraEnv.FREECODE_PUBLIC_KEY).toBe('public');
+  });
 });

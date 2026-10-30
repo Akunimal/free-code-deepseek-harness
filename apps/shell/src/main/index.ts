@@ -5,7 +5,7 @@ import { launchHidden, launchHiddenSync } from './freecode-launcher.js'
 import { headlessHostPolicy } from './headless-host-policy.js';
 import type { McpRuntimeStatus } from '@freecode/shared-types';
 import { createShellRuntime, ShellRuntime } from './runtime.js';
-import { createSecretStore } from './secret-store.js';
+import { createSecretStore, ensureSecret } from './secret-store.js';
 import { seedProviders } from './provider-seeder.js';
 import { startOcGateway, type OcGatewayInstance } from './oc-gateway.js';
 import { sanitizeAndRetireLegacyPlugins } from './plugin-deployer.js';
@@ -140,6 +140,8 @@ async function bootstrap(harnessDir: string): Promise<ShellRuntime> {
   if (process.platform === 'win32' && !dialogBridge) throw new Error('Headless Windows runtime requires the interactive dialog bridge');
   appLogger?.logger.info({}, '[DEBUG-STARTUP] bootstrap 3/5 createSecretStore starting');
   const secrets = await createSecretStore(userDataDir);
+  await ensureSecret(secrets, 'FREECODE_OPENCODE_API_KEY', 'freecode-public');
+  await ensureSecret(secrets, 'FREECODE_PUBLIC_KEY', 'public');
   appLogger?.logger.info({}, '[DEBUG-STARTUP] bootstrap 4/5 createSecretStore OK');
   appLogger?.logger.info({}, '[DEBUG-STARTUP] bootstrap 5/5 createShellRuntime starting');
   const runtime = await createShellRuntime({
@@ -148,7 +150,7 @@ async function bootstrap(harnessDir: string): Promise<ShellRuntime> {
     nodePath: findNode(),
     userDataDir,
     secrets,
-    secretEnvNames: ['FREECODE_PUBLIC_KEY'],
+    secretEnvNames: ['FREECODE_OPENCODE_API_KEY', 'FREECODE_PUBLIC_KEY'],
     nodeEnv: nodeRuntimeEnv(app.isPackaged),
     extraEnv: buildHarnessExtraEnv(dialogBridge),
     uvxCommand,
