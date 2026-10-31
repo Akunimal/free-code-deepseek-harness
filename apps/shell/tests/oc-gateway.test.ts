@@ -10,6 +10,7 @@ import {
   saveProcessPids,
   type OcGatewayRuntimeConfigs,
 } from '../src/main/oc-gateway.js';
+import { launchHiddenSync } from '../src/main/freecode-launcher.js';
 
 describe('oc-gateway supervisor utilities', () => {
   let tempDir: string;
@@ -83,11 +84,11 @@ describe('oc-gateway supervisor utilities', () => {
   it('generates configs with zen prefer, reasoning policy, and sota model rotation', () => {
     const ocHome = join(tempDir, 'oc-gateway');
     const SOTA_ORDER = [
-      'deepseek-v4.1-flash-free',
-      'glm-5.3-flash-free',
-      'minimax-m3.1-flash-free',
-      'mimo-v2.6-flash-free',
-      'big-pickle',
+      'deepseek-v4.1-flash',
+      'glm-5.3',
+      'grok-4.6',
+      'kimi-k3',
+      'qwen3.8-max',
     ];
     const configs = generateGatewayConfigs({
       ocHome,
@@ -136,5 +137,26 @@ describe('oc-gateway supervisor utilities', () => {
     });
     const poolConfig = JSON.parse(readFileSync(configs.poolConfigPath, 'utf8'));
     expect(poolConfig.server_keys[0]).toBe(hexKey);
+  });
+
+  it('opencode2api binary accepts generated pool config without configuration error', () => {
+    const ocHome = join(tempDir, 'oc-gateway-bin-check');
+    const configs = generateGatewayConfigs({
+      ocHome,
+      proxyPort: 18080,
+      poolPort: 18082,
+      directPort: 18084,
+      apiKey: '4306f6d5bd4759227eaab21bb4dd9a95aaae75f27ad146ba85a6a9ce6f4ac5f9',
+    });
+    const binPath = join(__dirname, '../resources/freecode/opencode2api/opencode2api-win-x64.exe');
+    if (!existsSync(binPath)) return;
+
+    const proc = launchHiddenSync({
+      executable: binPath,
+      args: ['-config', configs.poolConfigPath, '-listen', '127.0.0.1:0'],
+      timeout: 1500,
+    });
+    const output = `${proc.stderr ?? ''}${proc.stdout ?? ''}`;
+    expect(output).not.toContain('ERROR configuration error');
   });
 });

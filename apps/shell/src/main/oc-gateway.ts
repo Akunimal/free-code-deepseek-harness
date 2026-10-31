@@ -154,13 +154,13 @@ export function ensureServerKey(ocHome: string): string {
   return key;
 }
 
-/** Model rotation chain — mirrors C:\LocalAI config.json rotation.sota.order */
+/** Model rotation chain — mirrors C:\LocalAI data\pool-config.json and runtime-config.js ROTATION_DEFAULTS */
 const SOTA_ROTATION_ORDER = [
-  'deepseek-v4.1-flash-free',
-  'glm-5.3-flash-free',
-  'minimax-m3.1-flash-free',
-  'mimo-v2.6-flash-free',
-  'big-pickle',
+  'deepseek-v4.1-flash',
+  'glm-5.3',
+  'grok-4.6',
+  'kimi-k3',
+  'qwen3.8-max',
 ] as const;
 
 /**
