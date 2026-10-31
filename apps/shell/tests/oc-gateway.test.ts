@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
   ensureCanonicalSession,
+  ensureServerKey,
   generateGatewayConfigs,
   cleanupZombieProcesses,
   saveProcessPids,
@@ -77,5 +78,63 @@ describe('oc-gateway supervisor utilities', () => {
     // Cleanup should read pids and remove file without throwing even if PIDs are not alive
     expect(() => cleanupZombieProcesses(ocHome)).not.toThrow();
     expect(existsSync(pidFile)).toBe(false);
+  });
+
+  it('generates configs with zen prefer, reasoning policy, and sota model rotation', () => {
+    const ocHome = join(tempDir, 'oc-gateway');
+    const SOTA_ORDER = [
+      'deepseek-v4.1-flash-free',
+      'glm-5.3-flash-free',
+      'minimax-m3.1-flash-free',
+      'mimo-v2.6-flash-free',
+      'big-pickle',
+    ];
+    const configs = generateGatewayConfigs({
+      ocHome,
+      proxyPort: 18080,
+      poolPort: 18082,
+      directPort: 18084,
+      apiKey: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+    });
+
+    const poolConfig = JSON.parse(readFileSync(configs.poolConfigPath, 'utf8'));
+    expect(poolConfig.prefer).toBe('zen');
+    expect(poolConfig.reasoning?.effort).toBe('high');
+    expect(poolConfig.rotation?.sota?.order).toEqual(SOTA_ORDER);
+    expect(poolConfig.server_keys[0]).toMatch(/^[0-9a-f]{64}$/);
+
+    const directConfig = JSON.parse(readFileSync(configs.directConfigPath, 'utf8'));
+    expect(directConfig.prefer).toBe('zen');
+    expect(directConfig.rotation?.sota?.order).toEqual(SOTA_ORDER);
+    expect(directConfig.server_keys[0]).toMatch(/^[0-9a-f]{64}$/);
+
+    // proxy config (config/config.json) must also have rotation and zen
+    const proxyConfig = JSON.parse(readFileSync(configs.proxyConfigPath, 'utf8'));
+    expect(proxyConfig.prefer).toBe('zen');
+    expect(proxyConfig.rotation?.sota?.order).toBeDefined();
+  });
+
+  it('generates a valid hex-64 server key and persists it across calls', () => {
+    const ocHome = join(tempDir, 'oc-gateway-key');
+    const key1 = ensureServerKey(ocHome);
+    expect(key1).toMatch(/^[0-9a-f]{64}$/);
+
+    // Second call must return the same key (persistence)
+    const key2 = ensureServerKey(ocHome);
+    expect(key2).toBe(key1);
+  });
+
+  it('uses provided hex-64 apiKey as server_key without generating a new one', () => {
+    const ocHome = join(tempDir, 'oc-gateway-provided');
+    const hexKey = 'abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789';
+    const configs = generateGatewayConfigs({
+      ocHome,
+      proxyPort: 18080,
+      poolPort: 18082,
+      directPort: 18084,
+      apiKey: hexKey,
+    });
+    const poolConfig = JSON.parse(readFileSync(configs.poolConfigPath, 'utf8'));
+    expect(poolConfig.server_keys[0]).toBe(hexKey);
   });
 });

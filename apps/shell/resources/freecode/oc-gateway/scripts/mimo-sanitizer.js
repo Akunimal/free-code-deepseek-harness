@@ -66,15 +66,23 @@ function sanitizeMimoPayload(body) {
 }
 
 function resolveSessionId(reqHeaders, body, fallbackPrefix = 'mimo-ses') {
+  // 1. Canonical session injected by the Electron supervisor (highest priority)
+  const envSession = process.env.OC_CANONICAL_SESSION;
+  if (envSession && typeof envSession === 'string' && /^ses_[0-9a-f]{12}[0-9A-Za-z]{14}$/.test(envSession.trim())) {
+    return envSession.trim();
+  }
+  // 2. Per-request header override (advanced clients)
   if (!reqHeaders) reqHeaders = {};
   const headerSession = reqHeaders['x-session-id'] || reqHeaders['x-opencode-session-id'] || reqHeaders['x-conversation-id'];
   if (headerSession && typeof headerSession === 'string' && headerSession.trim()) {
     return headerSession.trim();
   }
+  // 3. Body-embedded session
   if (body && typeof body === 'object') {
     if (typeof body.session_id === 'string' && body.session_id.trim()) return body.session_id.trim();
     if (typeof body.conversation_id === 'string' && body.conversation_id.trim()) return body.conversation_id.trim();
   }
+  // 4. Generate ephemeral fallback (should not reach here in normal operation)
   return `${fallbackPrefix}-${Date.now().toString(36)}`;
 }
 

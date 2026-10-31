@@ -134,7 +134,38 @@ export function cleanupZombieProcesses(ocHome: string): void {
 }
 
 /**
+ * Ensures a persistent server key (64 hex chars) exists in the gateway config dir.
+ * Reuses the persisted key across restarts to avoid re-registration on every launch.
+ */
+export function ensureServerKey(ocHome: string): string {
+  const configDir = join(ocHome, 'config');
+  const keyPath = join(configDir, 'server-key.json');
+  try {
+    if (existsSync(keyPath)) {
+      const { key } = JSON.parse(readFileSync(keyPath, 'utf8')) as { key: string };
+      if (typeof key === 'string' && /^[0-9a-f]{64}$/.test(key)) return key;
+    }
+  } catch {
+    // fall through to generate
+  }
+  mkdirSync(configDir, { recursive: true });
+  const key = randomBytes(32).toString('hex');
+  writeFileSync(keyPath, JSON.stringify({ key, createdAt: new Date().toISOString() }, null, 2), 'utf8');
+  return key;
+}
+
+/** Model rotation chain — mirrors C:\LocalAI config.json rotation.sota.order */
+const SOTA_ROTATION_ORDER = [
+  'deepseek-v4.1-flash-free',
+  'glm-5.3-flash-free',
+  'minimax-m3.1-flash-free',
+  'mimo-v2.6-flash-free',
+  'big-pickle',
+] as const;
+
+/**
  * Generates runtime configs in user data directory, enforcing loopback 127.0.0.1.
+ * Configs are aligned with C:\LocalAI: prefer zen, reasoning high, sota rotation.
  */
 export function generateGatewayConfigs(params: {
   ocHome: string;
@@ -149,12 +180,25 @@ export function generateGatewayConfigs(params: {
   mkdirSync(dataDir, { recursive: true });
   mkdirSync(configDir, { recursive: true });
 
+  // Use provided hex-64 key or generate/reuse a persistent one
+  const serverKey = /^[0-9a-f]{64}$/.test(apiKey) ? apiKey : ensureServerKey(ocHome);
+
   const poolConfig = {
     listen: `127.0.0.1:${poolPort}`,
-    server_keys: [apiKey],
+    server_keys: [serverKey],
     zen_keys: [],
     go_keys: [],
     anonymous: true,
+    prefer: 'zen',
+    reasoning: { effort: 'high' },
+    rotation: {
+      sota: {
+        alias: 'sota',
+        order: [...SOTA_ROTATION_ORDER],
+      },
+      sweet: { alias: 'sweet', order: [] as string[] },
+      first_output_seconds: 30,
+    },
     warp: {
       enabled: true,
       pool_size: 4,
