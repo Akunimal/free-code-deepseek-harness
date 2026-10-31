@@ -448,27 +448,64 @@ function handleChatCompletion(clientReq, clientRes, requestPath = '/v1/chat/comp
     const internalKey = getGatewayInternalKey();
     if (internalKey) upstreamHeaders.authorization = `Bearer ${internalKey}`;
 
-    const submitted = chatCoordinator.submit({
-      requestId,
-      model,
-      requestPayload: sanitizedPayload,
-      requestPath,
-      structuredResponse: !!sanitizedBody.questions && typeof sanitizedBody.questions === 'object',
-      headers: upstreamHeaders,
-      clientReq,
-      clientRes,
-      deadline,
-      attemptHistory,
-      directAvailable: DIRECT_GATEWAY_PORT !== GATEWAY_INTERNAL_PORT,
-      cloudflareAvailable: false,
-      vercelAvailable: false,
-      routes: ['direct', 'pool'],
-      directTimeoutMs: DIRECT_FIRST_CONTENT_TIMEOUT_MS,
-      poolTimeoutMs: POOL_FIRST_EVENT_TIMEOUT_MS
-    });
-    cancelQueuedRequest = submitted.cancel;
-    const result = await submitted.promise;
-    const finalResult = result || { outcome: 'local_unavailable', status: 503 };
+    const FALLBACK_CHAIN = [
+      'mimo-v2.6-flash-free',
+      'deepseek-v4.1-flash-free',
+      'glm-5.3-flash-free',
+      'flint-40b-free',
+      'beam-free'
+    ];
+    const candidateModels = [model];
+    for (const fb of FALLBACK_CHAIN) {
+      if (!candidateModels.includes(fb)) candidateModels.push(fb);
+    }
+
+    let finalResult = { outcome: 'local_unavailable', status: 503 };
+    for (let i = 0; i < candidateModels.length; i++) {
+      const currentModel = candidateModels[i];
+      if (i > 0) {
+        log(`[MODEL ROTATION] Switching from '${model}' to fallback '${currentModel}' due to quota exhaustion`);
+      }
+      sanitizedBody.model = currentModel;
+      const currentPayload = Buffer.from(JSON.stringify(sanitizedBody), 'utf8');
+      upstreamHeaders['content-length'] = String(currentPayload.length);
+      if (i > 0) {
+        const baseSes = resolveSessionId(upstreamHeaders, sanitizedBody);
+        upstreamHeaders['x-session-id'] = `${baseSes.slice(0, 16)}${crypto.randomBytes(6).toString('hex')}`;
+      }
+
+      const submitted = chatCoordinator.submit({
+        requestId: i === 0 ? requestId : `${requestId}-fb${i}`,
+        model: currentModel,
+        requestPayload: currentPayload,
+        requestPath,
+        structuredResponse: !!sanitizedBody.questions && typeof sanitizedBody.questions === 'object',
+        headers: upstreamHeaders,
+        clientReq,
+        clientRes,
+        deadline,
+        attemptHistory,
+        directAvailable: DIRECT_GATEWAY_PORT !== GATEWAY_INTERNAL_PORT,
+        cloudflareAvailable: false,
+        vercelAvailable: false,
+        routes: ['direct', 'pool'],
+        directTimeoutMs: DIRECT_FIRST_CONTENT_TIMEOUT_MS,
+        poolTimeoutMs: POOL_FIRST_EVENT_TIMEOUT_MS
+      });
+      cancelQueuedRequest = submitted.cancel;
+      const result = await submitted.promise;
+      finalResult = result || { outcome: 'local_unavailable', status: 503 };
+
+      if (clientRes.destroyed || clientRes.writableEnded || clientRes.headersSent) {
+        break;
+      }
+      if (finalResult.outcome === 'success') {
+        break;
+      }
+      if (finalResult.outcome !== 'quota' && finalResult.status !== 429) {
+        break;
+      }
+    }
     finish(finalResult, finalResult.detail || finalResult.outcome);
     if (clientRes.destroyed || clientRes.writableEnded) return;
 
