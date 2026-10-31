@@ -1,10 +1,212 @@
 import type { ChildProcess } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync, openSync, closeSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+  openSync,
+  closeSync,
+} from 'node:fs';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
+import { cpus, totalmem } from 'node:os';
 import { launchHidden, launchHiddenSync } from './freecode-launcher.js';
 import { nodeRuntimeEnv, resolveNodePath } from './resource-paths.js';
+
+// ===========================================================================
+// FASE 0: Detección de Capacidad del Sistema & Interfaces
+// ===========================================================================
+
+export interface SystemCapabilities {
+  cpuCores: number;
+  memoryGB: number;
+  networkSpeed: 'slow' | 'medium' | 'fast';
+}
+
+export interface GatewayHealth {
+  url: string;
+  healthy: boolean;
+  latency: number;
+  activeRequests: number;
+  lastSuccess: number;
+  canInfer: boolean;
+}
+
+export function detectSystemCapabilities(): SystemCapabilities {
+  const cpuCores = cpus().length;
+  const memoryGB = Math.round(totalmem() / (1024 * 1024 * 1024));
+  const networkSpeed =
+    cpuCores >= 8 && memoryGB >= 16 ? 'fast' : cpuCores >= 4 && memoryGB >= 8 ? 'medium' : 'slow';
+  console.log(`[System] Detectado: ${cpuCores} cores, ${memoryGB}GB RAM, red ${networkSpeed}`);
+  return { cpuCores, memoryGB, networkSpeed };
+}
+
+export function getOptimalPoolSize(capabilities: SystemCapabilities): number {
+  let poolSize = 4;
+  if (capabilities.networkSpeed === 'fast') {
+    poolSize = Math.min(16, capabilities.cpuCores * 2);
+  } else if (capabilities.networkSpeed === 'medium') {
+    poolSize = Math.min(8, capabilities.cpuCores);
+  }
+  console.log(`[PoolSize] Configurado: ${poolSize} túneles`);
+  return poolSize;
+}
+
+// ===========================================================================
+// FASE 1: Detección Inteligente de Gateway Local
+// ===========================================================================
+
+export async function testModelAvailability(url: string): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    const response = await fetch(`${url}/v1/models`, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function probeGateway(url: string): Promise<GatewayHealth> {
+  const startTime = Date.now();
+  const empty: GatewayHealth = {
+    url,
+    healthy: false,
+    latency: 0,
+    activeRequests: 0,
+    lastSuccess: 0,
+    canInfer: false,
+  };
+
+  try {
+    // Health check con timeout de 2s
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const healthResponse = await fetch(`${url}/healthz`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    if (!healthResponse.ok) {
+      // Fallback a /health (usado por mimo-router :8088)
+      try {
+        const c2 = new AbortController();
+        const t2 = setTimeout(() => c2.abort(), 1000);
+        const h2 = await fetch(`${url}/health`, { signal: c2.signal });
+        clearTimeout(t2);
+        if (!h2.ok) return empty;
+      } catch {
+        return empty;
+      }
+    }
+
+    // Verificar capacidad (endpoint opcional)
+    let activeRequests = 0;
+    try {
+      const ctrl2 = new AbortController();
+      const tid2 = setTimeout(() => ctrl2.abort(), 1000);
+      const statsResponse = await fetch(`${url}/stats`, { signal: ctrl2.signal });
+      clearTimeout(tid2);
+      if (statsResponse.ok) {
+        const stats = (await statsResponse.json()) as { activeRequests?: number };
+        activeRequests = stats.activeRequests || 0;
+      }
+    } catch {
+      /* endpoint opcional */
+    }
+
+    // Verificar disponibilidad de modelos (sin hacer inferencia ni quemar cuota)
+    const canInfer = await testModelAvailability(url);
+
+    return {
+      url,
+      healthy: true,
+      latency: Date.now() - startTime,
+      activeRequests,
+      lastSuccess: Date.now(),
+      canInfer,
+    };
+  } catch {
+    return empty;
+  }
+}
+
+export async function detectBestGateway(): Promise<GatewayHealth | null> {
+  if (process.env.FREECODE_FORCE_EMBEDDED_GATEWAY === '1') {
+    console.log('[Detect] FREECODE_FORCE_EMBEDDED_GATEWAY activo; omitiendo gateways locales');
+    return null;
+  }
+
+  const candidates = [
+    'http://127.0.0.1:8080',
+    'http://127.0.0.1:8088',
+    'http://127.0.0.1:8084',
+    'http://127.0.0.1:8082',
+  ];
+
+  console.log('[Detect] Probando gateways locales...');
+  const results = await Promise.all(candidates.map(probeGateway));
+
+  const healthy = results.filter((g) => g.healthy && g.canInfer && g.activeRequests < 10);
+
+  if (healthy.length === 0) {
+    console.log('[Detect] No se encontraron gateways locales disponibles');
+    return null;
+  }
+
+  // Priorizar: menor carga → menor latencia → éxito más reciente
+  healthy.sort((a, b) => {
+    if (a.activeRequests !== b.activeRequests) return a.activeRequests - b.activeRequests;
+    if (a.latency !== b.latency) return a.latency - b.latency;
+    return b.lastSuccess - a.lastSuccess;
+  });
+
+  const best = healthy[0];
+  if (!best) {
+    return null;
+  }
+
+  console.log(
+    `[Detect] Mejor gateway: ${best.url} (latencia: ${best.latency}ms, requests: ${best.activeRequests})`
+  );
+  return best;
+}
+
+export interface ExistingGatewayProbeResult {
+  url: string;
+  baseUrl: string;
+  port: number;
+}
+
+/**
+ * Backward compatibility alias for probeGateway/detectBestGateway
+ */
+export async function probeExistingLocalGateway(
+  timeoutMs = 800
+): Promise<ExistingGatewayProbeResult | null> {
+  if (process.env.FREECODE_FORCE_EMBEDDED_GATEWAY === '1') {
+    return null;
+  }
+  const best = await detectBestGateway();
+  if (best) {
+    const parsed = new URL(best.url);
+    const port = parseInt(parsed.port || '80', 10);
+    return {
+      url: `${best.url}/v1`,
+      baseUrl: best.url,
+      port,
+    };
+  }
+  return null;
+}
+
+// ===========================================================================
+// FASE 2: GatewayManager (Health Monitoring + Failover)
+// ===========================================================================
 
 export interface OcGatewayConfig {
   resourcesDir: string;
@@ -55,10 +257,205 @@ export async function findFreePort(host = '127.0.0.1'): Promise<number> {
   });
 }
 
-/**
- * Ensures a persistent canonical OpenCode session token (`ses_...`) exists.
- * Preserved across restarts to maintain client device fingerprint and quota continuity.
- */
+export class GatewayManager {
+  private currentGateway: GatewayHealth | null = null;
+  private healthCheckInterval: NodeJS.Timeout | null = null;
+  private fallbackToEmbedded = false;
+  private embeddedPort: number | null = null;
+  private embeddedDirectPort: number | null = null;
+  private embeddedWarpPort: number | null = null;
+  private activeInstance: OcGatewayInstance | null = null;
+  private config?: OcGatewayConfig;
+
+  constructor(config?: OcGatewayConfig) {
+    this.config = config;
+  }
+
+  setConfig(config: OcGatewayConfig): void {
+    this.config = config;
+  }
+
+  async initialize(config?: OcGatewayConfig): Promise<string> {
+    if (config) this.config = config;
+
+    // Intentar reutilizar gateway local existente
+    const gateway = await detectBestGateway();
+
+    if (gateway) {
+      this.currentGateway = gateway;
+      console.log(`[GatewayManager] ✅ Usando gateway local: ${gateway.url}`);
+      this.startHealthMonitoring();
+      const port = parseInt(new URL(gateway.url).port || '80', 10);
+      const modelIds = this.config?.resourcesDir
+        ? loadModelIds(this.config.resourcesDir)
+        : ['deepseek-v4.1-flash-free'];
+      this.activeInstance = {
+        url: `${gateway.url}/v1`,
+        baseUrl: gateway.url,
+        port,
+        apiKey: this.config?.apiKey || 'freecode-internal-key',
+        modelIds,
+        pids: [],
+        stop: async () => {},
+        restart: async () => {},
+      };
+      return `${gateway.url}/v1`;
+    }
+
+    // Fallback: levantar stack embebido
+    console.log('[GatewayManager] ⚠️ No hay gateway local, levantando stack embebido...');
+    this.fallbackToEmbedded = true;
+    await this.startEmbeddedStack();
+    return `http://127.0.0.1:${this.embeddedPort}/v1`;
+  }
+
+  getInstance(): OcGatewayInstance | null {
+    return this.activeInstance;
+  }
+
+  private startHealthMonitoring(): void {
+    if (this.healthCheckInterval) clearInterval(this.healthCheckInterval);
+
+    this.healthCheckInterval = setInterval(async () => {
+      if (!this.currentGateway) return;
+
+      const health = await probeGateway(this.currentGateway.url);
+
+      if (!health.healthy || !health.canInfer) {
+        console.warn(`[GatewayManager] ⚠️ Gateway ${this.currentGateway.url} cayó, iniciando failover...`);
+        await this.handleGatewayFailure();
+      } else {
+        this.currentGateway = health;
+      }
+    }, 30000); // 30 segundos
+
+    console.log('[GatewayManager] Health monitoring iniciado (cada 30s)');
+  }
+
+  private async handleGatewayFailure(): Promise<void> {
+    const newGateway = await detectBestGateway();
+
+    if (newGateway && newGateway.url !== this.currentGateway?.url) {
+      this.currentGateway = newGateway;
+      console.log(`[GatewayManager] ✅ Failover exitoso a ${newGateway.url}`);
+      if (this.activeInstance) {
+        this.activeInstance.url = `${newGateway.url}/v1`;
+        this.activeInstance.baseUrl = newGateway.url;
+        this.activeInstance.port = parseInt(new URL(newGateway.url).port || '80', 10);
+      }
+    } else {
+      console.log('[GatewayManager] Activando stack embebido como último recurso...');
+      this.fallbackToEmbedded = true;
+      this.stopHealthMonitoring();
+      await this.startEmbeddedStack();
+    }
+  }
+
+  async startEmbeddedStack(): Promise<void> {
+    if (!this.config) {
+      throw new Error('[GatewayManager] Cannot start embedded stack without OcGatewayConfig');
+    }
+    const capabilities = detectSystemCapabilities();
+    const poolSize = getOptimalPoolSize(capabilities);
+
+    // Solicitar puertos dinámicos libres al OS (:0)
+    this.embeddedPort = await this.getAvailablePort();
+    this.embeddedDirectPort = await this.getAvailablePort();
+    this.embeddedWarpPort = await this.getAvailablePort();
+
+    console.log(
+      `[GatewayManager] Puertos asignados: proxy=${this.embeddedPort}, direct=${this.embeddedDirectPort}, warp=${this.embeddedWarpPort}`
+    );
+    console.log(`[GatewayManager] Stack embebido levantado con pool_size=${poolSize}`);
+
+    this.activeInstance = await startEmbeddedOcGateway({
+      config: this.config,
+      proxyPort: this.embeddedPort,
+      poolPort: this.embeddedWarpPort,
+      directPort: this.embeddedDirectPort,
+      poolSize,
+    });
+  }
+
+  async getAvailablePort(): Promise<number> {
+    return findFreePort('127.0.0.1');
+  }
+
+  stopHealthMonitoring(): void {
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval);
+      this.healthCheckInterval = null;
+      console.log('[GatewayManager] Health monitoring detenido');
+    }
+  }
+
+  cleanup(): void {
+    this.stopHealthMonitoring();
+    if (this.activeInstance) {
+      void this.activeInstance.stop();
+      this.activeInstance = null;
+    }
+    console.log('[GatewayManager] Cleanup completado');
+  }
+}
+
+export const globalGatewayManager = new GatewayManager();
+
+// ===========================================================================
+// FASE 3: Sincronización de Scripts desde C:\LocalAI
+// ===========================================================================
+
+export async function syncScriptsFromLocalAI(targetDir?: string): Promise<void> {
+  const sourcePath = 'C:\\LocalAI\\opencode-gateway\\scripts';
+  const targetPath =
+    targetDir || join(process.cwd(), 'apps', 'shell', 'resources', 'freecode', 'oc-gateway', 'scripts');
+
+  const requiredFiles = [
+    'proxy.js',
+    'chat-coordinator.js',
+    'chat-upstream.js',
+    'mimo-sanitizer.js',
+    'sse-parser.js',
+  ];
+
+  console.log('[Sync] Sincronizando scripts desde C:\\LocalAI...');
+
+  for (const file of requiredFiles) {
+    const source = join(sourcePath, file);
+    const target = join(targetPath, file);
+
+    try {
+      if (existsSync(source)) {
+        copyFileSync(source, target);
+        console.log(`[Sync] ✅ Copiado: ${file}`);
+      } else {
+        console.warn(`[Sync] ⚠️ No encontrado: ${file}`);
+      }
+    } catch (error: any) {
+      console.error(`[Sync] ❌ Error copiando ${file}:`, error.message);
+    }
+  }
+
+  // Guardar metadata de sincronización
+  const metadata = {
+    version: '2.1.0',
+    lastSync: new Date().toISOString(),
+    sourceHash: 'local-ai-1.4.5',
+    files: requiredFiles,
+  };
+
+  try {
+    writeFileSync(join(targetPath, 'sync-metadata.json'), JSON.stringify(metadata, null, 2), 'utf8');
+    console.log('[Sync] Metadata guardada en sync-metadata.json');
+  } catch (error: any) {
+    console.error('[Sync] Error guardando metadata:', error.message);
+  }
+}
+
+// ===========================================================================
+// FASE 4: Configuraciones Auto-Adaptativas y Stack Embebido
+// ===========================================================================
+
 export function ensureCanonicalSession(ocHome: string): string {
   const sessionPath = join(ocHome, 'session.json');
   try {
@@ -73,7 +470,6 @@ export function ensureCanonicalSession(ocHome: string): string {
   }
 
   mkdirSync(ocHome, { recursive: true });
-  // Format: ses_ + 12 hex chars (timestamp-based) + 14 alphanumeric chars
   const hexPart = Date.now().toString(16).padStart(12, '0').slice(-12);
   const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
   const bytes = randomBytes(14);
@@ -87,24 +483,18 @@ export function ensureCanonicalSession(ocHome: string): string {
   return sessionId;
 }
 
-/**
- * Saves running PIDs to prevent Windows zombies if Electron crashes or shuts down abruptly.
- */
 export function saveProcessPids(ocHome: string, pids: number[]): void {
   mkdirSync(ocHome, { recursive: true });
   writeFileSync(join(ocHome, 'pids.json'), JSON.stringify({ pids, timestamp: Date.now() }, null, 2), 'utf8');
 }
 
-/**
- * Cleans up any leftover processes from previous crashes.
- */
 export function cleanupZombieProcesses(ocHome: string): void {
   const pidFile = join(ocHome, 'pids.json');
   if (!existsSync(pidFile)) return;
   try {
-    const data = JSON.parse(readFileSync(pidFile, 'utf8'));
-    if (Array.isArray(data.pids)) {
-      for (const pid of data.pids) {
+    const { pids } = JSON.parse(readFileSync(pidFile, 'utf8')) as { pids: number[] };
+    if (Array.isArray(pids)) {
+      for (const pid of pids) {
         if (typeof pid === 'number' && pid > 0) {
           try {
             if (process.platform === 'win32') {
@@ -133,10 +523,6 @@ export function cleanupZombieProcesses(ocHome: string): void {
   }
 }
 
-/**
- * Ensures a persistent server key (64 hex chars) exists in the gateway config dir.
- * Reuses the persisted key across restarts to avoid re-registration on every launch.
- */
 export function ensureServerKey(ocHome: string): string {
   const configDir = join(ocHome, 'config');
   const keyPath = join(configDir, 'server-key.json');
@@ -154,7 +540,6 @@ export function ensureServerKey(ocHome: string): string {
   return key;
 }
 
-/** Model rotation chain — mirrors C:\LocalAI data\pool-config.json and runtime-config.js ROTATION_DEFAULTS */
 const SOTA_ROTATION_ORDER = [
   'deepseek-v4.1-flash',
   'glm-5.3',
@@ -163,24 +548,24 @@ const SOTA_ROTATION_ORDER = [
   'qwen3.8-max',
 ] as const;
 
-/**
- * Generates runtime configs in user data directory, enforcing loopback 127.0.0.1.
- * Configs are aligned with C:\LocalAI: prefer zen, reasoning high, sota rotation.
- */
 export function generateGatewayConfigs(params: {
   ocHome: string;
   proxyPort: number;
   poolPort: number;
   directPort: number;
   apiKey: string;
+  poolSize?: number;
 }): OcGatewayRuntimeConfigs {
-  const { ocHome, poolPort, directPort, apiKey } = params;
+  const { ocHome, poolPort, directPort, apiKey, poolSize } = params;
+  const capabilities = detectSystemCapabilities();
+  const effectivePoolSize =
+    typeof poolSize === 'number' && poolSize > 0 ? poolSize : getOptimalPoolSize(capabilities);
+
   const dataDir = join(ocHome, 'data');
   const configDir = join(ocHome, 'config');
   mkdirSync(dataDir, { recursive: true });
   mkdirSync(configDir, { recursive: true });
 
-  // Use provided hex-64 key or generate/reuse a persistent one
   const serverKey = /^[0-9a-f]{64}$/.test(apiKey) ? apiKey : ensureServerKey(ocHome);
 
   const poolConfig = {
@@ -201,7 +586,7 @@ export function generateGatewayConfigs(params: {
     },
     warp: {
       enabled: true,
-      pool_size: 4,
+      pool_size: effectivePoolSize,
     },
     proxies: ['direct'],
     proxyfile: '',
@@ -230,6 +615,11 @@ export function generateGatewayConfigs(params: {
     ...poolConfig,
     listen: `127.0.0.1:${directPort}`,
     warp: { enabled: false, pool_size: 0 },
+    performance: {
+      ...poolConfig.performance,
+      attempt_timeout_seconds: 35,
+      first_event_timeout_seconds: 30,
+    },
   };
 
   const poolConfigPath = join(dataDir, 'pool-config.json');
@@ -260,7 +650,6 @@ export function loadModelIds(resourcesDir: string): string[] {
       if (data && typeof data.models === 'object' && data.models !== null) {
         const keys = Object.keys(data.models);
         if (keys.length > 0) {
-          // Put deepseek-v4.1-flash-free at the beginning if present
           const sorted = keys.filter((k) => k !== 'deepseek-v4.1-flash-free');
           if (keys.includes('deepseek-v4.1-flash-free')) {
             sorted.unshift('deepseek-v4.1-flash-free');
@@ -275,14 +664,14 @@ export function loadModelIds(resourcesDir: string): string[] {
   return defaultModels;
 }
 
-/**
- * Starts the self-contained opencode2api gateway stack:
- * - Worker 1: Direct backend (127.0.0.1:directPort)
- * - Worker 2: Multi-WARP pool backend (127.0.0.1:poolPort)
- * - Ingress: Node.js proxy sanitizador & coordinator (127.0.0.1:proxyPort)
- */
-export async function startOcGateway(config: OcGatewayConfig): Promise<OcGatewayInstance> {
-  const log = config.log ?? (() => {});
+export async function startEmbeddedOcGateway(params: {
+  config: OcGatewayConfig;
+  proxyPort?: number;
+  poolPort?: number;
+  directPort?: number;
+  poolSize?: number;
+}): Promise<OcGatewayInstance> {
+  const { config, poolSize } = params;
   const packaged = config.packaged ?? false;
   const ocHome = join(config.userDataDir, 'oc-gateway');
   const logsDir = join(config.userDataDir, 'logs', 'oc-gateway');
@@ -297,9 +686,9 @@ export async function startOcGateway(config: OcGatewayConfig): Promise<OcGateway
 
   // 3. Dynamic loopback port allocation
   const [proxyPort, poolPort, directPort] = await Promise.all([
-    findFreePort('127.0.0.1'),
-    findFreePort('127.0.0.1'),
-    findFreePort('127.0.0.1'),
+    params.proxyPort ? Promise.resolve(params.proxyPort) : findFreePort('127.0.0.1'),
+    params.poolPort ? Promise.resolve(params.poolPort) : findFreePort('127.0.0.1'),
+    params.directPort ? Promise.resolve(params.directPort) : findFreePort('127.0.0.1'),
   ]);
 
   const apiKey = config.apiKey || 'freecode-internal-key';
@@ -311,6 +700,7 @@ export async function startOcGateway(config: OcGatewayConfig): Promise<OcGateway
     poolPort,
     directPort,
     apiKey,
+    poolSize,
   });
 
   const binPath = join(config.resourcesDir, 'opencode2api', 'opencode2api-win-x64.exe');
@@ -441,7 +831,7 @@ export async function startOcGateway(config: OcGatewayConfig): Promise<OcGateway
       stop,
       restart: async () => {
         await stop();
-        await startOcGateway(config);
+        await startEmbeddedOcGateway(params);
       },
     };
   } catch (err) {
@@ -454,4 +844,17 @@ export async function startOcGateway(config: OcGatewayConfig): Promise<OcGateway
     }
     throw err;
   }
+}
+
+/**
+ * Entry point for starting the OpenCode Gateway via GatewayManager
+ */
+export async function startOcGateway(config: OcGatewayConfig): Promise<OcGatewayInstance> {
+  globalGatewayManager.setConfig(config);
+  await globalGatewayManager.initialize(config);
+  const instance = globalGatewayManager.getInstance();
+  if (!instance) {
+    throw new Error('oc-gateway: GatewayManager failed to produce an active instance');
+  }
+  return instance;
 }

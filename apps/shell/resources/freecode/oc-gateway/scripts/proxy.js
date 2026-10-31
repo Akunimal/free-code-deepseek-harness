@@ -318,14 +318,9 @@ const chatCoordinator = new ChatCoordinator({
   rejectedCooldownMs: Number(process.env.REJECTED_CIRCUIT_COOLDOWN_MS) > 0 ? Number(process.env.REJECTED_CIRCUIT_COOLDOWN_MS) : 30000,
   executeAttempt: async attempt => {
     const attemptStartedAt = Date.now();
-    const attemptHeaders = { ...attempt.headers, 'x-gateway-attempt': '', 'x-gateway-relay': attempt.route === 'cloudflare' ? '1' : attempt.route === 'vercel' ? 'vercel' : '' };
-    if (attempt.route === 'pool' && attempt.attemptHistory?.length > 0) {
-      const baseSes = attemptHeaders['x-session-id'] || 'ses_000000000000';
-      attemptHeaders['x-session-id'] = `${baseSes.slice(0, 16)}${crypto.randomBytes(6).toString('hex')}`;
-    }
     const result = await executeGatewayAttempt({
       ...attempt,
-      headers: attemptHeaders,
+      headers: { ...attempt.headers, 'x-gateway-attempt': '', 'x-gateway-relay': attempt.route === 'cloudflare' ? '1' : attempt.route === 'vercel' ? 'vercel' : '' },
       port: attempt.route === 'direct' ? DIRECT_GATEWAY_PORT : GATEWAY_INTERNAL_PORT,
       streamIdleTimeoutMs: INACTIVITY_TIMEOUT_MS,
       streamMaxDurationMs: MAX_STREAM_DURATION_MS

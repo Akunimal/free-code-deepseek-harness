@@ -1,0 +1,12 @@
+{
+  "version": "2.1.0",
+  "lastSync": "2026-10-31T21:24:00.000Z",
+  "sourceHash": "local-ai-1.4.5",
+  "files": [
+    "proxy.js",
+    "chat-coordinator.js",
+    "chat-upstream.js",
+    "mimo-sanitizer.js",
+    "sse-parser.js"
+  ]
+}

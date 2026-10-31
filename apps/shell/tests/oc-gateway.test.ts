@@ -8,6 +8,11 @@ import {
   generateGatewayConfigs,
   cleanupZombieProcesses,
   saveProcessPids,
+  probeExistingLocalGateway,
+  detectSystemCapabilities,
+  getOptimalPoolSize,
+  GatewayManager,
+  syncScriptsFromLocalAI,
   type OcGatewayRuntimeConfigs,
 } from '../src/main/oc-gateway.js';
 import { launchHiddenSync } from '../src/main/freecode-launcher.js';
@@ -36,6 +41,7 @@ describe('oc-gateway supervisor utilities', () => {
       poolPort: 18082,
       directPort: 18084,
       apiKey: 'test-key',
+      poolSize: 4,
     });
 
     expect(configs.poolConfigPath).toBeDefined();
@@ -51,6 +57,10 @@ describe('oc-gateway supervisor utilities', () => {
     const directConfig = JSON.parse(readFileSync(configs.directConfigPath, 'utf8'));
     expect(directConfig.listen).toBe('127.0.0.1:18084');
     expect(directConfig.listen).not.toContain('0.0.0.0');
+    expect(directConfig.warp.enabled).toBe(false);
+    expect(directConfig.warp.pool_size).toBe(0);
+    expect(directConfig.performance.attempt_timeout_seconds).toBe(35);
+    expect(directConfig.performance.first_event_timeout_seconds).toBe(30);
   });
 
   it('persists and reuses canonical session across runs', () => {
@@ -158,5 +168,67 @@ describe('oc-gateway supervisor utilities', () => {
     });
     const output = `${proc.stderr ?? ''}${proc.stdout ?? ''}`;
     expect(output).not.toContain('ERROR configuration error');
+  });
+
+  it('probeExistingLocalGateway returns null when FREECODE_FORCE_EMBEDDED_GATEWAY=1', async () => {
+    const orig = process.env.FREECODE_FORCE_EMBEDDED_GATEWAY;
+    try {
+      process.env.FREECODE_FORCE_EMBEDDED_GATEWAY = '1';
+      const result = await probeExistingLocalGateway(100);
+      expect(result).toBeNull();
+    } finally {
+      if (orig === undefined) delete process.env.FREECODE_FORCE_EMBEDDED_GATEWAY;
+      else process.env.FREECODE_FORCE_EMBEDDED_GATEWAY = orig;
+    }
+  });
+
+  it('probeExistingLocalGateway detects existing local gateway when reachable', async () => {
+    // If port 8080 or 8088 is alive on localhost, probe should return valid url
+    const result = await probeExistingLocalGateway(500);
+    if (result) {
+      expect(result.url).toMatch(/^http:\/\/127\.0\.0\.1:(8080|8088)\/v1$/);
+      expect([8080, 8088]).toContain(result.port);
+    }
+  });
+
+  it('detectSystemCapabilities and getOptimalPoolSize calculate bounded pool sizes', () => {
+    const caps = detectSystemCapabilities();
+    expect(caps.cpuCores).toBeGreaterThan(0);
+    expect(caps.memoryGB).toBeGreaterThan(0);
+    expect(['slow', 'medium', 'fast']).toContain(caps.networkSpeed);
+
+    const poolSize = getOptimalPoolSize(caps);
+    expect(poolSize).toBeGreaterThanOrEqual(4);
+    expect(poolSize).toBeLessThanOrEqual(16);
+
+    // Explicit speed profiles
+    expect(getOptimalPoolSize({ cpuCores: 2, memoryGB: 4, networkSpeed: 'slow' })).toBe(4);
+    expect(getOptimalPoolSize({ cpuCores: 8, memoryGB: 16, networkSpeed: 'medium' })).toBe(8);
+    expect(getOptimalPoolSize({ cpuCores: 16, memoryGB: 32, networkSpeed: 'fast' })).toBe(16);
+  });
+
+  it('syncScriptsFromLocalAI writes metadata and copies available scripts', async () => {
+    const targetDir = join(tempDir, 'synced-scripts');
+    mkdirSync(targetDir, { recursive: true });
+
+    await syncScriptsFromLocalAI(targetDir);
+
+    const metaFile = join(targetDir, 'sync-metadata.json');
+    expect(existsSync(metaFile)).toBe(true);
+    const meta = JSON.parse(readFileSync(metaFile, 'utf8'));
+    expect(meta.version).toBe('2.1.0');
+    expect(meta.sourceHash).toBe('local-ai-1.4.5');
+    expect(meta.files).toContain('proxy.js');
+  });
+
+  it('GatewayManager initializes and cleans up health monitoring', async () => {
+    const manager = new GatewayManager();
+    const url = await manager.initialize();
+    expect(url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/v1$/);
+    const instance = manager.getInstance();
+    expect(instance).toBeDefined();
+    expect(instance?.url).toBe(url);
+
+    expect(() => manager.cleanup()).not.toThrow();
   });
 });

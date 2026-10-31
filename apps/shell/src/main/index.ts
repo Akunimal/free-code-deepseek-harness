@@ -7,7 +7,7 @@ import type { McpRuntimeStatus } from '@freecode/shared-types';
 import { createShellRuntime, ShellRuntime } from './runtime.js';
 import { createSecretStore, ensureSecret } from './secret-store.js';
 import { seedProviders } from './provider-seeder.js';
-import { startOcGateway, type OcGatewayInstance } from './oc-gateway.js';
+import { startOcGateway, type OcGatewayInstance, GatewayManager, syncScriptsFromLocalAI, globalGatewayManager } from './oc-gateway.js';
 import { sanitizeAndRetireLegacyPlugins } from './plugin-deployer.js';
 import type { ModelCatalog } from './model-refresher.js';
 import { createModelCatalogRefreshState } from './model-refresh-state.js';
@@ -1067,6 +1067,9 @@ app.whenReady().then(async () => {
     userDataDir,
   });
 
+  // 1. Sincronizar scripts primero (si existe C:\LocalAI)
+  await syncScriptsFromLocalAI(join(resources, 'oc-gateway', 'scripts'));
+
   let ocGateway: OcGatewayInstance | undefined;
   try {
     ocGateway = await startOcGateway({
@@ -1254,6 +1257,7 @@ app.on('before-quit', async (e) => {
       if (updateTimer) { clearInterval(updateTimer); updateTimer = null; }
       if (refreshRetryTimer) { clearTimeout(refreshRetryTimer); refreshRetryTimer = null; }
       if (refreshIntervalId) { clearInterval(refreshIntervalId); refreshIntervalId = null; }
+      globalGatewayManager.cleanup();
       await embeddedBrowser?.close();
       embeddedBrowser = null;
       await dialogBridge?.close();
