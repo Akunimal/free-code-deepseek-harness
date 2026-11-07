@@ -1,7 +1,7 @@
 {
     "arch":  "x64",
-    "sha256":  "a09e8ccedded0bafc6c8f8ed2aa2df3e406969f07950a66b0c48780a54df1528",
-    "generatedAt":  "2026-10-30T18:07:54Z",
-    "version":  "1.4.5",
+    "sha256":  "fffb6edcd48e988355065678f438266216e55d3170464485aef51d3ef38959ea",
+    "generatedAt":  "2026-11-05T06:17:00Z",
+    "version":  "1.4.7",
     "platform":  "win32"
 }
