@@ -2,7 +2,16 @@
 
 ![FreeCode model selector with Auto Phoenix and free models](docs/assets/app-model-selector.png)
 
-### Current release: v1.0.2 (Windows x64)
+### Current release: v1.0.3 (Windows x64)
+
+v1.0.3 is published for Windows x64 with an NSIS setup installer and a
+standalone portable executable. It integrates the latest opencode2api v1.4.7
+gateway binary with native free-tier tool calling, adaptive gateway discovery
+(ports 8080/8088), Windows Job anti-zombie supervision, and transparent SOTA
+model rotation on 429 quota limits. See the
+[bilingual v1.0.3 release notes](release-notes-v1.0.3.md).
+
+### Historical release: v1.0.2 (Windows x64)
 
 The v1.0.2 release replaces the retired OpenCode2API gateway with a bundled,
 hash- and provenance-verified Phoenix gateway built from pinned FreeLLMpool
@@ -44,11 +53,12 @@ issue on Windows loopback (`127.0.0.1`) where accumulated ephemeral `dsh-auth-*`
 cookies exceeded Node's 16 KB default header buffer, by adding automatic
 startup/navigation cookie cleanup and extending `--max-http-header-size=65536`.
 
-**Release status:** v1.0.2 is published for Windows x64. The updated setup and
+**Release status:** v1.0.3 is published for Windows x64. The updated setup and
 portable were built and verified; the full test suite and installation smoke
 passed. The last published desktop release was the historical
-[v1.0.0 release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
-See the [bilingual v1.0.2 release notes](release-notes-v1.0.2.md) and
+[v1.0.2 release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.2).
+See the [bilingual v1.0.3 release notes](release-notes-v1.0.3.md), the
+[bilingual v1.0.2 release notes](release-notes-v1.0.2.md) and
 [v1.0.0 history](release-notes-v1.0.0.md).
 
 The DSH runtime `0.2.1-alpha.12` remains a separate first-launch download,
@@ -416,6 +426,7 @@ upstream inventory, hardening and local release policy.
 ## Documentation index
 
 - [Upstream feature inventory](docs/UPSTREAM-FEATURES.md)
+- [v1.0.3 release notes](release-notes-v1.0.3.md)
 - [v1.0.2 release notes](release-notes-v1.0.2.md)
 - [v1.0.0 historical release notes](release-notes-v1.0.0.md)
 - [v0.9.6 release notes](release-notes-v0.9.6.md)

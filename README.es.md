@@ -2,7 +2,16 @@
 
 ![Selector de modelos de FreeCode con Auto Phoenix y modelos gratuitos](docs/assets/app-model-selector.png)
 
-### Release actual: v1.0.2 (Windows x64)
+### Release actual: v1.0.3 (Windows x64)
+
+v1.0.3 está publicada para Windows x64 con instalador NSIS y ejecutable
+portable. Integra el binario de gateway opencode2api v1.4.7 con tool calling
+nativo en el tier gratuito, descubrimiento de gateway adaptativo (puertos
+8080/8088), supervisión Job anti-zombi en Windows y rotación de modelos
+SOTA ante límites de cuota 429. Ver las
+[notas bilingües de la release v1.0.3](release-notes-v1.0.3.md).
+
+### Release histórica: v1.0.2 (Windows x64)
 
 La release v1.0.2 reemplaza el gateway OpenCode2API por Phoenix,
 incluido y verificado por hash/procedencia, compilado desde FreeLLMpool 0.13.0
@@ -47,11 +56,12 @@ acumulación de cookies de autenticación efímeras `dsh-auth-*` que superaban e
 límite de 16 KB de Node.js, mediante purga automática al arrancar/navegar y
 ampliación a `--max-http-header-size=65536`.
 
-**Estado de release:** v1.0.2 está publicada para Windows x64. El setup y el
+**Estado de release:** v1.0.3 está publicada para Windows x64. El setup y el
 portable actualizados se compilaron y verificaron; la instalación y smoke tests
-fueron completados con éxito. La última release desktop publicada fue la histórica
-[v1.0.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0).
-Ver las [notas bilingües de la release v1.0.2](release-notes-v1.0.2.md) y
+fueron completados con éxito. La última release desktop publicada anteriormente fue
+[v1.0.2](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.2).
+Ver las [notas bilingües de la release v1.0.3](release-notes-v1.0.3.md), las
+[notas bilingües de la release v1.0.2](release-notes-v1.0.2.md) y
 el [historial de v1.0.0](release-notes-v1.0.0.md).
 
 El runtime DSH `0.2.1-alpha.12` sigue descargándose por separado en el primer
@@ -414,6 +424,7 @@ hardening and the local release policy.
 ## Índice de documentación
 
 - [Inventario de features upstream](docs/UPSTREAM-FEATURES.md)
+- [Notas de release v1.0.3](release-notes-v1.0.3.md)
 - [Notas de release v1.0.2](release-notes-v1.0.2.md)
 - [Notas históricas de v1.0.0](release-notes-v1.0.0.md)
 - [Notas de la release v0.9.6](release-notes-v0.9.6.md)

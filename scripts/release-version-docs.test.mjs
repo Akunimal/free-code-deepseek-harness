@@ -21,6 +21,24 @@ test('root and shell metadata agree on 1.0.3 and keep the DSH alpha12 runtime pi
   assert.equal(dshCli?.required, true);
 });
 
+test('v1.0.3 bilingual release notes describe opencode2api v1.4.7, supervisor and published status', () => {
+  const notes = read('release-notes-v1.0.3.md');
+  const english = notes.split('## English')[1]?.split('## Español')[0] ?? '';
+  const spanish = notes.split('## Español')[1] ?? '';
+  assert.match(notes, /^# FreeCode DeepSeek Harness v1\.0\.3/m);
+  assert.match(english, /published/i);
+  assert.match(spanish, /publicad[ao]|publica/i);
+  for (const section of [english, spanish]) {
+    assert.match(section, /opencode2api/i);
+    assert.match(section, /1\.4\.7/);
+    assert.match(section, /supervisor/i);
+    assert.match(section, /180[,.]885[,.]139/);
+    assert.match(section, /180[,.]510[,.]015/);
+    assert.match(section, /db08fd0507cca7d21c8dd534d3b3cc1baaac89757a0d8ca3efe470aa09b6ceac/);
+    assert.match(section, /d7172c59f7ba70b0824924c8647a1aa54f4cb55c52e751f09e79bbc2ffaa7309/);
+  }
+});
+
 test('v1.0.1 bilingual release notes describe bundled Phoenix and published status', () => {
   const notes = read('release-notes-v1.0.1.md');
   const english = notes.split('## English')[1]?.split('## Español')[0] ?? '';

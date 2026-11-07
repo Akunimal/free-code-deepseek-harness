@@ -1,6 +1,16 @@
 # Changelog
 
-## 1.0.2 — Local build / Compilación local — 2026-10-23
+## 1.0.3 — Stable / Estable — 2026-11-07
+
+See [bilingual release notes / notas bilingües](release-notes-v1.0.3.md).
+
+- Upgraded opencode2api to v1.4.7 with native tool calling in free tier, ghost tool cleanup, title protection, and WARP Retry-After backoff.
+- Integrated adaptive gateway resolution with automatic port detection (8080/8088) and robust headless supervisor lifecycle management.
+- Transparent fallback model rotation on 429 quota exhaustion with model preservation and per-retry session refresh.
+- Packaged and mounted `dsh-our-free-model` v2.7.3.
+- Windows x64 NSIS setup and portable packages built and verified.
+
+## 1.0.2 — Stable / Estable — 2026-10-23
 
 See [bilingual release notes / notas bilingües](release-notes-v1.0.2.md).
 
