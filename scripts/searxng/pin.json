@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "python": {
+    "version": "3.13.17",
+    "url": "https://www.python.org/ftp/python/3.13.17/python-3.13.17-embed-amd64.zip",
+    "sha256": "9e35319bffedab8b36ad44d8f377cb4f1733bcec257a0b6d04d94f01486ddb38"
+  },
+  "searxng": {
+    "commit": "3a3dd15bf",
+    "url": "https://github.com/searxng/searxng/archive/3a3dd15bf.tar.gz",
+    "sha256": "1a10d9278f9b75aafab368f9f03ebc9bec653390b28091d60f961f325acb52ed"
+  }
+}

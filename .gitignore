@@ -26,6 +26,8 @@ apps/shell/resources/freecode/*
 !apps/shell/resources/freecode/opencode2api/**
 !apps/shell/resources/freecode/oc-gateway/
 !apps/shell/resources/freecode/oc-gateway/**
+!apps/shell/resources/freecode/searxng-search/
+!apps/shell/resources/freecode/searxng-search/**
 apps/shell/release/
 apps/shell/release-*/
 # Local release staging; upload these assets but do not commit binaries.

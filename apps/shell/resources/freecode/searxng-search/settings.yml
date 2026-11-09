@@ -1,0 +1,15 @@
+use_default_settings: true
+
+general:
+  instance_name: 'freecode-searxng'
+
+server:
+  limiter: false
+  public_instance: false
+  image_proxy: false
+
+search:
+  autocomplete: ''
+  formats:
+    - html
+    - json
