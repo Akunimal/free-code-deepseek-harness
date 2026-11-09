@@ -3,6 +3,8 @@ import { SecretStore, resolveSecrets } from './secret-store.js';
 import { join, resolve } from 'node:path';
 import { retireRemovedRuntime } from './retired-runtime.js';
 import { embeddedMcpEnvironment, ensureEmbeddedMcpConfig } from './mcp-home.js';
+import { ensureManagedWebSearch } from './web-search-home.js';
+import { SearxngSidecar } from './searxng-sidecar.js';
 import type { EmbeddedMcpState, McpRuntimeStatus, WorkerHandle } from '@freecode/shared-types';
 import type { OcGatewayInstance } from './oc-gateway.js';
 
@@ -140,6 +142,23 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
       error: error instanceof Error ? error.message : String(error),
     });
   }
+  let searxng: SearxngSidecar | undefined;
+  try {
+    const state = await ensureManagedWebSearch({ homeDir: mcpHome, resourcesDir: cfg.resourcesDir });
+    cfg.log?.('info', 'managed web search configured', { active: state.active, port: state.port });
+    if (state.active && state.port !== undefined) {
+      searxng = new SearxngSidecar({
+        runtimeDir: state.runtimeDir,
+        settingsPath: state.settingsPath,
+        tempDir: state.tempDir,
+        port: state.port,
+        log: cfg.log,
+      });
+    }
+  } catch (error) {
+    // Search must never block startup; DSH then keeps its default provider row.
+    cfg.log?.('warn', 'managed web search skipped', { error: String(error) });
+  }
   const log = cfg.log ? (level: string, msg: string, meta?: Record<string, unknown>) =>
     cfg.log?.(level as 'debug' | 'info' | 'warn' | 'error', msg, meta) : undefined;
 
@@ -206,10 +225,12 @@ export async function createShellRuntime(cfg: ShellRuntimeConfig): Promise<Shell
     },
     start: async () => {
       resetMcpStatus();
+      searxng?.start();
       await supervisor.start();
     },
     stop: async () => {
       await supervisor.stop();
+      await searxng?.stop();
       if (runtimeInstance.ocGateway) {
         await runtimeInstance.ocGateway.stop();
       }
