@@ -18,6 +18,7 @@ export function createReleaseGatePlan({ version, outputDir }) {
     step('release-gate-contract-tests', [
       'exec', 'node', '--test',
       'scripts/release-gate-contract.test.mjs',
+      'scripts/searxng-search-plugin.test.mjs',
       'scripts/nsis-smoke-safety.test.mjs',
       'scripts/release-artifacts.test.mjs',
       'scripts/release-version-docs.test.mjs',
