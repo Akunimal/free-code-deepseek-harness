@@ -1,11 +1,20 @@
 # Release policy
 
-### Current release: v1.0.2 (Windows x64)
+### Current release: v1.0.4 (Windows x64)
 
 Releases are manual and target Windows x64. This policy never authorizes
 touching the maintainer's running FreeCode instance.
 
-**Release status:** v1.0.2 is published for Windows x64. The current setup and
+**Release status:** v1.0.4 is published for Windows x64. The setup, portable
+executable, blockmap and `latest.yml` are published on GitHub Releases; the DSH
+runtime is the `runtime-0.2.1-alpha.13` pre-release. The desktop payload bundles
+the opencode2api v1.4.7 gateway (`oc-gateway`); Phoenix is not part of it.
+
+See the [bilingual release notes](../release-notes-v1.0.4.md).
+
+### Historical release: v1.0.2 (Windows x64)
+
+**Release status:** v1.0.2 is published for Windows x64. The setup and
 portable were built, verified, and published on GitHub Releases. All mandatory
 gates, tests, and installation checks passed. The last published desktop
 release was the historical v1.0.0.
@@ -34,9 +43,9 @@ Explicit GUI actions use the authenticated broker. Native adversarial window,
 descendant and Job-lifetime tests run against the exact staged and packaged
 helper; source strings are not sufficient. See [scope/limits](HEADLESS-DESKTOP.md).
 
-The separate DSH runtime pin is `0.2.1-alpha.12` (ABI 149), currently local and
-unpublished. Its archive/checksum must be published under a separate runtime
-release before the public clean-cache gate; no prior asset is replaced.
+The separate DSH runtime pin is `0.2.1-alpha.13` (ABI 149), published as the
+`runtime-0.2.1-alpha.13` pre-release. Its archive and checksum are published under
+a separate runtime release, verified by the public clean-cache gate; no prior asset is replaced.
 Local tests use the matching archive and preparation script shipped beside
 setup. v0.9.5 published alpha9, v0.9.4 alpha8 and
 v0.9.2 alpha2; they remain history.
@@ -47,7 +56,7 @@ launch. Context windows shown for named Phoenix models use reviewed native
 values when the live gateway supplies none; Auto and dynamic aliases have a
 conservative 32,768-token app cap. Provider-specific route limits can be lower.
 See the bilingual notes for per-model values and sources. The release
-output is `apps/shell/release-1.0.2-final-20261023/`;
+output is `apps/shell/release-1.0.4-final-20261110/`;
 artifact names and SHA-256 values are recorded in the bilingual release
 notes.
 See the [bilingual release notes](../release-notes-v1.0.2.md).
@@ -78,10 +87,10 @@ its deleted temporary install tree.
 
 ## Release contents and pinned runtime
 
-The v1.0.2 desktop release contains the NSIS setup, portable executable,
+The v1.0.4 desktop release contains the NSIS setup, portable executable,
 setup blockmap and `latest.yml`. The separate DSH runtime has an independent
-version: v1.0.2 downloads the exact `0.2.1-alpha.12` Windows x64 runtime from
-the public runtime-0.2.1-alpha.12 pre-release, which also provides its SHA-256 checksum. The release gate
+version: v1.0.4 downloads the exact `0.2.1-alpha.13` Windows x64 runtime from
+the public runtime-0.2.1-alpha.13 pre-release, which also provides its SHA-256 checksum. The release gate
 verifies the pinned local archive and packaged runtime manifest; it never
 rebuilds, removes or replaces that immutable archive. Ordinary `build:desktop`
 packaging also does not run `package:runtime`.
@@ -98,9 +107,9 @@ artifacts into a new, isolated output directory and verify that exact directory:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.2-final-20261023'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.4-final-20261110'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.2-final-20261023
+pnpm verify:desktop-release-assets apps/shell/release-1.0.4-final-20261110
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.4 — Stable / Estable — 2026-11-10
+
+See [bilingual release notes / notas bilingües](release-notes-v1.0.4.md).
+
+- Embedded SearXNG `web_search` provider with a managed loopback proxy.
+- Tool-name bridge for the free model lane (`shell` → `pwsh`) through the opencode2api gateway.
+- Research policy: `web_search` first; the embedded browser opens for specific pages or interaction.
+- DSH runtime `0.2.1-alpha.13` (ABI 149), published as the `runtime-0.2.1-alpha.13` pre-release.
+- Release packaging repaired after the Phoenix retirement: opencode2api kept, vendor pnpm pinned to the vendor version, retired gateway entries rejected.
+- Windows x64 NSIS setup and portable packages with blockmap and `latest.yml`.
+
 ## 1.0.3 — Stable / Estable — 2026-11-07
 
 See [bilingual release notes / notas bilingües](release-notes-v1.0.3.md).

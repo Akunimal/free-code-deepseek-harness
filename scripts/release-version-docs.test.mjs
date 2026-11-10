@@ -143,13 +143,13 @@ test('bilingual 0.9.4 notes identify the published release and retain candidate 
 const activeDocs = ['README.md', 'README.es.md', 'docs/RELEASE.md', 'docs/RELEASE.es.md',
   'docs/RELEASE-POLICY.md', 'docs/RELEASE-POLICY.es.md', 'docs/ROADMAP.md'];
 
-test('active documentation aligns the Phoenix v1.0.2 release, alpha.12 and containment', () => {
+test('active documentation aligns the v1.0.4 release, alpha.13 and containment', () => {
   for (const file of activeDocs) {
     const source = read(file);
-    assert.match(source, /v1\.0\.2/, file);
-    assert.match(source, /0\.2\.1-alpha\.12/, file);
-    assert.match(source, /release-notes-v1\.0\.2\.md/, file);
-    assert.match(source, /release-1\.0\.2-final-20261023/, file);
+    assert.match(source, /v1\.0\.4/, file);
+    assert.match(source, /0\.2\.1-alpha\.13/, file);
+    assert.match(source, /release-notes-v1\.0\.4\.md/, file);
+    assert.match(source, /release-1\.0\.4-final-20261110/, file);
     assert.match(source, /Phoenix/i, file);
     // ROADMAP keeps the historical v0.9.x Tor entries; current docs must not.
     if (file !== 'docs/ROADMAP.md') assert.doesNotMatch(source, /bundled Tor|Tor incluido|tor\.exe/, file);
@@ -179,8 +179,8 @@ test('architecture, contracts and issue ledger describe Phoenix rather than an a
 test('READMEs agree on Phoenix gateway, version, support and first-run network', () => {
   const en = read('README.md');
   const es = read('README.es.md');
-  assert.match(en, /Source version: 1\.0\.2/);
-  assert.match(es, /Versión de la fuente: 1\.0\.2/);
+  assert.match(en, /Source version: 1\.0\.4/);
+  assert.match(es, /Versión de la fuente: 1\.0\.4/);
   assert.match(en, /Windows x64 only/i);
   assert.match(es, /solo Windows x64/i);
   for (const doc of [en, es]) {
@@ -192,7 +192,7 @@ test('READMEs agree on Phoenix gateway, version, support and first-run network',
     assert.match(doc, /pnpm release:gate/);
     assert.match(doc, /pnpm verify:desktop-release-assets/);
     assert.match(doc, /v1\.0\.0[\s\S]{0,80}histor|histor[\s\S]{0,80}v1\.0\.0/i);
-    assert.match(doc, /runtime-0\.2\.1-alpha\.12/);
+    assert.match(doc, /runtime-0\.2\.1-alpha\.13/);
     assert.match(doc, /release|versión|version/i);
     assert.doesNotMatch(doc, /current[^\n]*opencode2api gateway|gateway opencode2api incluido/i);
     assert.doesNotMatch(doc, /start hidden, preventing console flashes|arrancan ocultos: no flashean/);

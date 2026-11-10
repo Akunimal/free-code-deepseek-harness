@@ -1,22 +1,22 @@
 # Known issues / Problemas conocidos
 
 Última sincronización documental / Last documentation sync: 2026-10-21
-Última release desktop publicada / Latest published desktop release: `v1.0.2`
+Última release desktop publicada / Latest published desktop release: `v1.0.4`
 
 ## Estado actual / Current status
 
-Release: `v1.0.2`; DSH `0.2.1-alpha.12` (ABI 149).
-**Estado de release:** v1.0.2 reemplaza OpenCode2API por Phoenix/FreeLLMpool 0.13.0 debido a la inestabilidad de los servicios upstream y la rotación de proxies. Setup y portable se compilaron, verificaron e instalaron con éxito. El gate público y la mitigación de cookies HTTP 431 en loopback fueron completados y probados.
+Release: `v1.0.4`; DSH `0.2.1-alpha.13` (ABI 149).
+**Estado de release:** v1.0.4 agrega búsqueda SearXNG embebida, el puente de nombres de herramientas para el carril gratuito y la política web_search primero, con DSH `0.2.1-alpha.13`. Setup, portable, blockmap y `latest.yml` están en las notas bilingües. v1.0.2 y v1.0.3 quedan como historia.
 
-**Release status:** v1.0.2 replaces OpenCode2API with Phoenix/FreeLLMpool 0.13.0 due to upstream endpoint instability and broken proxy rotation. Setup and portable executables were built, verified, and cleanly installed. The public release gate and HTTP 431 loopback cookie cleanup were completed and tested.
+**Release status:** v1.0.4 adds embedded SearXNG search, the tool-name bridge for the free lane and the web_search-first policy, with DSH `0.2.1-alpha.13`. Setup, portable, blockmap and `latest.yml` are in the bilingual release notes. v1.0.2 and v1.0.3 remain history.
 
-v1.0.2 sólo se soporta Windows x64; Windows ARM64, Linux y macOS no están
-probados ni soportados. Phoenix va empaquetado y verificado en la release. DSH
-alpha.12 sigue como runtime separado que se descarga con SHA-256; hace falta
-Internet si no hay caché válida. Ver [notas de release](../release-notes-v1.0.2.md).
+v1.0.4 sólo se soporta Windows x64; Windows ARM64, Linux y macOS no están
+probados ni soportados. El gateway opencode2api va empaquetado y verificado. DSH
+alpha.13 sigue como runtime separado que se descarga con SHA-256; hace falta
+Internet si no hay caché válida. Ver [notas de release](../release-notes-v1.0.4.md).
 
-v1.0.2 targets Windows x64 only; other platforms are untested/unsupported.
-Phoenix is bundled and verified in the release. DSH alpha.12 remains a
+v1.0.4 targets Windows x64 only; other platforms are untested/unsupported.
+The opencode2api gateway is verified in the release. DSH alpha.13 remains a
 separate SHA-256-verified first-launch download requiring Internet without a
 valid cache. Upstream model availability and optional PATH helpers remain limitations.
 
@@ -30,15 +30,15 @@ Las rutas Phoenix FreeLLMpool dependen de la disponibilidad upstream, límites d
 
 ### KI-002 — Separate first-launch runtime download / Descarga del runtime en el primer inicio
 
-The v1.0.2 setup and portable are verified and published. DSH is separate from
-setup/portable: the current source pins `0.2.1-alpha.12` for Windows x64,
+The v1.0.4 setup and portable are verified and published. DSH is separate from
+setup/portable: the current source pins `0.2.1-alpha.13` for Windows x64,
 downloaded and verified on first launch, then cached per user. Earlier
 v0.9.4/v0.9.5 releases used alpha8/alpha9; those historical assets do not
 satisfy the current pin. Network retrieval is expected when the cache is absent
 and is not by itself evidence of a hang.
 
-El setup y el portable v1.0.2 están verificados y publicados. DSH va separado de
-setup/portable: la fuente actual fija `0.2.1-alpha.12` para Windows x64, que se
+El setup y el portable v1.0.4 están verificados y publicados. DSH va separado de
+setup/portable: la fuente actual fija `0.2.1-alpha.13` para Windows x64, que se
 descarga y verifica al primer inicio y luego se guarda en caché por usuario. Las
 releases anteriores usaban alpha8/alpha9; esos assets históricos no satisfacen el
 pin actual. La descarga cuando falta caché es esperada y no demuestra por sí
@@ -216,6 +216,17 @@ clean-cache gate is still required before publication. This is not a sandbox
 against malicious same-user code, UAC, services or OS brokers.
 
 Implementation and limits: [Windows desktop containment](HEADLESS-DESKTOP.md).
+
+### KI-013 — `execute` and `patch` are not bridged to the free lane / `execute` y `patch` no están puenteadas en el carril gratuito
+
+In v1.0.4 the tool-name bridge maps only the `shell` tool (as `pwsh`) for the
+free model lane. Other tools a free model may call through the gateway, notably
+`execute` and `patch`, are not bridged yet, so those calls can fail on that lane.
+
+En v1.0.4 el puente de nombres solo mapea la tool `shell` (como `pwsh`) en el
+carril de modelos gratuitos. Otras tools que un modelo gratuito puede llamar a
+través del gateway, en particular `execute` y `patch`, todavía no están
+puenteadas, así que esas llamadas pueden fallar en ese carril.
 
 ## Cómo reportar un problema nuevo / How to report a new issue
 

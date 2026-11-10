@@ -1,6 +1,15 @@
 # Release and packaging
 
-### Current release: v1.0.2 (Windows x64)
+### Current release: v1.0.4 (Windows x64)
+
+v1.0.4 publishes the embedded SearXNG `web_search` provider, the tool-name
+bridge for the free model lane (`shell` → `pwsh`) and the web_search-first
+research policy, with DSH runtime `0.2.1-alpha.13`. The desktop payload bundles
+the opencode2api v1.4.7 gateway (`oc-gateway`); Phoenix is not part of it.
+Release notes: [bilingual v1.0.4](../release-notes-v1.0.4.md). Output:
+`apps/shell/release-1.0.4-final-20261110/`.
+
+### Historical release: v1.0.2 (Windows x64)
 
 v1.0.2 replaces the active OpenCode2API gateway with the bundled, pinned
 Phoenix FreeLLMpool 0.13.0 Windows x64 executable. Phoenix ships with its MIT
@@ -18,12 +27,12 @@ Release notes: [bilingual v1.0.2](../release-notes-v1.0.2.md).
 
 ## Current baseline
 
-The source version is 1.0.2. The DSH runtime remains a separate immutable
-`0.2.1-alpha.12` Windows x64 asset (ABI 149), downloaded on first start when
+The source version is 1.0.4. The DSH runtime is a separate immutable
+`0.2.1-alpha.13` Windows x64 asset (ABI 149), downloaded on first start when
 the per-user cache is absent. Its public clean-cache smoke remains mandatory.
-Phoenix is bundled in the desktop payload and is locally receipt/hash checked;
-it is not a separate first-run download. Output is in
-`apps/shell/release-1.0.2-final-20261023/`. Setup/portable sizes
+The desktop payload bundles the opencode2api gateway and the pinned SearXNG
+runtime, both locally receipt/hash checked; Phoenix is not part of the payload. Output is in
+`apps/shell/release-1.0.4-final-20261110/`. Setup/portable sizes
 and hashes are recorded in the bilingual release notes. Older release
 folders, tags and assets are historical and must not be overwritten.
 
@@ -47,9 +56,9 @@ exact artifacts:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.2-final-20261023'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.4-final-20261110'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.2-final-20261023
+pnpm verify:desktop-release-assets apps/shell/release-1.0.4-final-20261110
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
@@ -59,22 +68,23 @@ either artifact. `build:desktop` refuses to replace a non-empty output
 directory unless explicit replacement is enabled. Preserve all previous and
 historical artifacts.
 
-The release artifacts are in `apps/shell/release-1.0.2-final-20261023/`.
+The release artifacts are in `apps/shell/release-1.0.4-final-20261110/`.
 Keep their exact names and hashes aligned with the bilingual
 notes.
 
 ## Runtime dependency policy
 
-The v1.0.2 desktop payload includes Phoenix, Electron, native picker/runtime
-files and Tesseract. `apps/shell/resources/runtime-deps.json` records required
+The v1.0.4 desktop payload includes Electron, opencode2api, SearXNG, native
+picker/runtime files and Tesseract. `apps/shell/resources/runtime-deps.json` records required
 runtime versions, architecture, source, license, SHA-256, launch arguments and
 relative paths. `freellmpool-staging.mjs` verifies the immutable source/toolchain
-pin, build receipt and exact staged bytes before packaging. No OpenCode2API
-binary, adapter, source tree or build pipeline is active or packaged.
+pin, build receipt and exact staged bytes before packaging. This section
+describes v1.0.2; v1.0.4 stages the opencode2api v1.4.7 binary with its own
+build receipt.
 
 The DSH runtime is excluded from setup/portable and fetched separately only on
-first start. Public distribution requires the `runtime-0.2.1-alpha.12` asset and SHA-256;
-that asset is not published yet. Local tests use the matching archive and
+first start. Public distribution requires the `runtime-0.2.1-alpha.13` asset and SHA-256;
+that asset is published as a pre-release. Local tests use the matching archive and
 preparation script beside setup. After publication,
 later starts reuse a verified per-user cache. A missing/invalid runtime or
 failed first-run download must keep DSH stopped and offer Retry/Close. Ordinary
@@ -122,5 +132,5 @@ and [upstream patching](UPSTREAM-PATCHING.md).
 
 The published [v1.0.0 release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0)
 and [its notes](../release-notes-v1.0.0.md) are historical. v1.0.2 is
-published on GitHub Releases.
+published on GitHub Releases, and v1.0.4 follows it.
 See the [Spanish guide](RELEASE.es.md) and [policy](RELEASE-POLICY.md).

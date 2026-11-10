@@ -1,12 +1,21 @@
 # Política de releases
 
-### Release actual: v1.0.2 (Windows x64)
+### Release actual: v1.0.4 (Windows x64)
 
 Las releases son manuales y tienen como target Windows x64. Esta política
 nunca autoriza tocar la instancia activa de FreeCode.
 
+**Estado de release:** v1.0.4 está publicada para Windows x64. El setup, el
+portable, el blockmap y `latest.yml` están en GitHub Releases; el runtime DSH es
+la pre-release `runtime-0.2.1-alpha.13`. El payload desktop incluye el gateway
+opencode2api v1.4.7 (`oc-gateway`); Phoenix no forma parte de él.
+
+Ver las [notas bilingües de release](../release-notes-v1.0.4.md).
+
+### Release histórica: v1.0.2 (Windows x64)
+
 **Estado de release:** v1.0.2 está publicada para Windows x64. El setup y el
-portable actuales se compilaron, verificaron y publicaron en GitHub Releases.
+portable de v1.0.2 se compilaron, verificaron y publicaron en GitHub Releases.
 Todos los gates obligatorios, tests e instalación limpia fueron completados.
 La última release desktop publicada anteriormente fue la histórica v1.0.0.
 
@@ -34,8 +43,8 @@ broker autenticado. Las pruebas nativas adversarias de ventanas/descendientes
 y cierre del Job corren contra el helper exacto preparado y empaquetado;
 los strings de fuente no bastan. Ver [contención y límites](HEADLESS-DESKTOP.md).
 
-El pin separado de DSH es `0.2.1-alpha.12` (ABI 149), local y todavía sin publicar.
-Su tarball y checksum deben publicarse en una release separada del runtime
+El pin separado de DSH es `0.2.1-alpha.13` (ABI 149), publicado como pre-release `runtime-0.2.1-alpha.13`.
+Su tarball y checksum se publican en una pre-release separada del runtime
 antes del gate público de caché vacía. Para la prueba local se usa el archivo
 exacto y el script de preparación que acompañan al setup; no
 se reemplaza ningún asset anterior. v0.9.5 publicó alpha9, v0.9.4 alpha8 y
@@ -48,7 +57,7 @@ identificables usan valores nativos revisados si el gateway en vivo no informa
 uno; Auto y alias dinámicos tienen un límite conservador de 32.768 tokens en la
 app. El proveedor puede aplicar límites de ruta menores. Ver valores y fuentes
 por modelo en las notas bilingües. La salida de release está en
-`apps/shell/release-1.0.2-final-20261023/`; los nombres y SHA-256 de artefactos
+`apps/shell/release-1.0.4-final-20261110/`; los nombres y SHA-256 de artefactos
 figuran en las [notas bilingües de release](../release-notes-v1.0.2.md).
 
 Tras cambiar el source FreeLLMpool fijado o la configuración de build de
@@ -75,9 +84,9 @@ las rutas temporales: `--user-data-dir` de Chromium no redirige por sí solo
 `app.getPath('userData')` de Electron. Sin un perfil privado, el smoke puede
 dejar la config del gateway apuntando a su instalación temporal eliminada.
 
-La release desktop v1.0.2 contiene setup NSIS, portable, blockmap del setup y
-`latest.yml`. El runtime DSH separado tiene versión independiente: v1.0.2
-descarga el runtime Windows x64 exacto `0.2.1-alpha.12` desde la pre-release pública runtime-0.2.1-alpha.12,
+La release desktop v1.0.4 contiene setup NSIS, portable, blockmap del setup y
+`latest.yml`. El runtime DSH separado tiene versión independiente: v1.0.4
+descarga el runtime Windows x64 exacto `0.2.1-alpha.13` desde la pre-release pública runtime-0.2.1-alpha.13,
 que también incluye el checksum SHA-256. El gate verifica el archivo fijado
 local y el manifest empaquetado; nunca vuelve a generar, elimina ni reemplaza
 ese tarball inmutable. El packaging desktop habitual tampoco ejecuta
@@ -96,9 +105,9 @@ nueva y aislada, y verificá exactamente esa carpeta:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.2-final-20261023'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.4-final-20261110'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.2-final-20261023
+pnpm verify:desktop-release-assets apps/shell/release-1.0.4-final-20261110
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 

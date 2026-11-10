@@ -1,6 +1,18 @@
 # Roadmap / Hoja de ruta
 
-### Current release / Release actual: v1.0.2 (Windows x64)
+### Current release / Release actual: v1.0.4 (Windows x64)
+
+v1.0.4 adds an embedded, pinned SearXNG `web_search` provider, a tool-name bridge
+(`shell` → `pwsh`) for the free model lane through the opencode2api gateway, and a
+web_search-first research policy, with DSH `0.2.1-alpha.13`. See the
+[bilingual v1.0.4 release notes](../release-notes-v1.0.4.md).
+
+**Release status / Estado de release:** v1.0.4 is published for Windows x64. The
+release gate, including the empty-cache first-run smoke, must pass before
+publication. / v1.0.4 está publicada para Windows x64. El gate de release, con el
+smoke de primer inicio con caché vacía, debe pasar antes de publicar.
+
+### Historical release / Release histórica: v1.0.2 (Windows x64)
 
 v1.0.2 replaces the active OpenCode2API integration with a
 self-contained Phoenix gateway built from pinned FreeLLMpool 0.13.0. It bundles
@@ -44,10 +56,10 @@ bilingües v1.0.2](../release-notes-v1.0.2.md).
 fueron verificados e instalados exitosamente. La última release desktop publicada
 anteriormente fue la histórica [v1.0.0](../release-notes-v1.0.0.md).
 
-Baseline actual publicada: `v1.0.2`.
-Runtime DSH: `0.2.1-alpha.12`; artefactos de release:
-`apps/shell/release-1.0.2-final-20261023/` (hashes en las notas
-bilingües v1.0.2).
+Baseline actual publicada: `v1.0.4`.
+Runtime DSH: `0.2.1-alpha.13`; artefactos de release:
+`apps/shell/release-1.0.4-final-20261110/` (hashes en las notas
+bilingües v1.0.4).
 
 ## Estrategia de ahorro de contexto / Context-efficiency strategy
 
@@ -62,7 +74,7 @@ RTK and Caveman are not enabled together by default: they may complement each ot
 
 ## En curso / In progress
 
-v1.0.2: source candidate only; setup/portable and public clean-cache DSH gate pending. / Candidata de fuente; setup/portable y gate público de caché vacía DSH pendientes.
+Nothing in progress for the published v1.0.4 release. / Nada en curso para la release v1.0.4 publicada.
 
 ## Completado / Completed
 

@@ -1,6 +1,16 @@
 # Release y packaging
 
-### Release actual: v1.0.2 (Windows x64)
+### Release actual: v1.0.4 (Windows x64)
+
+v1.0.4 publica el proveedor de búsqueda `web_search` con SearXNG embebido, el
+puente de nombres de herramientas del carril gratuito (`shell` → `pwsh`) y la
+política de investigación con web_search primero, con el runtime DSH
+`0.2.1-alpha.13`. El payload desktop incluye el gateway opencode2api v1.4.7
+(`oc-gateway`); Phoenix no forma parte de él. Notas bilingües:
+[v1.0.4](../release-notes-v1.0.4.md). Salida:
+`apps/shell/release-1.0.4-final-20261110/`.
+
+### Release histórica: v1.0.2 (Windows x64)
 
 v1.0.2 reemplaza el gateway activo OpenCode2API por Phoenix FreeLLMpool 0.13.0,
 fijado y empaquetado como ejecutable Windows x64. Phoenix incluye licencia MIT,
@@ -22,13 +32,12 @@ Notas de release: [v1.0.2 bilingües](../release-notes-v1.0.2.md).
 
 ## Baseline actual
 
-La fuente está en versión 1.0.2. El runtime DSH continúa como asset inmutable
-separado `0.2.1-alpha.12` para Windows x64 (ABI 149), que se descarga en el
+La fuente está en versión 1.0.4. El runtime DSH es un asset inmutable separado
+`0.2.1-alpha.13` para Windows x64 (ABI 149), que se descarga en el
 primer inicio cuando no hay caché por usuario válida. Su smoke público con
-caché vacía sigue siendo obligatorio. Phoenix sí viene en el payload desktop
-y se verifica localmente por hash/receipt; no se descarga aparte en el primer
+caché vacía sigue siendo obligatorio. El payload desktop incluye el gateway opencode2api y el runtime SearXNG fijado; Phoenix no viene en él. Ambos se verifican localmente por hash/receipt y no se descargan aparte en el primer
 inicio. La salida está en
-`apps/shell/release-1.0.2-final-20261023/`. Los tamaños y hashes
+`apps/shell/release-1.0.4-final-20261110/`. Los tamaños y hashes
 de setup/portable están en las notas bilingües. Los artefactos, tags y carpetas anteriores
 son historia inmutable y no deben sobrescribirse.
 
@@ -52,9 +61,9 @@ exactos:
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.2-final-20261023'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.4-final-20261110'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.2-final-20261023
+pnpm verify:desktop-release-assets apps/shell/release-1.0.4-final-20261110
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
@@ -64,21 +73,21 @@ ninguno. `build:desktop` no reemplaza una carpeta de salida no vacía salvo que
 se habilite explícitamente. Conservá todos los artefactos anteriores e
 históricos.
 
-Los artefactos actuales de release están en `apps/shell/release-1.0.2-final-20261023/`.
+Los artefactos actuales de release están en `apps/shell/release-1.0.4-final-20261110/`.
 Mantené sus nombres y hashes exactos alineados con las notas bilingües.
 
 ## Política de dependencias runtime
 
-El payload desktop v1.0.2 incluye Phoenix, Electron, archivos nativos del picker
+El payload desktop v1.0.4 incluye Electron, opencode2api, SearXNG, archivos nativos del picker
 y Tesseract. `apps/shell/resources/runtime-deps.json` registra versiones,
 arquitectura, origen, licencia, SHA-256, argumentos de inicio y rutas relativas.
 `freellmpool-staging.mjs` verifica el pin inmutable de fuente/toolchain, receipt
-de build y bytes stageados exactos antes de empaquetar. No queda activo ni se
-empaqueta binario, adaptador, source o pipeline de OpenCode2API.
+de build y bytes stageados exactos antes de empaquetar. Esta sección describe
+v1.0.2; v1.0.4 empaqueta el binario opencode2api v1.4.7 con su propio receipt de build.
 
 El runtime DSH se excluye de setup/portable y solo se obtiene por separado al
-primer inicio. La distribución pública requiere el asset `runtime-0.2.1-alpha.12`
-y su SHA-256, todavía sin publicar. La prueba local usa el archivo exacto y el
+primer inicio. La distribución pública requiere el asset `runtime-0.2.1-alpha.13`
+y su SHA-256, publicado como pre-release. La prueba local usa el archivo exacto y el
 script de preparación junto al setup. Después de publicarse, los
 inicios posteriores reutilizan la caché por usuario validada. Si falta el
 runtime, no es válido o falla la descarga inicial, DSH debe permanecer detenido
@@ -128,4 +137,4 @@ Ver [política de release](RELEASE-POLICY.es.md),
 
 La [release publicada v1.0.0](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0)
 y sus [notas](../release-notes-v1.0.0.md) son historia. v1.0.2 está
-publicada en GitHub Releases. Ver la [guía en inglés](RELEASE.md) y la [política](RELEASE-POLICY.es.md).
+publicada en GitHub Releases; v1.0.4 la sigue. Ver la [guía en inglés](RELEASE.md) y la [política](RELEASE-POLICY.es.md).

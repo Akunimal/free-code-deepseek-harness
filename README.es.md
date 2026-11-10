@@ -2,7 +2,17 @@
 
 ![Selector de modelos de FreeCode con Auto Phoenix y modelos gratuitos](docs/assets/app-model-selector.png)
 
-### Release actual: v1.0.3 (Windows x64)
+### Release actual: v1.0.4 (Windows x64)
+
+v1.0.4 está publicada para Windows x64 con instalador NSIS, ejecutable portable,
+blockmap del setup y `latest.yml`. Agrega un proveedor de búsqueda web SearXNG
+embebido y fijado, un puente de nombres de herramientas que presenta la tool
+`shell` del carril gratuito como `pwsh` hacia el gateway opencode2api y la
+mapea de vuelta, una política de investigación con `web_search` primero, y el
+runtime DSH `0.2.1-alpha.13`. Ver las
+[notas bilingües de la release v1.0.4](release-notes-v1.0.4.md).
+
+### Release histórica: v1.0.3 (Windows x64)
 
 v1.0.3 está publicada para Windows x64 con instalador NSIS y ejecutable
 portable. Integra el binario de gateway opencode2api v1.4.7 con tool calling
@@ -64,23 +74,48 @@ Ver las [notas bilingües de la release v1.0.3](release-notes-v1.0.3.md), las
 [notas bilingües de la release v1.0.2](release-notes-v1.0.2.md) y
 el [historial de v1.0.0](release-notes-v1.0.0.md).
 
-El runtime DSH `0.2.1-alpha.12` sigue descargándose por separado en el primer
-inicio; no viene en setup/portable. Una instalación limpia necesita Internet
-para descargar y verificar ese runtime público exacto. Phoenix sí va incluido
-en el payload desktop y se valida antes de arrancar.
+v1.0.3 usaba el runtime DSH `0.2.1-alpha.12`, descargado por separado en el
+primer inicio; no venía en setup/portable.
 
 La UI de conversación conserva los fondos CSS/ASCII dinámicos inspirados en
 Hermes; son decorativos y no alteran el enrutamiento de modelos ni solicitudes.
 
 Programación primero en Windows: elegí un proyecto, describí el trabajo y dejá
 que el Harness local coordine archivos, herramientas, servidores MCP y llamadas
-a modelos a través de Phoenix.
+a modelos a través del gateway.
 
 [Read this in English](README.md)
 
 ## Español
 
-## Estado actual: v1.0.2 (Windows x64)
+## Estado actual: v1.0.4 (Windows x64)
+
+Versión de la fuente: 1.0.4; runtime DSH fijado: `0.2.1-alpha.13`.
+
+**Estado de release:** publicada para Windows x64. El setup, el portable, el
+blockmap y `latest.yml` están en las
+[notas bilingües de v1.0.4](release-notes-v1.0.4.md).
+
+Qué cambia v1.0.4 respecto de v1.0.3:
+
+- **Búsqueda SearXNG embebida.** Un runtime SearXNG fijado se empaqueta y monta
+  por un proxy loopback administrado. La investigación empieza con `web_search`;
+  el navegador embebido se abre para una página concreta, una interacción o
+  cuando la búsqueda no devuelve fuentes útiles.
+- **Puente de nombres de herramientas.** En el carril de modelos gratuitos, la
+  tool `shell` se presenta al gateway opencode2api como `pwsh` y se mapea de
+  vuelta. `execute` y `patch` todavía no están puenteadas; ver problemas conocidos.
+- **DSH `0.2.1-alpha.13`** (ABI 149), runtime separado e inmutable. En el primer
+  inicio se descarga, se verifican SHA-256, manifest y ABI, y luego se guarda en
+  caché por usuario.
+- El payload desktop incluye el gateway opencode2api v1.4.7 (`oc-gateway`).
+  Phoenix no forma parte de este payload.
+
+Se necesita Internet en el primer inicio sin caché válida del runtime y para los
+proveedores de modelos gratuitos. El smoke de primer inicio con caché vacía del
+gate debe pasar antes de publicar. Solo Windows x64; los binarios no están firmados.
+
+## Estado histórico: v1.0.2 (Windows x64)
 
 Versión de la fuente: 1.0.2; runtime DSH fijado: `0.2.1-alpha.12`.
 
@@ -93,7 +128,7 @@ runtime alpha.12 inmutable y separado. Ver las notas históricas de
 [v1.0.0](release-notes-v1.0.0.md) para el gateway anterior.
 
 La salida desktop actual es
-`apps/shell/release-1.0.2-final-20261023/` e incluye setup NSIS,
+`apps/shell/release-1.0.4-final-20261110/` e incluye setup NSIS,
 ejecutable portable de Windows, blockmap y `latest.yml`. Los hashes estáticos
 exactos están en las [notas bilingües de release](release-notes-v1.0.2.md). El runtime
 alpha.12 es local y no está publicado. El paquete de prueba incluye su tarball,
@@ -171,17 +206,17 @@ modo Gentle AI se eliminaron en 1.0.0; los modos Standard cubren su uso.
 
 ## Instalación y primer uso
 
-1. Descargá el instalador o ejecutable portable desde la [release v1.0.2 de GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.2).
+1. Descargá el instalador o ejecutable portable desde la [release v1.0.4 de GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.4).
 2. Instalalo o descomprimilo y abrí el acceso directo/ejecutable real.
 3. Elegí la carpeta de tu proyecto en el picker.
 4. Esperá a que carguen los modelos free (spinner en el selector) y pedile al
    modelo que inspeccione o modifique el proyecto.
 
-El payload desktop de v1.0.2 incluye Electron, el gateway Phoenix,
-dependencias nativas y Tesseract. Setup y portable fueron verificados y
+El payload desktop de v1.0.4 incluye Electron, el gateway opencode2api,
+runtime SearXNG embebido, dependencias nativas y Tesseract. Setup y portable fueron verificados y
 probados. El runtime DSH grande se distribuye
 como asset separado: en el primer inicio, FreeCode descarga el archivo Windows
-x64 fijado en `0.2.1-alpha.12` (~423 MB), verifica el SHA-256 de GitHub y ABI de
+x64 fijado en `0.2.1-alpha.13` (~423 MB), verifica el SHA-256 de GitHub y ABI de
 Electron, y lo guarda en `<userData>/harness-runtime`. Los arranques siguientes
 reutilizan la caché validada sin conexión. Cualquier primer inicio sin caché
 válida requiere Internet; si falla la descarga o validación, ofrece
@@ -341,7 +376,7 @@ limitado a vendor y fail-closed. No dejes una feature permanente como edición
 directa de `vendor/deepseek-harness`. Ver
 [docs/UPSTREAM-PATCHING.md](docs/UPSTREAM-PATCHING.md).
 
-## Gate local de Windows: v1.0.2
+## Gate local de Windows: v1.0.4
 
 Ejecutá desde PowerShell en Windows x64. El gate no es interactivo en la
 interfaz desktop: compila un paquete NSIS en un directorio temporal único,
@@ -353,14 +388,14 @@ enumera ni termina procesos ajenos.
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.2-final-20261023'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.4-final-20261110'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.2-final-20261023
+pnpm verify:desktop-release-assets apps/shell/release-1.0.4-final-20261110
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 `build:desktop` creó setup y portable en
-`apps/shell/release-1.0.2-final-20261023/`; rechaza reemplazar una carpeta no vacía.
+`apps/shell/release-1.0.4-final-20261110/`; rechaza reemplazar una carpeta no vacía.
 `verify:desktop-release-assets` valida los PE exactos, el blockmap, los metadatos
 del updater y sus hashes sin iniciar ninguno de los ejecutables. El packaging
 desktop no reconstruye ni reemplaza el runtime DSH, que tiene su propia versión.
@@ -369,12 +404,12 @@ se debe subir su versión en el manifest y ejecutar `pnpm package:runtime:releas
 las versiones existentes del runtime son inmutables.
 
 Las builds anteriores del runtime quedan como historia en sus releases.
-El runtime actual es alpha.12; la pre-release `runtime-0.2.1-alpha.12`
+El runtime actual es `0.2.1-alpha.13`; la pre-release `runtime-0.2.1-alpha.13`
 provee el asset verificado correspondiente.
 
 La [release v1.0.0 en GitHub](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0)
-es histórica; v1.0.2 está publicada en GitHub Releases. Los artefactos actuales
-están en `apps/shell/release-1.0.2-final-20261023/`; las carpetas históricas no se sobrescriben.
+es histórica; v1.0.2, v1.0.3 y v1.0.4 están publicadas en GitHub Releases. Los artefactos actuales
+están en `apps/shell/release-1.0.4-final-20261110/`; las carpetas históricas no se sobrescriben.
 El gate no instala ni inicia la GUI de FreeCode. El smoke interactivo instala,
 inicia y desinstala, por lo que solo se permite en una VM Windows desechable;
 no se ejecuta en la workstation ni junto a tu instancia.
@@ -424,6 +459,7 @@ hardening and the local release policy.
 ## Índice de documentación
 
 - [Inventario de features upstream](docs/UPSTREAM-FEATURES.md)
+- [Notas de release v1.0.4](release-notes-v1.0.4.md)
 - [Notas de release v1.0.3](release-notes-v1.0.3.md)
 - [Notas de release v1.0.2](release-notes-v1.0.2.md)
 - [Notas históricas de v1.0.0](release-notes-v1.0.0.md)

@@ -2,7 +2,16 @@
 
 ![FreeCode model selector with Auto Phoenix and free models](docs/assets/app-model-selector.png)
 
-### Current release: v1.0.3 (Windows x64)
+### Current release: v1.0.4 (Windows x64)
+
+v1.0.4 is published for Windows x64 with an NSIS setup installer, a standalone
+portable executable, the setup blockmap and `latest.yml`. It adds an embedded,
+pinned SearXNG web search provider, a tool-name bridge that presents the free
+lane's `shell` tool to the opencode2api gateway as `pwsh`, a web_search-first
+research policy, and DSH runtime `0.2.1-alpha.13`. See the
+[bilingual v1.0.4 release notes](release-notes-v1.0.4.md).
+
+### Historical release: v1.0.3 (Windows x64)
 
 v1.0.3 is published for Windows x64 with an NSIS setup installer and a
 standalone portable executable. It integrates the latest opencode2api v1.4.7
@@ -61,22 +70,46 @@ See the [bilingual v1.0.3 release notes](release-notes-v1.0.3.md), the
 [bilingual v1.0.2 release notes](release-notes-v1.0.2.md) and
 [v1.0.0 history](release-notes-v1.0.0.md).
 
-The DSH runtime `0.2.1-alpha.12` remains a separate first-launch download,
-not part of setup/portable. A fresh install still needs Internet to fetch and
-verify that exact public runtime. Phoenix itself is bundled in the desktop
-payload and checked before startup.
+v1.0.3 used the DSH runtime `0.2.1-alpha.12`, a separate first-launch download
+that is not part of setup/portable.
 
 The conversation UI retains the Hermes-inspired dynamic CSS/ASCII background
 patterns; they are decorative and do not change model or request routing.
 
 Windows-first coding: choose a project, describe the work, and let the local
-Harness coordinate files, tools, MCP servers and Phoenix-backed model calls.
+Harness coordinate files, tools, MCP servers and gateway-backed model calls.
 
 [Leer en español](README.es.md)
 
 ## English
 
-## Current status: v1.0.2 (Windows x64)
+## Current status: v1.0.4 (Windows x64)
+
+Source version: 1.0.4; pinned DSH runtime: `0.2.1-alpha.13`.
+
+**Release status:** published for Windows x64. The setup, portable executable,
+blockmap and `latest.yml` are listed in the
+[bilingual v1.0.4 release notes](release-notes-v1.0.4.md).
+
+What v1.0.4 changes from v1.0.3:
+
+- **Embedded SearXNG search.** A pinned SearXNG runtime is staged and mounted
+  through a managed loopback proxy. Research starts with `web_search`; the
+  embedded browser opens for a specific page, an interaction, or when search
+  returns no usable source.
+- **Tool-name bridge.** For the free model lane, the `shell` tool is presented to
+  the opencode2api gateway as `pwsh` and mapped back. `execute` and `patch` are
+  not bridged yet; see the known issues.
+- **DSH `0.2.1-alpha.13`** (ABI 149), a separate immutable runtime. The first
+  launch downloads it, checks SHA-256, manifest and ABI, then caches it per user.
+- The desktop payload includes the opencode2api v1.4.7 gateway (`oc-gateway`).
+  Phoenix is not part of this payload.
+
+Internet is required for the first launch without a valid runtime cache and for
+the free model providers. The release gate's empty-cache first-run smoke must
+pass before publication. Windows x64 only; binaries are unsigned.
+
+## Historical status: v1.0.2 (Windows x64)
 
 Source version: 1.0.2; pinned DSH runtime: `0.2.1-alpha.12`.
 
@@ -89,7 +122,7 @@ separate immutable alpha.12 runtime asset. See the historical
 [v1.0.0 release notes](release-notes-v1.0.0.md) for the previous gateway.
 
 The updated desktop output is
-`apps/shell/release-1.0.2-final-20261023/` and contains the NSIS
+`apps/shell/release-1.0.4-final-20261110/` and contains the NSIS
 setup, portable Windows executable, setup blockmap and `latest.yml`. Their
 exact static hashes are recorded in the
 [bilingual release notes](release-notes-v1.0.2.md).
@@ -167,17 +200,17 @@ Gentle AI mode were removed in 1.0.0; the Standard modes cover their use.
 
 ## Install and first run
 
-1. Download the [v1.0.2 GitHub release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.2)
+1. Download the [v1.0.4 GitHub release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.4)
    setup installer or standalone portable executable.
 2. Install or unpack it and launch the real shortcut/executable.
 3. Select a project directory in the picker.
 4. Wait for the free models to load (spinner in the selector), then ask the
    model to inspect or change the project.
 
-The v1.0.2 desktop payload includes Electron, the bundled Phoenix
-gateway, native dependencies and Tesseract. Setup and portable are verified
+The v1.0.4 desktop payload includes Electron, the bundled opencode2api
+gateway, the embedded SearXNG runtime, native dependencies and Tesseract. Setup and portable are verified
 and tested. The large DSH runtime is a separate release asset: on first launch,
-FreeCode downloads the pinned `0.2.1-alpha.12` Windows x64 archive (~423 MB),
+FreeCode downloads the pinned `0.2.1-alpha.13` Windows x64 archive (~423 MB),
 verifies GitHub's SHA-256 and Electron ABI, then caches it under
 `<userData>/harness-runtime`. Later starts reuse the verified cache offline.
 Any first launch without a valid cache needs network access; a failed download
@@ -346,7 +379,7 @@ Every product feature must have an owner file, a modular patch or shell-layer
 implementation, a contract test and a replay/idempotence check. See
 [docs/UPSTREAM-PATCHING.md](docs/UPSTREAM-PATCHING.md).
 
-## Windows local release gate: v1.0.2
+## Windows local release gate: v1.0.4
 
 Run from PowerShell on Windows x64. The gate is non-interactive at the desktop
 UI boundary: it builds an NSIS package in a unique temporary directory,
@@ -358,14 +391,14 @@ the recorded child PID tree and never enumerates or kills unrelated processes.
 ```powershell
 pnpm install --frozen-lockfile
 pnpm release:gate
-$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.2-final-20261023'
+$env:FREECODE_RELEASE_OUTPUT = 'release-1.0.4-final-20261110'
 pnpm build:desktop
-pnpm verify:desktop-release-assets apps/shell/release-1.0.2-final-20261023
+pnpm verify:desktop-release-assets apps/shell/release-1.0.4-final-20261110
 Remove-Item Env:FREECODE_RELEASE_OUTPUT
 ```
 
 `build:desktop` created setup and portable artifacts in
-`apps/shell/release-1.0.2-final-20261023/`; it refuses to replace
+`apps/shell/release-1.0.4-final-20261110/`; it refuses to replace
 an existing non-empty folder. `verify:desktop-release-assets` checks the exact PE
 files, setup blockmap, updater metadata and hashes without launching either
 executable. Desktop packaging does not rebuild or replace the separately versioned DSH runtime. Only when the DSH
@@ -373,12 +406,12 @@ runtime itself changes should maintainers bump its manifest version and run
 `pnpm package:runtime:release`; existing runtime versions are immutable.
 
 Previous runtime builds remain historical in their releases.
-The current runtime is local alpha.12. The `runtime-0.2.1-alpha.12`
-release provides the verified public runtime asset.
+The current runtime is `0.2.1-alpha.13`. The `runtime-0.2.1-alpha.13`
+pre-release provides the verified public runtime asset.
 
 The [v1.0.0 GitHub release](https://github.com/Akunimal/free-code-deepseek-harness/releases/tag/v1.0.0)
-is historical; v1.0.2 is published on GitHub Releases. The current release artifacts are in
-`apps/shell/release-1.0.2-final-20261023/`; historical folders are not overwritten.
+is historical; v1.0.2, v1.0.3 and v1.0.4 are published on GitHub Releases. The current release artifacts are in
+`apps/shell/release-1.0.4-final-20261110/`; historical folders are not overwritten.
 The gate does not install or launch the FreeCode GUI. The interactive installer
 smoke installs, launches and uninstalls, so it is only allowed in a disposable
 Windows VM, never on the workstation or beside the user's instance.
@@ -426,6 +459,7 @@ upstream inventory, hardening and local release policy.
 ## Documentation index
 
 - [Upstream feature inventory](docs/UPSTREAM-FEATURES.md)
+- [v1.0.4 release notes](release-notes-v1.0.4.md)
 - [v1.0.3 release notes](release-notes-v1.0.3.md)
 - [v1.0.2 release notes](release-notes-v1.0.2.md)
 - [v1.0.0 historical release notes](release-notes-v1.0.0.md)
