@@ -17,6 +17,18 @@ TMP_BASE="${TMPDIR:-/tmp}"
 STAGE_ROOT="$(mktemp -d "$TMP_BASE/freecode-dsh-stage.XXXXXX")"
 STAGE="$STAGE_ROOT/dsh"
 
+# The vendored workspace pins its own pnpm release. Corepack started from the
+# repository root runs the root's pnpm, which refuses a project pinned to a
+# different release. Run vendor and stage installs with the vendor's pin.
+VENDOR_PNPM_VERSION="$(node -p "String(require(process.argv[1]).packageManager ?? '').replace(/^pnpm@/, '').split('+')[0]" "$VENDOR/package.json")"
+vendor_pnpm() {
+  if [[ "$VENDOR_PNPM_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] && command -v corepack >/dev/null 2>&1; then
+    corepack "pnpm@$VENDOR_PNPM_VERSION" "$@"
+  else
+    pnpm "$@"
+  fi
+}
+
 # Git Bash can report "File too large" while recursively removing generated
 # trees on Windows-mounted volumes, even when the individual files are tiny.
 # Use Node's native filesystem implementation for those cleanup paths on
@@ -92,7 +104,7 @@ fi
 if node "$ROOT/scripts/vendor-runtime-build.mjs" cache-check "$INSTALL_PLATFORM"; then
   echo "package-runtime: reusing completed frozen vendor build dependencies"
 else
-  pnpm --dir "$VENDOR" install --frozen-lockfile --node-linker=hoisted --ignore-scripts
+  vendor_pnpm --dir "$VENDOR" install --frozen-lockfile --node-linker=hoisted --ignore-scripts
 fi
 printf '%s\n' "$INSTALL_PLATFORM" > "$PLATFORM_MARKER"
 if [[ ! -f "$VITE_ROOT_ENTRY" && ! -f "$VITE_WORKSPACE_ENTRY" ]]; then
@@ -152,7 +164,7 @@ if [[ "$TARGET_OS" != "win32" || "$TARGET_CPU" != "x64" ]]; then
   exit 2
 fi
 node -e "const fs=require('node:fs'); const p=process.argv[1]; const os=process.argv[2]; const cpu=process.argv[3]; let s=fs.readFileSync(p,'utf8'); s += '\\nsupportedArchitectures:\\n  os:\\n    - '+os+'\\n  cpu:\\n    - '+cpu+'\\n'; fs.writeFileSync(p,s)" "$STAGE/pnpm-workspace.yaml" "$TARGET_OS" "$TARGET_CPU"
-pnpm --dir "$STAGE" install --frozen-lockfile --node-linker=hoisted --ignore-scripts || true
+vendor_pnpm --dir "$STAGE" install --frozen-lockfile --node-linker=hoisted --ignore-scripts || true
 
 if [[ ! -f "$STAGE/apps/cli/lib/bin.js" ]]; then
   echo "package-runtime: missing apps/cli/lib/bin.js after stage build" >&2
@@ -207,7 +219,9 @@ if [[ "$NATIVE_OK" != "true" ]]; then
 fi
 
 mkdir -p "$OUT"
-remove_tree "$OUT/dsh" "$OUT/opencode2api" "$OUT/gemini-web2api" "$OUT/perplexity-api"
+# opencode2api is a tracked desktop gateway resource that this script does not
+# produce. Never delete it here.
+remove_tree "$OUT/dsh" "$OUT/gemini-web2api" "$OUT/perplexity-api"
 # The stage has already been materialized and native-load verified. Copy only
 # its runtime closure: the pnpm virtual store is not used by Node resolution
 # after materialization and should not enter the installer payload.

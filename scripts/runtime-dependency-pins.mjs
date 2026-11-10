@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 
 function readRequiredFile(path, label) {
   try {
@@ -25,31 +25,17 @@ export function refreshRuntimeDependencyPins(manifest, payloadRoot) {
   }
   const root = resolve(payloadRoot);
   const result = JSON.parse(JSON.stringify(manifest));
+  // The gateway is a tracked desktop resource with its own build receipt. It
+  // is not a runtime dependency, and the retired Phoenix entry must not return.
   if (result.dependencies.some((dependency) => dependency.id === 'opencode2api'
-    || /opencode2api/i.test(dependency.path ?? ''))) {
-    throw new Error('runtime dependency pin refresh: retired OpenCode2API dependencies are forbidden');
+    || dependency.id === 'phoenix'
+    || /opencode2api|freellmpool/i.test(dependency.path ?? ''))) {
+    throw new Error('runtime dependency pin refresh: retired gateway dependencies (OpenCode2API, Phoenix) are forbidden');
   }
-  const phoenix = result.dependencies.find((dependency) => dependency.id === 'phoenix');
   const dsh = result.dependencies.find((dependency) => dependency.id === 'dsh-cli');
-  if (!phoenix?.required || !dsh?.required) {
-    throw new Error('runtime dependency pin refresh: required Phoenix and dsh-cli entries must exist');
+  if (!dsh?.required) {
+    throw new Error('runtime dependency pin refresh: required dsh-cli entry must exist');
   }
-
-  const phoenixPath = resolve(root, phoenix.path);
-  const relativePhoenixPath = relative(root, phoenixPath);
-  if (!relativePhoenixPath || relativePhoenixPath === '..' || relativePhoenixPath.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`)) {
-    throw new Error('runtime dependency pin refresh: Phoenix artifact path must remain inside the payload root');
-  }
-  const phoenixBytes = readRequiredFile(phoenixPath, 'Phoenix FreeLLMpool artifact');
-  const receiptPath = join(dirname(phoenixPath), 'freecode-build-receipt.json');
-  const receipt = JSON.parse(readRequiredFile(receiptPath, 'Phoenix FreeLLMpool build receipt').toString('utf8'));
-  const phoenixVersion = typeof receipt.upstream?.version === 'string' ? receipt.upstream.version.replace(/^v/u, '') : '';
-  if (receipt.schemaVersion !== 1 || !/^\d+\.\d+\.\d+$/u.test(phoenixVersion)
-    || receipt.binarySha256 !== sha256(phoenixBytes)) {
-    throw new Error('runtime dependency pin refresh: Phoenix build receipt is invalid or does not match the artifact');
-  }
-  phoenix.version = phoenixVersion;
-  phoenix.sha256 = sha256(phoenixBytes);
 
   const dshPath = join(root, dsh.path);
   const dshBytes = readRequiredFile(dshPath, 'dsh-cli artifact');

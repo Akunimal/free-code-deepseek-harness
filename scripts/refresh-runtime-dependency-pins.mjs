@@ -10,7 +10,5 @@ const payloadRoot = resolve(process.argv[2] ?? join(root, 'apps/shell/resources/
 const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
 const refreshed = refreshRuntimeDependencyPins(manifest, payloadRoot);
 writeFileSync(manifestPath, `${JSON.stringify(refreshed, null, 2)}\n`, 'utf8');
-for (const id of ['phoenix', 'dsh-cli']) {
-  const dependency = refreshed.dependencies.find((item) => item.id === id);
-  console.log(`refresh-runtime-dependency-pins: ${id} ${dependency.version} sha256=${dependency.sha256}`);
-}
+const dshCli = refreshed.dependencies.find((item) => item.id === 'dsh-cli');
+console.log(`refresh-runtime-dependency-pins: dsh-cli ${dshCli.version} sha256=${dshCli.sha256}`);
