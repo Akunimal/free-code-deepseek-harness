@@ -39,6 +39,26 @@ test('v1.0.3 bilingual release notes describe opencode2api v1.4.7, supervisor an
   }
 });
 
+test('v1.0.4 bilingual release notes identify the published artifacts, runtime and known limits', () => {
+  const notes = read('release-notes-v1.0.4.md');
+  const english = notes.split('## English')[1]?.split('## Español')[0] ?? '';
+  const spanish = notes.split('## Español')[1] ?? '';
+  assert.match(notes, /^# FreeCode DeepSeek Harness v1\.0\.4/m);
+  assert.match(english, /published/i);
+  assert.match(spanish, /publicada/i);
+  for (const section of [english, spanish]) {
+    assert.match(section, /0\.2\.1-alpha\.13/);
+    assert.match(section, /SearXNG/);
+    assert.match(section, /execute/);
+    assert.match(section, /221[,.]244[,.]320/);
+    assert.match(section, /220[,.]869[,.]196/);
+    assert.match(section, /095107dfb7f6daea2eada18508028758b3d5823089df38bbf5a9be1ee6ae9053/);
+    assert.match(section, /4d4734d6bc091b52b93711958e39a0f4d3a2157222ecef1c1323b64442a5f9d2/);
+    assert.match(section, /8225616004c589bdde6ce0c15ca9cd4495a9f99f07cbd91e6406957708da718f/);
+    assert.match(section, /6692be80b258968c09a210bf3a41456e72ae59343a879e9edeee9faf7da9b3b2/);
+  }
+});
+
 test('v1.0.1 bilingual release notes describe bundled Phoenix and published status', () => {
   const notes = read('release-notes-v1.0.1.md');
   const english = notes.split('## English')[1]?.split('## Español')[0] ?? '';
