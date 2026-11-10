@@ -8,6 +8,7 @@ import { createShellRuntime, ShellRuntime } from './runtime.js';
 import { createSecretStore, ensureSecret } from './secret-store.js';
 import { seedProviders } from './provider-seeder.js';
 import { startOcGateway, type OcGatewayInstance, GatewayManager, syncScriptsFromLocalAI, globalGatewayManager } from './oc-gateway.js';
+import { startToolNameBridge, type ToolNameBridge } from './tool-name-bridge.js';
 import { sanitizeAndRetireLegacyPlugins } from './plugin-deployer.js';
 import type { ModelCatalog } from './model-refresher.js';
 import { createModelCatalogRefreshState } from './model-refresh-state.js';
@@ -196,6 +197,7 @@ function installPopupBackstop(): void {
 }
 let tray: Tray | null = null;
 let runtime: ShellRuntime | null = null;
+let toolNameBridge: ToolNameBridge | undefined;
 // Set once the catalog refresher exists; it refreshes the selector after
 // Phoenix model discovery without restarting the local gateway.
 // Shared with the selector so the loading state spans the complete refresh.
@@ -1087,9 +1089,27 @@ app.whenReady().then(async () => {
     appLogger?.logger.error({ error }, 'failed to start oc-gateway');
   }
 
+  if (ocGateway) {
+    const gateway = ocGateway;
+    try {
+      // `baseUrl` can change when the gateway manager fails over, so read it per request.
+      toolNameBridge = await startToolNameBridge({
+        target: () => gateway.baseUrl,
+        log: (level, msg, meta) => {
+          const fn = level === 'error' || level === 'warn' ? level : 'info';
+          appLogger?.logger[fn]?.(meta ?? {}, msg);
+        },
+      });
+      appLogger?.logger.info({ port: toolNameBridge.port }, 'tool-name bridge ready');
+    } catch (error) {
+      // The bridge is an improvement, not a requirement: fall back to the gateway URL.
+      appLogger?.logger.warn({ error: String(error) }, 'tool-name bridge unavailable');
+    }
+  }
+
   seedProviders({
     homeDir: join(userDataDir, 'dsh-home'),
-    ocBaseUrl: ocGateway?.url,
+    ocBaseUrl: toolNameBridge ? `${toolNameBridge.url}/v1` : ocGateway?.url,
     ocModelIds: ocGateway?.modelIds,
   });
 
@@ -1263,6 +1283,7 @@ app.on('before-quit', async (e) => {
       await dialogBridge?.close();
       dialogBridge = null;
       await runtime?.stop();
+      await toolNameBridge?.close();
       await appLogger?.close();
     });
   } catch (err) {
