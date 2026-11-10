@@ -6,13 +6,13 @@ import test from 'node:test';
 const root = resolve(import.meta.dirname, '..');
 const read = (relativePath) => readFileSync(join(root, relativePath), 'utf8');
 
-test('root and shell metadata agree on 1.0.5 and keep the DSH alpha12 runtime pin', () => {
+test('root and shell metadata agree on 1.0.4 and pin the DSH alpha13 runtime', () => {
   const rootVersion = JSON.parse(read('package.json')).version;
   const shellVersion = JSON.parse(read('apps/shell/package.json')).version;
 
-  assert.equal(rootVersion, '1.0.5');
+  assert.equal(rootVersion, '1.0.4');
   assert.equal(shellVersion, rootVersion);
-  assert.equal(JSON.parse(read('apps/shell/harness-runtime.json')).version, '0.2.1-alpha.12');
+  assert.equal(JSON.parse(read('apps/shell/harness-runtime.json')).version, '0.2.1-alpha.13');
   const phoenix = JSON.parse(read('apps/shell/resources/runtime-deps.json')).dependencies
     .find((dependency) => dependency.id === 'phoenix');
   assert.equal(phoenix, undefined);
