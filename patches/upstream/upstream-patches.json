@@ -289,7 +289,7 @@
       "file": "169-freecode-browser-first-policy.patch",
       "order": 169,
       "owner": "freecode",
-      "description": "Prioritize embedded browser evidence over DeepSeek API search in the scoped system prompt",
+      "description": "Prioritize web_search over the embedded browser for web research in the scoped system prompt",
       "seam": "packages/web/tool-web/src/browser.ts",
       "contractTests": [
         "packages/web/tool-web/tests/browser-policy.spec.ts"
